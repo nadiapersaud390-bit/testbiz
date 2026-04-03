@@ -261,6 +261,29 @@
     return now > gate;
   }
 
+  function getAttendanceCache() {
+    try {
+      return JSON.parse(localStorage.getItem('biz_attendance_marks_v1') || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function getTodayAttendance(ytelId) {
+    const todayISO = formatGuyanaDateISO(guyanaTime());
+    const cache = getAttendanceCache();
+    const row = cache[ytelId];
+    if (!row || row.date !== todayISO) return null;
+    return row;
+  }
+
+  function setTodayAttendance(ytelId, status) {
+    const todayISO = formatGuyanaDateISO(guyanaTime());
+    const cache = getAttendanceCache();
+    cache[ytelId] = { date: todayISO, status: status || 'Present' };
+    localStorage.setItem('biz_attendance_marks_v1', JSON.stringify(cache));
+  }
+
   function tickClock() {
     document.getElementById('clock-display').textContent = fmtTime(guyanaTime());
     document.getElementById('late-badge').style.display = checkLate() ? 'inline-block' : 'none';
@@ -311,15 +334,21 @@
         return;
       }
 
-      const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
-      const aData = await aRes.json();
+      const existingMark = getTodayAttendance(ytelId);
+      const attendanceStatus = existingMark ? existingMark.status : status;
 
-      if (!aData.ok) {
-        flashError(input, errEl, btn, 'Attendance marking failed — please try again.');
-        return;
+      if (!existingMark) {
+        const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(attendanceStatus)}`);
+        const aData = await aRes.json();
+
+        if (!aData.ok) {
+          flashError(input, errEl, btn, 'Attendance marking failed — please try again.');
+          return;
+        }
+        setTodayAttendance(ytelId, attendanceStatus);
       }
 
-      showResult(sData, status, ytelId);
+      showResult(sData, attendanceStatus, ytelId);
     } catch (e) {
       flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
