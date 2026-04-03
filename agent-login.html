@@ -93,7 +93,7 @@
     localStorage.setItem('biz_attendance_marks_v1', JSON.stringify(cache));
   }
 
-  function normalizeLunchSlot(lunchRaw) {
+  function normalizeLunchSlot(lunchRaw, shiftRaw) {
     const lunch = String(lunchRaw || '').trim();
     if (!lunch || lunch === '—') return '—';
 
@@ -104,10 +104,15 @@
     let start = Number(m[1]);
     let end = Number(m[2]);
     const meridiem = m[3].toLowerCase();
+    const shift = String(shiftRaw || '').toLowerCase();
 
-    // Roster slots are 1-2, 2-3, 3-4 p.m. Fix leaked 4-5 p.m.
-    if (meridiem === 'p' && start === 4 && end === 5) {
-      return '3-4 p.m';
+    // Some schedule rows are shifted +4h (UTC formatting leak), e.g. "4-5 p.m" instead of "12-1 p.m".
+    if (meridiem === 'p' && /10\s*am\s*-\s*7\s*pm|11\s*am\s*-\s*8\s*pm|9\s*am\s*-\s*6\s*pm/.test(shift) && start >= 4 && start <= 8) {
+      start -= 4;
+      end -= 4;
+      if (start <= 0) start += 12;
+      if (end <= 0) end += 12;
+      return `${start}-${end} p.m`;
     }
 
     return `${start}-${end} ${meridiem}.m`;
@@ -210,7 +215,7 @@
     const now = guyanaTime();
     const clockedAt = fmtTime(now);
     const dateStr = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
-    const lunchSlot = normalizeLunchSlot(data.lunch);
+    const lunchSlot = normalizeLunchSlot(data.lunch, data.shift);
 
     const header = document.getElementById('result-header');
     header.className = 'result-header ' + (late ? 'is-late' : 'is-present');
