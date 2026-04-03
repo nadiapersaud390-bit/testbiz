@@ -199,6 +199,57 @@
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
   }
   function pad(n) { return String(n).padStart(2, '0'); }
+  function formatGuyanaDateISO(d) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Guyana',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(d).reduce((acc, part) => {
+      if (part.type !== 'literal') acc[part.type] = part.value;
+      return acc;
+    }, {});
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+  function getGuyanaWeekday(d) {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Guyana',
+      weekday: 'short'
+    }).format(d);
+  }
+  function isWorkday(weekday) {
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
+  }
+  function toUTCDate(dateStr) {
+    return new Date(`${dateStr}T00:00:00Z`);
+  }
+  function nextWorkday(dateStr) {
+    const d = toUTCDate(dateStr);
+    d.setUTCDate(d.getUTCDate() + 1);
+    while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+  function updateAgentStreak(profile) {
+    const today = guyanaTime();
+    const todayISO = formatGuyanaDateISO(today);
+    const weekday = getGuyanaWeekday(today);
+    const allStreaks = JSON.parse(localStorage.getItem('biz_agent_streaks_v1') || '{}');
+    const current = allStreaks[profile.ytelId] || { streak: 0, lastLoginDate: '' };
+
+    if (isWorkday(weekday)) {
+      if (current.lastLoginDate !== todayISO) {
+        const shouldIncrement = current.lastLoginDate && nextWorkday(current.lastLoginDate) === todayISO;
+        current.streak = shouldIncrement ? (current.streak || 0) + 1 : 1;
+        current.lastLoginDate = todayISO;
+      }
+    } else if (!current.streak) {
+      current.streak = 1;
+    }
+
+    allStreaks[profile.ytelId] = current;
+    localStorage.setItem('biz_agent_streaks_v1', JSON.stringify(allStreaks));
+    return current.streak || 1;
+  }
   function fmtTime(d) {
     const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
     return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
@@ -268,7 +319,7 @@
         return;
       }
 
-      showResult(sData, status);
+      showResult(sData, status, ytelId);
     } catch (e) {
       flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
@@ -284,6 +335,7 @@
     sessionStorage.setItem('bizAdminUnlocked', '1');
     sessionStorage.setItem('bizUserRole', 'admin');
     sessionStorage.removeItem('currentAgentName');
+    sessionStorage.removeItem('currentAgentProfile');
     window.location.href = 'index.html';
   }
 
@@ -295,7 +347,7 @@
     setTimeout(() => input.classList.remove('shake'), 500);
   }
 
-  function showResult(data, status) {
+  function showResult(data, status, ytelId) {
     const late = status === 'Late';
     const now = guyanaTime();
     const clockedAt = fmtTime(now);
@@ -332,6 +384,14 @@
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizUserRole', 'agent');
     sessionStorage.setItem('currentAgentName', data.name || '');
+    const profile = {
+      name: data.name || 'Agent',
+      ytelId: ytelId || '',
+      lunch: data.lunch || '—',
+      shift: data.shift || '—'
+    };
+    profile.streak = updateAgentStreak(profile);
+    sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
     setTimeout(() => {
       window.location.href = 'index.html';
     }, 1200);
