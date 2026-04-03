@@ -1,3 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BIZ Agent Clock-In</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700;900&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at top, #1e293b, #020617 55%);
+      color: #f8fafc;
+      font-family: 'Inter', sans-serif;
+      padding: 18px;
+    }
+    .card {
+      width: 100%;
+      max-width: 520px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(8px);
+      padding: 24px 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    }
+    h1 {
+      margin: 0;
+      text-align: center;
+      font-family: 'Orbitron', sans-serif;
+      letter-spacing: 0.08em;
+      font-size: clamp(20px, 4vw, 28px);
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #38bdf8, #22d3ee, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .sub {
+      margin: 8px 0 18px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'Poppins', sans-serif;
+    }
+    .meta-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    #clock-display {
+      font-family: 'Orbitron', sans-serif;
+      letter-spacing: 0.05em;
+      font-size: 18px;
+      color: #e2e8f0;
+    }
+    #late-badge {
+      display: none;
+      border-radius: 999px;
+      padding: 5px 10px;
+      background: rgba(239,68,68,0.18);
+      border: 1px solid rgba(239,68,68,0.5);
+      color: #fecaca;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: 'Poppins', sans-serif;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #94a3b8;
+      font-size: 11px;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      font-weight: 800;
+      font-family: 'Poppins', sans-serif;
+    }
+    input {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.05);
+      color: #fff;
+      padding: 12px 14px;
+      font-size: 16px;
+      font-family: 'Poppins', sans-serif;
+    }
+    input:focus {
+      outline: 2px solid rgba(34,211,238,0.45);
+      border-color: rgba(34,211,238,0.65);
+    }
+    #admin-password-wrap {
+      display: none;
+      margin-top: 10px;
+    }
+    .err {
+      min-height: 18px;
+      color: #fca5a5;
+      font-size: 12px;
+      margin: 10px 0;
+      text-align: center;
+      font-weight: 700;
+    }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 14px;
+      padding: 13px;
+      font-family: 'Orbitron', sans-serif;
+      letter-spacing: 0.09em;
+      font-weight: 900;
+      text-transform: uppercase;
+      cursor: pointer;
+      color: #082f49;
+      background: linear-gradient(90deg, #22d3ee, #34d399);
+    }
+    button:disabled {
+      opacity: 0.72;
+      cursor: wait;
+    }
+    .shake { animation: shake 0.35s linear; }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-4px); }
+      40% { transform: translateX(4px); }
+      60% { transform: translateX(-3px); }
+      80% { transform: translateX(3px); }
+    }
+    #result-panel { display: none; }
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      border-radius: 14px;
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,0.14);
+    }
+    .result-header.is-present { background: rgba(52,211,153,0.12); }
+    .result-header.is-late { background: rgba(251,113,133,0.12); }
+    #result-emoji { font-size: 24px; }
+    #result-name { font-weight: 900; font-size: 18px; }
+    .result-tag {
+      display: inline-block;
+      margin-top: 2px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .result-tag.present { color: #86efac; }
+    .result-tag.late { color: #fda4af; }
+    #result-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .info-cell {
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(15,23,42,0.5);
+      padding: 10px;
+    }
+    .info-cell.full { grid-column: 1 / -1; }
+    .info-label {
+      color: #94a3b8;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+    .info-value {
+      margin-top: 4px;
+      font-size: 15px;
+      font-weight: 800;
+      color: #f8fafc;
+    }
+    .info-value.ok { color: #86efac; }
+    .info-value.warn { color: #fda4af; }
+    .info-value.leads { color: #7dd3fc; }
+    #stamp {
+      margin-top: 12px;
+      color: #94a3b8;
+      font-size: 12px;
+      text-align: center;
+    }
+    #redirect-note {
+      display: none;
+      margin-top: 10px;
+      text-align: center;
+      color: #cbd5e1;
+      font-size: 12px;
+    }
+    .actions {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+    .actions a, .actions button {
+      width: auto;
+      min-width: 140px;
+      text-align: center;
+      text-decoration: none;
+      border-radius: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(148,163,184,0.3);
+      background: rgba(15,23,42,0.5);
+      color: #e2e8f0;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: 'Poppins', sans-serif;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Agent Clock-In</h1>
+    <p class="sub">Enter your Ytel ID to mark attendance and open the dashboard.</p>
+
+    <div id="login-form">
+      <div class="meta-row">
+        <div id="clock-display">--:--:--</div>
+        <span id="late-badge">Late Window</span>
+      </div>
+
+      <label for="ytel-input">Ytel ID</label>
+      <input id="ytel-input" type="text" inputmode="numeric" autocomplete="off" onkeydown="if(event.key==='Enter')doSubmit()">
+
+      <div id="admin-password-wrap">
+        <label for="admin-password-input">Admin Password</label>
+        <input id="admin-password-input" type="password" autocomplete="off" onkeydown="if(event.key==='Enter')doSubmit()">
+      </div>
+
+      <div class="err" id="err-msg"></div>
+      <button id="submit-btn" type="button" onclick="doSubmit()">Clock In →</button>
+    </div>
+
+    <div id="result-panel">
+      <div id="result-header" class="result-header is-present">
+        <div id="result-emoji">✅</div>
+        <div>
+          <div id="result-name">Agent</div>
+          <div id="result-tag" class="result-tag present">Marked Present</div>
+        </div>
+      </div>
+      <div id="result-info"></div>
+      <div id="stamp"></div>
+    </div>
+
+    <div id="redirect-note">Redirecting to dashboard...</div>
+
+    <div class="actions">
+      <a href="index.html">← Back to Dashboard</a>
+      <button type="button" onclick="doReset()">Reset Form</button>
+    </div>
+  </div>
+
 <script>
   const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
   const SHIFT_HOUR = 10;
@@ -106,7 +374,6 @@
     const meridiem = m[3].toLowerCase();
     const shift = String(shiftRaw || '').toLowerCase();
 
-    // Some schedule rows are shifted +4h (UTC formatting leak), e.g. "4-5 p.m" instead of "12-1 p.m".
     if (meridiem === 'p' && /10\s*am\s*-\s*7\s*pm|11\s*am\s*-\s*8\s*pm|9\s*am\s*-\s*6\s*pm/.test(shift) && start >= 4 && start <= 8) {
       start -= 4;
       end -= 4;
@@ -125,10 +392,34 @@
   tickClock();
   setInterval(tickClock, 1000);
 
+  function setAdminMode(enabled) {
+    const btn = document.getElementById('submit-btn');
+    const adminPasswordWrap = document.getElementById('admin-password-wrap');
+    const adminPasswordInput = document.getElementById('admin-password-input');
+
+    if (enabled) {
+      adminPasswordWrap.style.display = 'block';
+      btn.dataset.mode = 'admin';
+      btn.textContent = 'Admin Log In →';
+      adminPasswordInput.focus();
+      return;
+    }
+
+    adminPasswordWrap.style.display = 'none';
+    adminPasswordInput.value = '';
+    btn.dataset.mode = '';
+    btn.textContent = 'Clock In →';
+  }
+
+  async function fetchJsonOrThrow(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    return res.json();
+  }
+
   async function doSubmit() {
     const input = document.getElementById('ytel-input');
     const adminPasswordInput = document.getElementById('admin-password-input');
-    const adminPasswordWrap = document.getElementById('admin-password-wrap');
     const errEl = document.getElementById('err-msg');
     const btn = document.getElementById('submit-btn');
     const ytelId = input.value.trim();
@@ -146,10 +437,7 @@
 
     if (ytelId === '0000') {
       errEl.textContent = '';
-      adminPasswordWrap.style.display = 'block';
-      btn.dataset.mode = 'admin';
-      btn.textContent = 'Admin Log In →';
-      adminPasswordInput.focus();
+      setAdminMode(true);
       return;
     }
 
@@ -160,8 +448,7 @@
     const status = checkLate() ? 'Late' : 'Present';
 
     try {
-      const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
-      const sData = await sRes.json();
+      const sData = await fetchJsonOrThrow(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
 
       if (!sData.found) {
         flashError(input, errEl, btn, 'Ytel ID not found — double-check your number.');
@@ -172,14 +459,14 @@
       const attendanceStatus = existingMark ? existingMark.status : status;
 
       if (!existingMark) {
-        const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(attendanceStatus)}`);
-        const aData = await aRes.json();
-
-        if (!aData.ok) {
-          flashError(input, errEl, btn, 'Attendance marking failed — please try again.');
-          return;
+        try {
+          const aData = await fetchJsonOrThrow(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(attendanceStatus)}`);
+          if (aData.ok) {
+            setTodayAttendance(ytelId, attendanceStatus);
+          }
+        } catch (attendanceError) {
+          console.warn('Attendance marking failed, allowing login to continue:', attendanceError);
         }
-        setTodayAttendance(ytelId, attendanceStatus);
       }
 
       showResult(sData, attendanceStatus, ytelId);
@@ -266,14 +553,19 @@
     document.getElementById('result-panel').style.display = 'none';
     document.getElementById('redirect-note').style.display = 'none';
     document.getElementById('ytel-input').value = '';
-    document.getElementById('admin-password-input').value = '';
-    document.getElementById('admin-password-wrap').style.display = 'none';
     document.getElementById('err-msg').textContent = '';
     document.getElementById('submit-btn').disabled = false;
-    document.getElementById('submit-btn').dataset.mode = '';
-    document.getElementById('submit-btn').textContent = 'Clock In →';
+    setAdminMode(false);
     document.getElementById('ytel-input').focus();
   }
 
-  window.addEventListener('DOMContentLoaded', () => document.getElementById('ytel-input').focus());
+  window.addEventListener('DOMContentLoaded', () => {
+    const ytelInput = document.getElementById('ytel-input');
+    ytelInput.addEventListener('input', () => {
+      if (ytelInput.value.trim() !== '0000') setAdminMode(false);
+    });
+    ytelInput.focus();
+  });
 </script>
+</body>
+</html>
