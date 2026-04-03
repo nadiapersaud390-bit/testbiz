@@ -126,6 +126,7 @@
       const errorEl = document.getElementById('error');
 
       if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+        sessionStorage.setItem('agentLoggedIn', '1');
         sessionStorage.setItem('bizAdminUnlocked', '1');
         window.location.href = 'index.html';
         return;
