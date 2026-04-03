@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BIZ Berbice — Clock In</title>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700;900&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -17,25 +17,39 @@
       background: var(--bg); font-family: 'Inter', sans-serif;
       color: var(--text); min-height: 100vh;
       display: flex; align-items: center; justify-content: center; padding: 20px;
+      animation: pageFadeIn 0.7s ease-out;
     }
     body::before {
       content: ''; position: fixed; inset: 0; pointer-events: none;
       background:
         repeating-linear-gradient(0deg, transparent, transparent 49px, rgba(255,255,255,0.015) 49px, rgba(255,255,255,0.015) 50px),
-        repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(255,255,255,0.015) 49px, rgba(255,255,255,0.015) 50px);
+        repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(255,255,255,0.015) 49px, rgba(255,255,255,0.015) 50px),
+        radial-gradient(circle at 20% 10%, rgba(250,204,21,0.08), transparent 45%),
+        radial-gradient(circle at 80% 80%, rgba(56,189,248,0.08), transparent 40%);
+      animation: bgPan 18s ease-in-out infinite alternate;
     }
+    @keyframes pageFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes bgPan { from { transform: scale(1) translateX(0); } to { transform: scale(1.03) translateX(-10px); } }
     .card {
       position: relative; z-index: 1; width: 100%; max-width: 400px;
       background: rgba(255,255,255,0.03); border: 1px solid var(--border);
       border-radius: 28px; padding: 40px 30px 36px;
       box-shadow: 0 0 80px rgba(250,204,21,0.05), 0 32px 64px rgba(0,0,0,0.4);
+      animation: cardRise 0.65s ease-out;
+      backdrop-filter: blur(4px);
     }
+    @keyframes cardRise { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
     .logo-ring {
       width: 70px; height: 70px; border-radius: 50%;
       background: linear-gradient(135deg, rgba(250,204,21,0.15), rgba(249,115,22,0.15));
       border: 2px solid rgba(250,204,21,0.3);
       display: flex; align-items: center; justify-content: center;
       margin: 0 auto 18px; font-size: 30px;
+      animation: ringPulse 2.8s ease-in-out infinite;
+    }
+    @keyframes ringPulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(250,204,21,0.25); transform: translateY(0); }
+      50% { box-shadow: 0 0 0 10px rgba(250,204,21,0); transform: translateY(-2px); }
     }
     .brand {
       font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 900;
@@ -49,7 +63,7 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       background-clip: text; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;
     }
-    .subtitle { text-align: center; font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 26px; }
+    .subtitle { text-align: center; font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 26px; font-family: 'Poppins', sans-serif; }
 
     #live-clock {
       background: rgba(255,255,255,0.03); border: 1px solid var(--border);
@@ -64,16 +78,16 @@
       color: var(--red); border-radius: 20px; padding: 3px 8px;
     }
 
-    label { display: block; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 8px; }
+    label { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 8px; font-family: 'Poppins', sans-serif; }
     #ytel-input, #admin-password-input {
       width: 100%; background: rgba(255,255,255,0.05); border: 2px solid var(--border);
       border-radius: 16px; color: var(--text);
-      font-family: 'Orbitron', sans-serif; font-weight: 900;
+      font-family: 'Poppins', sans-serif; font-weight: 700;
       padding: 18px 20px; outline: none; text-align: center;
       transition: border-color 0.2s, box-shadow 0.2s;
       margin-bottom: 6px;
     }
-    #ytel-input { font-size: 2rem; letter-spacing: 0.2em; -moz-appearance: textfield; }
+    #ytel-input { font-size: 2rem; letter-spacing: 0.16em; -moz-appearance: textfield; font-weight: 800; }
     #ytel-input::-webkit-outer-spin-button, #ytel-input::-webkit-inner-spin-button { -webkit-appearance: none; }
     #admin-password-input { font-size: 1rem; letter-spacing: 0.08em; margin-bottom: 10px; }
     #ytel-input:focus, #admin-password-input:focus { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(250,204,21,0.10); }
@@ -87,9 +101,9 @@
       letter-spacing: 0.16em; text-transform: uppercase;
       background: linear-gradient(90deg, var(--gold-dark), var(--gold), #fb923c);
       color: #020617; border: none; cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s; box-shadow: 0 0 30px rgba(250,204,21,0.25);
+      transition: opacity 0.2s, transform 0.1s, box-shadow 0.2s; box-shadow: 0 0 30px rgba(250,204,21,0.25);
     }
-    #submit-btn:hover:not(:disabled) { opacity: 0.9; }
+    #submit-btn:hover:not(:disabled) { opacity: 0.95; box-shadow: 0 0 34px rgba(250,204,21,0.35); }
     #submit-btn:active:not(:disabled) { transform: scale(0.97); }
     #submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
@@ -175,6 +189,7 @@
   </div>
 
 </div>
+
 <script>
   const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
   const SHIFT_HOUR = 10;
@@ -185,6 +200,57 @@
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
   }
   function pad(n) { return String(n).padStart(2, '0'); }
+  function formatGuyanaDateISO(d) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Guyana',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(d).reduce((acc, part) => {
+      if (part.type !== 'literal') acc[part.type] = part.value;
+      return acc;
+    }, {});
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+  function getGuyanaWeekday(d) {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Guyana',
+      weekday: 'short'
+    }).format(d);
+  }
+  function isWorkday(weekday) {
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
+  }
+  function toUTCDate(dateStr) {
+    return new Date(`${dateStr}T00:00:00Z`);
+  }
+  function nextWorkday(dateStr) {
+    const d = toUTCDate(dateStr);
+    d.setUTCDate(d.getUTCDate() + 1);
+    while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+  function updateAgentStreak(profile) {
+    const today = guyanaTime();
+    const todayISO = formatGuyanaDateISO(today);
+    const weekday = getGuyanaWeekday(today);
+    const allStreaks = JSON.parse(localStorage.getItem('biz_agent_streaks_v1') || '{}');
+    const current = allStreaks[profile.ytelId] || { streak: 0, lastLoginDate: '' };
+
+    if (isWorkday(weekday)) {
+      if (current.lastLoginDate !== todayISO) {
+        const shouldIncrement = current.lastLoginDate && nextWorkday(current.lastLoginDate) === todayISO;
+        current.streak = shouldIncrement ? (current.streak || 0) + 1 : 1;
+        current.lastLoginDate = todayISO;
+      }
+    } else if (!current.streak) {
+      current.streak = 1;
+    }
+
+    allStreaks[profile.ytelId] = current;
+    localStorage.setItem('biz_agent_streaks_v1', JSON.stringify(allStreaks));
+    return current.streak || 1;
+  }
   function fmtTime(d) {
     const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
     return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
@@ -254,8 +320,9 @@
         return;
       }
 
-      showResult(sData, status);
+      showResult(sData, status, ytelId);
     } catch (e) {
+      console.error('Error:', e);
       flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
   }
@@ -268,6 +335,9 @@
 
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizAdminUnlocked', '1');
+    sessionStorage.setItem('bizUserRole', 'admin');
+    sessionStorage.removeItem('currentAgentName');
+    sessionStorage.removeItem('currentAgentProfile');
     window.location.href = 'index.html';
   }
 
@@ -279,7 +349,7 @@
     setTimeout(() => input.classList.remove('shake'), 500);
   }
 
-  function showResult(data, status) {
+  function showResult(data, status, ytelId) {
     const late = status === 'Late';
     const now = guyanaTime();
     const clockedAt = fmtTime(now);
@@ -314,6 +384,18 @@
     document.getElementById('redirect-note').style.display = 'block';
 
     sessionStorage.setItem('agentLoggedIn', '1');
+    sessionStorage.setItem('bizUserRole', 'agent');
+    sessionStorage.setItem('currentAgentName', data.name || '');
+    const profile = {
+      name: data.name || 'Agent',
+      ytelId: ytelId || '',
+      team: data.team || 'PR',
+      lunch: data.lunch || '—',
+      shift: data.shift || '—'
+    };
+    profile.streak = updateAgentStreak(profile);
+    sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
+    
     setTimeout(() => {
       window.location.href = 'index.html';
     }, 1200);
