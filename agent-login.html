@@ -3,269 +3,178 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BIZ Agent Clock-In</title>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700;900&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <title>BIZ Berbice — Clock In</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #020617; --border: rgba(255,255,255,0.10);
+      --gold: #facc15; --gold-dark: #ca8a04;
+      --green: #22c55e; --red: #ef4444; --purple: #a855f7;
+      --text: #f1f5f9; --muted: #64748b;
+    }
     body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      background: radial-gradient(circle at top, #1e293b, #020617 55%);
-      color: #f8fafc;
-      font-family: 'Inter', sans-serif;
-      padding: 18px;
+      background: var(--bg); font-family: 'Inter', sans-serif;
+      color: var(--text); min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; pointer-events: none;
+      background:
+        repeating-linear-gradient(0deg, transparent, transparent 49px, rgba(255,255,255,0.015) 49px, rgba(255,255,255,0.015) 50px),
+        repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(255,255,255,0.015) 49px, rgba(255,255,255,0.015) 50px);
     }
     .card {
-      width: 100%;
-      max-width: 520px;
-      border-radius: 22px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(255,255,255,0.04);
-      backdrop-filter: blur(8px);
-      padding: 24px 20px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+      position: relative; z-index: 1; width: 100%; max-width: 400px;
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 28px; padding: 40px 30px 36px;
+      box-shadow: 0 0 80px rgba(250,204,21,0.05), 0 32px 64px rgba(0,0,0,0.4);
+    }
+    .logo-ring {
+      width: 70px; height: 70px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(250,204,21,0.15), rgba(249,115,22,0.15));
+      border: 2px solid rgba(250,204,21,0.3);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 18px; font-size: 30px;
+    }
+    .brand {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 900;
+      text-transform: uppercase; letter-spacing: 0.22em; color: var(--muted);
+      text-align: center; margin-bottom: 4px;
     }
     h1 {
-      margin: 0;
-      text-align: center;
-      font-family: 'Orbitron', sans-serif;
-      letter-spacing: 0.08em;
-      font-size: clamp(20px, 4vw, 28px);
-      text-transform: uppercase;
-      background: linear-gradient(90deg, #38bdf8, #22d3ee, #34d399);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      font-family: 'Orbitron', sans-serif; font-size: clamp(17px,5vw,21px);
+      font-weight: 900; text-align: center;
+      background: linear-gradient(90deg, var(--gold), #fb923c, var(--gold));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;
     }
-    .sub {
-      margin: 8px 0 18px;
-      text-align: center;
-      color: #94a3b8;
-      font-size: 12px;
-      font-weight: 600;
-      font-family: 'Poppins', sans-serif;
+    .subtitle { text-align: center; font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 26px; }
+
+    #live-clock {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 12px; padding: 10px 16px; text-align: center;
+      margin-bottom: 22px; display: flex; align-items: center; justify-content: center; gap: 10px;
     }
-    .meta-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 14px;
-    }
-    #clock-display {
-      font-family: 'Orbitron', sans-serif;
-      letter-spacing: 0.05em;
-      font-size: 18px;
-      color: #e2e8f0;
-    }
+    .clock-flag { font-size: 18px; }
+    .clock-time { font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: 900; color: var(--gold); letter-spacing: 0.06em; }
     #late-badge {
-      display: none;
-      border-radius: 999px;
-      padding: 5px 10px;
-      background: rgba(239,68,68,0.18);
-      border: 1px solid rgba(239,68,68,0.5);
-      color: #fecaca;
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-family: 'Poppins', sans-serif;
+      display: none; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em;
+      background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4);
+      color: var(--red); border-radius: 20px; padding: 3px 8px;
     }
-    label {
-      display: block;
+
+    label { display: block; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 8px; }
+    #ytel-input, #admin-password-input {
+      width: 100%; background: rgba(255,255,255,0.05); border: 2px solid var(--border);
+      border-radius: 16px; color: var(--text);
+      font-family: 'Orbitron', sans-serif; font-weight: 900;
+      padding: 18px 20px; outline: none; text-align: center;
+      transition: border-color 0.2s, box-shadow 0.2s;
       margin-bottom: 6px;
-      color: #94a3b8;
-      font-size: 11px;
-      letter-spacing: 0.11em;
-      text-transform: uppercase;
-      font-weight: 800;
-      font-family: 'Poppins', sans-serif;
     }
-    input {
-      width: 100%;
-      border: 1px solid rgba(255,255,255,0.16);
-      border-radius: 12px;
-      background: rgba(255,255,255,0.05);
-      color: #fff;
-      padding: 12px 14px;
-      font-size: 16px;
-      font-family: 'Poppins', sans-serif;
+    #ytel-input { font-size: 2rem; letter-spacing: 0.2em; -moz-appearance: textfield; }
+    #ytel-input::-webkit-outer-spin-button, #ytel-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    #admin-password-input { font-size: 1rem; letter-spacing: 0.08em; margin-bottom: 10px; }
+    #ytel-input:focus, #admin-password-input:focus { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(250,204,21,0.10); }
+    #ytel-input.shake, #admin-password-input.shake { border-color: var(--red); animation: shake 0.4s ease; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
+    .err { color: var(--red); font-size: 11px; font-weight: 700; text-align: center; min-height: 16px; margin-bottom: 14px; }
+
+    #submit-btn {
+      width: 100%; padding: 18px; border-radius: 16px;
+      font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 13px;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      background: linear-gradient(90deg, var(--gold-dark), var(--gold), #fb923c);
+      color: #020617; border: none; cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s; box-shadow: 0 0 30px rgba(250,204,21,0.25);
     }
-    input:focus {
-      outline: 2px solid rgba(34,211,238,0.45);
-      border-color: rgba(34,211,238,0.65);
+    #submit-btn:hover:not(:disabled) { opacity: 0.9; }
+    #submit-btn:active:not(:disabled) { transform: scale(0.97); }
+    #submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    #result-panel { display: none; animation: fadeUp 0.35s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+
+    .result-box { border-radius: 20px; overflow: hidden; margin-bottom: 14px; }
+    .result-header { padding: 24px 22px 18px; text-align: center; }
+    .result-header.is-present {
+      background: linear-gradient(135deg, rgba(34,197,94,0.14), rgba(21,128,61,0.20));
+      border: 2px solid rgba(34,197,94,0.40); border-bottom: none; border-radius: 20px 20px 0 0;
     }
-    #admin-password-wrap {
-      display: none;
-      margin-top: 10px;
+    .result-header.is-late {
+      background: linear-gradient(135deg, rgba(239,68,68,0.14), rgba(185,28,28,0.20));
+      border: 2px solid rgba(239,68,68,0.40); border-bottom: none; border-radius: 20px 20px 0 0;
     }
-    .err {
-      min-height: 18px;
-      color: #fca5a5;
-      font-size: 12px;
-      margin: 10px 0;
-      text-align: center;
-      font-weight: 700;
-    }
-    button {
-      width: 100%;
-      border: 0;
-      border-radius: 14px;
-      padding: 13px;
-      font-family: 'Orbitron', sans-serif;
-      letter-spacing: 0.09em;
-      font-weight: 900;
-      text-transform: uppercase;
-      cursor: pointer;
-      color: #082f49;
-      background: linear-gradient(90deg, #22d3ee, #34d399);
-    }
-    button:disabled {
-      opacity: 0.72;
-      cursor: wait;
-    }
-    .shake { animation: shake 0.35s linear; }
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      20% { transform: translateX(-4px); }
-      40% { transform: translateX(4px); }
-      60% { transform: translateX(-3px); }
-      80% { transform: translateX(3px); }
-    }
-    #result-panel { display: none; }
-    .result-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-      border-radius: 14px;
-      padding: 10px 12px;
-      border: 1px solid rgba(255,255,255,0.14);
-    }
-    .result-header.is-present { background: rgba(52,211,153,0.12); }
-    .result-header.is-late { background: rgba(251,113,133,0.12); }
-    #result-emoji { font-size: 24px; }
-    #result-name { font-weight: 900; font-size: 18px; }
-    .result-tag {
-      display: inline-block;
-      margin-top: 2px;
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-    .result-tag.present { color: #86efac; }
-    .result-tag.late { color: #fda4af; }
-    #result-info {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .info-cell {
-      border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(15,23,42,0.5);
-      padding: 10px;
-    }
+    .result-emoji { font-size: 42px; margin-bottom: 8px; }
+    .result-name { font-family: 'Orbitron', sans-serif; font-size: clamp(14px,4vw,17px); font-weight: 900; color: white; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .result-tag { display: inline-block; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; border-radius: 20px; padding: 4px 14px; }
+    .result-tag.present { background: rgba(34,197,94,0.2); color: var(--green); border: 1px solid rgba(34,197,94,0.4); }
+    .result-tag.late    { background: rgba(239,68,68,0.2);  color: var(--red);   border: 1px solid rgba(239,68,68,0.4); }
+
+    .result-info { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: rgba(255,255,255,0.06); }
+    .result-header.is-present + .result-info { border: 2px solid rgba(34,197,94,0.40); border-top: none; border-radius: 0 0 20px 20px; overflow: hidden; }
+    .result-header.is-late   + .result-info { border: 2px solid rgba(239,68,68,0.40);  border-top: none; border-radius: 0 0 20px 20px; overflow: hidden; }
+    .info-cell { background: rgba(2,6,23,0.7); padding: 12px 14px; }
     .info-cell.full { grid-column: 1 / -1; }
-    .info-label {
-      color: #94a3b8;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-weight: 700;
+    .info-label { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 3px; }
+    .info-value { font-size: 13px; font-weight: 700; color: white; }
+    .info-value.leads { font-family: 'Orbitron', sans-serif; font-size: 20px; color: #c084fc; }
+    .info-value.ok   { color: var(--green); }
+    .info-value.warn { color: var(--red); }
+
+    .stamp { text-align: center; font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 16px; letter-spacing: 0.04em; line-height: 1.6; }
+
+    #reset-btn {
+      width: 100%; padding: 13px; border-radius: 14px;
+      font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 10px;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+      color: var(--muted); cursor: pointer; transition: all 0.2s;
     }
-    .info-value {
-      margin-top: 4px;
-      font-size: 15px;
-      font-weight: 800;
-      color: #f8fafc;
-    }
-    .info-value.ok { color: #86efac; }
-    .info-value.warn { color: #fda4af; }
-    .info-value.leads { color: #7dd3fc; }
-    #stamp {
-      margin-top: 12px;
-      color: #94a3b8;
-      font-size: 12px;
-      text-align: center;
-    }
-    #redirect-note {
-      display: none;
-      margin-top: 10px;
-      text-align: center;
-      color: #cbd5e1;
-      font-size: 12px;
-    }
-    .actions {
-      margin-top: 14px;
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-    }
-    .actions a, .actions button {
-      width: auto;
-      min-width: 140px;
-      text-align: center;
-      text-decoration: none;
-      border-radius: 12px;
-      padding: 10px 12px;
-      border: 1px solid rgba(148,163,184,0.3);
-      background: rgba(15,23,42,0.5);
-      color: #e2e8f0;
-      font-size: 12px;
-      font-weight: 700;
-      font-family: 'Poppins', sans-serif;
-      cursor: pointer;
-    }
+    #reset-btn:hover { background: rgba(255,255,255,0.08); color: white; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Agent Clock-In</h1>
-    <p class="sub">Enter your Ytel ID to mark attendance and open the dashboard.</p>
+<div class="card">
 
-    <div id="login-form">
-      <div class="meta-row">
-        <div id="clock-display">--:--:--</div>
-        <span id="late-badge">Late Window</span>
-      </div>
+  <div class="logo-ring">🏢</div>
+  <div class="brand">BIZ Level Up — Berbice</div>
+  <h1>Clock In</h1>
+  <p class="subtitle">Enter your Ytel ID — the system handles the rest</p>
+  <p class="subtitle" id="redirect-note" style="display:none;margin-top:-14px;margin-bottom:20px;color:#22c55e;">Login confirmed. Redirecting to dashboard…</p>
 
-      <label for="ytel-input">Ytel ID</label>
-      <input id="ytel-input" type="text" inputmode="numeric" autocomplete="off" onkeydown="if(event.key==='Enter')doSubmit()">
-
-      <div id="admin-password-wrap">
-        <label for="admin-password-input">Admin Password</label>
-        <input id="admin-password-input" type="password" autocomplete="off" onkeydown="if(event.key==='Enter')doSubmit()">
-      </div>
-
-      <div class="err" id="err-msg"></div>
-      <button id="submit-btn" type="button" onclick="doSubmit()">Clock In →</button>
-    </div>
-
-    <div id="result-panel">
-      <div id="result-header" class="result-header is-present">
-        <div id="result-emoji">✅</div>
-        <div>
-          <div id="result-name">Agent</div>
-          <div id="result-tag" class="result-tag present">Marked Present</div>
-        </div>
-      </div>
-      <div id="result-info"></div>
-      <div id="stamp"></div>
-    </div>
-
-    <div id="redirect-note">Redirecting to dashboard...</div>
-
-    <div class="actions">
-      <a href="index.html">← Back to Dashboard</a>
-      <button type="button" onclick="doReset()">Reset Form</button>
-    </div>
+  <div id="live-clock">
+    <span class="clock-flag">🇬🇾</span>
+    <span class="clock-time" id="clock-display">--:-- --</span>
+    <span id="late-badge">⏰ Late Window</span>
   </div>
 
+  <div id="login-form">
+    <label for="ytel-input">Your Ytel ID</label>
+    <input type="number" id="ytel-input" placeholder="e.g. 1055" autocomplete="off" inputmode="numeric" onkeydown="if(event.key==='Enter') doSubmit()" />
+    <div id="admin-password-wrap" style="display:none;">
+      <label for="admin-password-input">Admin Password</label>
+      <input type="password" id="admin-password-input" placeholder="Enter admin password" autocomplete="off" onkeydown="if(event.key==='Enter') doSubmit()" />
+    </div>
+    <p class="err" id="err-msg"></p>
+    <button id="submit-btn" onclick="doSubmit()">Clock In →</button>
+  </div>
+
+  <div id="result-panel">
+    <div class="result-box">
+      <div class="result-header" id="result-header">
+        <div class="result-emoji" id="result-emoji"></div>
+        <div class="result-name" id="result-name"></div>
+        <span class="result-tag" id="result-tag"></span>
+      </div>
+      <div class="result-info" id="result-info"></div>
+    </div>
+    <p class="stamp" id="stamp"></p>
+    <button id="reset-btn" onclick="doReset()">← Clock In Another Agent</button>
+  </div>
+
+</div>
 <script>
   const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
   const SHIFT_HOUR = 10;
@@ -276,57 +185,6 @@
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
   }
   function pad(n) { return String(n).padStart(2, '0'); }
-  function formatGuyanaDateISO(d) {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Guyana',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).formatToParts(d).reduce((acc, part) => {
-      if (part.type !== 'literal') acc[part.type] = part.value;
-      return acc;
-    }, {});
-    return `${parts.year}-${parts.month}-${parts.day}`;
-  }
-  function getGuyanaWeekday(d) {
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Guyana',
-      weekday: 'short'
-    }).format(d);
-  }
-  function isWorkday(weekday) {
-    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
-  }
-  function toUTCDate(dateStr) {
-    return new Date(`${dateStr}T00:00:00Z`);
-  }
-  function nextWorkday(dateStr) {
-    const d = toUTCDate(dateStr);
-    d.setUTCDate(d.getUTCDate() + 1);
-    while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
-    return d.toISOString().slice(0, 10);
-  }
-  function updateAgentStreak(profile) {
-    const today = guyanaTime();
-    const todayISO = formatGuyanaDateISO(today);
-    const weekday = getGuyanaWeekday(today);
-    const allStreaks = JSON.parse(localStorage.getItem('biz_agent_streaks_v1') || '{}');
-    const current = allStreaks[profile.ytelId] || { streak: 0, lastLoginDate: '' };
-
-    if (isWorkday(weekday)) {
-      if (current.lastLoginDate !== todayISO) {
-        const shouldIncrement = current.lastLoginDate && nextWorkday(current.lastLoginDate) === todayISO;
-        current.streak = shouldIncrement ? (current.streak || 0) + 1 : 1;
-        current.lastLoginDate = todayISO;
-      }
-    } else if (!current.streak) {
-      current.streak = 1;
-    }
-
-    allStreaks[profile.ytelId] = current;
-    localStorage.setItem('biz_agent_streaks_v1', JSON.stringify(allStreaks));
-    return current.streak || 1;
-  }
   function fmtTime(d) {
     const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
     return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
@@ -338,53 +196,6 @@
     return now > gate;
   }
 
-  function getAttendanceCache() {
-    try {
-      return JSON.parse(localStorage.getItem('biz_attendance_marks_v1') || '{}');
-    } catch (e) {
-      return {};
-    }
-  }
-
-  function getTodayAttendance(ytelId) {
-    const todayISO = formatGuyanaDateISO(guyanaTime());
-    const cache = getAttendanceCache();
-    const row = cache[ytelId];
-    if (!row || row.date !== todayISO) return null;
-    return row;
-  }
-
-  function setTodayAttendance(ytelId, status) {
-    const todayISO = formatGuyanaDateISO(guyanaTime());
-    const cache = getAttendanceCache();
-    cache[ytelId] = { date: todayISO, status: status || 'Present' };
-    localStorage.setItem('biz_attendance_marks_v1', JSON.stringify(cache));
-  }
-
-  function normalizeLunchSlot(lunchRaw, shiftRaw) {
-    const lunch = String(lunchRaw || '').trim();
-    if (!lunch || lunch === '—') return '—';
-
-    const normalized = lunch.replace(/\s+/g, ' ').replace(/\s*-\s*/g, '-').toLowerCase();
-    const m = normalized.match(/^(\d{1,2})-(\d{1,2})\s*([ap])\.?m\.?$/i);
-    if (!m) return lunch;
-
-    let start = Number(m[1]);
-    let end = Number(m[2]);
-    const meridiem = m[3].toLowerCase();
-    const shift = String(shiftRaw || '').toLowerCase();
-
-    if (meridiem === 'p' && /10\s*am\s*-\s*7\s*pm|11\s*am\s*-\s*8\s*pm|9\s*am\s*-\s*6\s*pm/.test(shift) && start >= 4 && start <= 8) {
-      start -= 4;
-      end -= 4;
-      if (start <= 0) start += 12;
-      if (end <= 0) end += 12;
-      return `${start}-${end} p.m`;
-    }
-
-    return `${start}-${end} ${meridiem}.m`;
-  }
-
   function tickClock() {
     document.getElementById('clock-display').textContent = fmtTime(guyanaTime());
     document.getElementById('late-badge').style.display = checkLate() ? 'inline-block' : 'none';
@@ -392,34 +203,10 @@
   tickClock();
   setInterval(tickClock, 1000);
 
-  function setAdminMode(enabled) {
-    const btn = document.getElementById('submit-btn');
-    const adminPasswordWrap = document.getElementById('admin-password-wrap');
-    const adminPasswordInput = document.getElementById('admin-password-input');
-
-    if (enabled) {
-      adminPasswordWrap.style.display = 'block';
-      btn.dataset.mode = 'admin';
-      btn.textContent = 'Admin Log In →';
-      adminPasswordInput.focus();
-      return;
-    }
-
-    adminPasswordWrap.style.display = 'none';
-    adminPasswordInput.value = '';
-    btn.dataset.mode = '';
-    btn.textContent = 'Clock In →';
-  }
-
-  async function fetchJsonOrThrow(url) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Request failed (${res.status})`);
-    return res.json();
-  }
-
   async function doSubmit() {
     const input = document.getElementById('ytel-input');
     const adminPasswordInput = document.getElementById('admin-password-input');
+    const adminPasswordWrap = document.getElementById('admin-password-wrap');
     const errEl = document.getElementById('err-msg');
     const btn = document.getElementById('submit-btn');
     const ytelId = input.value.trim();
@@ -437,7 +224,10 @@
 
     if (ytelId === '0000') {
       errEl.textContent = '';
-      setAdminMode(true);
+      adminPasswordWrap.style.display = 'block';
+      btn.dataset.mode = 'admin';
+      btn.textContent = 'Admin Log In →';
+      adminPasswordInput.focus();
       return;
     }
 
@@ -448,28 +238,23 @@
     const status = checkLate() ? 'Late' : 'Present';
 
     try {
-      const sData = await fetchJsonOrThrow(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
+      const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
+      const sData = await sRes.json();
 
       if (!sData.found) {
         flashError(input, errEl, btn, 'Ytel ID not found — double-check your number.');
         return;
       }
 
-      const existingMark = getTodayAttendance(ytelId);
-      const attendanceStatus = existingMark ? existingMark.status : status;
+      const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
+      const aData = await aRes.json();
 
-      if (!existingMark) {
-        try {
-          const aData = await fetchJsonOrThrow(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(attendanceStatus)}`);
-          if (aData.ok) {
-            setTodayAttendance(ytelId, attendanceStatus);
-          }
-        } catch (attendanceError) {
-          console.warn('Attendance marking failed, allowing login to continue:', attendanceError);
-        }
+      if (!aData.ok) {
+        flashError(input, errEl, btn, 'Attendance marking failed — please try again.');
+        return;
       }
 
-      showResult(sData, attendanceStatus, ytelId);
+      showResult(sData, status);
     } catch (e) {
       flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
@@ -483,9 +268,6 @@
 
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizAdminUnlocked', '1');
-    sessionStorage.setItem('bizUserRole', 'admin');
-    sessionStorage.removeItem('currentAgentName');
-    sessionStorage.removeItem('currentAgentProfile');
     window.location.href = 'index.html';
   }
 
@@ -497,12 +279,11 @@
     setTimeout(() => input.classList.remove('shake'), 500);
   }
 
-  function showResult(data, status, ytelId) {
+  function showResult(data, status) {
     const late = status === 'Late';
     const now = guyanaTime();
     const clockedAt = fmtTime(now);
     const dateStr = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
-    const lunchSlot = normalizeLunchSlot(data.lunch, data.shift);
 
     const header = document.getElementById('result-header');
     header.className = 'result-header ' + (late ? 'is-late' : 'is-present');
@@ -515,7 +296,7 @@
     const cells = [
       { label: 'Team', value: data.team || '—', cls: '' },
       { label: 'Shift', value: data.shift || '—', cls: late ? 'warn' : 'ok' },
-      { label: 'Lunch Slot', value: lunchSlot, cls: '' },
+      { label: 'Lunch Slot', value: data.lunch || '—', cls: '' },
       { label: 'Clocked In', value: clockedAt, cls: late ? 'warn' : 'ok' },
     ];
     if (data.weekLead !== null && data.weekLead !== undefined) {
@@ -533,16 +314,6 @@
     document.getElementById('redirect-note').style.display = 'block';
 
     sessionStorage.setItem('agentLoggedIn', '1');
-    sessionStorage.setItem('bizUserRole', 'agent');
-    sessionStorage.setItem('currentAgentName', data.name || '');
-    const profile = {
-      name: data.name || 'Agent',
-      ytelId: ytelId || '',
-      lunch: lunchSlot,
-      shift: data.shift || '—'
-    };
-    profile.streak = updateAgentStreak(profile);
-    sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
     setTimeout(() => {
       window.location.href = 'index.html';
     }, 1200);
@@ -553,19 +324,16 @@
     document.getElementById('result-panel').style.display = 'none';
     document.getElementById('redirect-note').style.display = 'none';
     document.getElementById('ytel-input').value = '';
+    document.getElementById('admin-password-input').value = '';
+    document.getElementById('admin-password-wrap').style.display = 'none';
     document.getElementById('err-msg').textContent = '';
     document.getElementById('submit-btn').disabled = false;
-    setAdminMode(false);
+    document.getElementById('submit-btn').dataset.mode = '';
+    document.getElementById('submit-btn').textContent = 'Clock In →';
     document.getElementById('ytel-input').focus();
   }
 
-  window.addEventListener('DOMContentLoaded', () => {
-    const ytelInput = document.getElementById('ytel-input');
-    ytelInput.addEventListener('input', () => {
-      if (ytelInput.value.trim() !== '0000') setAdminMode(false);
-    });
-    ytelInput.focus();
-  });
+  window.addEventListener('DOMContentLoaded', () => document.getElementById('ytel-input').focus());
 </script>
 </body>
 </html>
