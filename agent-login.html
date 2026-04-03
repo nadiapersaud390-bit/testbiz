@@ -189,7 +189,6 @@
   </div>
 
 </div>
-
 <script>
   const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
   const SHIFT_HOUR = 10;
@@ -322,7 +321,6 @@
 
       showResult(sData, status, ytelId);
     } catch (e) {
-      console.error('Error:', e);
       flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
   }
@@ -389,13 +387,11 @@
     const profile = {
       name: data.name || 'Agent',
       ytelId: ytelId || '',
-      team: data.team || 'PR',
       lunch: data.lunch || '—',
       shift: data.shift || '—'
     };
     profile.streak = updateAgentStreak(profile);
     sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
-    
     setTimeout(() => {
       window.location.href = 'index.html';
     }, 1200);

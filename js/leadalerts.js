@@ -1,3 +1,4 @@
+let prevLeadCounts = {};
 let leadAlertInitialized = false;
 let alertViewerName = '';
 const PRIVATE_ALERT_MESSAGES = [
