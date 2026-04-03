@@ -295,7 +295,7 @@ const FIRST_LEAD_MESSAGES = [
   "First one down, let's see how many more you can stack today! 🃏",
   "The scoreboard is alive! First transfer of the shift is yours! ⚡",
   "First lead secured — you just told the day who's boss! 😤",
-  "Off to the races! First one in the books! 🏁",
+  "Off to the races! First one in the books! ",
   "First transfer of the day — the energy is set, now match it! 🔋",
   "Day one lead secured! You didn't come here to sit still! 🚀",
   "First of many today — that's the mindset, keep it locked! 🔒",
@@ -404,6 +404,18 @@ const THREE_PLUS_LEAD_MESSAGES = [
 
 let prevLeadCounts = {};
 let leadAlertInitialized = false;
+let alertViewerName = '';
+const PRIVATE_ALERT_MESSAGES = [
+  "Great transfer! Keep your momentum going. 🔥",
+  "You're doing excellent work — stay focused and keep dialing. ⚡",
+  "Strong result just now. Keep that same energy! 💪",
+  "Nice job! Keep pushing and finish the shift strong. 🚀",
+  "Beautiful execution on that call — keep it rolling. 🎯"
+];
+
+function normalizeName(name) {
+  return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
 
 function getFirstName(fullName) {
   if (!fullName) return 'Rep';
@@ -414,6 +426,8 @@ function getFirstName(fullName) {
 
 function checkLeadAlerts(newAgents) {
   if (!newAgents || !newAgents.length) return;
+  const viewerRole = sessionStorage.getItem('bizUserRole') || 'agent';
+  alertViewerName = normalizeName(sessionStorage.getItem('currentAgentName'));
 
   // Use berbiceTracker if available, else fall back to BB dailyLeads
   const tracker = (newAgents[0] && newAgents[0].berbiceTracker) || {};
@@ -440,31 +454,19 @@ function checkLeadAlerts(newAgents) {
     if (c > prev) newReps.push({ name, count: c, isFirst: prev === 0 });
     prevLeadCounts[name] = c;
   });
+
+  if (viewerRole !== 'admin') {
+    if (!alertViewerName) return;
+    newReps.splice(0, newReps.length, ...newReps.filter(rep => normalizeName(rep.name) === alertViewerName));
+  }
   if (!newReps.length) return;
 
   if (newReps.length === 1) {
-    const { name, count, isFirst } = newReps[0];
+    const { name, isFirst } = newReps[0];
     const firstName = getFirstName(name);
     const quote = LEAD_ALERT_QUOTES[Math.floor(Math.random() * LEAD_ALERT_QUOTES.length)];
-    if (isFirst) {
-      const msg = FIRST_LEAD_MESSAGES[Math.floor(Math.random() * FIRST_LEAD_MESSAGES.length)];
-      _renderAlert({ icon: '🥇', name: firstName + ' is on the board!', msg, quote, firstLead: true });
-    } else if (count === 2) {
-      const msg = TWO_LEAD_MESSAGES[Math.floor(Math.random() * TWO_LEAD_MESSAGES.length)];
-      _renderAlert({ icon: '✌️', name: firstName + ' with 2 leads!', msg, quote, firstLead: false });
-    } else if (count >= 3 && count <= 5) {
-      const msg = THREE_PLUS_LEAD_MESSAGES[Math.floor(Math.random() * THREE_PLUS_LEAD_MESSAGES.length)];
-      _renderAlert({ icon: '🔥', name: firstName + ' — ' + count + ' leads today!', msg, quote, firstLead: false });
-    } else if (count >= 6 && count < 12) {
-      const msg = THREE_PLUS_LEAD_MESSAGES[Math.floor(Math.random() * THREE_PLUS_LEAD_MESSAGES.length)];
-      _renderAlert({ icon: '💥', name: firstName + ' is on FIRE — ' + count + ' leads!', msg, quote, firstLead: false });
-    } else if (count >= 12) {
-      const msg = THREE_PLUS_LEAD_MESSAGES[Math.floor(Math.random() * THREE_PLUS_LEAD_MESSAGES.length)];
-      _renderAlert({ icon: '👑', name: firstName + ' — MASTER STATUS! ' + count + ' leads!', msg, quote, firstLead: true });
-    } else {
-      const msg = LEAD_ALERT_MESSAGES[Math.floor(Math.random() * LEAD_ALERT_MESSAGES.length)];
-      _renderAlert({ icon: '🔥', name: 'Good Job, ' + firstName + '!', msg, quote, firstLead: false });
-    }
+    const msg = PRIVATE_ALERT_MESSAGES[Math.floor(Math.random() * PRIVATE_ALERT_MESSAGES.length)];
+    _renderAlert({ icon: isFirst ? '🥇' : '🔥', name: 'Great job, ' + firstName + '!', msg, quote, firstLead: isFirst });
   } else {
     const hasFirstLeads = newReps.some(r => r.isFirst);
     const names = newReps.map(r => getFirstName(r.name));
@@ -501,4 +503,3 @@ function dismissLeadAlert() {
 
 updateDashboard();
 setInterval(updateDashboard,30000);
-
