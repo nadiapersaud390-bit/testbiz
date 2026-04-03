@@ -31,7 +31,7 @@
           '<span><strong style="color:#94a3b8;">Ytel:</strong> ' + escapeHtml(profile.ytelId || '—') + '</span>' +
           '<span><strong style="color:#94a3b8;">Lunch:</strong> ' + escapeHtml(profile.lunch || '—') + '</span>' +
           '<span><strong style="color:#94a3b8;">Shift:</strong> ' + escapeHtml(profile.shift || '—') + '</span>' +
-          '<span><strong style="color:#94a3b8;">Streak:</strong> ' + escapeHtml(profile.streak || 1) + '</span>' +
+          '<span><strong style="color:#94a3b8;">Streak:</strong> 🔥 +' + escapeHtml(profile.streak || 1) + '</span>' +
         '</div>' +
       '</div>';
   }
