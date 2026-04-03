@@ -11,6 +11,11 @@
 </head>
 <body class="p-4 pb-20">
 
+    <script>
+if (sessionStorage.getItem('agentLoggedIn') !== '1') {
+    window.location.replace('agent-login.html');
+}
+</script>
 
 <!-- ===== FIREBASE SDK ===== -->
 <script type="module" src="js/firebase.js"></script>
