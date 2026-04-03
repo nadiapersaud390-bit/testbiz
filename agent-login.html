@@ -1,3 +1,75 @@
+<script>
+  const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
+  const SHIFT_HOUR = 10;
+  const SHIFT_MINUTE = 0;
+  const GRACE_MINUTES = 15;
+
+  function guyanaTime() {
+    return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+  }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function formatGuyanaDateISO(d) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Guyana',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(d).reduce((acc, part) => {
+      if (part.type !== 'literal') acc[part.type] = part.value;
+      return acc;
+    }, {});
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+  function getGuyanaWeekday(d) {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Guyana',
+      weekday: 'short'
+    }).format(d);
+  }
+  function isWorkday(weekday) {
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
+  }
+  function toUTCDate(dateStr) {
+    return new Date(`${dateStr}T00:00:00Z`);
+  }
+  function nextWorkday(dateStr) {
+    const d = toUTCDate(dateStr);
+    d.setUTCDate(d.getUTCDate() + 1);
+    while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+  function updateAgentStreak(profile) {
+    const today = guyanaTime();
+    const todayISO = formatGuyanaDateISO(today);
+    const weekday = getGuyanaWeekday(today);
+    const allStreaks = JSON.parse(localStorage.getItem('biz_agent_streaks_v1') || '{}');
+    const current = allStreaks[profile.ytelId] || { streak: 0, lastLoginDate: '' };
+
+    if (isWorkday(weekday)) {
+      if (current.lastLoginDate !== todayISO) {
+        const shouldIncrement = current.lastLoginDate && nextWorkday(current.lastLoginDate) === todayISO;
+        current.streak = shouldIncrement ? (current.streak || 0) + 1 : 1;
+        current.lastLoginDate = todayISO;
+      }
+    } else if (!current.streak) {
+      current.streak = 1;
+    }
+
+    allStreaks[profile.ytelId] = current;
+    localStorage.setItem('biz_agent_streaks_v1', JSON.stringify(allStreaks));
+    return current.streak || 1;
+  }
+  function fmtTime(d) {
+    const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
+    return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
+  }
+  function checkLate() {
+    const g = guyanaTime();
+    const now = g.getHours() * 60 + g.getMinutes();
+    const gate = SHIFT_HOUR * 60 + SHIFT_MINUTE + GRACE_MINUTES;
+    return now > gate;
+  }
+
   function getAttendanceCache() {
     try {
       return JSON.parse(localStorage.getItem('biz_attendance_marks_v1') || '{}');
@@ -32,14 +104,21 @@
     let start = Number(m[1]);
     let end = Number(m[2]);
     const meridiem = m[3].toLowerCase();
-    // BIZ roster lunch windows are 1-2, 2-3, or 3-4 p.m.
-    // If the API leaks a +1 hour shift (e.g. 4-5 p.m), pull it back into roster windows.
+
+    // Roster slots are 1-2, 2-3, 3-4 p.m. Fix leaked 4-5 p.m.
     if (meridiem === 'p' && start === 4 && end === 5) {
       return '3-4 p.m';
     }
 
     return `${start}-${end} ${meridiem}.m`;
   }
+
+  function tickClock() {
+    document.getElementById('clock-display').textContent = fmtTime(guyanaTime());
+    document.getElementById('late-badge').style.display = checkLate() ? 'inline-block' : 'none';
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
 
   async function doSubmit() {
     const input = document.getElementById('ytel-input');
@@ -104,6 +183,28 @@
     }
   }
 
+  function doAdminLogin(adminPasswordInput, errEl, btn) {
+    if (adminPasswordInput.value !== 'admin') {
+      flashError(adminPasswordInput, errEl, btn, 'Incorrect admin password.');
+      return;
+    }
+
+    sessionStorage.setItem('agentLoggedIn', '1');
+    sessionStorage.setItem('bizAdminUnlocked', '1');
+    sessionStorage.setItem('bizUserRole', 'admin');
+    sessionStorage.removeItem('currentAgentName');
+    sessionStorage.removeItem('currentAgentProfile');
+    window.location.href = 'index.html';
+  }
+
+  function flashError(input, errEl, btn, msg) {
+    input.classList.add('shake');
+    errEl.textContent = msg;
+    btn.disabled = false;
+    btn.textContent = btn.dataset.mode === 'admin' ? 'Admin Log In →' : 'Clock In →';
+    setTimeout(() => input.classList.remove('shake'), 500);
+  }
+
   function showResult(data, status, ytelId) {
     const late = status === 'Late';
     const now = guyanaTime();
@@ -154,3 +255,20 @@
       window.location.href = 'index.html';
     }, 1200);
   }
+
+  function doReset() {
+    document.getElementById('login-form').style.display = 'block';
+    document.getElementById('result-panel').style.display = 'none';
+    document.getElementById('redirect-note').style.display = 'none';
+    document.getElementById('ytel-input').value = '';
+    document.getElementById('admin-password-input').value = '';
+    document.getElementById('admin-password-wrap').style.display = 'none';
+    document.getElementById('err-msg').textContent = '';
+    document.getElementById('submit-btn').disabled = false;
+    document.getElementById('submit-btn').dataset.mode = '';
+    document.getElementById('submit-btn').textContent = 'Clock In →';
+    document.getElementById('ytel-input').focus();
+  }
+
+  window.addEventListener('DOMContentLoaded', () => document.getElementById('ytel-input').focus());
+</script>
