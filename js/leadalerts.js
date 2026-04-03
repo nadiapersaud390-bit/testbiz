@@ -417,6 +417,22 @@ function normalizeName(name) {
   return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function trimTeamPrefix(name) {
+  const parts = String(name || '').trim().split(/\s+/);
+  if (parts.length <= 1) return String(name || '').trim();
+  const first = parts[0].toUpperCase();
+  if (/^[A-Z]{2,4}$/.test(first) || /^GY[BP]$/.test(first)) return parts.slice(1).join(' ');
+  return String(name || '').trim();
+}
+
+function isSameAgentName(a, b) {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  return normalizeName(trimTeamPrefix(a)) === normalizeName(trimTeamPrefix(b));
+}
+
 function getFirstName(fullName) {
   if (!fullName) return 'Rep';
   const parts = fullName.trim().split(/\s+/);
@@ -427,22 +443,46 @@ function getFirstName(fullName) {
 function checkLeadAlerts(newAgents) {
   if (!newAgents || !newAgents.length) return;
   const viewerRole = sessionStorage.getItem('bizUserRole') || 'agent';
-  alertViewerName = normalizeName(sessionStorage.getItem('currentAgentName'));
+  const sessionName = sessionStorage.getItem('currentAgentName');
+  let profileName = '';
+  try {
+    const profile = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}');
+    profileName = profile && profile.name ? profile.name : '';
+  } catch (e) {}
+  alertViewerName = normalizeName(sessionName || profileName);
 
-  // Use berbiceTracker if available, else fall back to BB dailyLeads
+  // Start from tracker data if available, then merge in per-agent daily totals as fallback.
   const tracker = (newAgents[0] && newAgents[0].berbiceTracker) || {};
-  let snapshot = Object.keys(tracker).length ? tracker : {};
-  if (!Object.keys(snapshot).length) {
-    newAgents.forEach(a => {
-      if ((a.team || getTeam(a.name)) === 'PR') snapshot[a.name] = a.dailyLeads || 0;
-    });
-  }
+  let snapshot = Object.keys(tracker).length ? { ...tracker } : {};
+  newAgents.forEach(a => {
+    if (!a || !a.name) return;
+    if (snapshot[a.name] === undefined || snapshot[a.name] === null) {
+      snapshot[a.name] = a.dailyLeads || 0;
+    }
+  });
   if (!Object.keys(snapshot).length) return;
 
-  // First load — store silently, no alerts
+  // First load — initialize previous counts, but give each agent their own login-time status banner.
   if (!leadAlertInitialized) {
     Object.entries(snapshot).forEach(([n, c]) => { prevLeadCounts[n] = c; });
     leadAlertInitialized = true;
+
+    if (viewerRole !== 'admin' && alertViewerName) {
+      const ownEntry = Object.entries(snapshot).find(([name]) => isSameAgentName(name, alertViewerName));
+      const ownCount = ownEntry ? (Number(ownEntry[1]) || 0) : 0;
+      if (ownCount > 0) {
+        const firstName = getFirstName(ownEntry[0]);
+        const quote = LEAD_ALERT_QUOTES[Math.floor(Math.random() * LEAD_ALERT_QUOTES.length)];
+        const plural = ownCount === 1 ? '' : 's';
+        _renderAlert({
+          icon: ownCount === 1 ? '🥇' : '🔥',
+          name: 'Welcome back, ' + firstName + '!',
+          msg: 'You currently have ' + ownCount + ' lead' + plural + ' today. Keep going!',
+          quote,
+          firstLead: ownCount === 1
+        });
+      }
+    }
     return;
   }
 
@@ -457,7 +497,7 @@ function checkLeadAlerts(newAgents) {
 
   if (viewerRole !== 'admin') {
     if (!alertViewerName) return;
-    newReps.splice(0, newReps.length, ...newReps.filter(rep => normalizeName(rep.name) === alertViewerName));
+    newReps.splice(0, newReps.length, ...newReps.filter(rep => isSameAgentName(rep.name, alertViewerName)));
   }
   if (!newReps.length) return;
 
