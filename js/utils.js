@@ -1,0 +1,20 @@
+function timeAgo(date){const m=Math.floor((Date.now()-date.getTime())/60000);if(m<1)return'Just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
+function escapeHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ============================================================
+// CLOCK UPDATE
+// ============================================================
+function updateClocks(){
+  const now=new Date();
+  const guyanaTime=new Date(now.toLocaleString('en-US',{timeZone:'America/Guyana'}));
+  const californiaTime=new Date(now.toLocaleString('en-US',{timeZone:'America/Los_Angeles'}));
+  const fmt=d=>{let h=d.getHours(),m=d.getMinutes(),s=d.getSeconds(),ampm=h>=12?'PM':'AM';h=h%12||12;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+' '+ampm;};
+  const gEl=document.getElementById('clock-guyana'),cEl=document.getElementById('clock-california');
+  if(gEl)gEl.textContent=fmt(guyanaTime);
+  if(cEl)cEl.textContent=fmt(californiaTime);
+}
+updateClocks();
+setInterval(updateClocks,1000);
+
+// ============================================================
+// TRIVIA QUESTION BANK
