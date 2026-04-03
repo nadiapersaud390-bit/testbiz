@@ -95,6 +95,22 @@
     @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
     .err { color: var(--red); font-size: 11px; font-weight: 700; text-align: center; min-height: 16px; margin-bottom: 14px; }
 
+    /* Loading Spinner */
+    .btn-spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0,0,0,0.2);
+      border-top-color: #020617;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
     #submit-btn {
       width: 100%; padding: 18px; border-radius: 16px;
       font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 13px;
@@ -147,6 +163,35 @@
       color: var(--muted); cursor: pointer; transition: all 0.2s;
     }
     #reset-btn:hover { background: rgba(255,255,255,0.08); color: white; }
+
+    /* System Status Indicator */
+    .system-status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 12px;
+      margin-bottom: 8px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      animation: statusPulse 1.5s infinite;
+      box-shadow: 0 0 6px #22c55e;
+    }
+    @keyframes statusPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+    .status-text {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+    }
   </style>
 </head>
 <body>
@@ -162,6 +207,12 @@
     <span class="clock-flag">🇬🇾</span>
     <span class="clock-time" id="clock-display">--:-- --</span>
     <span id="late-badge">⏰ Late Window</span>
+  </div>
+
+  <!-- System Status Indicator -->
+  <div class="system-status">
+    <div class="status-dot"></div>
+    <span class="status-text">System Online</span>
   </div>
 
   <div id="login-form">
@@ -191,16 +242,19 @@
 </div>
 
 <script>
-  // USE YOUR EXISTING WORKING API URL HERE
-  const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
+  // IMPORTANT: Update this URL with your NEW Apps Script deployment URL
+  const API_URL = 'https://script.google.com/macros/s/YOUR_NEW_DEPLOYMENT_URL/exec';
   const SHIFT_HOUR = 10;
   const SHIFT_MINUTE = 0;
   const GRACE_MINUTES = 15;
 
+  // ========== HELPER FUNCTIONS ==========
   function guyanaTime() {
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
   }
+  
   function pad(n) { return String(n).padStart(2, '0'); }
+  
   function formatGuyanaDateISO(d) {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Guyana',
@@ -213,24 +267,29 @@
     }, {});
     return `${parts.year}-${parts.month}-${parts.day}`;
   }
+  
   function getGuyanaWeekday(d) {
     return new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/Guyana',
       weekday: 'short'
     }).format(d);
   }
+  
   function isWorkday(weekday) {
     return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
   }
+  
   function toUTCDate(dateStr) {
     return new Date(`${dateStr}T00:00:00Z`);
   }
+  
   function nextWorkday(dateStr) {
     const d = toUTCDate(dateStr);
     d.setUTCDate(d.getUTCDate() + 1);
     while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
     return d.toISOString().slice(0, 10);
   }
+  
   function updateAgentStreak(profile) {
     const today = guyanaTime();
     const todayISO = formatGuyanaDateISO(today);
@@ -252,10 +311,12 @@
     localStorage.setItem('biz_agent_streaks_v1', JSON.stringify(allStreaks));
     return current.streak || 1;
   }
+  
   function fmtTime(d) {
     const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
     return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
   }
+  
   function checkLate() {
     const g = guyanaTime();
     const now = g.getHours() * 60 + g.getMinutes();
@@ -270,6 +331,19 @@
   tickClock();
   setInterval(tickClock, 1000);
 
+  // ========== LOADING SPINNER ==========
+  function setLoading(loading, buttonText) {
+    const btn = document.getElementById('submit-btn');
+    if (loading) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="btn-spinner"></span>Verifying...';
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = buttonText || 'Clock In →';
+    }
+  }
+
+  // ========== MAIN SUBMIT FUNCTION ==========
   async function doSubmit() {
     const input = document.getElementById('ytel-input');
     const adminPasswordInput = document.getElementById('admin-password-input');
@@ -299,30 +373,46 @@
     }
 
     errEl.textContent = '';
-    btn.disabled = true;
-    btn.textContent = '⏳ Clocking In...';
+    setLoading(true);
 
     const status = checkLate() ? 'Late' : 'Present';
 
     try {
-      const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
-      const sData = await sRes.json();
+      // Step 1: Get Agent Schedule
+      const scheduleRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
+      const scheduleData = await scheduleRes.json();
 
-      if (!sData.found) {
+      if (!scheduleData.found) {
+        setLoading(false);
         flashError(input, errEl, btn, 'Ytel ID not found — double-check your number.');
         return;
       }
 
-      const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
-      const aData = await aRes.json();
+      // Step 2: Mark Attendance
+      const attendanceRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(scheduleData.name)}&status=${encodeURIComponent(status)}`);
+      const attendanceData = await attendanceRes.json();
 
-      if (!aData.ok) {
+      if (!attendanceData.ok) {
+        setLoading(false);
         flashError(input, errEl, btn, 'Attendance marking failed — please try again.');
         return;
       }
 
-      showResult(sData, status, ytelId);
+      // Step 3: Show result and redirect
+      showResult(scheduleData, status, ytelId);
+      
+      // Step 4: Fetch lead count in background (don't wait)
+      fetch(`${API_URL}?action=getAgentLeads&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(scheduleData.name)}`)
+        .then(res => res.json())
+        .then(leadData => {
+          // Store for dashboard
+          sessionStorage.setItem('agentLeadCount', leadData.leads || 0);
+        })
+        .catch(err => console.log('Lead fetch background:', err));
+        
     } catch (e) {
+      console.error('Error:', e);
+      setLoading(false);
       flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
   }
@@ -386,14 +476,17 @@
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizUserRole', 'agent');
     sessionStorage.setItem('currentAgentName', data.name || '');
+    
     const profile = {
       name: data.name || 'Agent',
       ytelId: ytelId || '',
+      team: data.team || 'PR',
       lunch: data.lunch || '—',
       shift: data.shift || '—'
     };
     profile.streak = updateAgentStreak(profile);
     sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
+    
     setTimeout(() => {
       window.location.href = 'index.html';
     }, 1200);
@@ -413,7 +506,13 @@
     document.getElementById('ytel-input').focus();
   }
 
-  window.addEventListener('DOMContentLoaded', () => document.getElementById('ytel-input').focus());
+  window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('ytel-input').focus();
+    // Clear any stale session on page load
+    if (sessionStorage.getItem('agentLoggedIn')) {
+      // Don't auto-clear, just let them log out manually if needed
+    }
+  });
 </script>
 </body>
 </html>
