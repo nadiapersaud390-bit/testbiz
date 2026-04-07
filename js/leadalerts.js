@@ -3,7 +3,7 @@ let leadAlertInitialized = false;
 let alertViewerName = '';
 let alertViewerYtelId = '';
 
-// ── TIER 1: First lead (100 quotes) ──
+// ── TIER 1: First lead — Breaking the Ice (100 quotes) ──
 const QUOTES_FIRST_LEAD = [
   "That's how you break the ice — now keep the heat coming!",
   "First one is always the hardest. You made it look easy!",
@@ -107,7 +107,7 @@ const QUOTES_FIRST_LEAD = [
   "You got the first one. That one is proof you can get ten more!"
 ];
 
-// ── TIER 2: Building Momentum (2–3 leads) ──
+// ── TIER 2: Building Momentum (2–3 leads, 100 quotes) ──
 const QUOTES_BUILDING = [
   "Two leads in and you're already in rhythm — don't stop!",
   "Look at you building momentum! The floor is watching.",
@@ -211,7 +211,7 @@ const QUOTES_BUILDING = [
   "You're not just working the phones — you're working the room. Keep working it!"
 ];
 
-// ── TIER 3: On Fire (4–5 leads) ──
+// ── TIER 3: On Fire (4–5 leads, 100 quotes) ──
 const QUOTES_ON_FIRE = [
   "Four-five leads?! You are absolutely on fire right now!",
   "This is elite-level dialing. You're carrying the floor!",
@@ -277,7 +277,7 @@ const QUOTES_ON_FIRE = [
   "The pace you're keeping right now is what turns a good day into a legendary one.",
   "Four leads proves you can do it consistently. Five proves you can keep going.",
   "You've found the formula today: dial, pitch, close, repeat.",
-  "Five in already and you're the example the floor manager points to when they say 'do that.'",
+  "Five in and you're the example the floor manager points to when they say 'do that.'",
   "Four-five leads and the energy you're bringing is contagious. The floor feels it!",
   "You're creating your highlight reel one transfer at a time. Keep rolling the tape.",
   "At this count you're not chasing the board anymore — you're running it.",
@@ -313,7 +313,7 @@ const QUOTES_ON_FIRE = [
   "Four-five leads and you've got every reason in the world to make one more call. Make it."
 ];
 
-// ── TIER 4: Legend Mode (6+ leads) ──
+// ── TIER 4: Legend Mode & Call Center Motivation (6+ leads, 100 quotes) ──
 const QUOTES_LEGEND = [
   "Every dial is a new chance to change your life. Never stop calling.",
   "The phone is the only tool you need to win today. Use it.",
@@ -417,14 +417,12 @@ const QUOTES_LEGEND = [
   "Six-plus leads and the shift isn't over. In call centers, the last hour is where legends are made."
 ];
 
-// ── UTILITY FUNCTIONS ──
-
 function pickQuote(count, isFirst) {
   let pool;
-  if (isFirst || count <= 1) pool = QUOTES_FIRST_LEAD;
-  else if (count <= 3) pool = QUOTES_BUILDING;
-  else if (count <= 5) pool = QUOTES_ON_FIRE;
-  else pool = QUOTES_LEGEND;
+  if (isFirst || count <= 1)   pool = QUOTES_FIRST_LEAD;
+  else if (count <= 3)         pool = QUOTES_BUILDING;
+  else if (count <= 5)         pool = QUOTES_ON_FIRE;
+  else                         pool = QUOTES_LEGEND;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -454,71 +452,6 @@ function stopTabBlink() {
     window.tabBlinkInterval = null;
   }
   document.title = "BIZ Level Up Dashboard";
-}
-
-function startTabBlink(message) {
-  stopTabBlink();
-  let showingAlert = false;
-  window.tabBlinkInterval = setInterval(() => {
-    document.title = showingAlert ? message : "BIZ Level Up Dashboard";
-    showingAlert = !showingAlert;
-  }, 1000);
-}
-
-// ── CORE LOGIC ──
-
-function initLeadAlerts(viewerName, ytelId) {
-  alertViewerName = normalizeName(viewerName);
-  alertViewerYtelId = String(ytelId || '').trim();
-  leadAlertInitialized = true;
-  console.log("LeadAlerts Initialized for:", alertViewerName, alertViewerYtelId);
-}
-
-function checkForNewLeads(currentData) {
-  if (!leadAlertInitialized) return;
-
-  currentData.forEach(row => {
-    const name = normalizeName(row.name);
-    const count = parseInt(row.leads) || 0;
-    const ytelId = String(row.ytelId || '').trim();
-
-    if (prevLeadCounts[name] !== undefined && count > prevLeadCounts[name]) {
-      const isMyLead = (name === alertViewerName || (alertViewerYtelId && ytelId === alertViewerYtelId));
-      triggerLeadAlert(row.name, count, isMyLead);
-    }
-    prevLeadCounts[name] = count;
-  });
-}
-
-function triggerLeadAlert(repName, totalLeads, isPrivate) {
-  const banner = document.getElementById('lead-alert-banner');
-  const title = document.getElementById('lead-alert-title');
-  const body = document.getElementById('lead-alert-body');
-  if (!banner || !title || !body) return;
-
-  if (isPrivate) {
-    banner.classList.add('private');
-    title.innerText = "YOU SECURED A LEAD!";
-    const msg = PRIVATE_ALERT_MESSAGES[Math.floor(Math.random() * PRIVATE_ALERT_MESSAGES.length)];
-    body.innerText = `Lead #${totalLeads} | ${msg}`;
-    startTabBlink("NEW LEAD SECURED!");
-  } else {
-    banner.classList.remove('private');
-    const displayName = trimTeamPrefix(repName);
-    title.innerText = "NEW TEAM LEAD!";
-    const quote = pickQuote(totalLeads, totalLeads === 1);
-    body.innerText = `${displayName} just secured Lead #${totalLeads}!\n"${quote}"`;
-    startTabBlink(`LEAD BY ${displayName.toUpperCase()}`);
-  }
-
-  banner.classList.add('show');
-  document.body.style.paddingTop = banner.offsetHeight + 'px';
-
-  const audio = document.getElementById(isPrivate ? 'alert-sound-private' : 'alert-sound-public');
-  if (audio) {
-    audio.currentTime = 0;
-    audio.play().catch(e => console.log("Audio play blocked"));
-  }
 }
 
 function dismissLeadAlert() {
