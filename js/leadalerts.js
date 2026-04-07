@@ -277,7 +277,7 @@ const QUOTES_ON_FIRE = [
   "The pace you're keeping right now is what turns a good day into a legendary one.",
   "Four leads proves you can do it consistently. Five proves you can keep going.",
   "You've found the formula today: dial, pitch, close, repeat.",
-  "Five in and you're the example the floor manager points to when they say 'do that.'",
+  "Five in already and you're the example the floor manager points to when they say 'do that.'",
   "Four-five leads and the energy you're bringing is contagious. The floor feels it!",
   "You're creating your highlight reel one transfer at a time. Keep rolling the tape.",
   "At this count you're not chasing the board anymore — you're running it.",
@@ -446,161 +446,12 @@ function trimTeamPrefix(name) {
   return String(name || '').trim();
 }
 
-function isSameAgentName(a, b) {
-  const na = normalizeName(a);
-  const nb = normalizeName(b);
-  if (!na || !nb) return false;
-  if (na === nb) return true;
-  return normalizeName(trimTeamPrefix(a)) === normalizeName(trimTeamPrefix(b));
-}
-
-function getFirstName(fullName) {
-  if (!fullName) return 'Rep';
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length > 1 && parts[0].length <= 3 && /^[A-Z]+$/.test(parts[0])) return parts[1];
-  return parts[0];
-}
-
-function resolveViewerIdentity() {
-  const sessionName = sessionStorage.getItem('currentAgentName') || '';
-  let profileName = '', profileYtelId = '';
-  try {
-    const profile = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}');
-    if (profile) {
-      profileName   = profile.name   || '';
-      profileYtelId = profile.ytelId || '';
-    }
-  } catch (e) {}
-  alertViewerName   = normalizeName(sessionName || profileName);
-  alertViewerYtelId = String(profileYtelId || '').trim();
-}
-
-function isViewerAgent(agentObj) {
-  if (alertViewerYtelId && agentObj.ytelId) {
-    return String(agentObj.ytelId).trim() === alertViewerYtelId;
+function stopTabBlink() {
+  if (window.tabBlinkInterval) {
+    clearInterval(window.tabBlinkInterval);
+    window.tabBlinkInterval = null;
   }
-  return isSameAgentName(agentObj.name || '', alertViewerName);
-}
-
-function findViewerEntry(agentsArr) {
-  if (!agentsArr || !agentsArr.length) return null;
-  if (alertViewerYtelId) {
-    const byId = agentsArr.find(a => String(a.ytelId || '').trim() === alertViewerYtelId);
-    if (byId) return byId;
-  }
-  if (alertViewerName) {
-    return agentsArr.find(a => isSameAgentName(a.name || '', alertViewerName)) || null;
-  }
-  return null;
-}
-
-function checkLeadAlerts(newAgents) {
-  if (!newAgents || !newAgents.length) return;
-
-  const viewerRole = sessionStorage.getItem('bizUserRole') || 'agent';
-  const isAdmin    = viewerRole === 'admin';
-
-  resolveViewerIdentity();
-
-  // Build snapshot keyed by agent name
-  const tracker = (newAgents[0] && newAgents[0].berbiceTracker) || {};
-  let snapshot = Object.keys(tracker).length ? { ...tracker } : {};
-  newAgents.forEach(a => {
-    if (!a || !a.name) return;
-    if (snapshot[a.name] === undefined || snapshot[a.name] === null) {
-      snapshot[a.name] = a.dailyLeads || 0;
-    }
-  });
-  if (!Object.keys(snapshot).length) return;
-
-  // ── First load: seed counts, show welcome-back for agent only ──
-  if (!leadAlertInitialized) {
-    Object.entries(snapshot).forEach(([n, c]) => { prevLeadCounts[n] = c; });
-    leadAlertInitialized = true;
-
-    if (!isAdmin && (alertViewerName || alertViewerYtelId)) {
-      const ownAgent = findViewerEntry(newAgents);
-      const ownCount = ownAgent ? (Number(ownAgent.dailyLeads) || 0) : 0;
-      if (ownCount > 0) {
-        const firstName = getFirstName(ownAgent.name);
-        const quote     = pickQuote(ownCount, false);
-        const plural    = ownCount === 1 ? '' : 's';
-        _renderAlert({
-          icon: ownCount === 1 ? '🥇' : '🔥',
-          name: 'Welcome back, ' + firstName + '!',
-          msg:  'You currently have ' + ownCount + ' lead' + plural + ' today. Keep going!',
-          quote,
-          firstLead: ownCount === 1
-        });
-      }
-    }
-    return;
-  }
-
-  // ── Subsequent polls: detect new leads ──
-  const newReps = [];
-  Object.entries(snapshot).forEach(([name, count]) => {
-    const c    = Number(count) || 0;
-    const prev = Number(prevLeadCounts[name]) || 0;
-    if (c > prev) {
-      const agentObj = newAgents.find(a => a.name === name) || { name };
-      newReps.push({ name, count: c, isFirst: prev === 0, agentObj });
-    }
-    prevLeadCounts[name] = c;
-  });
-
-  if (!newReps.length) return;
-
-  if (isAdmin) {
-    // ── ADMIN: all simultaneous leads show together in one banner ──
-    if (newReps.length === 1) {
-      const { name, count, isFirst } = newReps[0];
-      const firstName = getFirstName(name);
-      const quote     = pickQuote(count, isFirst);
-      const plural    = count === 1 ? '' : 's';
-      const msg       = isFirst
-        ? firstName + ' just got their FIRST lead of the day! 🥇'
-        : firstName + ' just transferred — now at ' + count + ' lead' + plural + ' today! 🔥';
-      _renderAlert({ icon: isFirst ? '🥇' : '🔥', name: firstName + ' — New Lead!', msg, quote, firstLead: isFirst });
-    } else {
-      const hasFirst  = newReps.some(r => r.isFirst);
-      const icon      = hasFirst ? '🥇' : '⚡';
-      const title     = newReps.length + ' New Leads Just Hit the Floor!';
-      const agentList = newReps.map(r => {
-        const fn     = getFirstName(r.name);
-        const plural = r.count === 1 ? '' : 's';
-        return r.isFirst
-          ? fn + ' (1st lead! 🥇)'
-          : fn + ' (' + r.count + ' lead' + plural + ')';
-      }).join('  •  ');
-      const maxCount = Math.max(...newReps.map(r => r.count));
-      const quote    = pickQuote(maxCount, hasFirst);
-      _renderAlert({ icon, name: title, msg: agentList, quote, firstLead: hasFirst });
-    }
-  } else {
-    // ── AGENT: sees ONLY their own lead alert, nothing else ──
-    if (!alertViewerName && !alertViewerYtelId) return;
-    const ownReps = newReps.filter(rep => isViewerAgent(rep.agentObj));
-    if (!ownReps.length) return;
-
-    const { name, count, isFirst } = ownReps[0];
-    const firstName = getFirstName(name);
-    const quote     = pickQuote(count, isFirst);
-    const msg       = PRIVATE_ALERT_MESSAGES[Math.floor(Math.random() * PRIVATE_ALERT_MESSAGES.length)];
-    _renderAlert({ icon: isFirst ? '🥇' : '🔥', name: 'Great job, ' + firstName + '!', msg, quote, firstLead: isFirst });
-  }
-}
-
-function _renderAlert({icon, name, msg, quote, firstLead = false}) {
-  const banner = document.getElementById('lead-alert-banner');
-  const inner  = banner.querySelector('.lab-inner');
-  if (firstLead) { inner.classList.add('first-lead'); } else { inner.classList.remove('first-lead'); }
-  document.querySelector('.lab-icon').textContent = icon;
-  document.getElementById('lab-text').innerHTML =
-    escapeHtml(name) + '<span>' + escapeHtml(msg) + ' — ❭' + escapeHtml(quote) + '❮</span>';
-  banner.classList.add('show');
-  document.body.style.paddingTop = '72px';
-  startTabBlink(icon + ' ' + name + (firstLead ? ' — First Lead Today!' : ' — New Lead!'));
+  document.title = "BIZ Level Up Dashboard";
 }
 
 function dismissLeadAlert() {
@@ -608,6 +459,3 @@ function dismissLeadAlert() {
   document.body.style.paddingTop = '';
   stopTabBlink();
 }
-
-updateDashboard();
-setInterval(updateDashboard, 10000);
