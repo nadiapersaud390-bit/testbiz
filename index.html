@@ -197,8 +197,6 @@ function dismissLeadAlert() {
 
     <script>
     // ===== TAB LOADER =====
-    // Each tab's HTML lives in its own file under tabs/.
-    // On first visit to a tab, we fetch and inject it, then run any init needed.
     const _loadedTabs = new Set();
 
     async function loadTab(tabId) {
@@ -234,8 +232,11 @@ function dismissLeadAlert() {
         _origSwitchTab(tab);
     };
 
-    // Pre-load the default tab (daily/leaderboard) on startup
-    document.addEventListener('DOMContentLoaded', () => loadTab('leaderboard-view'));
+    // Pre-load the default tab (daily/leaderboard) on startup, then immediately fetch data
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadTab('leaderboard-view');
+        updateDashboard();
+    });
     </script>
 
 </body>
