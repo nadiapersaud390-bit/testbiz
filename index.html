@@ -6,42 +6,26 @@
     <title>BIZ Level Up Dashboard | Live Performance</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <!-- ===== STYLES ===== -->
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="p-4 pb-20">
 
- <script>
+<script>
 if (sessionStorage.getItem('agentLoggedIn') !== '1') {
     window.location.replace('agent-login.html');
 }
-
 function logoutUser() {
     sessionStorage.clear();
     window.location.replace('agent-login.html');
 }
-
-function dismissLeadAlert() {
-    const banner = document.getElementById('lead-alert-banner');
-    if (banner) banner.style.display = 'none';
-    document.body.style.paddingTop = '0px';
-}
 </script>
 
-<button
-  onclick="logoutUser()"
-  title="Log Out"
-  style="position:fixed;top:10px;right:12px;z-index:9999;padding:6px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.18);background:rgba(2,6,23,0.75);color:#f8fafc;font-size:11px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;backdrop-filter:blur(6px);"
->
-  Log Out
-</button>
+<button onclick="logoutUser()" title="Log Out" style="position:fixed;top:10px;right:12px;z-index:9999;padding:6px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.18);background:rgba(2,6,23,0.75);color:#f8fafc;font-size:11px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;backdrop-filter:blur(6px);">Log Out</button>
 
 <div id="agent-session-banner" style="max-width:980px;margin:8px auto 12px;"></div>
 
-<!-- ===== FIREBASE SDK ===== -->
 <script type="module" src="js/firebase.js"></script>
 
-<!-- ===== BROADCAST ALERT BAR ===== -->
 <div id="broadcast-bar">
   <div class="bc-inner">
     <span class="bc-icon">📢</span>
@@ -50,7 +34,6 @@ function dismissLeadAlert() {
   </div>
 </div>
 
-<!-- ===== LEAD ALERT: TOP BANNER ===== -->
 <div id="lead-alert-banner">
   <div class="lab-inner">
     <span class="lab-icon">🔥</span>
@@ -59,24 +42,18 @@ function dismissLeadAlert() {
   </div>
 </div>
 
-<!-- ===== ADMIN BROADCAST BUTTON (hidden until unlocked) ===== -->
 <button id="bc-admin-btn" class="hidden" onclick="toggleBcPanel()" title="Broadcast Admin">📣</button>
-
-<!-- ===== FLOATING ADMIN CHAT BUBBLE ===== -->
 <button id="bc-float-btn" onclick="toggleBcPanel()" title="Admin Panel">📣</button>
 
-<!-- ===== ADMIN BROADCAST PANEL ===== -->
 <div id="bc-panel">
   <div class="bc-panel-title"><span>📢</span> Admin Broadcast</div>
   <textarea id="bc-input" class="bc-msg-input" rows="3" placeholder="Type your message to everyone..."></textarea>
   <button class="bc-send-btn" onclick="sendBroadcast()">⚡ Send to Everyone</button>
   <button class="bc-clear-btn" onclick="clearBroadcast()">🗑 Clear Message</button>
   <button class="bc-clear-btn" onclick="dismissLeadAlert()" style="margin-top:4px;color:#c084fc;border-color:rgba(168,85,247,0.3);">🔥 Clear Lead Alert</button>
-
   <div id="bc-status" class="bc-status"></div>
 </div>
 
-<!-- ===== ADMIN LOGIN MODAL FOR BROADCAST ===== -->
 <div id="bc-login-modal" class="hidden">
   <div class="modal-box">
     <div class="header-font text-xs text-red-500 tracking-widest uppercase mb-2 italic">📢 Admin Access</div>
@@ -89,7 +66,6 @@ function dismissLeadAlert() {
   </div>
 </div>
 
-<!-- ===== TOP PERFORMER POPUP ===== -->
 <canvas id="tp-confetti-canvas"></canvas>
 <div id="top-performer-modal" class="hidden">
   <div class="tp-box">
@@ -117,9 +93,7 @@ function dismissLeadAlert() {
     </div>
 </div>
 
-
 <div class="main-container max-w-lg mx-auto transition-all duration-500">
-
 
     <div class="flex justify-between items-center mb-8 px-2">
         <div class="flex items-center">
@@ -168,9 +142,6 @@ function dismissLeadAlert() {
         <div id="day-sub-tabs-container"></div>
     </div>
 
-    
-
-    <!-- ===== TAB CONTENT (loaded dynamically from tabs/ folder) ===== -->
     <div id="leaderboard-view" data-tab-src="tabs/leaderboard.html"></div>
     <div id="lookup-view"    class="hidden" data-tab-src="tabs/lookup.html"></div>
     <div id="playbook-view"  class="hidden" data-tab-src="tabs/playbook.html"></div>
@@ -178,11 +149,8 @@ function dismissLeadAlert() {
     <div id="prank-view"     class="hidden" data-tab-src="tabs/prank.html"></div>
     <div id="trivia-view"    class="hidden" data-tab-src="tabs/trivia.html"></div>
 
+</div>
 
-</div><!-- /.main-container -->
-
-    <!-- ===== JAVASCRIPT ===== -->
-    <!-- Load order: config → utils → playbook → dashboard → dnc → lookup → trivia → leadalerts → broadcast → topperformer -->
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/playbook.js"></script>
@@ -191,13 +159,11 @@ function dismissLeadAlert() {
     <script src="js/dnc.js"></script>
     <script src="js/lookup.js"></script>
     <script src="js/trivia.js"></script>
-    <script src="js/leadalerts.js"></script>
     <script src="js/broadcast.js"></script>
+    <script src="js/leadalerts.js"></script>
     <script src="js/topperformer.js"></script>
 
-
     <script>
-    // ===== TAB LOADER =====
     const _loadedTabs = new Set();
 
     async function loadTab(tabId) {
@@ -216,7 +182,6 @@ function dismissLeadAlert() {
         }
     }
 
-    // Override switchTab to load tab content first
     const _origSwitchTab = window.switchTab;
     window.switchTab = async function(tab) {
         const tabViewMap = {
@@ -233,7 +198,6 @@ function dismissLeadAlert() {
         _origSwitchTab(tab);
     };
 
-    // Pre-load the default tab (daily/leaderboard) on startup, then immediately fetch data
     document.addEventListener('DOMContentLoaded', async () => {
         await loadTab('leaderboard-view');
         updateDashboard();
