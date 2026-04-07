@@ -40,7 +40,7 @@ function logoutUser() {
     <div class="lab-text">
         <div id="lead-alert-title" style="font-weight: 900; letter-spacing: 0.1em; color: #fff;">NEW TEAM LEAD!</div>
         <div id="lead-alert-body" style="font-size: 13px; color: rgba(255,255,255,0.8);"></div>
-        <div id="lab-text" class="hidden"></div> 
+        <div id="lab-text" class="hidden"></div>
     </div>
     <button class="lab-close" onclick="dismissLeadAlert()" title="Close">✕</button>
   </div>
@@ -149,10 +149,12 @@ function logoutUser() {
 <script src="js/lookup.js"></script>
 <script src="js/trivia.js"></script>
 <script src="js/broadcast.js"></script>
-<script src="js/leadalerts.js"></script> <script src="js/topperformer.js"></script>
+<script src="js/leadalerts.js"></script>
+<script src="js/topperformer.js"></script>
 
 <script>
     const _loadedTabs = new Set();
+
     async function loadTab(tabId) {
         if (_loadedTabs.has(tabId)) return;
         const el = document.getElementById(tabId);
@@ -166,16 +168,27 @@ function logoutUser() {
             _loadedTabs.add(tabId);
         } catch(e) { console.warn('Tab load failed', e); }
     }
+
     const _origSwitchTab = window.switchTab;
     window.switchTab = async function(tab) {
-        const tabViewMap = { daily: 'leaderboard-view', lookup: 'lookup-view', playbook: 'playbook-view', rebuttals: 'rebuttals-view', prank: 'prank-view', trivia: 'trivia-view', weekly: 'leaderboard-view' };
+        const tabViewMap = {
+            daily: 'leaderboard-view',
+            lookup: 'lookup-view',
+            playbook: 'playbook-view',
+            rebuttals: 'rebuttals-view',
+            prank: 'prank-view',
+            trivia: 'trivia-view',
+            weekly: 'leaderboard-view'
+        };
         const viewId = tabViewMap[tab];
         if (viewId) await loadTab(viewId);
         _origSwitchTab(tab);
     };
+
+    // Only load the default tab on DOM ready — dashboard init is handled
+    // by the firebase-ready event in dashboard.js
     document.addEventListener('DOMContentLoaded', async () => {
         await loadTab('leaderboard-view');
-        updateDashboard();
     });
 </script>
 
