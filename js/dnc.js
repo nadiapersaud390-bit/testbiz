@@ -19,8 +19,23 @@ async function checkDNC(rawNumber) {
     resultEl.classList.remove('hidden');
 
     try {
-        const res = await fetch(`${DNC_API_URL}?action=checkDNC&number=${encodeURIComponent(digits)}`);
-        const data = await res.json();
+        const res = await fetch(DNC_API_URL + '?action=checkDNC&number=' + encodeURIComponent(digits), {
+            method: 'GET',
+            redirect: 'follow'
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch(parseErr) {
+            resultEl.innerHTML = `
+                <div style="padding:12px 18px;border-radius:14px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.3);display:flex;align-items:center;gap:10px;">
+                    <i class="fas fa-exclamation-triangle" style="color:#ef4444;font-size:1rem;"></i>
+                    <span style="font-size:11px;font-weight:700;color:#f87171;">DNC script error — make sure your Apps Script is deployed as Anyone can access and the sheet tab is named <strong>DNC</strong></span>
+                </div>`;
+            return;
+        }
 
         if (data.found) {
             const dateStr = data.date ? String(data.date) : '—';
@@ -61,13 +76,13 @@ async function checkDNC(rawNumber) {
         }
     } catch (e) {
         resultEl.innerHTML = `
-            <div style="padding:12px 18px;border-radius:14px;background:rgba(234,179,8,0.06);border:1px solid rgba(234,179,8,0.25);display:flex;align-items:center;gap:10px;">
-                <i class="fas fa-exclamation-triangle" style="color:#eab308;font-size:1rem;"></i>
-                <span style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#eab308;">DNC check unavailable — check connection</span>
+            <div style="padding:12px 18px;border-radius:14px;background:rgba(234,179,8,0.06);border:1px solid rgba(234,179,8,0.3);display:flex;align-items:flex-start;gap:10px;">
+                <i class="fas fa-exclamation-triangle" style="color:#eab308;font-size:1rem;margin-top:1px;flex-shrink:0;"></i>
+                <div>
+                    <div style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#eab308;margin-bottom:3px;">DNC check failed — network error</div>
+                    <div style="font-size:10px;font-weight:700;color:#64748b;">Check that your Apps Script is deployed with <em>Anyone</em> access and re-deploy if needed.</div>
+                </div>
             </div>`;
-        setTimeout(() => {
-            if (resultEl) { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; }
-        }, 4000);
     }
 }
 
