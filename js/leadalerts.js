@@ -494,21 +494,6 @@ function findViewerEntry(agentsArr) {
   return null;
 }
 
-// Queue for admin alerts so each lead fires individually
-let _adminAlertQueue = [];
-let _adminAlertRunning = false;
-
-function _drainAdminQueue() {
-  if (_adminAlertRunning || !_adminAlertQueue.length) return;
-  _adminAlertRunning = true;
-  const payload = _adminAlertQueue.shift();
-  _renderAlert(payload);
-  setTimeout(() => {
-    _adminAlertRunning = false;
-    _drainAdminQueue();
-  }, 5000);
-}
-
 function checkLeadAlerts(newAgents) {
   if (!newAgents || !newAgents.length) return;
 
@@ -567,22 +552,31 @@ function checkLeadAlerts(newAgents) {
   if (!newReps.length) return;
 
   if (isAdmin) {
-    // ── ADMIN: sees every individual rep's lead alert in sequence ──
-    newReps.forEach(({ name, count, isFirst }) => {
+    // ── ADMIN: all simultaneous leads show together in one banner ──
+    if (newReps.length === 1) {
+      const { name, count, isFirst } = newReps[0];
       const firstName = getFirstName(name);
       const quote     = pickQuote(count, isFirst);
+      const plural    = count === 1 ? '' : 's';
       const msg       = isFirst
-        ? firstName + ' just got their first lead of the day! 🥇'
-        : firstName + ' just transferred a new lead! 🔥';
-      _adminAlertQueue.push({
-        icon: isFirst ? '🥇' : '🔥',
-        name: firstName + ' — New Lead!',
-        msg,
-        quote,
-        firstLead: isFirst
-      });
-    });
-    _drainAdminQueue();
+        ? firstName + ' just got their FIRST lead of the day! 🥇'
+        : firstName + ' just transferred — now at ' + count + ' lead' + plural + ' today! 🔥';
+      _renderAlert({ icon: isFirst ? '🥇' : '🔥', name: firstName + ' — New Lead!', msg, quote, firstLead: isFirst });
+    } else {
+      const hasFirst  = newReps.some(r => r.isFirst);
+      const icon      = hasFirst ? '🥇' : '⚡';
+      const title     = newReps.length + ' New Leads Just Hit the Floor!';
+      const agentList = newReps.map(r => {
+        const fn     = getFirstName(r.name);
+        const plural = r.count === 1 ? '' : 's';
+        return r.isFirst
+          ? fn + ' (1st lead! 🥇)'
+          : fn + ' (' + r.count + ' lead' + plural + ')';
+      }).join('  •  ');
+      const maxCount = Math.max(...newReps.map(r => r.count));
+      const quote    = pickQuote(maxCount, hasFirst);
+      _renderAlert({ icon, name: title, msg: agentList, quote, firstLead: hasFirst });
+    }
   } else {
     // ── AGENT: sees ONLY their own lead alert, nothing else ──
     if (!alertViewerName && !alertViewerYtelId) return;
@@ -613,9 +607,7 @@ function dismissLeadAlert() {
   document.getElementById('lead-alert-banner').classList.remove('show');
   document.body.style.paddingTop = '';
   stopTabBlink();
-  _adminAlertRunning = false;
-  _drainAdminQueue();
 }
 
 updateDashboard();
-setInterval(updateDashboard, 10000);
+setInterval(updateDashboard, 30000);
