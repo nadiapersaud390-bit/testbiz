@@ -195,6 +195,30 @@
   const SHIFT_MINUTE = 0;
   const GRACE_MINUTES = 15;
 
+  // ── Attendance persistence ──────────────────────────────────────────────────
+  // Stores the ORIGINAL clock-in result in localStorage keyed by ytelId + date.
+  // On re-login the same day, the stored status is reused — no API re-mark.
+
+  function getTodayISO() {
+    return formatGuyanaDateISO(guyanaTime());
+  }
+
+  function getStoredAttendance(ytelId) {
+    const key = 'biz_att_' + ytelId + '_' + getTodayISO();
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function storeAttendance(ytelId, status, clockedAt) {
+    const key = 'biz_att_' + ytelId + '_' + getTodayISO();
+    try {
+      localStorage.setItem(key, JSON.stringify({ status, clockedAt }));
+    } catch (e) {}
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   function guyanaTime() {
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
   }
@@ -300,7 +324,8 @@
     btn.disabled = true;
     btn.textContent = '⏳ Clocking In...';
 
-    const status = checkLate() ? 'Late' : 'Present';
+    // ── Check if agent already clocked in today ──────────────────────────────
+    const existingRecord = getStoredAttendance(ytelId);
 
     try {
       const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
@@ -311,15 +336,26 @@
         return;
       }
 
-      const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
-      const aData = await aRes.json();
+      if (existingRecord) {
+        // ── RE-LOGIN: use original attendance status, skip API re-mark ────────
+        showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
+      } else {
+        // ── FIRST CLOCK-IN today: calculate status and mark attendance ────────
+        const status = checkLate() ? 'Late' : 'Present';
+        const clockedAt = fmtTime(guyanaTime());
 
-      if (!aData.ok) {
-        flashError(input, errEl, btn, 'Attendance marking failed — please try again.');
-        return;
+        const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
+        const aData = await aRes.json();
+
+        if (!aData.ok) {
+          flashError(input, errEl, btn, 'Attendance marking failed — please try again.');
+          return;
+        }
+
+        // Save to localStorage so re-logins today reuse this status
+        storeAttendance(ytelId, status, clockedAt);
+        showResult(sData, status, ytelId, clockedAt);
       }
-
-      showResult(sData, status, ytelId);
     } catch (e) {
       flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
@@ -376,7 +412,6 @@
     if (match === undefined || match === null) return '—';
     const val = String(match).trim();
     if (!val) return '—';
-    // Handle Google Sheets time serial (fraction of a day, e.g. 0.5 = 12:00 PM)
     const num = Number(val);
     if (!isNaN(num) && num > 0 && num < 1) {
       const totalMinutes = Math.round(num * 24 * 60);
@@ -389,10 +424,10 @@
     return val;
   }
 
-  function showResult(data, status, ytelId) {
+  function showResult(data, status, ytelId, clockedAt) {
     const late = status === 'Late';
     const now = guyanaTime();
-    const clockedAt = fmtTime(now);
+    const displayTime = clockedAt || fmtTime(now);
     const dateStr = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
 
     const header = document.getElementById('result-header');
@@ -409,7 +444,7 @@
       { label: 'Team', value: data.team || '—', cls: '' },
       { label: 'Shift', value: data.shift || '—', cls: late ? 'warn' : 'ok' },
       { label: 'Lunch Slot', value: lunchValue, cls: '' },
-      { label: 'Clocked In', value: clockedAt, cls: late ? 'warn' : 'ok' },
+      { label: 'Clocked In', value: displayTime, cls: late ? 'warn' : 'ok' },
     ];
     if (data.weekLead !== null && data.weekLead !== undefined) {
       cells.push({ label: '⚡ Weekly Leads', value: data.weekLead, cls: 'leads', full: true });
@@ -419,7 +454,7 @@
       `<div class="info-cell${c.full ? ' full' : ''}"><div class="info-label">${c.label}</div><div class="info-value ${c.cls}">${c.value}</div></div>`
     ).join('');
 
-    document.getElementById('stamp').textContent = dateStr + ' · ' + clockedAt + ' Guyana Time';
+    document.getElementById('stamp').textContent = dateStr + ' · ' + displayTime + ' Guyana Time';
 
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('result-panel').style.display = 'block';
