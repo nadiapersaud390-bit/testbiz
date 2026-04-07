@@ -610,4 +610,4 @@ function dismissLeadAlert() {
 }
 
 updateDashboard();
-setInterval(updateDashboard, 30000);
+setInterval(updateDashboard, 10000);
