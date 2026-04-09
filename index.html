@@ -162,6 +162,7 @@ function dismissLeadAlert() {
         <button onclick="switchTab('prank')"     id="tab-prank"     class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#a855f7;">🚨 Prank</button>
         <button onclick="requestWeekly()"        id="tab-weekly"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-lock text-[9px] mr-1 opacity-60"></i>Weekly</button>
         <button onclick="switchTab('trivia')"    id="tab-trivia"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);grid-column:1/-1;">🎯 Trivia Blitz</button>
+        <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#ef4444;border-color:rgba(239,68,68,0.3);grid-column:1/-1;display:none;">🔐 Admin Panel</button>
     </div>
 
     <div id="day-sub-tabs-wrapper" class="hidden px-2 mb-5 max-w-2xl mx-auto">
@@ -177,12 +178,13 @@ function dismissLeadAlert() {
     <div id="rebuttals-view" class="hidden" data-tab-src="tabs/rebuttals.html"></div>
     <div id="prank-view"     class="hidden" data-tab-src="tabs/prank.html"></div>
     <div id="trivia-view"    class="hidden" data-tab-src="tabs/trivia.html"></div>
+    <div id="adminpanel-view" class="hidden" data-tab-src="tabs/adminpanel.html"></div>
 
 
 </div><!-- /.main-container -->
 
     <!-- ===== JAVASCRIPT ===== -->
-    <!-- Load order: config → utils → playbook → dashboard → lookup → trivia → leadalerts → broadcast → topperformer -->
+    <!-- Load order: config → utils → playbook → dashboard → lookup → trivia → leadalerts → broadcast → topperformer → adminpanel -->
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/playbook.js"></script>
@@ -193,12 +195,10 @@ function dismissLeadAlert() {
     <script src="js/leadalerts.js"></script>
     <script src="js/broadcast.js"></script>
     <script src="js/topperformer.js"></script>
-
+    <script src="js/adminpanel.js"></script>
 
     <script>
     // ===== TAB LOADER =====
-    // Each tab's HTML lives in its own file under tabs/.
-    // On first visit to a tab, we fetch and inject it, then run any init needed.
     const _loadedTabs = new Set();
 
     async function loadTab(tabId) {
@@ -221,21 +221,43 @@ function dismissLeadAlert() {
     const _origSwitchTab = window.switchTab;
     window.switchTab = async function(tab) {
         const tabViewMap = {
-            daily: 'leaderboard-view',
-            lookup: 'lookup-view',
-            playbook: 'playbook-view',
-            rebuttals: 'rebuttals-view',
-            prank: 'prank-view',
-            trivia: 'trivia-view',
-            weekly: 'leaderboard-view',
+            daily:       'leaderboard-view',
+            lookup:      'lookup-view',
+            playbook:    'playbook-view',
+            rebuttals:   'rebuttals-view',
+            prank:       'prank-view',
+            trivia:      'trivia-view',
+            weekly:      'leaderboard-view',
+            adminpanel:  'adminpanel-view',
         };
         const viewId = tabViewMap[tab];
         if (viewId) await loadTab(viewId);
+        if (tab === 'adminpanel') {
+            // Show the adminpanel view, hide others
+            ['leaderboard-view','lookup-view','playbook-view','rebuttals-view','prank-view','trivia-view','adminpanel-view'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            const apView = document.getElementById('adminpanel-view');
+            if (apView) apView.classList.remove('hidden');
+            currentTab = 'adminpanel';
+            updateTabUI();
+            // Init panel after tab HTML is loaded
+            if (typeof initAdminPanel === 'function') initAdminPanel();
+            return;
+        }
         _origSwitchTab(tab);
     };
 
-    // Pre-load the default tab (daily/leaderboard) on startup
-    document.addEventListener('DOMContentLoaded', () => loadTab('leaderboard-view'));
+    // Show admin tab button only for admins
+    document.addEventListener('DOMContentLoaded', () => {
+        loadTab('leaderboard-view');
+        const role = sessionStorage.getItem('bizUserRole');
+        if (role === 'admin') {
+            const btn = document.getElementById('tab-adminpanel');
+            if (btn) btn.style.display = '';
+        }
+    });
     </script>
 
 </body>
