@@ -195,14 +195,10 @@
   const SHIFT_MINUTE = 0;
   const GRACE_MINUTES = 15;
 
-  // ── Attendance persistence ──────────────────────────────────────────────────
-  // Stores the ORIGINAL clock-in result in localStorage keyed by ytelId + date.
-  // On re-login the same day, the stored status is reused — no API re-mark.
-
+  // ── Attendance persistence (localStorage — works in normal browsing) ────────
   function getTodayISO() {
     return formatGuyanaDateISO(guyanaTime());
   }
-
   function getStoredAttendance(ytelId) {
     const key = 'biz_att_' + ytelId + '_' + getTodayISO();
     try {
@@ -210,7 +206,6 @@
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   }
-
   function storeAttendance(ytelId, status, clockedAt) {
     const key = 'biz_att_' + ytelId + '_' + getTodayISO();
     try {
@@ -226,9 +221,7 @@
   function formatGuyanaDateISO(d) {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Guyana',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
+      year: 'numeric', month: '2-digit', day: '2-digit'
     }).formatToParts(d).reduce((acc, part) => {
       if (part.type !== 'literal') acc[part.type] = part.value;
       return acc;
@@ -237,8 +230,7 @@
   }
   function getGuyanaWeekday(d) {
     return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Guyana',
-      weekday: 'short'
+      timeZone: 'America/Guyana', weekday: 'short'
     }).format(d);
   }
   function isWorkday(weekday) {
@@ -259,7 +251,6 @@
     const weekday = getGuyanaWeekday(today);
     const allStreaks = JSON.parse(localStorage.getItem('biz_agent_streaks_v1') || '{}');
     const current = allStreaks[profile.ytelId] || { streak: 0, lastLoginDate: '' };
-
     if (isWorkday(weekday)) {
       if (current.lastLoginDate !== todayISO) {
         const shouldIncrement = current.lastLoginDate && nextWorkday(current.lastLoginDate) === todayISO;
@@ -269,9 +260,8 @@
     } else if (!current.streak) {
       current.streak = 1;
     }
-
     allStreaks[profile.ytelId] = current;
-    localStorage.setItem('biz_agent_streaks_v1', JSON.stringify(allStreaks));
+    try { localStorage.setItem('biz_agent_streaks_v1', JSON.stringify(allStreaks)); } catch(e) {}
     return current.streak || 1;
   }
   function fmtTime(d) {
@@ -284,7 +274,6 @@
     const gate = SHIFT_HOUR * 60 + SHIFT_MINUTE + GRACE_MINUTES;
     return now > gate;
   }
-
   function tickClock() {
     document.getElementById('clock-display').textContent = fmtTime(guyanaTime());
     document.getElementById('late-badge').style.display = checkLate() ? 'inline-block' : 'none';
@@ -324,10 +313,11 @@
     btn.disabled = true;
     btn.textContent = '⏳ Clocking In...';
 
-    // ── Check if agent already clocked in today ──────────────────────────────
+    // ── STEP 1: Check localStorage first (fast path for normal browsers) ──────
     const existingRecord = getStoredAttendance(ytelId);
 
     try {
+      // ── STEP 2: Always fetch agent schedule (needed for name/team/lunch) ────
       const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
       const sData = await sRes.json();
 
@@ -337,25 +327,55 @@
       }
 
       if (existingRecord) {
-        // ── RE-LOGIN: use original attendance status, skip API re-mark ────────
+        // ── localStorage hit: skip API entirely, reuse stored status ────────
         showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
-      } else {
-        // ── FIRST CLOCK-IN today: calculate status and mark attendance ────────
-        const status = checkLate() ? 'Late' : 'Present';
-        const clockedAt = fmtTime(guyanaTime());
-
-        const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
-        const aData = await aRes.json();
-
-        if (!aData.ok) {
-          flashError(input, errEl, btn, 'Attendance marking failed — please try again.');
-          return;
-        }
-
-        // Save to localStorage so re-logins today reuse this status
-        storeAttendance(ytelId, status, clockedAt);
-        showResult(sData, status, ytelId, clockedAt);
+        return;
       }
+
+      // ── STEP 3: No localStorage record (normal first login OR incognito) ──
+      // Always calculate what the status WOULD be right now
+      const intendedStatus = checkLate() ? 'Late' : 'Present';
+      const clockedAt = fmtTime(guyanaTime());
+
+      // ── STEP 4: Call autoAttendance — Apps Script checks before writing ───
+      const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(intendedStatus)}`);
+      const aData = await aRes.json();
+
+      // ── STEP 5: Resolve the final status from writeResult ─────────────────
+      // writeResult values from Apps Script v6:
+      //   "written"           → first clock-in, wrote P or L  → use intendedStatus
+      //   "already_marked"    → cell had P or L already       → use aData.code to recover original
+      //   "absent_overwrite"  → cell had A, overwrote with L  → force Late
+      //   anything else       → treat as error
+
+      let finalStatus;
+
+      if (aData.writeResult === 'already_marked') {
+        // ── Re-login (incognito or localStorage cleared) ─────────────────────
+        // The sheet already has P or L. The Apps Script returns aData.code
+        // which reflects what was already in the cell (P or L).
+        // We read that back so the rep sees their ORIGINAL status.
+        finalStatus = (aData.code === 'L') ? 'Late' : 'Present';
+
+      } else if (aData.writeResult === 'absent_overwrite') {
+        // Was auto-marked Absent, now logging in — always Late
+        finalStatus = 'Late';
+
+      } else if (aData.writeResult === 'written') {
+        // Normal first clock-in
+        finalStatus = intendedStatus;
+        // Save to localStorage so future re-logins in same session are instant
+        storeAttendance(ytelId, finalStatus, clockedAt);
+
+      } else {
+        // Unexpected result — don't crash, still let them through
+        // Best guess: use intendedStatus but don't store (so it retries next time)
+        finalStatus = intendedStatus;
+        console.warn('Unexpected writeResult:', aData.writeResult, aData);
+      }
+
+      showResult(sData, finalStatus, ytelId, clockedAt);
+
     } catch (e) {
       flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
@@ -366,7 +386,6 @@
       flashError(adminPasswordInput, errEl, btn, 'Incorrect admin password.');
       return;
     }
-
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizAdminUnlocked', '1');
     sessionStorage.setItem('bizUserRole', 'admin');
@@ -390,23 +409,11 @@
   function resolveLunchValue(data) {
     if (!data || typeof data !== 'object') return '—';
     const candidates = [
-      data.lunch,
-      data.lunchSlot,
-      data.lunch_time,
-      data.lunchTime,
-      data['Lunch Slot'],
-      data['Lunch'],
-      data['Lunch Time'],
-      data['lunch time'],
-      data['LunchTime'],
-      data['lunchbreak'],
-      data['LunchBreak'],
-      data['lunch_break'],
-      data['lunchBreak'],
-      data['break'],
-      data['Break'],
-      data['Break Time'],
-      data['break_time']
+      data.lunch, data.lunchSlot, data.lunch_time, data.lunchTime,
+      data['Lunch Slot'], data['Lunch'], data['Lunch Time'],
+      data['lunch time'], data['LunchTime'], data['lunchbreak'],
+      data['LunchBreak'], data['lunch_break'], data['lunchBreak'],
+      data['break'], data['Break'], data['Break Time'], data['break_time']
     ];
     const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
     if (match === undefined || match === null) return '—';
@@ -441,10 +448,10 @@
     const lunchValue = resolveLunchValue(data);
 
     const cells = [
-      { label: 'Team', value: data.team || '—', cls: '' },
-      { label: 'Shift', value: data.shift || '—', cls: late ? 'warn' : 'ok' },
-      { label: 'Lunch Slot', value: lunchValue, cls: '' },
-      { label: 'Clocked In', value: displayTime, cls: late ? 'warn' : 'ok' },
+      { label: 'Team',       value: data.team || '—',  cls: '' },
+      { label: 'Shift',      value: data.shift || '—', cls: late ? 'warn' : 'ok' },
+      { label: 'Lunch Slot', value: lunchValue,         cls: '' },
+      { label: 'Clocked In', value: displayTime,        cls: late ? 'warn' : 'ok' },
     ];
     if (data.weekLead !== null && data.weekLead !== undefined) {
       cells.push({ label: '⚡ Weekly Leads', value: data.weekLead, cls: 'leads', full: true });
@@ -464,16 +471,14 @@
     sessionStorage.setItem('bizUserRole', 'agent');
     sessionStorage.setItem('currentAgentName', data.name || '');
     const profile = {
-      name: data.name || 'Agent',
-      ytelId: ytelId || '',
-      lunch: lunchValue,
-      shift: data.shift || '—'
+      name:   data.name   || 'Agent',
+      ytelId: ytelId      || '',
+      lunch:  lunchValue,
+      shift:  data.shift  || '—'
     };
     profile.streak = updateAgentStreak(profile);
     sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
-    setTimeout(() => {
-      window.location.href = 'index.html';
-    }, 1200);
+    setTimeout(() => { window.location.href = 'index.html'; }, 1200);
   }
 
   function doReset() {
