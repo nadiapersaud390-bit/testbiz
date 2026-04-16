@@ -1,706 +1,695 @@
-<!-- ── HEADER ─────────────────────────────────────────────────────────── -->
+<!-- Header -->
 <div style="border-radius:20px;overflow:hidden;border:2px solid rgba(20,184,166,0.4);box-shadow:0 0 30px rgba(20,184,166,0.1);">
-  <div style="background:linear-gradient(135deg,rgba(20,184,166,0.12),rgba(15,118,110,0.22));padding:18px 24px;position:relative;overflow:hidden;">
-    <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 10px,rgba(20,184,166,0.04) 10px,rgba(20,184,166,0.04) 20px);"></div>
-    <div style="position:relative;display:flex;align-items:center;gap:14px;">
-      <div style="width:44px;height:44px;border-radius:14px;background:rgba(20,184,166,0.15);border:1px solid rgba(20,184,166,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        <i class="fas fa-comments" style="color:#14b8a6;font-size:1.1rem;"></i>
-      </div>
-      <div>
-        <div style="font-family:Orbitron,sans-serif;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.14em;color:#14b8a6;margin-bottom:3px;">Quick Reference</div>
-        <div style="font-family:Orbitron,sans-serif;font-size:17px;font-weight:900;text-transform:uppercase;color:white;line-height:1.1;">Rebuttals</div>
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-top:2px;">Type what the customer said — or select an objection below</div>
-      </div>
+    <div style="background:linear-gradient(135deg,rgba(20,184,166,0.12),rgba(15,118,110,0.22));padding:18px 24px;position:relative;overflow:hidden;">
+        <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 10px,rgba(20,184,166,0.04) 10px,rgba(20,184,166,0.04) 20px);"></div>
+        <div style="position:relative;display:flex;align-items:center;gap:14px;">
+            <div style="width:44px;height:44px;border-radius:14px;background:rgba(20,184,166,0.15);border:1px solid rgba(20,184,166,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-comments" style="color:#14b8a6;font-size:1.1rem;"></i></div>
+            <div>
+                <div style="font-family:Orbitron,sans-serif;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.14em;color:#14b8a6;margin-bottom:3px;">Quick Reference</div>
+                <div style="font-family:Orbitron,sans-serif;font-size:17px;font-weight:900;text-transform:uppercase;color:white;line-height:1.1;">Rebuttals</div>
+                <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-top:2px;">Select an objection above to see your response</div>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
 
-<!-- ── SEARCH BOX ─────────────────────────────────────────────────────── -->
+<!-- Search Box -->
 <div style="position:relative;">
-  <i class="fas fa-search" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);color:#14b8a6;font-size:13px;pointer-events:none;"></i>
-  <input id="rebuttal-search" type="text"
-    placeholder='Type what the customer said, e.g. "I didn&apos;t apply for a loan"'
-    oninput="filterRebuttalSearch(this.value)"
-    style="width:100%;background:rgba(20,184,166,0.06);border:1.5px solid rgba(20,184,166,0.3);border-radius:14px;color:white;font-size:13px;font-weight:600;padding:13px 16px 13px 44px;outline:none;font-family:'Inter',sans-serif;box-sizing:border-box;transition:border-color 0.2s,box-shadow 0.2s;"
-    onfocus="this.style.borderColor='#14b8a6';this.style.boxShadow='0 0 0 3px rgba(20,184,166,0.15)'"
-    onblur="this.style.borderColor='rgba(20,184,166,0.3)';this.style.boxShadow='none'"/>
+    <i class="fas fa-search" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);color:#14b8a6;font-size:13px;pointer-events:none;"></i>
+    <input id="rebuttal-search" type="text" placeholder="Search objections..."
+        oninput="filterRebuttalSearch(this.value)"
+        style="width:100%;background:rgba(20,184,166,0.06);border:1.5px solid rgba(20,184,166,0.3);border-radius:14px;color:white;font-size:13px;font-weight:600;padding:13px 16px 13px 44px;outline:none;font-family:'Inter',sans-serif;box-sizing:border-box;transition:border-color 0.2s,box-shadow 0.2s;"
+        onfocus="this.style.borderColor='#14b8a6';this.style.boxShadow='0 0 0 3px rgba(20,184,166,0.15)'"
+        onblur="this.style.borderColor='rgba(20,184,166,0.3)';this.style.boxShadow='none'"/>
 </div>
 
-<!-- ── OBJECTION BUTTONS ───────────────────────────────────────────────── -->
-<div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#475569;margin-bottom:10px;">Select Objection</div>
+<!-- Objection Buttons -->
+<div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#475569;margin-bottom:-4px;">Select Objection</div>
 <div id="rb-btn-row" style="display:flex;gap:8px;flex-wrap:wrap;">
-  <button id="rb-btn-0"  onclick="showRebuttal(0)"  style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(20,184,166,0.2);border:1px solid #14b8a6;color:#2dd4bf;">Is This a Scam?</button>
-  <button id="rb-btn-1"  onclick="showRebuttal(1)"  style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">No Website?</button>
-  <button id="rb-btn-2"  onclick="showRebuttal(2)"  style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Pre-Qual No Info?</button>
-  <button id="rb-btn-3"  onclick="showRebuttal(3)"  style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">What Business?</button>
-  <button id="rb-btn-4"  onclick="showRebuttal(4)"  style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Address / In Person?</button>
-  <button id="rb-btn-5"  onclick="showRebuttal(5)"  style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Do Not Call</button>
-  <button id="rb-btn-6"  onclick="showRebuttal(6)"  style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Is This AI? / Anthony?</button>
-  <button id="rb-btn-7"  onclick="showRebuttal(7)"  style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">How Pre-Qualified?</button>
-  <button id="rb-btn-8"  onclick="showRebuttal(8)"  style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Division of What?</button>
-  <button id="rb-btn-9"  onclick="showRebuttal(9)"  style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Bad Credit</button>
-  <button id="rb-btn-10" onclick="showRebuttal(10)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Don't Need Loan</button>
-  <button id="rb-btn-11" onclick="showRebuttal(11)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Interest Rate?</button>
-  <button id="rb-btn-12" onclick="showRebuttal(12)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">How'd You Get My Info?</button>
-  <button id="rb-btn-13" onclick="showRebuttal(13)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Found Cheaper Option</button>
-  <button id="rb-btn-14" onclick="showRebuttal(14)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Email Me First</button>
-  <button id="rb-btn-15" onclick="showRebuttal(15)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Affect My Credit?</button>
-  <button id="rb-btn-16" onclick="showRebuttal(16)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Are You a Bank?</button>
-  <button id="rb-btn-17" onclick="showRebuttal(17)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Why Are You Calling?</button>
-  <button id="rb-btn-18" onclick="showRebuttal(18)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Which Company?</button>
+    <button id="rb-btn-0" onclick="showRebuttal(0)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;background:rgba(20,184,166,0.2);border-color:#14b8a6;color:#2dd4bf;">Which Company?</button>
+<button id="rb-btn-1" onclick="showRebuttal(1)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Is This a Scam?</button>
+<button id="rb-btn-2" onclick="showRebuttal(2)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Email Me First</button>
+<button id="rb-btn-3" onclick="showRebuttal(3)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Why Calling?</button>
+<button id="rb-btn-4" onclick="showRebuttal(4)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Are You a Bank?</button>
+<button id="rb-btn-5" onclick="showRebuttal(5)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Bad Credit</button>
+<button id="rb-btn-6" onclick="showRebuttal(6)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Don't Need Loan</button>
+<button id="rb-btn-7" onclick="showRebuttal(7)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Why No Info?</button>
+<button id="rb-btn-8" onclick="showRebuttal(8)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Interest Rate?</button>
+<button id="rb-btn-9" onclick="showRebuttal(9)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Cheaper Option</button>
+<button id="rb-btn-10" onclick="showRebuttal(10)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">How'd You Get My Info?</button>
+<button id="rb-btn-11" onclick="showRebuttal(11)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Company Name?</button>
+<button id="rb-btn-12" onclick="showRebuttal(12)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Type of Loan?</button>
+<button id="rb-btn-13" onclick="showRebuttal(13)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Pre-Qualified?</button>
+<button id="rb-btn-14" onclick="showRebuttal(14)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Didn't Apply</button>
+<button id="rb-btn-15" onclick="showRebuttal(15)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Already Approved?</button>
+<button id="rb-btn-16" onclick="showRebuttal(16)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Where Located?</button>
+<button id="rb-btn-17" onclick="showRebuttal(17)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Business Name?</button>
+<button id="rb-btn-18" onclick="showRebuttal(18)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Don't Know Biz Name</button>
+<button id="rb-btn-19" onclick="showRebuttal(19)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Website?</button>
+<button id="rb-btn-20" onclick="showRebuttal(20)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Address?</button>
+<button id="rb-btn-21" onclick="showRebuttal(21)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Do Not Call</button>
+<button id="rb-btn-22" onclick="showRebuttal(22)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Anthony Smith / AI</button>
+<button id="rb-btn-23" onclick="showRebuttal(23)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">How Pre-Qualified?</button>
+<button id="rb-btn-24" onclick="showRebuttal(24)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Division of What?</button>
+<button id="rb-btn-25" onclick="showRebuttal(25)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Affect Credit?</button>
 </div>
 
-<!-- ── NO RESULTS ─────────────────────────────────────────────────────── -->
+<!-- No results -->
 <div id="rebuttal-no-results" style="display:none;text-align:center;padding:20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:14px;">
-  <div style="font-size:1.3rem;margin-bottom:6px;">🤔</div>
-  <div style="font-size:12px;font-weight:900;color:#475569;text-transform:uppercase;letter-spacing:0.08em;">No rebuttal found — try different keywords</div>
+    <div style="font-size:1.3rem;margin-bottom:6px;">🤔</div>
+    <div style="font-size:12px;font-weight:900;color:#475569;text-transform:uppercase;letter-spacing:0.08em;">No rebuttal found — try different keywords</div>
 </div>
 
-<!-- ── AI SEARCH LOADING ───────────────────────────────────────────────── -->
-<div id="ai-search-loading" style="display:none;background:rgba(20,184,166,0.04);border:1px solid rgba(20,184,166,0.2);border-radius:14px;padding:14px 18px;align-items:center;gap:10px;">
-  <i class="fas fa-circle-notch fa-spin" style="color:#14b8a6;font-size:13px;flex-shrink:0;"></i>
-  <span style="font-size:12px;font-weight:700;color:#94a3b8;">Reading customer tone &amp; finding best response...</span>
-</div>
-
-<!-- ── AI SEARCH RESULT ────────────────────────────────────────────────── -->
-<div id="ai-search-result" style="display:none;background:rgba(20,184,166,0.07);border:1.5px solid rgba(20,184,166,0.35);border-radius:16px;padding:16px 18px;">
-  <div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#14b8a6;margin-bottom:10px;display:flex;align-items:center;gap:7px;">
-    <i class="fas fa-microchip" style="font-size:9px;"></i> Matched Response
-    <span id="ai-search-label" style="margin-left:auto;font-size:9px;font-weight:700;color:#475569;text-transform:none;letter-spacing:0;font-style:italic;"></span>
-  </div>
-  <div id="ai-search-text" style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;"></div>
-  <div id="ai-search-tip" style="display:none;margin-top:10px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:8px 12px;">
-    <span id="ai-search-tip-text" style="font-size:12px;font-weight:700;color:#fbbf24;"></span>
-  </div>
-</div>
-
-<!-- ── REBUTTAL PANELS ─────────────────────────────────────────────────── -->
+<!-- Rebuttal Response Panel -->
 <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:18px;padding:18px;">
+    <div id="rb-panel-0" style="display:block;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#14b8a6;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#14b8a6;flex-shrink:0;"></div>
+    Identity / Legitimacy
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Which company do you represent?"</div>
+</div>
+<div style="background:rgba(20,184,166,0.05);border:1px solid rgba(20,184,166,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#14b8a6;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We're the Business Loan Division. We help connect business owners to the right lending programs through our partner network."</p>
+            </div>
+</div>
+<div id="rb-panel-1" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#ef4444;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0;"></div>
+    Trust / Skepticism
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Is this a scam?"</div>
+</div>
+<div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#ef4444;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"I understand the concern. This is a legitimate outreach from the Business Loan Division in California. We work only with licensed financial institutions."</p>
+            </div>
+</div>
+<div id="rb-panel-2" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#f97316;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#f97316;flex-shrink:0;"></div>
+    Delay Tactic
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Can you email me something first?"</div>
+</div>
+<div style="background:rgba(249,115,22,0.05);border:1px solid rgba(249,115,22,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#f97316;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Once I connect you with the senior advisor, they can send you all the information directly. I just need to confirm your business details first."</p>
+            </div>
+</div>
+<div id="rb-panel-3" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#eab308;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#eab308;flex-shrink:0;"></div>
+    Channel Objection
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Why are you calling and not emailing?"</div>
+</div>
+<div style="background:rgba(234,179,8,0.05);border:1px solid rgba(234,179,8,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#eab308;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Phone is the quickest way to confirm eligibility and make sure the right person gets connected. It only takes a minute."</p>
+            </div>
+</div>
+<div id="rb-panel-4" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#3b82f6;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0;"></div>
+    Entity Clarification
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Are you a bank?"</div>
+</div>
+<div style="background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#3b82f6;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"No, we're a direct private lender. We work with business-funding programs that provide working capital and lines of credit directly."</p>
+            </div>
+</div>
+<div id="rb-panel-5" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#a855f7;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#a855f7;flex-shrink:0;"></div>
+    Credit Concern
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"My credit score is bad."</div>
+</div>
+<div style="background:rgba(168,85,247,0.05);border:1px solid rgba(168,85,247,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#a855f7;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Totally understood — but a lower score doesn't disqualify you. We look at your full picture, not just credit. You may still qualify."</p>
+                <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-6" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#ec4899;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#ec4899;flex-shrink:0;"></div>
+    Not Interested
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"I don't need a loan."</div>
+</div>
+<div style="background:rgba(236,72,153,0.05);border:1px solid rgba(236,72,153,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#ec4899;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Fair enough. Do you see any cash flow gaps or growth opportunities coming up in the next 3–6 months?"</p>
+                <p style="font-size:12px;font-weight:700;color:#94a3b8;margin-top:8px;line-height:1.6;font-style:italic;">— Wait, let them talk — then: "Sometimes it helps to be pre-qualified so the funding is ready when you need it."</p>
+                <div style="margin-top:10px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-ear-listen" style="color:#eab308;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#fbbf24;letter-spacing:0.07em;">See how they respond before moving on</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-7" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#06b6d4;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#06b6d4;flex-shrink:0;"></div>
+    Data / Verification
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Why don't you have my information?"</div>
+</div>
+<div style="background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#06b6d4;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We pull from multiple sources, but we always verify directly with you to make sure everything is accurate. Once confirmed, we can match you with the right options."</p>
+                <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-8" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#84cc16;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#84cc16;flex-shrink:0;"></div>
+    Rate Question
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"What is the interest rate?"</div>
+</div>
+<div style="background:rgba(132,204,22,0.05);border:1px solid rgba(132,204,22,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#84cc16;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Rates depend on your specific risk and credit profile — but the real question is how fast the funding helps your business grow. Our specialist will go over all of that once we confirm you're pre-qualified."</p>
+                <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-9" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#f43f5e;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#f43f5e;flex-shrink:0;"></div>
+    Competitor / Price
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"I found a cheaper option elsewhere."</div>
+</div>
+<div style="background:rgba(244,63,94,0.05);border:1px solid rgba(244,63,94,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#f43f5e;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Smart to shop around. Just know that cheaper on the surface isn't always better — hidden costs and strict terms add up. Our specialist can do a side-by-side so you're truly getting the best deal. Sound fair?"</p>
+                <div style="margin-top:10px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-ear-listen" style="color:#eab308;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#fbbf24;letter-spacing:0.07em;">Wait for their response</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-10" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#8b5cf6;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#8b5cf6;flex-shrink:0;"></div>
+    Privacy Concern
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"How did you get my information?"</div>
+</div>
+<div style="background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#8b5cf6;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Totally fair question. We work with a network of trusted financial partners — if you've ever inquired about business financing, your info may have been shared to match you with the best options. Your privacy is fully protected."</p>
+                <div style="margin-top:10px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-ear-listen" style="color:#eab308;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#fbbf24;letter-spacing:0.07em;">Wait — then go back to where you left off</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-11" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#6366f1;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#6366f1;flex-shrink:0;"></div>
+    Company Identity — Full Flow
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"What is the name of the company?"</div>
+</div>
+<!-- Step-by-step flow -->
+            <div style="display:flex;flex-direction:column;gap:10px;">
 
-  <!-- ═══ PANEL 0 — Is This a Scam / Fraud ═══ -->
-  <div id="rb-panel-0" style="display:block;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#ef4444;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0;"></div>Trust / Skepticism</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Are you a fraud?" / "Does this scam really work?"</div></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#ef4444;letter-spacing:0.1em;margin-bottom:8px;">Option A — Calm &amp; Direct</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"I completely get why you'd ask that — there are a lot of bad actors out there and it's smart to be cautious. I'm just confirming basic pre-qualification details on behalf of the Business Loan Division here in California. No application, no credit pull, nothing gets submitted without your full approval. You're in control the whole time."</p>
-      </div>
-      <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#ef4444;letter-spacing:0.1em;margin-bottom:8px;">Option B — Flip It with Humor</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Ha — I wish! If this were a scam, I'd be calling from a beach somewhere. We're a legitimate lending division based in California. My only job right now is to check if your business qualifies for working capital programs. That's it."</p>
-      </div>
-      <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#ef4444;letter-spacing:0.1em;margin-bottom:8px;">Option C — Validate &amp; Reassure</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"That's honestly a fair question and I'm glad you're asking. We're the Business Loan Division — a direct private lending group. We work exclusively with licensed financial institutions. I'm not asking for any payment, bank login, or sensitive data today — just basic business details to see if you pre-qualify."</p>
-      </div>
-      <div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start;">
-        <i class="fas fa-lightbulb" style="color:#eab308;flex-shrink:0;margin-top:2px;font-size:13px;"></i>
-        <p style="font-size:12px;font-weight:700;color:#fbbf24;line-height:1.6;">Don't get defensive. Stay calm, match their energy, and keep it moving.</p>
-      </div>
-    </div>
-  </div>
+                <!-- Step 1 -->
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <div style="width:22px;height:22px;border-radius:50%;background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;font-size:10px;font-weight:900;color:#818cf8;">1</div>
+                    <div style="background:rgba(99,102,241,0.07);border:1px solid rgba(99,102,241,0.18);border-radius:10px;padding:10px 14px;flex:1;">
+                        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#818cf8;letter-spacing:0.08em;margin-bottom:5px;">First Response</div>
+                        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.65;">"We are the Business Loan Division. We work with multiple financial lenders and match you with the right one based on your specific situation."</p>
+                    </div>
+                </div>
 
-  <!-- ═══ PANEL 1 — No Website ═══ -->
-  <div id="rb-panel-1" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#f97316;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#f97316;flex-shrink:0;"></div>Website / Online Presence</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"What is the name of your website?" / "Why is there no website?"</div></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="background:rgba(249,115,22,0.05);border:1px solid rgba(249,115,22,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f97316;letter-spacing:0.1em;margin-bottom:8px;">Option A — Smooth Deflect</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Our division works through a secure internal system — we don't operate through a public-facing website since our clients come through pre-qualified referrals only. Think of it like a private network, not a retail bank. Once you're connected with the senior advisor, they can walk you through everything in detail."</p>
-      </div>
-      <div style="background:rgba(249,115,22,0.05);border:1px solid rgba(249,115,22,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f97316;letter-spacing:0.1em;margin-bottom:8px;">Option B — Keep Focus on the Call</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We don't have a consumer website because everything we do is handled directly through verified business referrals and our partner network. You won't find us on Google like a regular lender — that's actually by design to protect our clients' information. Our senior advisors are the real resource — they can answer everything once I confirm your details."</p>
-      </div>
-      <div style="background:rgba(249,115,22,0.05);border:1px solid rgba(249,115,22,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f97316;letter-spacing:0.1em;margin-bottom:8px;">Option C — Acknowledge &amp; Redirect</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"That's a totally fair thing to ask. We're a private lending division so we operate through partner channels rather than a public site. What I can tell you is everything is handled in California under standard business-lending regulations. The advisor you'll speak with can verify everything directly."</p>
-      </div>
-      <div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start;">
-        <i class="fas fa-lightbulb" style="color:#eab308;flex-shrink:0;margin-top:2px;font-size:13px;"></i>
-        <p style="font-size:12px;font-weight:700;color:#fbbf24;line-height:1.6;">Don't stumble here. Say it with confidence — 'private network' and 'referral-based' sound professional, not suspicious.</p>
-      </div>
-    </div>
-  </div>
+                <!-- Push back arrow -->
+                <div style="display:flex;align-items:center;gap:8px;padding:0 4px;">
+                    <div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div>
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#475569;">If they push back — "But that doesn't give me the name of the company"</span>
+                    <div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div>
+                </div>
 
-  <!-- ═══ PANEL 2 — Pre-Qualified / No Info ═══ -->
-  <div id="rb-panel-2" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#06b6d4;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#06b6d4;flex-shrink:0;"></div>Pre-Qualified but No Info</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"If I'm already pre-qualified, why don't you have my information?"</div></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#06b6d4;letter-spacing:0.1em;margin-bottom:8px;">Option A — Simple &amp; Logical</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Great question. The pre-qualification is based on general business data that came through our partner network — things like your industry type and estimated revenue range. But before we can match you to a specific program, I just need to verify a few key details like your current monthly revenue and time in business. It's a quick confirmation, not a full application."</p>
-      </div>
-      <div style="background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#06b6d4;letter-spacing:0.1em;margin-bottom:8px;">Option B — Analogy Approach</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"It's kind of like when your bank pre-approves you for a credit card based on your credit file — they still ask you to confirm a few things before issuing it. We have your business flagged as a potential match, but I need to verify the current details to make sure you get the right program."</p>
-      </div>
-      <div style="background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#06b6d4;letter-spacing:0.1em;margin-bottom:8px;">Option C — Honest &amp; Transparent</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"The pre-qualification comes from data our partners share — it tells us your business may qualify, but it doesn't give us everything. I just need to confirm your monthly revenue and how long you've been in business. Takes about two minutes and then I can connect you with a senior advisor who will have the full picture."</p>
-      </div>
-      <div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start;">
-        <i class="fas fa-lightbulb" style="color:#eab308;flex-shrink:0;margin-top:2px;font-size:13px;"></i>
-        <p style="font-size:12px;font-weight:700;color:#fbbf24;line-height:1.6;">Say 'partner network' or 'data match' — avoid saying 'we bought a list.'</p>
-      </div>
-    </div>
-  </div>
+                <!-- Step 2 -->
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <div style="width:22px;height:22px;border-radius:50%;background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;font-size:10px;font-weight:900;color:#818cf8;">2</div>
+                    <div style="background:rgba(99,102,241,0.07);border:1px solid rgba(99,102,241,0.18);border-radius:10px;padding:10px 14px;flex:1;">
+                        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#818cf8;letter-spacing:0.08em;margin-bottom:5px;">Hold Firm — Stay Calm</div>
+                        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.65;">"Like I said, Sir/Ma'am, we are the Business Loan Division. When I connect you with the senior advisor, they will go over exactly who we represent — but before I do that, I just need to ask you a few simple questions, if that's okay."</p>
+                    </div>
+                </div>
 
-  <!-- ═══ PANEL 3 — What Business Are You Calling ═══ -->
-  <div id="rb-panel-3" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#eab308;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#eab308;flex-shrink:0;"></div>Business Identity</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"What business are you calling?"</div></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="background:rgba(234,179,8,0.05);border:1px solid rgba(234,179,8,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#eab308;letter-spacing:0.1em;margin-bottom:8px;">Option A — Confident Opener (have the name)</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"I'm reaching out to the owner of [Business Name] — is this [Owner Name]? I'm calling because your business came up as a potential match for our working capital programs based on your revenue profile."</p>
-      </div>
-      <div style="background:rgba(234,179,8,0.05);border:1px solid rgba(234,179,8,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#eab308;letter-spacing:0.1em;margin-bottom:8px;">Option B — If You Don't Have the Name</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"I'm calling based on a pre-qualification match in our system for a business in your area. I want to make sure I'm speaking with the right person — are you the owner or decision-maker for the business?"</p>
-      </div>
-      <div style="background:rgba(234,179,8,0.05);border:1px solid rgba(234,179,8,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#eab308;letter-spacing:0.1em;margin-bottom:8px;">Option C — When They Challenge</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We work from partner-sourced business data, so sometimes the specific name in our system needs to be confirmed with the owner directly — that's actually why I'm calling. Can I confirm — is this the right number for the business owner?"</p>
-      </div>
-    </div>
-  </div>
+                <!-- Step 3 — redirect -->
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <div style="width:22px;height:22px;border-radius:50%;background:rgba(20,184,166,0.2);border:1px solid rgba(20,184,166,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;font-size:10px;font-weight:900;color:#14b8a6;">→</div>
+                    <div style="background:rgba(20,184,166,0.06);border:1px solid rgba(20,184,166,0.2);border-radius:10px;padding:10px 14px;flex:1;display:flex;align-items:center;gap:8px;">
+                        <i class="fas fa-arrow-right" style="color:#14b8a6;font-size:11px;flex-shrink:0;"></i>
+                        <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#2dd4bf;letter-spacing:0.07em;">Immediately go back into qualifying questions</span>
+                    </div>
+                </div>
 
-  <!-- ═══ PANEL 4 — Address / In Person ═══ -->
-  <div id="rb-panel-4" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#22c55e;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;"></div>Address / Physical Location</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Can I have your address so I can come in person?" / "What's your address in California?"</div></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#22c55e;letter-spacing:0.1em;margin-bottom:8px;">Option A — Security Angle</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"For security reasons, we don't disclose exact branch locations publicly — that's a policy we follow to protect our clients and operations. Everything we do is fully handled remotely, which actually makes it faster and more convenient for business owners. All documents, agreements, and advisor calls are done securely over phone and email."</p>
-      </div>
-      <div style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#22c55e;letter-spacing:0.1em;margin-bottom:8px;">Option B — Professional &amp; Smooth</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We're based in California and operate across multiple offices — we don't have a single walk-in location since we work with business owners nationwide. Everything is handled remotely through our secure process. Once the senior advisor connects with you, they can provide our official business contact information."</p>
-      </div>
-      <div style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#22c55e;letter-spacing:0.1em;margin-bottom:8px;">Option C — Redirect to Action</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"I completely understand wanting to verify who you're dealing with — that's smart. We operate out of California but we're fully remote. What I can do is get you connected with the senior advisor right now, and they can send you our official contact details directly. Does that work?"</p>
-      </div>
-      <div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start;">
-        <i class="fas fa-lightbulb" style="color:#eab308;flex-shrink:0;margin-top:2px;font-size:13px;"></i>
-        <p style="font-size:12px;font-weight:700;color:#fbbf24;line-height:1.6;">Don't say you can't give the address in a way that sounds sketchy. Tie it to 'security' and 'fully remote operations.'</p>
-      </div>
-    </div>
-  </div>
+                <!-- Extra scripts for 5 situations -->
+                <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:12px;margin-top:2px;">
+                    <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#64748b;letter-spacing:0.1em;margin-bottom:10px;">5 Ways They Might Ask This — & How to Handle Each</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
 
-  <!-- ═══ PANEL 5 — Do Not Call List ═══ -->
-  <div id="rb-panel-5" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#a855f7;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#a855f7;flex-shrink:0;"></div>Do Not Call List</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"I'm on the Do Not Call list — why are you still calling?"</div></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="background:rgba(168,85,247,0.05);border:1px solid rgba(168,85,247,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#a855f7;letter-spacing:0.1em;margin-bottom:8px;">Option A — B2B Exemption, Calm</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"I completely understand that frustration. Just to clarify — business-to-business calls like ours aren't covered under the same Do Not Call rules that apply to consumer calls. Since we're calling about business funding for your company, we're permitted to reach out. That said, if you'd like to be removed from our specific list, I can absolutely do that right now."</p>
-      </div>
-      <div style="background:rgba(168,85,247,0.05);border:1px solid rgba(168,85,247,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#a855f7;letter-spacing:0.1em;margin-bottom:8px;">Option B — Acknowledge &amp; Offer Removal</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"I hear you — that's genuinely frustrating. I want to be transparent: B2B outreach like business lending calls falls under a different regulatory category than personal consumer calls. But I respect your time — would you like me to remove you from our outreach list completely? Or would it make sense to just take two minutes to see if you actually qualify?"</p>
-      </div>
-      <div style="background:rgba(168,85,247,0.05);border:1px solid rgba(168,85,247,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#a855f7;letter-spacing:0.1em;margin-bottom:8px;">Option C — Soft &amp; Empathetic</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"I totally get it — nobody wants unexpected calls. Business outreach for commercial funding programs is treated differently from consumer solicitation legally, but that doesn't make it less annoying when you're busy. I'll keep it short: if your business doesn't qualify, I'll let you go immediately and remove you. Fair enough?"</p>
-      </div>
-      <div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start;">
-        <i class="fas fa-lightbulb" style="color:#eab308;flex-shrink:0;margin-top:2px;font-size:13px;"></i>
-        <p style="font-size:12px;font-weight:700;color:#fbbf24;line-height:1.6;">Always offer to remove them. It builds trust and often makes them stay on the line.</p>
-      </div>
-    </div>
-  </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:9px;padding:10px 13px;">
+                            <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;"><span style="background:rgba(99,102,241,0.2);color:#a5b4fc;font-size:9px;font-weight:900;border-radius:20px;padding:2px 8px;">SITUATION 1</span><span style="font-size:11px;font-weight:700;color:#94a3b8;font-style:italic;">"What's the name of the company you're from?"</span></div>
+                            <p style="font-size:14px;font-weight:700;color:white;line-height:1.6;font-style:italic;">"We're the Business Loan Division — we're the verification team that connects you with the right lender. The advisor you'll speak with will introduce themselves fully."</p>
+                        </div>
 
-  <!-- ═══ PANEL 6 — Is This AI / Anthony Smith ═══ -->
-  <div id="rb-panel-6" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#f43f5e;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#f43f5e;flex-shrink:0;"></div>AI / Anthony Smith Question</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Can I speak with Anthony Smith?" / "Is this AI?"</div></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="background:rgba(244,63,94,0.05);border:1px solid rgba(244,63,94,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f43f5e;letter-spacing:0.1em;margin-bottom:8px;">Option A — Anthony is from our Marketing Team</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Anthony Smith is from our marketing team — he handles our outreach campaigns, not direct calls. You're now speaking with a real person on the lending side. My job is to complete the quick pre-qualification so I can connect you with a senior advisor who will take it from there. Does that make sense?"</p>
-      </div>
-      <div style="background:rgba(244,63,94,0.05);border:1px solid rgba(244,63,94,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f43f5e;letter-spacing:0.1em;margin-bottom:8px;">Option B — Redirect Smoothly</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Anthony is part of our marketing team — I'm the pre-qualification specialist who confirms your business details first. Once I verify a couple of things, I'll get you to the right person immediately. Takes about two minutes — is now still okay?"</p>
-      </div>
-      <div style="background:rgba(244,63,94,0.05);border:1px solid rgba(244,63,94,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f43f5e;letter-spacing:0.1em;margin-bottom:8px;">Option C — If They Press Hard on "Is This AI?"</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"I'm a real person — I handle the pre-qualification side of the process. Anthony is from our marketing team who coordinates the outreach, but all conversations and funding approvals go through real advisors like me. Would you like to continue?"</p>
-      </div>
-      <div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start;">
-        <i class="fas fa-lightbulb" style="color:#eab308;flex-shrink:0;margin-top:2px;font-size:13px;"></i>
-        <p style="font-size:12px;font-weight:700;color:#fbbf24;line-height:1.6;">Be consistent across the whole team — always use the same answer: "Anthony is from our marketing team."</p>
-      </div>
-    </div>
-  </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:9px;padding:10px 13px;">
+                            <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;"><span style="background:rgba(99,102,241,0.2);color:#a5b4fc;font-size:9px;font-weight:900;border-radius:20px;padding:2px 8px;">SITUATION 2</span><span style="font-size:11px;font-weight:700;color:#94a3b8;font-style:italic;">"Are you calling from a bank? Which one?"</span></div>
+                            <p style="font-size:14px;font-weight:700;color:white;line-height:1.6;font-style:italic;">"We're not a bank — we're the Business Loan Division. We work across multiple lenders and match you to the best fit. That's exactly why we verify first."</p>
+                        </div>
 
-  <!-- ═══ PANEL 7 — How Did I Get Pre-Qualified ═══ -->
-  <div id="rb-panel-7" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#84cc16;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#84cc16;flex-shrink:0;"></div>Pre-Qualification Process</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"How did I get pre-qualified?"</div></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="background:rgba(132,204,22,0.05);border:1px solid rgba(132,204,22,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#84cc16;letter-spacing:0.1em;margin-bottom:8px;">Option A — Clean &amp; Confident</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Your business profile was matched through our partner data network — things like your industry, estimated revenue, and time in business. When a business hits certain thresholds, it gets flagged as a potential match for our working capital programs. You came up as a strong candidate, which is why I'm calling to confirm the details."</p>
-      </div>
-      <div style="background:rgba(132,204,22,0.05);border:1px solid rgba(132,204,22,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#84cc16;letter-spacing:0.1em;margin-bottom:8px;">Option B — Short &amp; Simple</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We work with a network of financial data partners who identify businesses that may qualify for working capital. Your business met the initial criteria, so we flagged it for outreach. I just need to verify two or three things to confirm the full qualification."</p>
-      </div>
-      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;margin-top:2px;"><i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span></div>
-    </div>
-  </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:9px;padding:10px 13px;">
+                            <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;"><span style="background:rgba(99,102,241,0.2);color:#a5b4fc;font-size:9px;font-weight:900;border-radius:20px;padding:2px 8px;">SITUATION 3</span><span style="font-size:11px;font-weight:700;color:#94a3b8;font-style:italic;">"I need a company name before I answer anything."</span></div>
+                            <p style="font-size:14px;font-weight:700;color:white;line-height:1.6;font-style:italic;">"Absolutely — the Business Loan Division. And once I get you to the senior advisor, they'll provide full company details. I just need 2 minutes to verify you qualify first."</p>
+                        </div>
 
-  <!-- ═══ PANEL 8 — Business Loan Division of What ═══ -->
-  <div id="rb-panel-8" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#6366f1;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#6366f1;flex-shrink:0;"></div>Division Identity</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Business Loan Division of what?" / "The Business Loan Division of what?"</div></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="background:rgba(99,102,241,0.05);border:1px solid rgba(99,102,241,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#6366f1;letter-spacing:0.1em;margin-bottom:8px;">Option A — Full Name Response</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We're the Business Loan Division — a direct private lending group that specializes in working capital programs and business lines of credit. We connect qualified business owners with funding through our network of licensed financial institutions. We're based here in California."</p>
-      </div>
-      <div style="background:rgba(99,102,241,0.05);border:1px solid rgba(99,102,241,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#6366f1;letter-spacing:0.1em;margin-bottom:8px;">Option B — Short &amp; Authoritative</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We're a standalone private lending division — not a branch of a bank. We work directly with business owners to provide working capital and credit line programs through our partner lenders. Think of us as the access point between qualified businesses and the funding they need."</p>
-      </div>
-      <div style="background:rgba(99,102,241,0.05);border:1px solid rgba(99,102,241,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#6366f1;letter-spacing:0.1em;margin-bottom:8px;">Option C — If They Keep Pushing</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Our full operating name is the Business Loan Division — we're a California-based private lending group. Once I connect you with the senior advisor, they can give you all the company details, licensing info, and program specifics. For right now, I just need to confirm your revenue and time in business."</p>
-      </div>
-      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;"><i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span></div>
-    </div>
-  </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:9px;padding:10px 13px;">
+                            <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;"><span style="background:rgba(99,102,241,0.2);color:#a5b4fc;font-size:9px;font-weight:900;border-radius:20px;padding:2px 8px;">SITUATION 4</span><span style="font-size:11px;font-weight:700;color:#94a3b8;font-style:italic;">"Can you send me your company website or email?"</span></div>
+                            <p style="font-size:14px;font-weight:700;color:white;line-height:1.6;font-style:italic;">"The senior advisor can absolutely send that over once you're connected. Right now I just need to confirm a few details to make sure we can actually help you."</p>
+                        </div>
 
-  <!-- ═══ PANEL 9 — Bad Credit ═══ -->
-  <div id="rb-panel-9" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#a855f7;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#a855f7;flex-shrink:0;"></div>Credit Concern</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"My credit score is bad."</div></div>
-    <div style="background:rgba(168,85,247,0.05);border:1px solid rgba(168,85,247,0.18);border-radius:12px;padding:14px 16px;">
-      <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#a855f7;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
-      <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"I completely understand — a lot of business owners tell me the same thing. The good news is, this program looks at your business performance overall, not just credit. So even if the score isn't ideal, we can often still get you approved."</p>
-      <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;"><i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span></div>
-    </div>
-  </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:9px;padding:10px 13px;">
+                            <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;"><span style="background:rgba(99,102,241,0.2);color:#a5b4fc;font-size:9px;font-weight:900;border-radius:20px;padding:2px 8px;">SITUATION 5</span><span style="font-size:11px;font-weight:700;color:#94a3b8;font-style:italic;">"I've never heard of you — how do I know you're legit?"</span></div>
+                            <p style="font-size:14px;font-weight:700;color:white;line-height:1.6;font-style:italic;">"That's a fair point. We're the Business Loan Division — a licensed verification team based in California. We don't ask for money, we don't charge fees. We simply verify and connect. Your advisor will confirm everything."</p>
+                        </div>
 
-  <!-- ═══ PANEL 10 — Don't Need Loan ═══ -->
-  <div id="rb-panel-10" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#ec4899;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#ec4899;flex-shrink:0;"></div>Not Interested / Don't Need a Loan</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"I don't need a loan right now."</div></div>
-    <div style="background:rgba(236,72,153,0.05);border:1px solid rgba(236,72,153,0.18);border-radius:12px;padding:14px 16px;">
-      <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#ec4899;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
-      <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Totally makes sense. Just out of curiosity, do you see any cash flow gaps or growth opportunities in the next few months that might need a little extra funding?"</p>
-      <p style="font-size:12px;font-weight:700;color:#94a3b8;margin-top:8px;line-height:1.6;font-style:italic;">— Wait and listen carefully. If they open up → move forward:</p>
-      <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:6px;">"That's exactly why we pre-qualify — so funding's ready when you need it."</p>
-      <div style="margin-top:10px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;"><i class="fas fa-ear-listen" style="color:#eab308;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#fbbf24;letter-spacing:0.07em;">Wait — see how they respond before moving on</span></div>
-    </div>
-  </div>
+                    </div>
+                </div>
 
-  <!-- ═══ PANEL 11 — Interest Rate ═══ -->
-  <div id="rb-panel-11" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#84cc16;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#84cc16;flex-shrink:0;"></div>Rate Question</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"What's the interest rate?"</div></div>
-    <div style="background:rgba(132,204,22,0.05);border:1px solid rgba(132,204,22,0.18);border-radius:12px;padding:14px 16px;">
-      <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#84cc16;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
-      <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Great question — rates depend on a few factors like revenue and business history, but the key is finding the overall value that helps your business grow or save money. Once we verify the details, our specialist will go over all that clearly."</p>
-      <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;"><i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span></div>
-    </div>
-  </div>
+            </div>
+</div>
+<div id="rb-panel-12" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#10b981;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#10b981;flex-shrink:0;"></div>
+    Loan Type Inquiry
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"What type of loan is this?"</div>
+</div>
+<div style="background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#10b981;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We deal with lines of credit and working capital. As I mentioned, we are a direct, private lender — these are not government-backed loans. The senior advisor will be able to explain everything in more detail for you. We can go ahead with the questions if you're still interested."</p>
+                <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:9px 12px;text-align:center;">
+                        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#10b981;letter-spacing:0.08em;margin-bottom:3px;">✓ We Offer</div>
+                        <div style="font-size:12px;font-weight:700;color:white;">Lines of Credit</div>
+                        <div style="font-size:12px;font-weight:700;color:white;">Working Capital</div>
+                    </div>
+                    <div style="background:rgba(100,116,139,0.08);border:1px solid rgba(100,116,139,0.2);border-radius:8px;padding:9px 12px;text-align:center;">
+                        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#64748b;letter-spacing:0.08em;margin-bottom:3px;">✗ Not This</div>
+                        <div style="font-size:12px;font-weight:700;color:#94a3b8;">Government-Backed</div>
+                        <div style="font-size:12px;font-weight:700;color:#94a3b8;">SBA / Federal Loans</div>
+                    </div>
+                </div>
+                <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-13" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#f59e0b;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0;"></div>
+    Pre-Qualification Pushback
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"If I'm already pre-qualified, why do you need more questions?"</div>
+</div>
+<div style="background:rgba(245,158,11,0.05);border:1px solid rgba(245,158,11,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#f59e0b;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"I completely understand how that sounds — pre-qualified simply means you meet the general criteria based on the basic info we have. These few questions make sure we match you with the right program and the lender most likely to approve you. If we skip this step, it could lead to delays or even a mismatch, and I want to make sure you get the best possible offer without wasting your time."</p>
+                <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-14" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#0ea5e9;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#0ea5e9;flex-shrink:0;"></div>
+    Unsolicited Outreach
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"I didn't apply for a loan — who applied?"</div>
+</div>
+<div style="background:rgba(14,165,233,0.05);border:1px solid rgba(14,165,233,0.18);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#0ea5e9;margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Choose Your Response</div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#0ea5e9;letter-spacing:0.08em;">Option A</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"No one applied on your behalf — your business information came through one of our financial partner networks. We reach out to business owners who appear to meet our criteria. You're not obligated to proceed, but since you're on the line, can I ask a few quick questions?"</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#0ea5e9;letter-spacing:0.08em;">Option B</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"That's a great question — no application was submitted for you. We work with a network of data partners and your business details indicated you may qualify for funding. We're simply reaching out to verify eligibility."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#0ea5e9;letter-spacing:0.08em;">Option C</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"Nobody applied — we identified your business as a potential match through our partner network and reached out directly. There's no commitment here, I just need to verify a few things."</p>
+                </div>
+                <div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:10px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;">
+                    <i class="fas fa-lightbulb" style="color:#eab308;flex-shrink:0;margin-top:2px;font-size:13px;"></i>
+                    <div>
+                        <p style="font-size:9px;font-weight:900;text-transform:uppercase;color:#eab308;letter-spacing:0.08em;margin-bottom:4px;">If They Say They DID Apply Before</p>
+                        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"If you applied for a loan before, that's likely why we're reaching out to you."</p>
+                    </div>
+                </div>
+                <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-15" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#d946ef;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#d946ef;flex-shrink:0;"></div>
+    Pre-Approval Confusion
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Your voicemail said I'm already approved."</div>
+</div>
+<div style="background:rgba(217,70,239,0.05);border:1px solid rgba(217,70,239,0.18);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#d946ef;margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Choose Your Response</div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#d946ef;letter-spacing:0.08em;">Option A</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"I understand how that sounds — what that means is your business profile met our general criteria, which is why we reached out. Full approval happens after the senior advisor reviews your details. These questions just help us get you to the right program."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#d946ef;letter-spacing:0.08em;">Option B</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"Pre-approved simply means you cleared the first threshold based on basic info. The advisor confirms the actual offer — I just need to verify a couple of things so we match you with the right lender."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#d946ef;letter-spacing:0.08em;">Option C</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"Think of it like a pre-screen — your business appeared to qualify based on initial criteria. The senior advisor locks in the real numbers once I confirm your details. Can we take 2 minutes to do that now?"</p>
+                </div>
+                <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-16" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#22c55e;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;"></div>
+    Location Question
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Where is your company located?"</div>
+</div>
+<div style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.18);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#22c55e;margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Choose Your Response</div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#22c55e;letter-spacing:0.08em;">Option A</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"We're based in California. We operate nationally and work with lenders across the country to match business owners with the right funding programs."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#22c55e;letter-spacing:0.08em;">Option B</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"Our offices are in California — we're a national operation so we work with business owners all across the U.S. through our lender network."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#22c55e;letter-spacing:0.08em;">Option C</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"California-based. We work with business owners nationwide — the senior advisor can give you the full details on our operations when you're connected."</p>
+                </div>
+                <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-17" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#fb923c;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#fb923c;flex-shrink:0;"></div>
+    Business Name Challenge
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"What's the name of my business / how did you approve me without knowing it?"</div>
+</div>
+<div style="background:rgba(251,146,60,0.05);border:1px solid rgba(251,146,60,0.18);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#fb923c;margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Choose Your Response</div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#fb923c;letter-spacing:0.08em;">Option A</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"That's exactly why I'm calling — we have some basic information but we need to verify the details directly with you, including your business name. That's what these questions are for, so we can confirm everything is accurate before connecting you."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#fb923c;letter-spacing:0.08em;">Option B</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"Great question — we pulled your contact info from our partner network, but we always verify directly with the owner to make sure everything is correct. So let's start there — what's the name of your business?"</p>
+                </div>
+                <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-18" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#38bdf8;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#38bdf8;flex-shrink:0;"></div>
+    Missing Business Name
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"How come you don't know my business name?"</div>
+</div>
+<div style="background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#38bdf8;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:16px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Your pre-qualification file came through with your contact details, but the business name wasn't included. That's exactly why I'm calling — to get that confirmed so we can move you forward and lock in your funding."</p>
+                <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-19" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#14b8a6;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#14b8a6;flex-shrink:0;"></div>
+    Website Question
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"What is the name of your website? / Why is there no website?"</div>
+</div>
+<div style="background:rgba(20,184,166,0.05);border:1px solid rgba(20,184,166,0.18);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#14b8a6;margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Choose Your Response</div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#14b8a6;letter-spacing:0.08em;">Option A — Smooth deflect</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"Our division works through a secure internal system — we don't operate through a public-facing website since our clients come through pre-qualified referrals only. Think of it like a private network, not a retail bank. Once you're connected with the senior advisor, they can walk you through everything in detail."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#14b8a6;letter-spacing:0.08em;">Option B — Keep focus on the call</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"We don't have a consumer website because everything we do is handled directly through verified business referrals and our partner network. You won't find us on Google like a regular lender — that's actually by design to protect our clients' information. Our senior advisors are the real resource — they can answer everything once I confirm your details."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#14b8a6;letter-spacing:0.08em;">Option C — Acknowledge & redirect</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"That's a totally fair thing to ask. We're a private lending division so we operate through partner channels rather than a public site. What I can tell you is everything is handled in California under standard business-lending regulations. The advisor you'll speak with can verify everything directly."</p>
+                </div>
+                <div style="margin-top:5px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-lightbulb" style="color:#eab308;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:11px;font-weight:700;color:#fbbf24;line-height:1.5;">Don't stumble here. Say it with confidence — 'private network' and 'referral-based' sound professional, not suspicious.</span>
+                </div>
+                <div style="margin-top:5px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-20" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#f97316;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#f97316;flex-shrink:0;"></div>
+    Address Question
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Can I have your address so I can come in person? / What's your address in California?"</div>
+</div>
+<div style="background:rgba(249,115,22,0.05);border:1px solid rgba(249,115,22,0.18);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#f97316;margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Choose Your Response</div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f97316;letter-spacing:0.08em;">Option A — Security angle</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"For security reasons, we don't disclose exact branch locations publicly — that's a policy we follow to protect our clients and operations. Everything we do is fully handled remotely, which actually makes it faster and more convenient for business owners. All documents, agreements, and advisor calls are done securely over phone and email."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f97316;letter-spacing:0.08em;">Option B — Professional & smooth</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"We're based in California and operate across multiple offices — we don't have a single walk-in location since we work with business owners nationwide. Everything is handled remotely through our secure process. Once the senior advisor connects with you, they can provide our official business contact information."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f97316;letter-spacing:0.08em;">Option C — Redirect to action</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"I completely understand wanting to verify who you're dealing with — that's smart. We operate out of California but we're fully remote. What I can do is get you connected with the senior advisor right now, and they can send you our official contact details directly. Does that work?"</p>
+                </div>
+                <div style="margin-top:5px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-lightbulb" style="color:#eab308;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:11px;font-weight:700;color:#fbbf24;line-height:1.5;">Don't say you can't give the address in a way that sounds sketchy. Tie it to 'security' and 'fully remote operations.'</span>
+                </div>
+                <div style="margin-top:5px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-21" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#ef4444;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0;"></div>
+    Do Not Call List
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"I'm on the Do Not Call list — why are you still calling?"</div>
+</div>
+<div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.18);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#ef4444;margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Choose Your Response</div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#ef4444;letter-spacing:0.08em;">Option A — B2B exemption, calm</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"I completely understand that frustration. Just to clarify — business-to-business calls like ours aren't covered under the same Do Not Call rules that apply to consumer calls. Since we're calling about business funding for your company, we're permitted to reach out. That said, if you'd like to be removed from our specific list, I can absolutely do that right now."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#ef4444;letter-spacing:0.08em;">Option B — Acknowledge & offer removal</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"I hear you — that's genuinely frustrating. I want to be transparent: B2B outreach like business lending calls falls under a different regulatory category than personal consumer calls. But I respect your time — would you like me to remove you from our outreach list completely? Or would it make sense to just take two minutes to see if you actually qualify?"</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#ef4444;letter-spacing:0.08em;">Option C — Soft & empathetic</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"I totally get it — nobody wants unexpected calls. Business outreach for commercial funding programs is treated differently from consumer solicitation legally, but that doesn't make it less annoying when you're busy. I'll keep it short: if your business doesn't qualify, I'll let you go immediately and remove you. Fair enough?"</p>
+                </div>
+                <div style="margin-top:5px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-lightbulb" style="color:#eab308;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:11px;font-weight:700;color:#fbbf24;line-height:1.5;">Always offer to remove them. It builds trust and often makes them stay on the line.</span>
+                </div>
+                <div style="margin-top:5px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-22" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#a855f7;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#a855f7;flex-shrink:0;"></div>
+    Anthony Smith / AI Question
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Can I speak with Anthony Smith? / Is this AI?"</div>
+</div>
+<div style="background:rgba(168,85,247,0.05);border:1px solid rgba(168,85,247,0.18);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#a855f7;margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Choose Your Response</div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#a855f7;letter-spacing:0.08em;">Option A — Acknowledge it's AI-assisted</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"Anthony Smith is part of our marketing team — he's not a live agent on the line. You're now speaking with a real person. My job is to complete the quick pre-qualification so I can connect you with a senior human advisor who will take it from there. Does that make sense?"</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#a855f7;letter-spacing:0.08em;">Option B — Redirect without confirming AI</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"Anthony handles senior advisory calls — I'm the pre-qualification specialist who confirms your business details first. Once I verify a couple of things, I'll get you to the right person immediately. Takes about two minutes — is now still okay?"</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#a855f7;letter-spacing:0.08em;">Option C — If they press hard on 'Is this AI?'</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"I'm a real person — I handle the pre-qualification side of the process. The outreach is assisted by our system to identify qualified businesses, but all conversations and funding approvals go through real advisors. Would you like to continue?"</p>
+                </div>
+                <div style="margin-top:5px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-lightbulb" style="color:#eab308;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:11px;font-weight:700;color:#fbbf24;line-height:1.5;">Decide as a team: do you confirm it's AI or not? Be consistent. Train everyone on the same answer.</span>
+                </div>
+                <div style="margin-top:5px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-23" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#10b981;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#10b981;flex-shrink:0;"></div>
+    How Pre-Qualified?
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"How did I get pre-qualified?"</div>
+</div>
+<div style="background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.18);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#10b981;margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Choose Your Response</div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#10b981;letter-spacing:0.08em;">Option A — Clean & confident</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"Your business profile was matched through our partner data network — things like your industry, estimated revenue, and time in business. When a business hits certain thresholds, it gets flagged as a potential match for our working capital programs. You came up as a strong candidate, which is why I'm calling to confirm the details."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#10b981;letter-spacing:0.08em;">Option B — Short & simple</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"We work with a network of financial data partners who identify businesses that may qualify for working capital. Your business met the initial criteria, so we flagged it for outreach. I just need to verify two or three things to confirm the full qualification."</p>
+                </div>
+                <div style="margin-top:5px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-24" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#6366f1;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#6366f1;flex-shrink:0;"></div>
+    Division of What?
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Business Loan Division of what? / The Business Loan Division of what?"</div>
+</div>
+<div style="background:rgba(99,102,241,0.05);border:1px solid rgba(99,102,241,0.18);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#6366f1;margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Choose Your Response</div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#6366f1;letter-spacing:0.08em;">Option A — Full name response</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"We're the Business Loan Division — a direct private lending group that specializes in working capital programs and business lines of credit. We connect qualified business owners with funding through our network of licensed financial institutions. We're based here in California."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#6366f1;letter-spacing:0.08em;">Option B — Short & authoritative</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"We're a standalone private lending division — not a branch of a bank. We work directly with business owners to provide working capital and credit line programs through our partner lenders. Think of us as the access point between qualified businesses and the funding they need."</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">
+                    <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#6366f1;letter-spacing:0.08em;">Option C — If they keep pushing</span>
+                    <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"Our full operating name is the Business Loan Division — we're a California-based private lending group. Once I connect you with the senior advisor, they can give you all the company details, licensing info, and program specifics. That's really their area. For right now, I just need to confirm your revenue and time in business."</p>
+                </div>
+                <div style="margin-top:5px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
+<div id="rb-panel-25" style="display:none;animation:fadeSlideIn 0.2s ease;">
+<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#22c55e;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;"></div>
+    Credit Impact
+</div>
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Is this going to affect my credit?"</div>
+</div>
+<div style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.18);border-radius:12px;padding:14px 16px;">
+                <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#22c55e;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
+                <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"No, this is not a credit pull — it's just a quick business pre-qualification."</p>
+                <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
+                </div>
+            </div>
+</div>
 
-  <!-- ═══ PANEL 12 — How Did You Get My Info ═══ -->
-  <div id="rb-panel-12" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#8b5cf6;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#8b5cf6;flex-shrink:0;"></div>Privacy / Data Source</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"How did you get my information?"</div></div>
-    <div style="background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.18);border-radius:12px;padding:14px 16px;">
-      <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#8b5cf6;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
-      <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"That's a great question — we work with a network of financial partners who share information securely to match businesses with funding options. We follow strict privacy rules, and we only reach out when your business might actually qualify. Our goal's just to help you explore what's available — totally your choice from there. Sound fair?"</p>
-      <div style="margin-top:10px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;"><i class="fas fa-ear-listen" style="color:#eab308;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#fbbf24;letter-spacing:0.07em;">Wait — then go back to where you left off</span></div>
-    </div>
-  </div>
+</div>
 
-  <!-- ═══ PANEL 13 — Found Cheaper Option ═══ -->
-  <div id="rb-panel-13" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#f43f5e;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#f43f5e;flex-shrink:0;"></div>Competitor / Price Objection</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"I found a cheaper option."</div></div>
-    <div style="background:rgba(244,63,94,0.05);border:1px solid rgba(244,63,94,0.18);border-radius:12px;padding:14px 16px;">
-      <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f43f5e;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
-      <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"That's great — the senior advisor can help compare your options once we confirm your info. How much would you be interested in?"</p>
-      <div style="margin-top:10px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;"><i class="fas fa-ear-listen" style="color:#eab308;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#fbbf24;letter-spacing:0.07em;">Wait for their response</span></div>
-    </div>
-  </div>
-
-  <!-- ═══ PANEL 14 — Email Me First ═══ -->
-  <div id="rb-panel-14" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#f97316;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#f97316;flex-shrink:0;"></div>Delay Tactic — Email First</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Can you email me something first?"</div></div>
-    <div style="background:rgba(249,115,22,0.05);border:1px solid rgba(249,115,22,0.18);border-radius:12px;padding:14px 16px;">
-      <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f97316;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
-      <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Once I connect you with the senior advisor, they can send you all the information directly. I just need to confirm your business details first."</p>
-      <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;"><i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span></div>
-    </div>
-  </div>
-
-  <!-- ═══ PANEL 15 — Affect My Credit ═══ -->
-  <div id="rb-panel-15" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#34d399;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#34d399;flex-shrink:0;"></div>Credit Impact Concern</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Is this going to affect my credit?"</div></div>
-    <div style="background:rgba(52,211,153,0.05);border:1px solid rgba(52,211,153,0.18);border-radius:12px;padding:14px 16px;">
-      <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#34d399;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
-      <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"No, this is not a credit pull — it's just a quick business pre-qualification."</p>
-      <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;"><i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span></div>
-    </div>
-  </div>
-
-  <!-- ═══ PANEL 16 — Are You a Bank ═══ -->
-  <div id="rb-panel-16" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#3b82f6;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0;"></div>Entity Clarification</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Are you a bank?"</div></div>
-    <div style="background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.18);border-radius:12px;padding:14px 16px;">
-      <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#3b82f6;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
-      <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"No, we're a direct private lender. We work with business-funding programs that provide working capital and lines of credit directly to business owners."</p>
-      <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;"><i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span></div>
-    </div>
-  </div>
-
-  <!-- ═══ PANEL 17 — Why Are You Calling ═══ -->
-  <div id="rb-panel-17" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#0ea5e9;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#0ea5e9;flex-shrink:0;"></div>Call Purpose</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Why are you calling me?"</div></div>
-    <div style="background:rgba(14,165,233,0.05);border:1px solid rgba(14,165,233,0.18);border-radius:12px;padding:14px 16px;">
-      <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#0ea5e9;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
-      <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We're just confirming basic business details for potential funding. It's not a sales pitch — just a quick pre-qualification."</p>
-      <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;"><i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span></div>
-    </div>
-  </div>
-
-  <!-- ═══ PANEL 18 — Which Company (general) ═══ -->
-  <div id="rb-panel-18" style="display:none;animation:fadeSlideIn 0.2s ease;">
-    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#14b8a6;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#14b8a6;flex-shrink:0;"></div>Company Identity</div>
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;"><div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Which company do you represent?" / "What company is this?"</div></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="background:rgba(20,184,166,0.05);border:1px solid rgba(20,184,166,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#14b8a6;letter-spacing:0.1em;margin-bottom:8px;">First Response</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We are the Business Loan Division. We work with multiple financial lenders and match you with the right one based on your specific situation."</p>
-      </div>
-      <div style="background:rgba(20,184,166,0.05);border:1px solid rgba(20,184,166,0.18);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#14b8a6;letter-spacing:0.1em;margin-bottom:8px;">If They Push Back — "That doesn't give me the company name"</div>
-        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Like I said, Sir/Ma'am, we are the Business Loan Division. When I connect you with the senior advisor, they will go over exactly who we represent — but before I do that, I just need to ask you a few simple questions, if that's okay."</p>
-      </div>
-      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;"><i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i><span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Immediately go back into qualifying questions</span></div>
-    </div>
-  </div>
-
-  <!-- ═══ GLOBAL TIP BANNER ═══ -->
-  <div style="margin-top:16px;background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.2);border-radius:14px;padding:14px 18px;display:flex;align-items:flex-start;gap:10px;">
+<!-- Tip bar -->
+<div style="background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.2);border-radius:14px;padding:14px 18px;display:flex;align-items:flex-start;gap:10px;">
     <i class="fas fa-lightbulb" style="color:#3b82f6;flex-shrink:0;margin-top:2px;font-size:14px;"></i>
-    <div>
-      <p style="font-size:12px;font-weight:900;color:#93c5fd;line-height:1.65;margin-bottom:5px;">Use acknowledgment phrases every 2 objections:</p>
-      <p style="font-size:13px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"Perfect, thank you." &nbsp;&nbsp;/&nbsp;&nbsp; "Got it, that helps." &nbsp;&nbsp;/&nbsp;&nbsp; "That's great to know."</p>
-    </div>
-  </div>
-
-</div><!-- end panels wrapper -->
-
-<script>
-// ─── KEYWORD MAP — all rebuttals from document ────────────────────────────────
-const KEYWORD_MAP = [
-  {
-    keys: ["are you a fraud","is this a scam","does this scam work","sounds like a scam","are you legit","how do i know you're real","is this legit","are you legitimate","this is a scam","is this real","how do i know this is real","fraud","scam"],
-    panel: 0,
-    response: "I completely get why you'd ask that — there are a lot of bad actors out there and it's smart to be cautious. I'm just confirming basic pre-qualification details on behalf of the Business Loan Division here in California. No application, no credit pull, nothing gets submitted without your full approval. You're in control the whole time.",
-    tip: "Don't get defensive. Stay calm, match their energy, and keep it moving."
-  },
-  {
-    keys: ["what is your website","what is the name of your website","why is there no website","do you have a website","why no website","can't find you online","find you online","where is your website","no website","website"],
-    panel: 1,
-    response: "Our division works through a secure internal system — we don't operate through a public-facing website since our clients come through pre-qualified referrals only. Think of it like a private network, not a retail bank. Once you're connected with the senior advisor, they can walk you through everything in detail.",
-    tip: "Say it with confidence — 'private network' and 'referral-based' sound professional, not suspicious."
-  },
-  {
-    keys: ["if i'm already pre-qualified why don't you have my info","pre-qualified but no info","why don't you have my information","pre qualified why no info","already pre-qualified why need questions","if i'm pre-qualified","pre-qualified but you don't know me","you don't have my details"],
-    panel: 2,
-    response: "The pre-qualification is based on general business data from our partner network — things like your industry type and estimated revenue range. I just need to verify a few key details like your current monthly revenue and time in business. It's a quick confirmation, not a full application.",
-    tip: "Say 'partner network' or 'data match' — avoid saying 'we bought a list.'"
-  },
-  {
-    keys: ["what business are you calling","which business did you call","what business is this","what company did you call","are you calling the right business","did you call the right number"],
-    panel: 3,
-    response: "I'm calling based on a pre-qualification match in our system for a business in your area. I want to make sure I'm speaking with the right person — are you the owner or decision-maker for the business?",
-    tip: ""
-  },
-  {
-    keys: ["can i have your address","what is your address","address in california","come in person","visit you","walk in","physical location","where is your office","office address","can i come in","your address","give me your address"],
-    panel: 4,
-    response: "For security reasons, we don't disclose exact branch locations publicly — that's a policy we follow to protect our clients and operations. Everything we do is fully handled remotely. All documents, agreements, and advisor calls are done securely over phone and email.",
-    tip: "Don't say you can't give the address in a way that sounds sketchy. Tie it to 'security' and 'fully remote operations.'"
-  },
-  {
-    keys: ["do not call list","i'm on the do not call","dnc list","stop calling me","take me off your list","remove me from your list","why are you still calling","you can't call me","i'm registered on the do not call"],
-    panel: 5,
-    response: "I completely understand that frustration. Business-to-business calls like ours aren't covered under the same Do Not Call rules that apply to consumer calls. That said, if you'd like to be removed from our specific list, I can absolutely do that right now.",
-    tip: "Always offer to remove them. It builds trust and often makes them stay on the line."
-  },
-  {
-    keys: ["is this ai","is this a bot","are you a robot","are you real","is this automated","can i speak with anthony smith","speak to anthony","anthony smith","who is anthony","anthony is real","is anthony a real person","is anthony ai","who is anthony smith"],
-    panel: 6,
-    response: "Anthony Smith is from our marketing team — he handles our outreach campaigns, not direct calls. You're now speaking with a real person on the lending side. My job is to complete the quick pre-qualification so I can connect you with a senior advisor who will take it from there. Does that make sense?",
-    tip: "Be consistent — always use the same answer across the team: 'Anthony is from our marketing team.'"
-  },
-  {
-    keys: ["how did i get pre-qualified","how was i pre-qualified","why am i pre-qualified","how did you pre-qualify me","how did i qualify","what made me qualify","why did i qualify","how did my business qualify"],
-    panel: 7,
-    response: "Your business profile was matched through our partner data network — things like your industry, estimated revenue, and time in business. When a business hits certain thresholds, it gets flagged as a potential match for our working capital programs. You came up as a strong candidate, which is why I'm calling to confirm the details.",
-    tip: "Go right back to qualifying questions."
-  },
-  {
-    keys: ["business loan division of what","division of what","the business loan division of what","what division","division of which company","what bank is this division of","business loan division of which","what lender are you with"],
-    panel: 8,
-    response: "We're the Business Loan Division — a direct private lending group that specializes in working capital programs and business lines of credit. We connect qualified business owners with funding through our network of licensed financial institutions. We're based here in California.",
-    tip: "Go right back to qualifying questions."
-  },
-  {
-    keys: ["bad credit","credit score is bad","my credit isn't good","poor credit","low credit","my credit is bad","i have bad credit","credit score is low","credit is not good","credit isn't great","credit is terrible","not good credit"],
-    panel: 9,
-    response: "I completely understand — a lot of business owners tell me the same thing. The good news is, this program looks at your business performance overall, not just credit. So even if the score isn't ideal, we can often still get you approved.",
-    tip: "Go right back to qualifying questions."
-  },
-  {
-    keys: ["don't need a loan","don't need loan","i don't need a loan","not looking for a loan","don't need funding","i don't need funding","no need for a loan","not interested in a loan","have enough money","i'm good financially","don't need money right now"],
-    panel: 10,
-    response: "Totally makes sense. Just out of curiosity, do you see any cash flow gaps or growth opportunities in the next few months that might need a little extra funding?",
-    tip: "Wait and listen carefully. If they open up → 'That's exactly why we pre-qualify — so funding's ready when you need it.'"
-  },
-  {
-    keys: ["interest rate","what's the rate","what are the rates","how much interest","what is the interest","what rate do you charge","how much is the interest","what are your rates","what's your interest rate"],
-    panel: 11,
-    response: "Great question — rates depend on a few factors like revenue and business history, but the key is finding the overall value that helps your business grow or save money. Once we verify the details, our specialist will go over all that clearly.",
-    tip: "Go right back to qualifying questions."
-  },
-  {
-    keys: ["how did you get my info","where did you get my number","who gave you my info","how did you get my number","where did you get my information","how do you have my info","how did you find me","where did you get my contact","how did you get my details","who gave you my number"],
-    panel: 12,
-    response: "That's a great question — we work with a network of financial partners who share information securely to match businesses with funding options. We follow strict privacy rules, and we only reach out when your business might actually qualify. Our goal's just to help you explore what's available — totally your choice from there. Sound fair?",
-    tip: "Wait — then go back to where you left off."
-  },
-  {
-    keys: ["cheaper option","found a cheaper","better deal","lower rates elsewhere","someone else offered better","cheaper elsewhere","got a better rate","found better rates","another company is cheaper","someone has better rates","i have a better offer"],
-    panel: 13,
-    response: "That's great — the senior advisor can help compare your options once we confirm your info. How much would you be interested in?",
-    tip: "Wait for their response."
-  },
-  {
-    keys: ["email me first","can you email","send me information","send me something first","email first","send me details","send information first","can you send me an email","email me something","email me before we talk"],
-    panel: 14,
-    response: "Once I connect you with the senior advisor, they can send you all the information directly. I just need to confirm your business details first.",
-    tip: "Go right back to qualifying questions."
-  },
-  {
-    keys: ["affect my credit","hurt my credit","credit check","hard pull","soft pull","will this ding my credit","impact my credit score","run my credit","check my credit","pull my credit","is this a credit pull","will you pull my credit","going to affect my credit","affect my credit score"],
-    panel: 15,
-    response: "No, this is not a credit pull — it's just a quick business pre-qualification.",
-    tip: "Go right back to qualifying questions."
-  },
-  {
-    keys: ["are you a bank","which bank","what bank","what bank do you work for","is this a bank","are you affiliated with a bank","is this from a bank"],
-    panel: 16,
-    response: "No, we're a direct private lender. We work with business-funding programs that provide working capital and lines of credit directly to business owners.",
-    tip: "Go right back to qualifying questions."
-  },
-  {
-    keys: ["why are you calling me","why did you call me","why are you reaching out","why call me","why contact me","what is this call about","reason for your call","what's the reason for calling","why did you call","why are you calling"],
-    panel: 17,
-    response: "We're just confirming basic business details for potential funding. It's not a sales pitch — just a quick pre-qualification.",
-    tip: "Go right back to qualifying questions."
-  },
-  {
-    keys: ["which company do you represent","which company","what organization","who do you represent","what company is this","who is this","who am i speaking with","who am i talking to","what business is this","what's the name of the company","name of the company","company name"],
-    panel: 18,
-    response: "We are the Business Loan Division. We work with multiple financial lenders and match you with the right one based on your specific situation.",
-    tip: "If they push back, hold firm calmly and go back to qualifying questions."
-  }
-];
-
-// ─── SEARCH ENGINE ────────────────────────────────────────────────────────────
-function findKeywordMatch(query) {
-  const qNorm = query.toLowerCase().replace(/[^\w\s']/g,' ').replace(/\s+/g,' ').trim();
-  const qWords = qNorm.split(' ').filter(w => w.length > 1);
-
-  let bestMatch = null;
-  let bestScore = 0;
-
-  const stopWords = new Set(['the','and','are','you','for','this','that','with','have','not','can','did','was','your','our','from','but','its','what','why','how','who','does','will','just','been','get','got','has','they','them','their','when','where','which','there','here','is','it','do','a','an','i','me','my','we','us','to','of','in','on','at','by','if','or','so','am','be','as','up','no','still','ever','any','about','even','still','also','into','him','her','his','then','than','been','would','could','should']);
-
-  for (const entry of KEYWORD_MAP) {
-    for (const key of entry.keys) {
-      const keyNorm = key.toLowerCase().replace(/[^\w\s']/g,' ').replace(/\s+/g,' ').trim();
-
-      // Strategy 1: exact phrase match
-      if (keyNorm.length >= 5 && qNorm.includes(keyNorm)) {
-        const idx = qNorm.indexOf(keyNorm);
-        const before = idx === 0 || qNorm[idx-1] === ' ';
-        const after  = idx + keyNorm.length >= qNorm.length || qNorm[idx+keyNorm.length] === ' ';
-        if (before && after) {
-          const score = keyNorm.length * 2;
-          if (score > bestScore) { bestScore = score; bestMatch = entry; }
-          continue;
-        }
-      }
-
-      // Strategy 2: significant word match
-      const keyWords = keyNorm.split(' ').filter(w => w.length > 1);
-      const sigKey = keyWords.filter(w => w.length > 2 && !stopWords.has(w));
-      const sigQ   = qWords.filter(w => w.length > 2 && !stopWords.has(w));
-
-      if (sigKey.length === 0 || sigQ.length === 0) continue;
-
-      const hits = sigKey.filter(kw => sigQ.some(qw => qw === kw));
-      const threshold = sigKey.length <= 2 ? sigKey.length : Math.ceil(sigKey.length * 0.8);
-
-      if (hits.length >= threshold) {
-        const score = (hits.length / Math.max(sigKey.length, 1)) * keyNorm.length;
-        if (sigKey.length <= 2 && score <= 8) continue;
-        if (score > bestScore) { bestScore = score; bestMatch = entry; }
-      }
-    }
-  }
-
-  return bestScore >= 6 ? bestMatch : null;
-}
-
-function showKeywordResult(match) {
-  const els = getEls();
-  if (els.loading) els.loading.style.display = 'none';
-  els.text.innerHTML = '\u201C' + match.response + '\u201D';
-  els.label.textContent = '';
-  if (match.tip && match.tip.trim()) {
-    els.tipText.textContent = '💡 ' + match.tip;
-    els.tip.style.display = 'block';
-  } else {
-    els.tip.style.display = 'none';
-  }
-  els.result.style.display = 'block';
-  els.noResults.style.display = 'none';
-}
-
-function getEls() {
-  return {
-    result:    document.getElementById('ai-search-result'),
-    text:      document.getElementById('ai-search-text'),
-    label:     document.getElementById('ai-search-label'),
-    tip:       document.getElementById('ai-search-tip'),
-    tipText:   document.getElementById('ai-search-tip-text'),
-    noResults: document.getElementById('rebuttal-no-results'),
-    loading:   document.getElementById('ai-search-loading')
-  };
-}
-
-let aiTimer = null;
-
-function filterRebuttalSearch(val) {
-  const query = val.trim();
-  const els = getEls();
-  if (!query || query.length < 3) {
-    els.result.style.display    = 'none';
-    els.loading.style.display   = 'none';
-    els.noResults.style.display = 'none';
-    return;
-  }
-  const match = findKeywordMatch(query);
-  if (match) { showKeywordResult(match); return; }
-
-  // Fallback to Claude API
-  els.result.style.display    = 'none';
-  els.noResults.style.display = 'none';
-  els.loading.style.display   = 'flex';
-  clearTimeout(aiTimer);
-  aiTimer = setTimeout(() => runAISearch(query), 700);
-}
-
-async function runAISearch(query) {
-  const els = getEls();
-  const KB = KEYWORD_MAP.map((e,i) =>
-    `REBUTTAL ${i+1}:\nKeys: ${e.keys.slice(0,3).join(' / ')}\nResponse: "${e.response}"\nTip: ${e.tip||'none'}`
-  ).join('\n\n');
-
-  const systemPrompt = `You are a rebuttal assistant for business loan sales agents at the Business Loan Division in California.
-
-CRITICAL RULE: If the customer asks about Anthony Smith OR asks "is this AI" / "are you a robot" / "is this automated", ALWAYS respond that Anthony Smith is from the marketing team. Example: "Anthony Smith is from our marketing team — he handles our outreach campaigns, not direct calls."
-
-Match the customer's statement to the best rebuttal script from the knowledge base below, or compose one in the same calm, professional tone.
-
-Knowledge base:
-${KB}
-
-Return ONLY valid JSON with no markdown backticks:
-{"category":"short label","response":"the word-for-word script","tip":"coaching tip or empty string"}`;
-
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 600,
-        system: systemPrompt,
-        messages: [{ role: "user", content: `Customer said: "${query}"` }]
-      })
-    });
-    const data = await res.json();
-    const raw = (data.content||[]).map(i => i.text||'').join('');
-    const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
-    els.loading.style.display = 'none';
-    if (parsed && parsed.response) {
-      els.text.innerHTML = '\u201C' + parsed.response.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '\u201D';
-      els.label.textContent = parsed.category || '';
-      if (parsed.tip && parsed.tip.trim()) {
-        els.tipText.textContent = '💡 ' + parsed.tip;
-        els.tip.style.display = 'block';
-      } else {
-        els.tip.style.display = 'none';
-      }
-      els.result.style.display    = 'block';
-      els.noResults.style.display = 'none';
-    } else {
-      els.noResults.style.display = 'block';
-    }
-  } catch(err) {
-    els.loading.style.display   = 'none';
-    els.noResults.style.display = 'block';
-    console.error('AI search error:', err);
-  }
-}
-
-const TOTAL_PANELS = 19;
-function showRebuttal(idx) {
-  const els = getEls();
-  els.result.style.display    = 'none';
-  els.noResults.style.display = 'none';
-  els.loading.style.display   = 'none';
-  const inp = document.getElementById('rebuttal-search');
-  if (inp) inp.value = '';
-
-  for (let i = 0; i < TOTAL_PANELS; i++) {
-    const panel = document.getElementById('rb-panel-' + i);
-    const btn   = document.getElementById('rb-btn-'   + i);
-    if (panel) panel.style.display = (i === idx) ? 'block' : 'none';
-    if (btn) {
-      if (i === idx) {
-        btn.style.background  = 'rgba(20,184,166,0.2)';
-        btn.style.borderColor = '#14b8a6';
-        btn.style.color       = '#2dd4bf';
-      } else {
-        btn.style.background  = 'rgba(255,255,255,0.04)';
-        btn.style.borderColor = 'rgba(255,255,255,0.1)';
-        btn.style.color       = '#64748b';
-      }
-    }
-  }
-}
-</script>
+    <p style="font-size:12px;font-weight:700;color:#93c5fd;line-height:1.65;">Stay calm, stay brief. Acknowledge their concern, give the short answer, and redirect back to qualification questions immediately. Use acknowledgment phrases every 2 objections: "Perfect, thank you." / "Got it, that helps." / "That's great to know."</p>
+</div>
