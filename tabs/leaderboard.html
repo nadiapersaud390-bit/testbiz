@@ -1,49 +1,60 @@
 <div id="history-banner" class="hidden mx-2 mb-4">
-            <div class="history-banner"><i class="fas fa-history mr-2"></i><span id="history-banner-text"></span></div>
+    <div class="history-banner"><i class="fas fa-history mr-2"></i><span id="history-banner-text"></span></div>
+</div>
+
+<div class="mb-10 px-2 max-w-3xl mx-auto">
+    <div class="flex justify-between items-end mb-3">
+        <span id="goal-label" class="text-xs md:text-sm font-black text-yellow-500 uppercase italic tracking-widest">Daily Team Goal</span>
+        <span id="goal-percent" class="text-xs md:text-sm font-black text-white uppercase italic">0%</span>
+    </div>
+
+    <div class="w-full h-6 bg-white/5 rounded-full overflow-hidden border border-white/10 p-[3px]">
+        <div id="progress-bar" class="gold-progress h-full rounded-full transition-all duration-1000" style="width:0%"></div>
+    </div>
+
+    <div class="flex justify-between mt-2 px-1">
+        <span id="current-leads-sum" class="text-xs font-bold text-slate-400">0 Leads</span>
+        <span id="target-display" class="text-xs font-bold text-slate-400">Target</span>
+    </div>
+</div>
+
+<div class="grid grid-cols-4 gap-2 mb-10 px-2">
+    <div class="glass p-3 md:p-8 rounded-3xl border-b-4 border-b-yellow-500 text-center stat-card">
+        <div class="text-[9px] md:text-sm font-black text-yellow-500 uppercase mb-2 leading-tight">12+ Proof</div>
+        <div id="master-count" class="text-2xl md:text-6xl font-black text-white stat-value">00</div>
+    </div>
+
+    <div class="glass p-3 md:p-8 rounded-3xl border-b-4 border-b-green-500 text-center stat-card">
+        <div class="text-[9px] md:text-sm font-black text-green-500 uppercase mb-2 leading-tight">Active Reps</div>
+        <div id="active-reps" class="text-2xl md:text-6xl font-black text-white stat-value">0</div>
+    </div>
+
+    <div class="glass p-3 md:p-8 rounded-3xl border-b-4 border-b-blue-500 text-center stat-card">
+        <div class="text-[9px] md:text-sm font-black text-blue-500 uppercase mb-2 leading-tight">Floor Total</div>
+        <div id="floor-total" class="text-2xl md:text-6xl font-black text-white stat-value">0</div>
+    </div>
+
+    <div class="prbb-card p-3 md:p-8 rounded-3xl text-center stat-card">
+        <div class="text-[9px] md:text-sm font-black text-purple-400 uppercase mb-2 leading-tight">PR / BB</div>
+        <div class="flex items-stretch justify-center gap-2">
+            <div class="flex-1 flex flex-col items-center">
+                <div class="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">Prov</div>
+                <div id="pr-count" class="text-xl md:text-4xl font-black leading-none" style="color:#a78bfa">0</div>
+            </div>
+
+            <div class="prbb-divider"></div>
+
+            <div class="flex-1 flex flex-col items-center">
+                <div class="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">Berb</div>
+                <div id="bb-count" class="text-xl md:text-4xl font-black leading-none" style="color:#c084fc">0</div>
+            </div>
         </div>
-        <div class="mb-10 px-2 max-w-3xl mx-auto">
-            <div class="flex justify-between items-end mb-3">
-                <span id="goal-label" class="text-xs md:text-sm font-black text-yellow-500 uppercase italic tracking-widest">Daily Team Goal</span>
-                <span id="goal-percent" class="text-xs md:text-sm font-black text-white uppercase italic">0%</span>
-            </div>
-            <div class="w-full h-6 bg-white/5 rounded-full overflow-hidden border border-white/10 p-[3px]">
-                <div id="progress-bar" class="gold-progress h-full rounded-full transition-all duration-1000" style="width:0%"></div>
-            </div>
-            <div class="flex justify-between mt-2 px-1">
-                <span id="current-leads-sum" class="text-xs font-bold text-slate-400">0 Leads</span>
-                <span id="target-display" class="text-xs font-bold text-slate-400">Target: 150</span>
-            </div>
-        </div>
-        <div class="grid grid-cols-4 gap-2 mb-10 px-2">
-            <div class="glass p-3 md:p-8 rounded-3xl border-b-4 border-b-yellow-500 text-center stat-card">
-                <div class="text-[9px] md:text-sm font-black text-yellow-500 uppercase mb-2 leading-tight">12+ Proof</div>
-                <div id="master-count" class="text-2xl md:text-6xl font-black text-white stat-value">00</div>
-            </div>
-            <div class="glass p-3 md:p-8 rounded-3xl border-b-4 border-b-green-500 text-center stat-card">
-                <div class="text-[9px] md:text-sm font-black text-green-500 uppercase mb-2 leading-tight">Active Reps</div>
-                <div id="active-reps" class="text-2xl md:text-6xl font-black text-white stat-value">0</div>
-            </div>
-            <div class="glass p-3 md:p-8 rounded-3xl border-b-4 border-b-blue-500 text-center stat-card">
-                <div class="text-[9px] md:text-sm font-black text-blue-500 uppercase mb-2 leading-tight">Floor Total</div>
-                <div id="floor-total" class="text-2xl md:text-6xl font-black text-white stat-value">0</div>
-            </div>
-            <div class="prbb-card p-3 md:p-8 rounded-3xl text-center stat-card">
-                <div class="text-[9px] md:text-sm font-black text-purple-400 uppercase mb-2 leading-tight">PR / BB</div>
-                <div class="flex items-stretch justify-center gap-2">
-                    <div class="flex-1 flex flex-col items-center">
-                        <div class="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">Prov</div>
-                        <div id="pr-count" class="text-xl md:text-4xl font-black leading-none" style="color:#a78bfa">0</div>
-                    </div>
-                    <div class="prbb-divider"></div>
-                    <div class="flex-1 flex flex-col items-center">
-                        <div class="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">Berb</div>
-                        <div id="bb-count" class="text-xl md:text-4xl font-black leading-none" style="color:#c084fc">0</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="flex justify-between items-end mb-6 px-4">
-            <h2 id="ranking-title" class="header-font text-xs md:text-lg font-black tracking-widest text-slate-500 uppercase italic">Live Rankings</h2>
-            <div id="day-indicator" class="text-xs md:text-sm text-blue-500 font-bold uppercase italic">Updating...</div>
-        </div>
-        <div id="leaderboard" class="leaderboard-grid space-y-3 md:space-y-0 px-2"></div>
+    </div>
+</div>
+
+<div class="flex justify-between items-end mb-6 px-4">
+    <h2 id="ranking-title" class="header-font text-xs md:text-lg font-black tracking-widest text-slate-500 uppercase italic">Live Rankings</h2>
+    <div id="day-indicator" class="text-xs md:text-sm text-blue-500 font-bold uppercase italic">Updating...</div>
+</div>
+
+<div id="leaderboard" class="leaderboard-grid space-y-3 md:space-y-0 px-2"></div>
