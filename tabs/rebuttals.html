@@ -156,23 +156,206 @@
                         </div>
                     </div>
     </div>
+
+<!-- ============================================================
+     rb-panel-7  |  Why No Info?  |  UPDATED — Vibe Rebuttal Guide
+     ============================================================ -->
 <div id="rb-panel-7" style="display:none;animation:fadeSlideIn 0.2s ease;">
-        <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#06b6d4;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-            <div style="width:8px;height:8px;border-radius:50%;background:#06b6d4;flex-shrink:0;"></div>
-            Data / Verification
-        </div>
-        <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">
-            <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"Why don't you have my information?"</div>
-        </div>
-        <div style="background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.18);border-radius:12px;padding:14px 16px;">
-                        <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#06b6d4;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>
-                        <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">"We pull from multiple sources, but we always verify directly with you to make sure everything is accurate. Once confirmed, we can match you with the right options."</p>
-                        <div style="margin-top:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
-                            <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
-                            <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
-                        </div>
-                    </div>
+
+    <!-- Category label -->
+    <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#06b6d4;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:#06b6d4;flex-shrink:0;"></div>
+        Data / Verification
     </div>
+
+    <!-- Question card -->
+    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px;">
+        <div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">"If I'm pre-qualified, why don't you have any of my information?"</div>
+    </div>
+
+    <!-- AI Vibe Detector -->
+    <div style="background:rgba(6,182,212,0.06);border:1px solid rgba(6,182,212,0.25);border-radius:12px;padding:14px 16px;margin-bottom:16px;">
+        <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#06b6d4;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-microchip" style="font-size:10px;"></i> Vibe Detector — type what the customer said
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-start;">
+            <textarea id="vibe-input-7" rows="2"
+                placeholder='e.g. "Why don&apos;t you have my info — this is sketchy"'
+                style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:white;font-size:13px;font-weight:600;padding:10px 14px;outline:none;font-family:'Inter',sans-serif;resize:none;line-height:1.5;"
+                onfocus="this.style.borderColor='#06b6d4'" onblur="this.style.borderColor='rgba(255,255,255,0.12)'"></textarea>
+            <button onclick="detectVibe7()"
+                style="padding:10px 16px;border-radius:10px;background:rgba(6,182,212,0.2);border:1px solid #06b6d4;color:#22d3ee;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;flex-shrink:0;">
+                <i class="fas fa-wand-magic-sparkles" style="margin-right:5px;font-size:10px;"></i>Best Option
+            </button>
+        </div>
+        <div id="vibe-ai-loading-7" style="display:none;margin-top:10px;font-size:12px;color:#94a3b8;font-weight:600;align-items:center;gap:7px;">
+            <i class="fas fa-circle-notch fa-spin" style="color:#06b6d4;font-size:11px;"></i> Analyzing customer tone...
+        </div>
+        <div id="vibe-ai-result-7" style="display:none;margin-top:10px;background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.2);border-radius:9px;padding:10px 14px;">
+            <div style="font-size:10px;font-weight:900;text-transform:uppercase;color:#06b6d4;letter-spacing:0.08em;margin-bottom:5px;">AI Recommendation</div>
+            <div id="vibe-ai-text-7" style="font-size:13px;font-weight:700;color:white;line-height:1.6;"></div>
+        </div>
+    </div>
+
+    <!-- Table header label -->
+    <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#475569;margin-bottom:8px;">Response Options by Customer Vibe</div>
+
+    <!-- Vibe table — column headers -->
+    <div style="display:grid;grid-template-columns:150px 80px 1fr;gap:0;padding:6px 12px;margin-bottom:4px;">
+        <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#475569;">Customer vibe</div>
+        <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#475569;">Best option</div>
+        <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#475569;">Why it works &amp; rebuttal</div>
+    </div>
+
+    <!-- Vibe rows -->
+    <div style="display:flex;flex-direction:column;gap:6px;">
+
+        <!-- Option 1 — Neutral -->
+        <div id="vibe-row-7-1" class="vibe-row-7" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s;">
+            <div style="display:grid;grid-template-columns:150px 80px 1fr;gap:0;">
+                <div style="padding:14px 12px;border-right:1px solid rgba(255,255,255,0.06);display:flex;align-items:flex-start;">
+                    <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#E1F5EE;color:#0F6E56;">Neutral / easy going</span>
+                </div>
+                <div style="padding:14px 10px;border-right:1px solid rgba(255,255,255,0.06);display:flex;align-items:flex-start;">
+                    <span style="font-size:12px;font-weight:900;color:#94a3b8;">Option 1</span>
+                </div>
+                <div style="padding:14px 14px;">
+                    <div style="font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px;">Flows naturally, no alarm bells — they're just curious, not suspicious.</div>
+                    <div style="background:rgba(255,255,255,0.03);border-radius:9px;padding:10px 13px;">
+                        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#06b6d4;letter-spacing:0.08em;margin-bottom:5px;display:flex;align-items:center;gap:5px;"><i class="fas fa-reply" style="font-size:9px;"></i> Your Response</div>
+                        <p style="font-size:13px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin:0;">"Your pre-qualification came through with your contact number, but a few details like your business name didn't transfer over on our end. I just need to verify a couple of things quickly so I can lock in your options and move you forward."</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Option 2 — Skeptical -->
+        <div id="vibe-row-7-2" class="vibe-row-7" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s;">
+            <div style="display:grid;grid-template-columns:150px 80px 1fr;gap:0;">
+                <div style="padding:14px 12px;border-right:1px solid rgba(255,255,255,0.06);display:flex;align-items:flex-start;">
+                    <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#E6F1FB;color:#185FA5;">Skeptical / questioning</span>
+                </div>
+                <div style="padding:14px 10px;border-right:1px solid rgba(255,255,255,0.06);display:flex;align-items:flex-start;">
+                    <span style="font-size:12px;font-weight:900;color:#94a3b8;">Option 2</span>
+                </div>
+                <div style="padding:14px 14px;">
+                    <div style="font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px;">Blaming the system feels familiar and believable — takes the heat off the agent.</div>
+                    <div style="background:rgba(255,255,255,0.03);border-radius:9px;padding:10px 13px;">
+                        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#06b6d4;letter-spacing:0.08em;margin-bottom:5px;display:flex;align-items:center;gap:5px;"><i class="fas fa-reply" style="font-size:9px;"></i> Your Response</div>
+                        <p style="font-size:13px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin:0;">"What happens sometimes is the file comes through with limited info depending on how it was submitted — we only received your number on our end. To pull up your full pre-qual and confirm your funding options, I just need your business name and to verify a few quick details."</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Option 3 — Hesitant -->
+        <div id="vibe-row-7-3" class="vibe-row-7" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s;">
+            <div style="display:grid;grid-template-columns:150px 80px 1fr;gap:0;">
+                <div style="padding:14px 12px;border-right:1px solid rgba(255,255,255,0.06);display:flex;align-items:flex-start;">
+                    <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#FAEEDA;color:#854F0B;">Hesitant / guarded</span>
+                </div>
+                <div style="padding:14px 10px;border-right:1px solid rgba(255,255,255,0.06);display:flex;align-items:flex-start;">
+                    <span style="font-size:12px;font-weight:900;color:#94a3b8;">Option 3</span>
+                </div>
+                <div style="padding:14px 14px;">
+                    <div style="font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px;">Warm and low-pressure — keeps them on the line without pushing too hard.</div>
+                    <div style="background:rgba(255,255,255,0.03);border-radius:9px;padding:10px 13px;">
+                        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#06b6d4;letter-spacing:0.08em;margin-bottom:5px;display:flex;align-items:center;gap:5px;"><i class="fas fa-reply" style="font-size:9px;"></i> Your Response</div>
+                        <p style="font-size:13px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin:0;">"That's completely understandable — your pre-qualification was already started, which is why we're reaching out. We just need to fill in a couple of blanks on our end to get you to the next step. It'll only take a minute."</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Option 4 — Frustrated -->
+        <div id="vibe-row-7-4" class="vibe-row-7" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s;">
+            <div style="display:grid;grid-template-columns:150px 80px 1fr;gap:0;">
+                <div style="padding:14px 12px;border-right:1px solid rgba(255,255,255,0.06);display:flex;align-items:flex-start;">
+                    <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#FCEBEB;color:#A32D2D;">Frustrated / pressing</span>
+                </div>
+                <div style="padding:14px 10px;border-right:1px solid rgba(255,255,255,0.06);display:flex;align-items:flex-start;">
+                    <span style="font-size:12px;font-weight:900;color:#94a3b8;">Option 4</span>
+                </div>
+                <div style="padding:14px 14px;">
+                    <div style="font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px;">Straight talk builds trust fast — vague answers make this type worse.</div>
+                    <div style="background:rgba(255,255,255,0.03);border-radius:9px;padding:10px 13px;">
+                        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#06b6d4;letter-spacing:0.08em;margin-bottom:5px;display:flex;align-items:center;gap:5px;"><i class="fas fa-reply" style="font-size:9px;"></i> Your Response</div>
+                        <p style="font-size:13px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin:0;">"To be upfront with you, the information we received was limited — just enough to reach out. But that pre-qual is tied to your number, so I just need your business name and to confirm a couple of details to move forward with your options."</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Redirect tip -->
+    <div style="margin-top:12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
+        <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
+        <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">After any option — go right back to qualifying questions</span>
+    </div>
+
+    <!-- JS for Vibe Detector -->
+    <script>
+    async function detectVibe7() {
+        const input = document.getElementById('vibe-input-7');
+        const loading = document.getElementById('vibe-ai-loading-7');
+        const result = document.getElementById('vibe-ai-result-7');
+        const resultText = document.getElementById('vibe-ai-text-7');
+        const text = input ? input.value.trim() : '';
+        if (!text) return;
+
+        // Reset highlights
+        document.querySelectorAll('.vibe-row-7').forEach(r => {
+            r.style.borderColor = 'rgba(255,255,255,0.07)';
+            r.style.boxShadow = 'none';
+        });
+
+        if (loading) { loading.style.display = 'flex'; }
+        if (result) { result.style.display = 'none'; }
+
+        try {
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 1000,
+                    system: `You are a call center coach. An agent typed what the customer said. The objection is "If I'm pre-qualified, why don't you have any of my information?" Pick the best of these 4 rebuttal options based on the customer's tone:
+Option 1 (Neutral/easy going): Pre-qual came through with contact number but details like business name did not transfer — just need to verify quickly to lock in options.
+Option 2 (Skeptical/questioning): The file came through with limited info depending on how it was submitted — only received the number, need business name to pull up full pre-qual.
+Option 3 (Hesitant/guarded): Completely understandable — pre-qualification was already started, just need to fill in a couple of blanks to get to the next step.
+Option 4 (Frustrated/pressing): To be upfront, information received was limited — just enough to reach out, pre-qual tied to number, need business name and a couple details.
+Respond ONLY as valid JSON, no extra text, no markdown: {"option":1,"vibe":"short label","reason":"one sentence why"}`,
+                    messages: [{ role: 'user', content: 'Customer said: "' + text + '"' }]
+                })
+            });
+            const data = await response.json();
+            const raw = (data.content || []).map(i => i.text || '').join('').replace(/```json|```/g,'').trim();
+            const parsed = JSON.parse(raw);
+
+            const chosenRow = document.getElementById('vibe-row-7-' + parsed.option);
+            if (chosenRow) {
+                chosenRow.style.borderColor = '#06b6d4';
+                chosenRow.style.boxShadow = '0 0 0 2px rgba(6,182,212,0.25)';
+                chosenRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            if (resultText) resultText.innerHTML = '<span style="color:#22d3ee;font-weight:900;">Option ' + parsed.option + ' — ' + parsed.vibe + '</span><br>' + parsed.reason;
+            if (result) result.style.display = 'block';
+        } catch(e) {
+            if (resultText) resultText.textContent = 'Could not analyze — please try again.';
+            if (result) result.style.display = 'block';
+        } finally {
+            if (loading) loading.style.display = 'none';
+        }
+    }
+    </script>
+
+</div>
+<!-- ============================================================
+     END rb-panel-7
+     ============================================================ -->
+
 <div id="rb-panel-8" style="display:none;animation:fadeSlideIn 0.2s ease;">
         <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#84cc16;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
             <div style="width:8px;height:8px;border-radius:50%;background:#84cc16;flex-shrink:0;"></div>
