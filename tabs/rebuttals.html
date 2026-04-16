@@ -523,26 +523,59 @@ const KEYWORD_MAP = [
 
 function findKeywordMatch(query) {
   const q = query.toLowerCase().trim();
+  // Normalize: collapse multiple spaces, strip punctuation except apostrophes
+  const qNorm = q.replace(/[^\w\s']/g, ' ').replace(/\s+/g, ' ').trim();
+  const qWords = qNorm.split(' ').filter(w => w.length > 1);
+
   let bestMatch = null;
   let bestScore = 0;
 
   for (const entry of KEYWORD_MAP) {
     for (const key of entry.keys) {
-      if (q.includes(key)) {
-        const score = key.length;
-        if (score > bestScore) { bestScore = score; bestMatch = entry; }
-      } else {
-        const keyWords = key.split(' ').filter(w => w.length > 2);
-        const qWords = q.split(/\s+/);
-        const hits = keyWords.filter(kw => qWords.some(qw => qw.includes(kw) || kw.includes(qw)));
-        const score = (hits.length / Math.max(keyWords.length, 1)) * key.length;
-        if (hits.length >= Math.max(1, Math.floor(keyWords.length * 0.55)) && score > bestScore) {
-          bestScore = score; bestMatch = entry;
+      const keyNorm = key.toLowerCase().replace(/[^\w\s']/g, ' ').replace(/\s+/g, ' ').trim();
+      const keyWords = keyNorm.split(' ').filter(w => w.length > 1);
+
+      // --- Strategy 1: exact substring match (key must be ≥5 chars to avoid noise) ---
+      if (keyNorm.length >= 5 && qNorm.includes(keyNorm)) {
+        // Require whole-word boundary: character before/after the match must be space or edge
+        const idx = qNorm.indexOf(keyNorm);
+        const before = idx === 0 || qNorm[idx - 1] === ' ';
+        const after  = idx + keyNorm.length >= qNorm.length || qNorm[idx + keyNorm.length] === ' ';
+        if (before && after) {
+          const score = keyNorm.length * 2; // boost exact matches
+          if (score > bestScore) { bestScore = score; bestMatch = entry; }
+          continue;
         }
+      }
+
+      // --- Strategy 2: whole-word fuzzy match (stricter thresholds) ---
+      if (keyWords.length === 0) continue;
+
+      // Only consider significant words (length > 2, skip stop words)
+      const stopWords = new Set(['the','and','are','you','for','this','that','with','have','not','can','did','was','your','our','from','but','its','what','why','how','who','did','does','will','just','been','its','get','got','has','they','them','their','when','where','which','there','here','is','it','do','a','an','i','me','my','we','us','to','of','in','on','at','by','if','or','so','am','be','as','up','no']);
+      const sigKey = keyWords.filter(w => w.length > 2 && !stopWords.has(w));
+      const sigQ   = qWords.filter(w => w.length > 2 && !stopWords.has(w));
+
+      if (sigKey.length === 0 || sigQ.length === 0) continue;
+
+      // Count how many significant key words appear as whole words in the query
+      const hits = sigKey.filter(kw => sigQ.some(qw => qw === kw));
+
+      // Require ALL significant key words to match (strict), or at least 80% for longer keys
+      const threshold = sigKey.length <= 2 ? sigKey.length : Math.ceil(sigKey.length * 0.8);
+      if (hits.length >= threshold) {
+        // Score = proportion of query covered by this key × key length
+        const coverage = hits.length / Math.max(sigKey.length, 1);
+        const score = coverage * keyNorm.length;
+        // Additional guard: for short keys (≤2 sig words), require score > 8 to avoid single-word noise
+        if (sigKey.length <= 2 && score <= 8) continue;
+        if (score > bestScore) { bestScore = score; bestMatch = entry; }
       }
     }
   }
-  return bestMatch;
+
+  // Only return a match if the score is meaningful enough
+  return bestScore >= 6 ? bestMatch : null;
 }
 
 function showKeywordResult(match) {
