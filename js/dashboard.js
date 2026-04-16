@@ -1,14 +1,8 @@
 /**
- * Dashboard Logic with Role-Based Access Control
- * Implements privacy for agents while maintaining global floor stats.
+ * Dashboard Logic
+ * All logged-in users see the full leaderboard.
+ * The logged-in agent's own row is highlighted automatically.
  */
-
-// Global state variables (assumed initialized elsewhere)
-// let agents = [];
-// let dayHistory = [];
-// let currentTab = 'daily';
-// let currentDayView = 'today';
-// ...
 
 async function updateDashboard() {
     const btn = document.getElementById('refresh-btn');
@@ -76,11 +70,11 @@ async function updateDashboard() {
 setInterval(updateDashboard, 10000);
 
 function render() {
-    // 1. Session & Role Check
-    const bizUserRole = sessionStorage.getItem('bizUserRole'); // 'admin' or 'agent'
+    // 1. Session Info (used for highlighting own row only)
     const agentProfileRaw = sessionStorage.getItem('currentAgentProfile');
     let userProfile = null;
     try { userProfile = JSON.parse(agentProfileRaw); } catch(e) {}
+    const myName = userProfile ? (userProfile.name || '').trim().toUpperCase() : '';
 
     const lView = document.getElementById('leaderboard-view');
     const pView = document.getElementById('playbook-view');
@@ -106,7 +100,7 @@ function render() {
     const isHistory = currentTab === 'daily' && currentDayView !== 'today';
     const target = isWeekly ? 800 : 150;
     const todayName = agents.length > 0 ? (agents[0].todayName || 'Today') : 'Today';
-    
+
     // UI Goal Labels
     const banner = document.getElementById('history-banner');
     if (isHistory) {
@@ -122,7 +116,7 @@ function render() {
     document.getElementById('day-indicator').innerText = isWeekly ? 'Weekly Sprint' : isHistory ? DAY_SHORT[currentDayView] + ' — Completed' : todayName + ' Performance';
 
     // 3. Process Data
-    let fullList = []; // The original full list for global stats
+    let fullList = [];
     let prTotal = 0, bbTotal = 0, totalLeads = 0, masters = 0, activeReps = 0;
 
     if (isHistory) {
@@ -131,7 +125,6 @@ function render() {
             fullList = [...snap.agents].sort((a, b) => b.leads - a.leads);
             prTotal = snap.prTotal || 0;
             bbTotal = snap.bbTotal || 0;
-            // Fallback calculation for totals
             if (!prTotal && !bbTotal) {
                 fullList.forEach(a => { if (a.team === 'PR') prTotal += a.leads; else bbTotal += a.leads; });
             }
@@ -141,7 +134,7 @@ function render() {
             name: a.name,
             leads: isWeekly ? (a.weeklyLeads || 0) : (a.dailyLeads || 0),
             team: a.team || getTeam(a.name),
-            ytelId: a.ytelId // Ensure ID is mapped for filtering
+            ytelId: a.ytelId || ''
         })).sort((a, b) => b.leads - a.leads);
 
         if (isWeekly) {
@@ -155,48 +148,39 @@ function render() {
         }
     }
 
-    // 4. Global Stat Calculations (Always based on full team)
+    // 4. Global Stat Calculations (always based on full team)
     fullList.forEach(agent => {
         totalLeads += agent.leads;
         if (agent.leads >= 12) masters++;
         if (agent.leads > 0) activeReps++;
     });
 
-    // 5. Filter List for View (RBAC Logic)
-    let displayData = fullList;
-    if (bizUserRole === 'agent' && userProfile && userProfile.ytelId) {
-        // Find the index in the full sorted list to maintain their "Rank"
-        const rankIndex = fullList.findIndex(a => a.ytelId === userProfile.ytelId);
-        if (rankIndex !== -1) {
-            // Keep the rank property on the object so it shows correctly in the UI
-            const myData = { ...fullList[rankIndex], rank: rankIndex + 1 };
-            displayData = [myData];
-        } else {
-            // If the agent is not in the list yet (0 leads), show nothing or a placeholder
-            displayData = [];
-        }
-    } else {
-        // Admin or fallback: add rank to all
-        displayData = displayData.map((a, i) => ({ ...a, rank: i + 1 }));
-    }
+    // 5. All users see the full leaderboard — assign rank to every entry
+    const displayData = fullList.map((a, i) => ({ ...a, rank: i + 1 }));
 
     // 6. Rendering
     document.getElementById('leaderboard').innerHTML = displayData.map((agent) => {
         const lvl = getLevel(agent.leads);
         const rank = agent.rank;
-        const badge = agent.team === 'PR' 
-            ? '<span style="font-size:8px;background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.3);border-radius:4px;padding:1px 5px;color:#a78bfa;font-weight:900;margin-left:6px;">PROV</span>' 
+        const isMe = myName && agent.name && agent.name.trim().toUpperCase() === myName;
+
+        const badge = agent.team === 'PR'
+            ? '<span style="font-size:8px;background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.3);border-radius:4px;padding:1px 5px;color:#a78bfa;font-weight:900;margin-left:6px;">PROV</span>'
             : '<span style="font-size:8px;background:rgba(192,132,252,0.15);border:1px solid rgba(192,132,252,0.3);border-radius:4px;padding:1px 5px;color:#c084fc;font-weight:900;margin-left:6px;">BERB</span>';
-        
+
+        const myHighlight = isMe
+            ? 'outline: 2px solid rgba(250,204,21,0.6); outline-offset: -2px;'
+            : '';
+
         return `
-            <div class="glass p-5 rounded-2xl flex justify-between items-center transition-all hover:bg-white/5 ${lvl.cls} mb-3 md:mb-0 md:m-2">
+            <div class="glass p-5 rounded-2xl flex justify-between items-center transition-all hover:bg-white/5 ${lvl.cls} mb-3 md:mb-0 md:m-2" style="${myHighlight}">
                 <div class="flex items-center gap-4">
                     <span class="text-xl font-black italic ${rank <= 3 ? 'text-white' : 'text-slate-700'}">
                         ${String(rank).padStart(2, '0')}
                     </span>
                     <div>
                         <div class="font-black text-sm md:text-lg text-white uppercase flex items-center flex-wrap gap-1">
-                            ${agent.name}${badge}
+                            ${agent.name}${badge}${isMe ? '<span style="font-size:8px;background:rgba(250,204,21,0.15);border:1px solid rgba(250,204,21,0.35);border-radius:4px;padding:1px 6px;color:#facc15;font-weight:900;margin-left:4px;">YOU</span>' : ''}
                         </div>
                         <div class="text-[9px] font-black uppercase tracking-widest ${lvl.color}">
                             ${lvl.title} STATUS
@@ -210,7 +194,7 @@ function render() {
             </div>`;
     }).join('');
 
-    // Update Bottom Stats Bar (Uses the global values calculated in step 4)
+    // Update Bottom Stats Bar
     document.getElementById('floor-total').innerText = totalLeads;
     document.getElementById('master-count').innerText = String(masters).padStart(2, '0');
     document.getElementById('active-reps').innerText = activeReps;
@@ -218,7 +202,7 @@ function render() {
     document.getElementById('pr-count').innerText = prTotal;
     document.getElementById('bb-count').innerText = bbTotal;
 
-    // Progress Bar (Always global)
+    // Progress Bar
     const pct = Math.min((totalLeads / target) * 100, 100);
     document.getElementById('progress-bar').style.width = pct + '%';
     document.getElementById('goal-percent').innerText = Math.floor(pct) + '%';

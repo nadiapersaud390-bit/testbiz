@@ -15,33 +15,69 @@ function toggleRebuttal(header) {
     if (!isOpen) { body.classList.add('open'); arrow.classList.add('open'); }
 }
 
-const REBUTTAL_TOTAL = 19;
+function resetRebuttalButton(btn) {
+    if (!btn) return;
+    btn.style.background = 'rgba(255,255,255,0.04)';
+    btn.style.borderColor = 'rgba(255,255,255,0.1)';
+    btn.style.color = '#64748b';
+}
+
+function activateRebuttalButton(btn) {
+    if (!btn) return;
+    btn.style.background = 'rgba(20,184,166,0.2)';
+    btn.style.borderColor = '#14b8a6';
+    btn.style.color = '#2dd4bf';
+    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+
+function closeAllRebuttals() {
+    document.querySelectorAll('.rb-panel').forEach(panel => {
+        panel.style.display = 'none';
+    });
+    document.querySelectorAll('#rb-btn-row button').forEach(resetRebuttalButton);
+}
 
 function showRebuttal(idx) {
-    for (let i = 0; i < REBUTTAL_TOTAL; i++) {
-        const p = document.getElementById('rb-panel-' + i);
-        const b = document.getElementById('rb-btn-' + i);
-        if (p) p.style.display = 'none';
-        if (b) { b.style.background='rgba(255,255,255,0.04)'; b.style.borderColor='rgba(255,255,255,0.1)'; b.style.color='#64748b'; }
-    }
+    closeAllRebuttals();
+
     const panel = document.getElementById('rb-panel-' + idx);
-    const btn   = document.getElementById('rb-btn-' + idx);
-    if (panel) panel.style.display = 'block';
-    if (btn) { btn.style.background='rgba(20,184,166,0.2)'; btn.style.borderColor='#14b8a6'; btn.style.color='#2dd4bf'; btn.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}); }
+    const btn = document.getElementById('rb-btn-' + idx);
+
+    if (panel) {
+        panel.style.display = 'block';
+        panel.style.animation = 'none';
+        panel.offsetHeight;
+        panel.style.animation = 'fadeSlideIn 0.2s ease';
+    }
+
+    activateRebuttalButton(btn);
 }
 
 function filterRebuttalSearch(val) {
     const q = val.trim().toLowerCase();
     const noResults = document.getElementById('rebuttal-no-results');
-    if (!q) { if (noResults) noResults.style.display='none'; showRebuttal(0); return; }
-    let found = -1;
-    for (let i = 0; i < REBUTTAL_TOTAL; i++) {
-        const p = document.getElementById('rb-panel-' + i);
-        if (p && p.innerText.toLowerCase().includes(q)) { if (found === -1) found = i; }
-    }
-    if (found >= 0) { if (noResults) noResults.style.display='none'; showRebuttal(found); }
-    else { if (noResults) noResults.style.display='block'; for (let i=0;i<REBUTTAL_TOTAL;i++){const p=document.getElementById('rb-panel-'+i);if(p)p.style.display='none';} }
+    const buttons = Array.from(document.querySelectorAll('#rb-btn-row button'));
+    let visibleCount = 0;
+
+    buttons.forEach(button => {
+        const matches = !q || button.textContent.toLowerCase().includes(q);
+        button.style.display = matches ? 'block' : 'none';
+        if (matches) visibleCount++;
+    });
+
+    if (noResults) noResults.style.display = visibleCount === 0 && q ? 'block' : 'none';
+
+    const activeButton = buttons.find(button => button.style.display !== 'none' && button.style.color === 'rgb(45, 212, 191)');
+    if (activeButton || !q) return;
+
+    closeAllRebuttals();
 }
+
+window.RebuttalManager = {
+    showRebuttal,
+    filterSearch: filterRebuttalSearch,
+    reset: closeAllRebuttals
+};
 
 function toggleRevenueDropdown() {
     const body = document.getElementById('revenue-body');

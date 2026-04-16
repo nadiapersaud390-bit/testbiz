@@ -434,34 +434,16 @@ const PRIVATE_ALERT_MESSAGES = [
   "Beautiful execution on that call — keep it rolling. 🎯"
 ];
 
-// ── Name helpers ─────────────────────────────────────────────────────────────
-
 function normalizeName(name) {
   return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-/**
- * Strip known Ytel/team prefixes from an agent name.
- * Handles: "GYB Devyanie Mangru" → "Devyanie Mangru"
- *          "GYP John Smith"      → "John Smith"
- *          "BB Devyanie"         → "Devyanie"
- * Rule: if the FIRST word is all uppercase letters (2-4 chars), strip it.
- */
 function trimTeamPrefix(name) {
-  const s = String(name || '').trim();
-  const parts = s.split(/\s+/);
-  if (parts.length <= 1) return s;
-  // Strip any leading ALL-CAPS word (team codes like GYB, GYP, BB, PR, GTM, ATL, GUY)
-  if (/^[A-Z]{2,5}$/.test(parts[0])) return parts.slice(1).join(' ');
-  return s;
-}
-
-/**
- * Normalize a name AND strip its prefix, lower-cased.
- * Used for all comparisons so "GYB Devyanie Mangru" and "Devyanie Mangru" match.
- */
-function cleanName(name) {
-  return normalizeName(trimTeamPrefix(name));
+  const parts = String(name || '').trim().split(/\s+/);
+  if (parts.length <= 1) return String(name || '').trim();
+  const first = parts[0].toUpperCase();
+  if (/^[A-Z]{2,4}$/.test(first) || /^GY[BP]$/.test(first)) return parts.slice(1).join(' ');
+  return String(name || '').trim();
 }
 
 function isSameAgentName(a, b) {
@@ -469,18 +451,15 @@ function isSameAgentName(a, b) {
   const nb = normalizeName(b);
   if (!na || !nb) return false;
   if (na === nb) return true;
-  // Compare with prefixes stripped on both sides
-  return cleanName(a) === cleanName(b);
+  return normalizeName(trimTeamPrefix(a)) === normalizeName(trimTeamPrefix(b));
 }
 
 function getFirstName(fullName) {
   if (!fullName) return 'Rep';
-  // Strip prefix first so "GYB Devyanie Mangru" → "Devyanie"
-  const clean = trimTeamPrefix(fullName).trim();
-  return clean.split(/\s+/)[0] || 'Rep';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length > 1 && parts[0].length <= 3 && /^[A-Z]+$/.test(parts[0])) return parts[1];
+  return parts[0];
 }
-
-// ── Identity resolution ──────────────────────────────────────────────────────
 
 function resolveViewerIdentity() {
   const sessionName = sessionStorage.getItem('currentAgentName') || '';
@@ -492,35 +471,28 @@ function resolveViewerIdentity() {
       profileYtelId = profile.ytelId || '';
     }
   } catch (e) {}
-  alertViewerName   = cleanName(sessionName || profileName);
+  alertViewerName   = normalizeName(sessionName || profileName);
   alertViewerYtelId = String(profileYtelId || '').trim();
 }
 
 function isViewerAgent(agentObj) {
-  // Primary match: Ytel ID (most reliable, never has prefix ambiguity)
   if (alertViewerYtelId && agentObj.ytelId) {
     return String(agentObj.ytelId).trim() === alertViewerYtelId;
   }
-  // Fallback: name match with prefix stripped on both sides
-  const agentClean = cleanName(agentObj.name || '');
-  return agentClean && alertViewerName && agentClean === alertViewerName;
+  return isSameAgentName(agentObj.name || '', alertViewerName);
 }
 
 function findViewerEntry(agentsArr) {
   if (!agentsArr || !agentsArr.length) return null;
-  // Try Ytel ID first
   if (alertViewerYtelId) {
     const byId = agentsArr.find(a => String(a.ytelId || '').trim() === alertViewerYtelId);
     if (byId) return byId;
   }
-  // Fall back to cleaned name match
   if (alertViewerName) {
-    return agentsArr.find(a => cleanName(a.name || '') === alertViewerName) || null;
+    return agentsArr.find(a => isSameAgentName(a.name || '', alertViewerName)) || null;
   }
   return null;
 }
-
-// ── Main alert checker ───────────────────────────────────────────────────────
 
 function checkLeadAlerts(newAgents) {
   if (!newAgents || !newAgents.length) return;
@@ -637,7 +609,5 @@ function dismissLeadAlert() {
   stopTabBlink();
 }
 
-// ── NOTE: updateDashboard() and its interval are managed by dashboard.js ──
-// Do NOT call updateDashboard() or setInterval(updateDashboard) here.
-// leadalerts.js only provides checkLeadAlerts() which dashboard.js calls
-// after each successful data fetch. This prevents double-polling.
+updateDashboard();
+setInterval(updateDashboard, 10000);
