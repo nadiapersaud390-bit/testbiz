@@ -120,57 +120,122 @@
         @keyframes tpRowIn{from{opacity:0;transform:translateX(-20px);}to{opacity:1;transform:translateX(0);}}
         .tp-rank{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
         .tp-name{flex:1;font-family:'Orbitron',sans-serif;font-size:clamp(11px,3vw,14px);font-weight:900;color:white;text-transform:uppercase;letter-spacing:0.05em;}
-        .tp-score{font-family:'Lilita One',cursive;font-size:clamp(20px,5vw,28px);font-weight:900;}
-        .tp-label{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#475569;text-align:right;}
-        .tp-footer{padding:14px 20px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:10px;}
-        .tp-close-btn{flex:1;padding:13px;border-radius:14px;font-family:'Orbitron',sans-serif;font-weight:900;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;transition:all 0.2s;}
-        .tp-close-btn:hover{background:rgba(255,255,255,0.1);color:white;}
-        #tp-confetti-canvas{position:fixed;inset:0;pointer-events:none;z-index:99989;}
+        .tp-score{font-family:'Lilita One',cursive;}
 
-        /* ===== BROADCAST ALERT BAR ===== */
-        #broadcast-bar{position:fixed;top:0;left:0;right:0;z-index:99999;transform:translateY(-100%);transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);}
-        #broadcast-bar.show{transform:translateY(0);}
-        .bc-inner{display:flex;align-items:center;justify-content:space-between;padding:0 16px;min-height:52px;gap:12px;background:linear-gradient(90deg,#7c1010,#b91c1c,#ef4444,#b91c1c,#7c1010);background-size:300% 100%;animation:bcFlash 1.4s ease-in-out infinite;}
-        @keyframes bcFlash{0%,100%{background-position:0% 50%;box-shadow:0 2px 20px rgba(239,68,68,0.6);}50%{background-position:100% 50%;box-shadow:0 2px 40px rgba(239,68,68,1);}}
-        .bc-icon{font-size:18px;flex-shrink:0;animation:bcIconPulse 0.7s ease-in-out infinite alternate;}
-        @keyframes bcIconPulse{from{transform:scale(1);}to{transform:scale(1.3);}}
-        .bc-text{flex:1;font-family:'Inter',sans-serif;font-weight:700;font-size:clamp(12px,3vw,15px);color:white;text-transform:none;letter-spacing:0.01em;text-shadow:0 1px 8px rgba(0,0,0,0.4);text-align:center;line-height:1.4;}
-        .bc-close{background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.3);border-radius:8px;color:white;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;flex-shrink:0;transition:background 0.2s;}
-        .bc-close:hover{background:rgba(0,0,0,0.5);}
+        /* ===== MILESTONE STARS STYLES ===== */
+        .milestone-star {
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            position: relative;
+            flex: 1;
+            text-align: center;
+        }
 
-        /* ===== ADMIN BROADCAST PANEL ===== */
-        #bc-admin-btn{display:none!important;}
-        #bc-float-btn{display:none;position:fixed;bottom:24px;right:20px;z-index:10000;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#991b1b,#ef4444);border:2px solid rgba(255,100,100,0.4);box-shadow:0 4px 24px rgba(239,68,68,0.55);cursor:pointer;align-items:center;justify-content:center;font-size:22px;transition:transform 0.2s,box-shadow 0.2s;}
-        #bc-float-btn:hover{transform:scale(1.1);box-shadow:0 6px 32px rgba(239,68,68,0.8);}
-        #bc-float-btn.unlocked{display:flex;}
-        #bc-panel{position:fixed;bottom:90px;right:16px;z-index:9998;width:min(320px,calc(100vw - 32px));background:rgba(10,2,2,0.97);border:1px solid rgba(239,68,68,0.4);border-radius:20px;padding:20px;box-shadow:0 8px 40px rgba(239,68,68,0.3);display:none;}
-        #bc-panel.show{display:block;animation:fadeSlideIn 0.25s ease;}
-        @keyframes bcBtnAppear{from{transform:scale(0) rotate(-180deg);opacity:0;}to{transform:scale(1) rotate(0deg);opacity:1;}}
-        .bc-panel-title{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;color:#ef4444;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
-        .bc-msg-input{width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:white;font-size:13px;padding:12px 14px;outline:none;font-family:'Inter',sans-serif;resize:none;transition:border-color 0.2s;box-sizing:border-box;}
-        .bc-msg-input:focus{border-color:#ef4444;}
-        .bc-msg-input::placeholder{color:#475569;}
-        .bc-send-btn{width:100%;padding:12px;border-radius:12px;font-family:'Orbitron',sans-serif;font-weight:900;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;background:linear-gradient(90deg,#991b1b,#ef4444);color:white;border:none;cursor:pointer;margin-top:10px;transition:opacity 0.2s,transform 0.1s;}
-        .bc-send-btn:hover{opacity:0.9;}.bc-send-btn:active{transform:scale(0.97);}
-        .bc-clear-btn{width:100%;padding:10px;border-radius:12px;font-family:'Orbitron',sans-serif;font-weight:900;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;cursor:pointer;margin-top:6px;transition:all 0.2s;}
-        .bc-clear-btn:hover{color:#94a3b8;background:rgba(255,255,255,0.08);}
-        .bc-status{font-size:10px;color:#64748b;text-align:center;margin-top:8px;min-height:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;}
-        .bc-status.ok{color:#22c55e;}.bc-status.err{color:#ef4444;}
+        .milestone-star i {
+            color: #334155;
+            text-shadow: 0 0 5px rgba(0,0,0,0.3);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
 
-        /* ===== ADMIN LOGIN FOR BROADCAST ===== */
-        #bc-login-modal{position:fixed;inset:0;background:rgba(2,6,23,0.92);backdrop-filter:blur(12px);z-index:99998;display:flex;align-items:center;justify-content:center;}
-        #bc-login-modal.hidden{display:none;}
+        .milestone-star i.fas {
+            color: #facc15;
+            text-shadow: 0 0 15px rgba(250,204,21,0.5);
+            animation: starPop 0.5s ease-out;
+        }
 
-        /* ===== LEAD ALERT BANNER ===== */
-        #lead-alert-banner{position:fixed;top:0;left:0;right:0;z-index:999998;transform:translateY(-100%);transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);}
-        #lead-alert-banner.show{transform:translateY(0);}
-        .lab-inner{display:flex;align-items:center;justify-content:space-between;padding:0 16px;min-height:56px;gap:12px;background:linear-gradient(90deg,#1a003a,#3b0080,#a855f7,#3b0080,#1a003a);background-size:300% 100%;animation:labFlash 1.6s ease-in-out infinite;}
-        .lab-inner.first-lead{background:linear-gradient(90deg,#422006,#92400e,#f59e0b,#ca8a04,#f59e0b,#92400e,#422006);background-size:300% 100%;animation:labFlashGold 1.4s ease-in-out infinite;box-shadow:0 2px 30px rgba(245,158,11,0.7);}
-        @keyframes labFlash{0%,100%{background-position:0% 50%;}50%{background-position:100% 50%;}}
-        @keyframes labFlashGold{0%,100%{background-position:0% 50%;box-shadow:0 2px 20px rgba(245,158,11,0.5);}50%{background-position:100% 50%;box-shadow:0 2px 50px rgba(245,158,11,1);}}
-        .lab-icon{font-size:20px;flex-shrink:0;}
-        .lab-text{flex:1;font-family:'Inter',sans-serif;font-weight:700;font-size:clamp(12px,3vw,15px);color:white;text-transform:none;letter-spacing:0.01em;text-shadow:0 1px 8px rgba(0,0,0,0.4);text-align:center;line-height:1.4;}
-        .lab-inner.first-lead .lab-text{text-shadow:0 0 14px rgba(255,220,50,0.9);}
-        .lab-text span{display:block;font-family:'Inter',sans-serif;font-size:clamp(11px,2.8vw,13px);font-weight:400;text-transform:none;letter-spacing:0.01em;color:rgba(255,255,255,0.85);text-shadow:none;margin-top:2px;}
-        .lab-close{background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.3);border-radius:8px;color:white;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;flex-shrink:0;transition:background 0.2s;}
-        .lab-close:hover{background:rgba(0,0,0,0.5);}
+        @keyframes starPop {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.3);
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .milestone-star:hover i {
+            transform: scale(1.1);
+        }
+
+        .milestone-star.celebrate i {
+            animation: starCelebrate 0.6s ease-in-out;
+        }
+
+        @keyframes starCelebrate {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2) rotate(10deg); }
+        }
+
+        /* Milestone unlock notification */
+        .milestone-notification {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(250,204,21,0.95), rgba(245,158,11,0.95));
+            color: #020617;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 14px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            z-index: 10000;
+            animation: slideUpFade 3s ease forwards;
+            box-shadow: 0 0 30px rgba(250,204,21,0.5);
+            backdrop-filter: blur(8px);
+            pointer-events: none;
+        }
+
+        @keyframes slideUpFade {
+            0% {
+                opacity: 0;
+                transform: translateX(-50%) translateY(20px);
+            }
+            15% {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+            85% {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+            100% {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+                visibility: hidden;
+            }
+        }
+
+        /* Confetti effect when all 5 stars unlocked */
+        @keyframes confettiPop {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        .confetti-particle {
+            position: fixed;
+            width: 8px;
+            height: 8px;
+            background: #facc15;
+            border-radius: 2px;
+            pointer-events: none;
+            z-index: 9999;
+            animation: confettiFall 1s ease-out forwards;
+        }
+
+        @keyframes confettiFall {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
