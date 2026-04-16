@@ -26,7 +26,7 @@
 <!-- Objection Buttons -->
 <div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#475569;margin-bottom:-4px;">Select Objection</div>
 <div id="rb-btn-row" style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button id="rb-btn-0" onclick="showRebuttal(0)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;background:rgba(20,184,166,0.2);border-color:#14b8a6;color:#2dd4bf;">Which Company?</button>
+    <button id="rb-btn-0" onclick="showRebuttal(0)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Which Company?</button>
 <button id="rb-btn-1" onclick="showRebuttal(1)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Is This a Scam?</button>
 <button id="rb-btn-2" onclick="showRebuttal(2)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Email Me First</button>
 <button id="rb-btn-3" onclick="showRebuttal(3)" style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">Why Calling?</button>
@@ -634,10 +634,6 @@
                     <span style="font-size:9px;font-weight:900;text-transform:uppercase;color:#10b981;letter-spacing:0.08em;">Option B — Short & simple</span>
                     <p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">"We work with a network of financial data partners who identify businesses that may qualify for working capital. Your business met the initial criteria, so we flagged it for outreach. I just need to verify two or three things to confirm the full qualification."</p>
                 </div>
-                <div style="margin-top:5px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px;">
-                    <i class="fas fa-arrow-right" style="color:#3b82f6;font-size:10px;flex-shrink:0;"></i>
-                    <span style="font-size:12px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;">Go right back to qualifying questions</span>
-                </div>
             </div>
 </div>
 <div id="rb-panel-24" style="display:none;animation:fadeSlideIn 0.2s ease;">
@@ -693,3 +689,81 @@
     <i class="fas fa-lightbulb" style="color:#3b82f6;flex-shrink:0;margin-top:2px;font-size:14px;"></i>
     <p style="font-size:12px;font-weight:700;color:#93c5fd;line-height:1.65;">Stay calm, stay brief. Acknowledge their concern, give the short answer, and redirect back to qualification questions immediately. Use acknowledgment phrases every 2 objections: "Perfect, thank you." / "Got it, that helps." / "That's great to know."</p>
 </div>
+
+<script>
+// Rebuttal panel management - closes previous panel when new one is clicked
+const TOTAL_PANELS = 26; // panels 0 through 25
+
+function showRebuttal(panelIndex) {
+    // Hide all panels first
+    for (let i = 0; i < TOTAL_PANELS; i++) {
+        const panel = document.getElementById('rb-panel-' + i);
+        if (panel) {
+            panel.style.display = 'none';
+        }
+    }
+    
+    // Show the selected panel
+    const selectedPanel = document.getElementById('rb-panel-' + panelIndex);
+    if (selectedPanel) {
+        selectedPanel.style.display = 'block';
+    }
+    
+    // Reset all button styles
+    for (let i = 0; i < TOTAL_PANELS; i++) {
+        const btn = document.getElementById('rb-btn-' + i);
+        if (btn) {
+            btn.style.background = 'rgba(255,255,255,0.04)';
+            btn.style.borderColor = 'rgba(255,255,255,0.1)';
+            btn.style.color = '#64748b';
+        }
+    }
+    
+    // Highlight the active button
+    const activeBtn = document.getElementById('rb-btn-' + panelIndex);
+    if (activeBtn) {
+        activeBtn.style.background = 'rgba(20,184,166,0.2)';
+        activeBtn.style.borderColor = '#14b8a6';
+        activeBtn.style.color = '#2dd4bf';
+    }
+}
+
+function filterRebuttalSearch(searchTerm) {
+    const buttons = document.querySelectorAll('#rb-btn-row button');
+    const noResultsDiv = document.getElementById('rebuttal-no-results');
+    const searchTermLower = searchTerm.toLowerCase().trim();
+    
+    let visibleCount = 0;
+    
+    buttons.forEach(button => {
+        const buttonText = button.textContent.toLowerCase();
+        if (searchTermLower === '' || buttonText.includes(searchTermLower)) {
+            button.style.display = 'block';
+            visibleCount++;
+        } else {
+            button.style.display = 'none';
+        }
+    });
+    
+    // Show/hide no results message
+    if (noResultsDiv) {
+        if (visibleCount === 0 && searchTermLower !== '') {
+            noResultsDiv.style.display = 'block';
+        } else {
+            noResultsDiv.style.display = 'none';
+        }
+    }
+}
+
+// Initialize on page load - ensure panel 0 is shown and button 0 is highlighted
+document.addEventListener('DOMContentLoaded', function() {
+    showRebuttal(0);
+});
+</script>
+
+<style>
+@keyframes fadeSlideIn {
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+</style>
