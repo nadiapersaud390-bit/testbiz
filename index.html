@@ -246,9 +246,14 @@ window.switchTab = async function(tab) {
 
 document.addEventListener('DOMContentLoaded', () => {
     const adminTab = document.getElementById('tab-adminpanel');
-
-    if (adminTab && sessionStorage.getItem('bizUserRole') === 'admin') {
+    const userRole = sessionStorage.getItem('bizUserRole');
+    
+    console.log('User role:', userRole);
+    
+    // Show admin panel tab ONLY for admin users
+    if (adminTab && userRole === 'admin') {
         adminTab.classList.remove('hidden');
+        console.log('Admin tab revealed');
     }
 
     loadTab('leaderboard-view');
