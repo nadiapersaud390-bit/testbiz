@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Management | BIZ Level Up</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background: #020617; font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-4xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent uppercase">Admin Management</h1>
+            <button onclick="logout()" class="bg-red-500/20 border border-red-500/30 px-4 py-2 rounded-xl text-red-400 text-sm font-bold">Logout</button>
+        </div>
+        
+        <!-- Add Admin Section (Super Admin only) -->
+        <div id="add-admin-section" class="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 hidden">
+            <h2 class="text-xl font-bold text-white mb-4">➕ Add New Admin</h2>
+            <div class="flex gap-3 flex-wrap">
+                <input type="email" id="new-admin-email" placeholder="admin@example.com" class="flex-1 bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <select id="new-admin-role" class="bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                    <option value="admin">Admin</option>
+                    <option value="super_admin">Super Admin</option>
+                </select>
+                <button onclick="addNewAdmin()" class="bg-green-500/20 border border-green-500/30 px-6 py-3 rounded-xl text-green-400 font-bold">Add</button>
+            </div>
+            <div id="add-status" class="text-sm mt-2"></div>
+        </div>
+        
+        <!-- Admin List -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-6">
+            <h2 class="text-xl font-bold text-white mb-4">👥 Admin Users</h2>
+            <div id="admin-list" class="space-y-2">
+                <div class="text-slate-400 text-center py-8">Loading admins...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/firebase-config.js"></script>
+    <script src="js/firebase-admin-mgmt.js"></script>
+    <script>
+        let currentUserRole = null;
+        
+        async function loadAdminList() {
+            if (!isFirebaseAdminLoggedIn()) {
+                window.location.href = 'admin-login.html';
+                return;
+            }
+            
+            // Get current user role
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+                const doc = await db.collection('admins').doc(currentUser.email).get();
+                currentUserRole = doc.data()?.role;
+                
+                if (currentUserRole === 'super_admin') {
+                    document.getElementById('add-admin-section').classList.remove('hidden');
+                }
+            }
+            
+            const admins = await getAdminList();
+            const container = document.getElementById('admin-list');
+            
+            if (admins.length === 0) {
+                container.innerHTML = '<div class="text-slate-400 text-center py-8">No admins found</div>';
+                return;
+            }
+            
+            container.innerHTML = admins.map(admin => `
+                <div class="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/10">
+                    <div>
+                        <div class="font-bold text-white">${admin.email}</div>
+                        <div class="text-xs">
+                            <span class="px-2 py-1 rounded-full ${admin.role === 'super_admin' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}">${admin.role}</span>
+                            ${admin.createdBy ? `<span class="text-slate-500 ml-2">added by ${admin.createdBy}</span>` : ''}
+                        </div>
+                    </div>
+                    ${currentUserRole === 'super_admin' && admin.email !== auth.currentUser?.email ? `
+                        <button onclick="removeAdminUser('${admin.email}')" class="text-red-400 hover:text-red-300 transition">
+                            <i class="fas fa-trash"></i> Remove
+                        </button>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+        
+        async function addNewAdmin() {
+            const email = document.getElementById('new-admin-email').value;
+            const role = document.getElementById('new-admin-role').value;
+            const statusDiv = document.getElementById('add-status');
+            
+            if (!email) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ Email required</span>';
+                return;
+            }
+            
+            statusDiv.innerHTML = '<span class="text-yellow-400">⏳ Adding...</span>';
+            
+            try {
+                await addAdmin(email, role);
+                statusDiv.innerHTML = '<span class="text-green-400">✅ Admin added successfully!</span>';
+                document.getElementById('new-admin-email').value = '';
+                loadAdminList();
+                setTimeout(() => statusDiv.innerHTML = '', 3000);
+            } catch (error) {
+                statusDiv.innerHTML = `<span class="text-red-400">❌ ${error.message}</span>`;
+            }
+        }
+        
+        async function removeAdminUser(email) {
+            if (!confirm(`Remove admin ${email}?`)) return;
+            
+            try {
+                await removeAdmin(email);
+                loadAdminList();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+        
+        function logout() {
+            signOutAdmin();
+        }
+        
+        // Check auth state
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                loadAdminList();
+            } else {
+                window.location.href = 'admin-login.html';
+            }
+        });
+    </script>
+</body>
+</html>
