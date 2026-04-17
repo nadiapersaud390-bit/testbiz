@@ -15,7 +15,8 @@ const REMOTE_AGENT_NAMES = new Set([
   'GYP ERIKA SAMUELS',
   'GYP HANNAH BAPTISTE',
   'GYP NATHALIA CHARLES',
-  'GYP NICHOLA MANGAR'
+  'GYP NICHOLA MANGAR',
+  'GYP NISHON GOMES'
 ]);
 let agents = [], dayHistory = [];
 let currentTab = 'daily', currentDayView = 'today', weeklyUnlocked = false;
