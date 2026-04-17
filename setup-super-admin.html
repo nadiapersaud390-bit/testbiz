@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Super Admin | BIZ Level Up</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #020617 0%, #0f172a 100%);
+            font-family: 'Inter', sans-serif;
+        }
+        .glow {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.4); }
+            50% { box-shadow: 0 0 0 20px rgba(250, 204, 21, 0); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="max-w-md w-full">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="text-6xl mb-4">👑</div>
+            <h1 class="text-3xl font-black bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 bg-clip-text text-transparent uppercase tracking-wider">
+                Create Super Admin
+            </h1>
+            <p class="text-slate-400 text-sm mt-2">This will be the master admin account</p>
+        </div>
+        
+        <!-- Setup Card -->
+        <div class="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
+            <div id="setup-form">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-yellow-400 mb-2">
+                            <i class="fas fa-user mr-1"></i> Full Name
+                        </label>
+                        <input type="text" id="super-name" placeholder="John Doe" 
+                               class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-yellow-400 transition">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-yellow-400 mb-2">
+                            <i class="fas fa-envelope mr-1"></i> Email Address
+                        </label>
+                        <input type="email" id="super-email" placeholder="super@bizlevelup.com" 
+                               class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-yellow-400 transition">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-yellow-400 mb-2">
+                            <i class="fas fa-lock mr-1"></i> Password
+                        </label>
+                        <input type="password" id="super-password" placeholder="Min 6 characters" 
+                               class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-yellow-400 transition">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-yellow-400 mb-2">
+                            <i class="fas fa-check-circle mr-1"></i> Confirm Password
+                        </label>
+                        <input type="password" id="confirm-password" placeholder="Confirm password" 
+                               class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-yellow-400 transition">
+                    </div>
+                </div>
+                
+                <button onclick="createSuperAdmin()" 
+                        class="w-full mt-6 bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-black py-3 rounded-xl uppercase tracking-wider transition hover:scale-105 glow">
+                    <i class="fas fa-crown mr-2"></i> Create Super Admin
+                </button>
+            </div>
+            
+            <div id="success-message" class="hidden text-center mt-4">
+                <div class="bg-green-500/20 border border-green-500/30 rounded-xl p-4">
+                    <i class="fas fa-check-circle text-green-400 text-3xl mb-2"></i>
+                    <p class="text-green-400 font-bold">Super Admin Created Successfully!</p>
+                    <p class="text-slate-300 text-sm mt-2">You can now login at the <a href="admin-login.html" class="text-yellow-400 underline">Admin Login Page</a></p>
+                    <button onclick="window.location.href='admin-login.html'" 
+                            class="mt-4 bg-yellow-500/20 border border-yellow-500/30 px-6 py-2 rounded-lg text-yellow-400 font-bold">
+                        Go to Login →
+                    </button>
+                </div>
+            </div>
+            
+            <div id="error-message" class="hidden text-center mt-4">
+                <div class="bg-red-500/20 border border-red-500/30 rounded-xl p-4">
+                    <i class="fas fa-exclamation-triangle text-red-400 text-3xl mb-2"></i>
+                    <p id="error-text" class="text-red-400 font-bold"></p>
+                </div>
+            </div>
+            
+            <div class="mt-6 text-center text-xs text-slate-500">
+                <i class="fas fa-shield-alt mr-1"></i> 
+                This setup will only work ONCE. After creation, delete this file for security.
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/super-admin.js"></script>
+    <script>
+        function createSuperAdmin() {
+            const name = document.getElementById('super-name').value;
+            const email = document.getElementById('super-email').value;
+            const password = document.getElementById('super-password').value;
+            const confirm = document.getElementById('confirm-password').value;
+            
+            // Validation
+            if (!name || !email || !password) {
+                showError('All fields are required');
+                return;
+            }
+            
+            if (password !== confirm) {
+                showError('Passwords do not match');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showError('Password must be at least 6 characters');
+                return;
+            }
+            
+            if (!email.includes('@')) {
+                showError('Please enter a valid email address');
+                return;
+            }
+            
+            // Create super admin
+            const result = setupFirstSuperAdmin(email, password, name);
+            
+            if (result.success) {
+                document.getElementById('setup-form').classList.add('hidden');
+                document.getElementById('success-message').classList.remove('hidden');
+            } else {
+                showError(result.error);
+            }
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            errorText.textContent = message;
+            errorDiv.classList.remove('hidden');
+            setTimeout(() => {
+                errorDiv.classList.add('hidden');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
