@@ -1,152 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BIZ Admin Login</title>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700;900&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      background: #020617;
-      color: #f8fafc;
-      font-family: 'Inter', sans-serif;
-      padding: 20px;
-      animation: fadeIn 0.6s ease-out;
-    }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-    .card {
-      width: 100%;
-      max-width: 420px;
-      border-radius: 24px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(255,255,255,0.03);
-      padding: 30px 24px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
-      animation: pulseGlow 3s ease-in-out infinite;
-    }
-    @keyframes pulseGlow {
-      0%,100% { box-shadow: 0 20px 60px rgba(0,0,0,0.45), 0 0 0 rgba(250,204,21,0); }
-      50% { box-shadow: 0 20px 60px rgba(0,0,0,0.45), 0 0 36px rgba(250,204,21,0.14); }
-    }
-    h1 {
-      font-family: 'Orbitron', sans-serif;
-      margin: 0 0 6px;
-      font-size: clamp(20px, 5vw, 26px);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      background: linear-gradient(90deg, #facc15, #fb923c);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      text-align: center;
-    }
-    .sub {
-      text-align: center;
-      font-size: 12px;
-      color: #94a3b8;
-      margin-bottom: 20px;
-      font-weight: 600;
-      font-family: 'Poppins', sans-serif;
-    }
-    label {
-      display: block;
-      margin-bottom: 6px;
-      color: #94a3b8;
-      font-size: 11px;
-      letter-spacing: 0.11em;
-      text-transform: uppercase;
-      font-weight: 800;
-      font-family: 'Poppins', sans-serif;
-    }
-    input {
-      width: 100%;
-      border: 1px solid rgba(255,255,255,0.16);
-      border-radius: 12px;
-      background: rgba(255,255,255,0.05);
-      color: #fff;
-      padding: 12px 14px;
-      margin-bottom: 14px;
-      font-size: 16px;
-      font-family: 'Poppins', sans-serif;
-    }
-    input:focus {
-      outline: 2px solid rgba(250,204,21,0.45);
-      border-color: rgba(250,204,21,0.65);
-    }
-    button {
-      width: 100%;
-      border: 0;
-      border-radius: 14px;
-      padding: 13px;
-      font-family: 'Orbitron', sans-serif;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      font-weight: 900;
-      cursor: pointer;
-      color: #020617;
-      background: linear-gradient(90deg, #ca8a04, #facc15, #fb923c);
-    }
-    .err {
-      min-height: 16px;
-      color: #ef4444;
-      font-size: 12px;
-      margin: 2px 0 10px;
-      text-align: center;
-      font-weight: 700;
-    }
-    .back {
-      display: inline-block;
-      margin-top: 16px;
-      color: #38bdf8;
-      font-size: 12px;
-      font-weight: 700;
-      text-decoration: none;
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>Admin Login</h1>
-    <p class="sub">Use your admin credentials to access dashboard controls.</p>
+<!-- Add Firebase SDKs BEFORE the closing body tag -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/firebase-admin-mgmt.js"></script>
 
-    <label for="username">Username</label>
-    <input id="username" type="text" autocomplete="off" />
-
-    <label for="password">Password</label>
-    <input id="password" type="password" autocomplete="off" onkeydown="if(event.key==='Enter')login()" />
-
-    <div class="err" id="error"></div>
-    <button type="button" onclick="login()">Log In</button>
-
-    <a class="back" href="index.html">← Back to Dashboard</a>
-  </div>
-
-  <script>
-    const ADMIN_USERNAME = '0000';
-    const ADMIN_PASSWORD = 'admin';
-
-    function login() {
-      const username = document.getElementById('username').value.trim();
-      const password = document.getElementById('password').value;
-      const errorEl = document.getElementById('error');
-
-      if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        sessionStorage.setItem('agentLoggedIn', '1');
-        sessionStorage.setItem('bizAdminUnlocked', '1');
-        sessionStorage.setItem('bizUserRole', 'admin');
-        sessionStorage.removeItem('currentAgentName');
-        sessionStorage.removeItem('currentAgentProfile');
-        window.location.href = 'index.html';
-        return;
-      }
-
-      errorEl.textContent = 'Invalid username or password.';
+<script>
+    // Replace existing login function
+    async function login() {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const errorEl = document.getElementById('error');
+        
+        // Check if it's Firebase email format
+        if (username.includes('@')) {
+            const result = await signInWithEmail(username, password);
+            if (result.success) {
+                sessionStorage.setItem('agentLoggedIn', '1');
+                sessionStorage.setItem('bizAdminUnlocked', '1');
+                sessionStorage.setItem('bizUserRole', 'admin');
+                window.location.href = 'index.html';
+            } else {
+                errorEl.textContent = result.error || 'Invalid credentials';
+            }
+        } else {
+            // Fallback to old static admin for backward compatibility
+            if (username === '0000' && password === 'admin') {
+                sessionStorage.setItem('agentLoggedIn', '1');
+                sessionStorage.setItem('bizAdminUnlocked', '1');
+                sessionStorage.setItem('bizUserRole', 'admin');
+                window.location.href = 'index.html';
+            } else {
+                errorEl.textContent = 'Invalid username or password.';
+            }
+        }
     }
-  </script>
-</body>
-</html>
+</script>
