@@ -7,27 +7,39 @@ const TEAM_CONFIG = {
   BB: { label: 'BERB', short: 'Berb', color: '#c084fc', rgb: '192,132,252' },
   RM: { label: 'RM', short: 'Remote', color: '#38bdf8', rgb: '56,189,248' }
 };
+const REMOTE_AGENT_NAMES = new Set([
+  'GTM ALICE HERNANDEZ',
+  'GTM MAY UMANDAL',
+  'GYP BIBI SAMUELS',
+  'GYP CHAUNCEY PIERE',
+  'GYP ERIKA SAMUELS',
+  'GYP HANNAH BAPTISTE',
+  'GYP NATHALIA CHARLES',
+  'GYP NICHOLA MANGAR'
+]);
 let agents = [], dayHistory = [];
 let currentTab = 'daily', currentDayView = 'today', weeklyUnlocked = false;
 
+// ── CLIENT-SIDE GUYANA DAY DETECTION ──
+// Uses America/Guyana timezone — same approach as the Apps Script.
+// Overrides whatever todayName the API returns, preventing server-side TZ bugs.
 function getGuyanaToday() {
   const dayName = new Date().toLocaleDateString('en-US', { timeZone: 'America/Guyana', weekday: 'long' });
   const valid = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   return valid.includes(dayName) ? dayName : 'Monday';
 }
-
 let lookupHistory = [];
 try { lookupHistory = JSON.parse(localStorage.getItem('bizlookup_history') || '[]'); } catch(e) {}
 
 function normalizeTeam(team, name) {
   const rawTeam = String(team || '').trim().toUpperCase();
+  const rawName = String(name || '').trim().toUpperCase();
+  if (REMOTE_AGENT_NAMES.has(rawName)) return 'RM';
+  if (rawName.startsWith('RM ') || rawName.startsWith('REMOTE ') || rawName.startsWith('GTR') || rawName.startsWith('GTM')) return 'RM';
+  if (rawName.startsWith('GYB')) return 'BB';
   if (['RM', 'REMOTE'].includes(rawTeam)) return 'RM';
   if (['BB', 'BERB', 'BERBICE'].includes(rawTeam)) return 'BB';
   if (['PR', 'PROV', 'PROVIDENCE'].includes(rawTeam)) return 'PR';
-
-  const rawName = String(name || '').trim().toUpperCase();
-  if (rawName.startsWith('GYB')) return 'BB';
-  if (rawName.startsWith('RM ') || rawName.startsWith('REMOTE ') || rawName.startsWith('GTR') || rawName.startsWith('GTM')) return 'RM';
   return 'PR';
 }
 
