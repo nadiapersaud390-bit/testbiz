@@ -8,7 +8,7 @@ const ADMINS_KEY = 'biz_admins_list_v1';
 // DEFAULT SUPER ADMIN - CHANGE THESE VALUES!
 // ============================================
 const DEFAULT_SUPER_ADMIN = {
-    email: "super@bizlevelup.com",     // 👈 CHANGE THIS to your email
+    email: "0000",     // 👈 CHANGE THIS to your email
     password: "Admin123!",              // 👈 CHANGE THIS to your password
     name: "Master Super Admin",         // 👈 CHANGE THIS to your name
     role: "super_admin"
