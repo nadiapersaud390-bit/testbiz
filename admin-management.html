@@ -7,104 +7,222 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background: #020617; font-family: 'Inter', sans-serif; }
+        body {
+            background: #020617;
+            font-family: 'Inter', sans-serif;
+        }
+        .admin-card {
+            transition: all 0.3s ease;
+        }
+        .admin-card:hover {
+            transform: translateX(5px);
+            background: rgba(255,255,255,0.08);
+        }
     </style>
 </head>
 <body class="p-6">
-    <div class="max-w-4xl mx-auto">
-        <div class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent uppercase">Admin Management</h1>
-            <button onclick="logout()" class="bg-red-500/20 border border-red-500/30 px-4 py-2 rounded-xl text-red-400 text-sm font-bold">Logout</button>
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8 flex-wrap gap-4">
+            <div>
+                <h1 class="text-3xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent uppercase">
+                    <i class="fas fa-users-cog mr-2"></i>Admin Management
+                </h1>
+                <p id="admin-info" class="text-slate-400 text-sm mt-1"></p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="window.location.href='index.html'" 
+                        class="bg-blue-500/20 border border-blue-500/30 px-4 py-2 rounded-xl text-blue-400 text-sm font-bold">
+                    <i class="fas fa-tachometer-alt mr-1"></i> Dashboard
+                </button>
+                <button onclick="logout()" 
+                        class="bg-red-500/20 border border-red-500/30 px-4 py-2 rounded-xl text-red-400 text-sm font-bold">
+                    <i class="fas fa-sign-out-alt mr-1"></i> Logout
+                </button>
+            </div>
+        </div>
+        
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-gradient-to-br from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 rounded-2xl p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-slate-400 text-xs uppercase tracking-wider">Total Admins</p>
+                        <p id="total-admins" class="text-3xl font-black text-yellow-400">0</p>
+                    </div>
+                    <i class="fas fa-users text-4xl text-yellow-500/30"></i>
+                </div>
+            </div>
+            <div class="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-2xl p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-slate-400 text-xs uppercase tracking-wider">Super Admins</p>
+                        <p id="super-admin-count" class="text-3xl font-black text-purple-400">0</p>
+                    </div>
+                    <i class="fas fa-crown text-4xl text-purple-500/30"></i>
+                </div>
+            </div>
+            <div class="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-2xl p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-slate-400 text-xs uppercase tracking-wider">Regular Admins</p>
+                        <p id="regular-admin-count" class="text-3xl font-black text-green-400">0</p>
+                    </div>
+                    <i class="fas fa-user-shield text-4xl text-green-500/30"></i>
+                </div>
+            </div>
         </div>
         
         <!-- Add Admin Section (Super Admin only) -->
         <div id="add-admin-section" class="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 hidden">
-            <h2 class="text-xl font-bold text-white mb-4">➕ Add New Admin</h2>
-            <div class="space-y-3">
-                <input type="email" id="new-admin-email" placeholder="admin@example.com" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
-                <input type="text" id="new-admin-name" placeholder="Full Name" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
-                <input type="password" id="new-admin-password" placeholder="Password" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
-                <select id="new-admin-role" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
-                    <option value="admin">Admin</option>
+            <h2 class="text-xl font-bold text-white mb-4">
+                <i class="fas fa-plus-circle text-green-400 mr-2"></i>Add New Admin
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input type="text" id="new-admin-name" placeholder="Full Name" 
+                       class="bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <input type="email" id="new-admin-email" placeholder="Email Address" 
+                       class="bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <input type="password" id="new-admin-password" placeholder="Password (min 6 chars)" 
+                       class="bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <select id="new-admin-role" class="bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                    <option value="admin">Regular Admin</option>
                     <option value="super_admin">Super Admin</option>
                 </select>
-                <button onclick="addNewAdmin()" class="w-full bg-green-500/20 border border-green-500/30 py-3 rounded-xl text-green-400 font-bold">Add Admin</button>
             </div>
+            <button onclick="addNewAdmin()" 
+                    class="mt-4 bg-green-500/20 border border-green-500/30 px-6 py-2 rounded-xl text-green-400 font-bold hover:bg-green-500/30 transition">
+                <i class="fas fa-user-plus mr-2"></i> Add Admin
+            </button>
             <div id="add-status" class="text-sm mt-2"></div>
         </div>
         
         <!-- Change Password Section -->
         <div class="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8">
-            <h2 class="text-xl font-bold text-white mb-4">🔐 Change Your Password</h2>
-            <div class="space-y-3">
-                <input type="password" id="old-password" placeholder="Current Password" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
-                <input type="password" id="new-password" placeholder="New Password" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
-                <input type="password" id="confirm-password" placeholder="Confirm New Password" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
-                <button onclick="changeAdminPassword()" class="w-full bg-blue-500/20 border border-blue-500/30 py-3 rounded-xl text-blue-400 font-bold">Change Password</button>
+            <h2 class="text-xl font-bold text-white mb-4">
+                <i class="fas fa-key text-blue-400 mr-2"></i>Change Your Password
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input type="password" id="old-password" placeholder="Current Password" 
+                       class="bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <input type="password" id="new-password" placeholder="New Password" 
+                       class="bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <input type="password" id="confirm-password" placeholder="Confirm New Password" 
+                       class="bg-white/5 border border-white/10 rounded-xl p-3 text-white">
             </div>
+            <button onclick="changeOwnPassword()" 
+                    class="mt-4 bg-blue-500/20 border border-blue-500/30 px-6 py-2 rounded-xl text-blue-400 font-bold hover:bg-blue-500/30 transition">
+                <i class="fas fa-save mr-2"></i> Update Password
+            </button>
             <div id="password-status" class="text-sm mt-2"></div>
         </div>
         
-        <!-- Admin List -->
+        <!-- Admins List -->
         <div class="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <h2 class="text-xl font-bold text-white mb-4">👥 Admin Users</h2>
-            <div id="admin-list" class="space-y-2">
-                <div class="text-slate-400 text-center py-8">Loading admins...</div>
+            <h2 class="text-xl font-bold text-white mb-4">
+                <i class="fas fa-list mr-2 text-yellow-400"></i>All Administrators
+            </h2>
+            <div id="admins-list" class="space-y-2">
+                <div class="text-center text-slate-400 py-8">
+                    <i class="fas fa-spinner fa-spin mr-2"></i> Loading...
+                </div>
             </div>
         </div>
     </div>
     
-    <script src="js/multi-admin.js"></script>
+    <script src="js/super-admin.js"></script>
     <script>
-        let currentUserRole = null;
+        let currentAdmin = null;
         
-        function loadAdminList() {
-            if (!isAdminLoggedIn()) {
+        function loadAdmins() {
+            // Check login
+            if (!isLoggedIn()) {
                 window.location.href = 'admin-login.html';
                 return;
             }
             
-            currentUserRole = sessionStorage.getItem('adminRole');
+            currentAdmin = getCurrentAdmin();
             
-            if (currentUserRole === 'super_admin') {
+            // Update header
+            document.getElementById('admin-info').innerHTML = `
+                Logged in as: <strong class="text-yellow-400">${currentAdmin.name}</strong> 
+                (${currentAdmin.role === 'super_admin' ? '👑 Super Admin' : '🛡️ Admin'})
+            `;
+            
+            // Show add admin section only for super admin
+            if (currentAdmin.role === 'super_admin') {
                 document.getElementById('add-admin-section').classList.remove('hidden');
             }
             
-            const admins = getAllAdmins();
-            const container = document.getElementById('admin-list');
-            
-            if (admins.length === 0) {
-                container.innerHTML = '<div class="text-slate-400 text-center py-8">No admins found</div>';
+            // Get all admins
+            const result = getAllAdmins();
+            if (!result.success) {
+                document.getElementById('admins-list').innerHTML = `
+                    <div class="text-center text-red-400 py-8">${result.error}</div>
+                `;
                 return;
             }
             
-            container.innerHTML = admins.map(admin => `
-                <div class="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/10">
-                    <div>
-                        <div class="font-bold text-white">${admin.name || admin.email}</div>
-                        <div class="text-sm text-slate-400">${admin.email}</div>
-                        <div class="text-xs mt-1">
-                            <span class="px-2 py-1 rounded-full ${admin.role === 'super_admin' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}">${admin.role}</span>
-                            ${admin.createdBy ? `<span class="text-slate-500 ml-2">added by ${admin.createdBy}</span>` : ''}
+            const admins = result.admins;
+            
+            // Update stats
+            document.getElementById('total-admins').textContent = admins.length;
+            document.getElementById('super-admin-count').textContent = admins.filter(a => a.role === 'super_admin').length;
+            document.getElementById('regular-admin-count').textContent = admins.filter(a => a.role === 'admin').length;
+            
+            // Render admins list
+            if (admins.length === 0) {
+                document.getElementById('admins-list').innerHTML = `
+                    <div class="text-center text-slate-400 py-8">No admins found</div>
+                `;
+                return;
+            }
+            
+            document.getElementById('admins-list').innerHTML = admins.map(admin => `
+                <div class="admin-card bg-white/5 border border-white/10 rounded-xl p-4">
+                    <div class="flex justify-between items-center flex-wrap gap-3">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xl">${admin.role === 'super_admin' ? '👑' : '🛡️'}</span>
+                                <div>
+                                    <div class="font-bold text-white">${admin.name}</div>
+                                    <div class="text-sm text-slate-400">${admin.email}</div>
+                                </div>
+                            </div>
+                            <div class="text-xs mt-2">
+                                <span class="px-2 py-1 rounded-full ${admin.role === 'super_admin' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}">
+                                    ${admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                                </span>
+                                ${admin.addedBy ? `<span class="text-slate-500 ml-2">Added by: ${admin.addedBy}</span>` : ''}
+                                ${admin.addedAt ? `<span class="text-slate-500 ml-2">${new Date(admin.addedAt).toLocaleDateString()}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            ${currentAdmin.role === 'super_admin' && admin.email !== currentAdmin.email ? `
+                                <select onchange="updateRole('${admin.email}', this.value)" 
+                                        class="bg-white/10 border border-white/20 rounded-lg px-3 py-1 text-sm text-white">
+                                    <option value="admin" ${admin.role === 'admin' ? 'selected' : ''}>Admin</option>
+                                    <option value="super_admin" ${admin.role === 'super_admin' ? 'selected' : ''}>Super Admin</option>
+                                </select>
+                                <button onclick="removeAdmin('${admin.email}')" 
+                                        class="bg-red-500/20 border border-red-500/30 px-3 py-1 rounded-lg text-red-400 text-sm hover:bg-red-500/30">
+                                    <i class="fas fa-trash"></i> Remove
+                                </button>
+                            ` : ''}
                         </div>
                     </div>
-                    ${currentUserRole === 'super_admin' && admin.email !== sessionStorage.getItem('adminEmail') ? `
-                        <button onclick="removeAdminUser('${admin.email}')" class="text-red-400 hover:text-red-300 transition">
-                            <i class="fas fa-trash"></i> Remove
-                        </button>
-                    ` : ''}
                 </div>
             `).join('');
         }
         
-        async function addNewAdmin() {
-            const email = document.getElementById('new-admin-email').value;
+        function addNewAdmin() {
             const name = document.getElementById('new-admin-name').value;
+            const email = document.getElementById('new-admin-email').value;
             const password = document.getElementById('new-admin-password').value;
             const role = document.getElementById('new-admin-role').value;
             const statusDiv = document.getElementById('add-status');
             
-            if (!email || !password || !name) {
+            if (!name || !email || !password) {
                 statusDiv.innerHTML = '<span class="text-red-400">❌ All fields required</span>';
                 return;
             }
@@ -114,34 +232,41 @@
                 return;
             }
             
-            statusDiv.innerHTML = '<span class="text-yellow-400">⏳ Adding...</span>';
-            
-            const result = addAdmin(email, password, role, name);
+            const result = addNewAdmin(email, password, name, role);
             
             if (result.success) {
                 statusDiv.innerHTML = '<span class="text-green-400">✅ Admin added successfully!</span>';
-                document.getElementById('new-admin-email').value = '';
                 document.getElementById('new-admin-name').value = '';
+                document.getElementById('new-admin-email').value = '';
                 document.getElementById('new-admin-password').value = '';
-                loadAdminList();
+                loadAdmins();
                 setTimeout(() => statusDiv.innerHTML = '', 3000);
             } else {
                 statusDiv.innerHTML = `<span class="text-red-400">❌ ${result.error}</span>`;
             }
         }
         
-        function removeAdminUser(email) {
-            if (!confirm(`Remove admin ${email}?`)) return;
+        function removeAdmin(email) {
+            if (!confirm(`Remove admin ${email}? This action cannot be undone.`)) return;
             
             const result = removeAdmin(email);
             if (result.success) {
-                loadAdminList();
+                loadAdmins();
             } else {
                 alert(result.error);
             }
         }
         
-        function changeAdminPassword() {
+        function updateRole(email, newRole) {
+            const result = updateAdminRole(email, newRole);
+            if (result.success) {
+                loadAdmins();
+            } else {
+                alert(result.error);
+            }
+        }
+        
+        function changeOwnPassword() {
             const oldPass = document.getElementById('old-password').value;
             const newPass = document.getElementById('new-password').value;
             const confirmPass = document.getElementById('confirm-password').value;
@@ -162,7 +287,7 @@
                 return;
             }
             
-            const result = changePassword(oldPass, newPass);
+            const result = changeOwnPassword(currentAdmin.email, oldPass, newPass);
             
             if (result.success) {
                 statusDiv.innerHTML = '<span class="text-green-400">✅ Password changed successfully!</span>';
@@ -176,11 +301,13 @@
         }
         
         function logout() {
-            adminLogout();
+            if (confirm('Are you sure you want to logout?')) {
+                logout();
+            }
         }
         
         // Load on page load
-        loadAdminList();
+        loadAdmins();
     </script>
 </body>
 </html>
