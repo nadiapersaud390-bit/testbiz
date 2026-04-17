@@ -12,14 +12,17 @@ async function updateDashboard() {
         const res = await fetch(API_URL);
         agents = await res.json();
 
+        // Data enrichment
         agents.forEach(a => {
             a.team = normalizeTeam(a.team, a.name);
         });
 
+        // Client-side Guyana day override
         if (agents.length > 0) {
             agents[0].todayName = getGuyanaToday();
         }
 
+        // Process Day History
         if (agents.length > 0 && agents[0].dayHistory) {
             dayHistory = agents[0].dayHistory;
             dayHistory.forEach(d => {
@@ -29,6 +32,7 @@ async function updateDashboard() {
             });
         }
 
+        // Calculate Team Totals if missing
         if (agents.length > 0 && !agents[0].prTotal && !agents[0].bbTotal && !agents[0].rmTotal) {
             let pr = 0, bb = 0, rm = 0;
             agents.forEach(a => {
@@ -41,6 +45,7 @@ async function updateDashboard() {
             agents[0].rmTotal = rm;
         }
 
+        // Update prank list
         if (agents.length > 0 && agents[0].prankNumbers && agents[0].prankNumbers.length > 0) {
             agents[0].prankNumbers.forEach(n => {
                 if (n && !KNOWN_PRANK_NUMBERS.includes(n)) KNOWN_PRANK_NUMBERS.push(n);
@@ -63,9 +68,11 @@ async function updateDashboard() {
     }
 }
 
+// Auto-refresh every 10 seconds
 setInterval(updateDashboard, 10000);
 
 function render() {
+    // 1. Session Info (used for highlighting own row only)
     const agentProfileRaw = sessionStorage.getItem('currentAgentProfile');
     let userProfile = null;
     try { userProfile = JSON.parse(agentProfileRaw); } catch(e) {}
@@ -78,8 +85,10 @@ function render() {
     const rbView = document.getElementById('rebuttals-view');
     const trView = document.getElementById('trivia-view');
 
+    // Hide all views first
     [lView, pView, luView, prView, rbView, trView].forEach(v => { if (v) v.classList.add('hidden'); });
 
+    // Handle non-leaderboard tabs
     if (currentTab === 'playbook') { pView.classList.remove('hidden'); return; }
     if (currentTab === 'lookup') { luView.classList.remove('hidden'); return; }
     if (currentTab === 'prank') { if (prView) prView.classList.remove('hidden'); return; }
@@ -88,11 +97,13 @@ function render() {
 
     lView.classList.remove('hidden');
 
+    // 2. Setup Variables
     const isWeekly = currentTab === 'weekly';
     const isHistory = currentTab === 'daily' && currentDayView !== 'today';
     const target = isWeekly ? 800 : 150;
     const todayName = agents.length > 0 ? (agents[0].todayName || 'Today') : 'Today';
 
+    // UI Goal Labels
     const banner = document.getElementById('history-banner');
     if (isHistory) {
         const snap = dayHistory.find(d => d.day === currentDayView);
@@ -114,6 +125,7 @@ function render() {
 
     document.getElementById('day-indicator').innerText = isWeekly ? 'Weekly Sprint' : isHistory ? DAY_SHORT[currentDayView] + ' — Completed' : todayName + ' Performance';
 
+    // 3. Process Data
     let fullList = [];
     let prTotal = 0, bbTotal = 0, rmTotal = 0, totalLeads = 0, masters = 0, activeReps = 0;
 
@@ -121,17 +133,15 @@ function render() {
         const snap = dayHistory.find(d => d.day === currentDayView);
         if (snap) {
             fullList = [...snap.agents].sort((a, b) => b.leads - a.leads);
-            prTotal = snap.prTotal || 0;
-            bbTotal = snap.bbTotal || 0;
-            rmTotal = snap.rmTotal || 0;
-            if (!prTotal && !bbTotal && !rmTotal) {
-                fullList.forEach(a => {
-                    const team = normalizeTeam(a.team, a.name);
-                    if (team === 'PR') prTotal += a.leads;
-                    else if (team === 'BB') bbTotal += a.leads;
-                    else if (team === 'RM') rmTotal += a.leads;
-                });
-            }
+            fullList = fullList.map(a => ({
+                ...a,
+                team: normalizeTeam(a.team, a.name)
+            }));
+            fullList.forEach(a => {
+                if (a.team === 'PR') prTotal += a.leads;
+                else if (a.team === 'BB') bbTotal += a.leads;
+                else if (a.team === 'RM') rmTotal += a.leads;
+            });
         }
     } else {
         fullList = agents.map(a => ({
@@ -141,34 +151,24 @@ function render() {
             ytelId: a.ytelId || ''
         })).sort((a, b) => b.leads - a.leads);
 
-        if (isWeekly) {
-            fullList.forEach(a => {
-                if (a.team === 'PR') prTotal += a.leads;
-                else if (a.team === 'BB') bbTotal += a.leads;
-                else if (a.team === 'RM') rmTotal += a.leads;
-            });
-        } else if (agents.length > 0) {
-            prTotal = agents[0].prTotal || 0;
-            bbTotal = agents[0].bbTotal || 0;
-            rmTotal = agents[0].rmTotal || 0;
-            if (!prTotal && !bbTotal && !rmTotal) {
-                fullList.forEach(a => {
-                    if (a.team === 'PR') prTotal += a.leads;
-                    else if (a.team === 'BB') bbTotal += a.leads;
-                    else if (a.team === 'RM') rmTotal += a.leads;
-                });
-            }
-        }
+        fullList.forEach(a => {
+            if (a.team === 'PR') prTotal += a.leads;
+            else if (a.team === 'BB') bbTotal += a.leads;
+            else if (a.team === 'RM') rmTotal += a.leads;
+        });
     }
 
+    // 4. Global Stat Calculations
     fullList.forEach(agent => {
         totalLeads += agent.leads;
         if (agent.leads >= 12) masters++;
         if (agent.leads > 0) activeReps++;
     });
 
+    // 5. All users see the full leaderboard
     const displayData = fullList.map((a, i) => ({ ...a, rank: i + 1 }));
 
+    // 6. Rendering
     document.getElementById('leaderboard').innerHTML = displayData.map((agent) => {
         const lvl = getLevel(agent.leads);
         const rank = agent.rank;
@@ -203,6 +203,7 @@ function render() {
             </div>`;
     }).join('');
 
+    // Update Bottom Stats Bar
     document.getElementById('floor-total').innerText = totalLeads;
     document.getElementById('master-count').innerText = String(masters).padStart(2, '0');
     document.getElementById('active-reps').innerText = activeReps;
@@ -211,11 +212,15 @@ function render() {
     document.getElementById('bb-count').innerText = bbTotal;
     document.getElementById('rm-count').innerText = rmTotal;
 
+    // Progress Bar
     const pct = Math.min((totalLeads / target) * 100, 100);
     document.getElementById('progress-bar').style.width = pct + '%';
     document.getElementById('goal-percent').innerText = Math.floor(pct) + '%';
 }
 
+/**
+ * Tier Thresholds
+ */
 function getLevel(l) {
     if (l >= 17) return { title: 'CONQUEROR', cls: 'conqueror-tier', color: 'text-red-500' };
     if (l >= 12) return { title: 'MASTER', cls: 'gold-tier', color: 'text-yellow-500' };
@@ -224,6 +229,9 @@ function getLevel(l) {
     return { title: 'ROOKIE', cls: 'slate-tier', color: 'text-slate-500' };
 }
 
+/**
+ * Navigation & Tab UI
+ */
 function renderDaySubTabs() {
     const wrapper = document.getElementById('day-sub-tabs-wrapper');
     const container = document.getElementById('day-sub-tabs-container');
