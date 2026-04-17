@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Management | BIZ Level Up</title>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -23,15 +20,29 @@
         <!-- Add Admin Section (Super Admin only) -->
         <div id="add-admin-section" class="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 hidden">
             <h2 class="text-xl font-bold text-white mb-4">➕ Add New Admin</h2>
-            <div class="flex gap-3 flex-wrap">
-                <input type="email" id="new-admin-email" placeholder="admin@example.com" class="flex-1 bg-white/5 border border-white/10 rounded-xl p-3 text-white">
-                <select id="new-admin-role" class="bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+            <div class="space-y-3">
+                <input type="email" id="new-admin-email" placeholder="admin@example.com" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <input type="text" id="new-admin-name" placeholder="Full Name" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <input type="password" id="new-admin-password" placeholder="Password" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <select id="new-admin-role" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
                     <option value="admin">Admin</option>
                     <option value="super_admin">Super Admin</option>
                 </select>
-                <button onclick="addNewAdmin()" class="bg-green-500/20 border border-green-500/30 px-6 py-3 rounded-xl text-green-400 font-bold">Add</button>
+                <button onclick="addNewAdmin()" class="w-full bg-green-500/20 border border-green-500/30 py-3 rounded-xl text-green-400 font-bold">Add Admin</button>
             </div>
             <div id="add-status" class="text-sm mt-2"></div>
+        </div>
+        
+        <!-- Change Password Section -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8">
+            <h2 class="text-xl font-bold text-white mb-4">🔐 Change Your Password</h2>
+            <div class="space-y-3">
+                <input type="password" id="old-password" placeholder="Current Password" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <input type="password" id="new-password" placeholder="New Password" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <input type="password" id="confirm-password" placeholder="Confirm New Password" class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white">
+                <button onclick="changeAdminPassword()" class="w-full bg-blue-500/20 border border-blue-500/30 py-3 rounded-xl text-blue-400 font-bold">Change Password</button>
+            </div>
+            <div id="password-status" class="text-sm mt-2"></div>
         </div>
         
         <!-- Admin List -->
@@ -43,29 +54,23 @@
         </div>
     </div>
     
-    <script src="js/firebase-config.js"></script>
-    <script src="js/firebase-admin-mgmt.js"></script>
+    <script src="js/multi-admin.js"></script>
     <script>
         let currentUserRole = null;
         
-        async function loadAdminList() {
-            if (!isFirebaseAdminLoggedIn()) {
+        function loadAdminList() {
+            if (!isAdminLoggedIn()) {
                 window.location.href = 'admin-login.html';
                 return;
             }
             
-            // Get current user role
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-                const doc = await db.collection('admins').doc(currentUser.email).get();
-                currentUserRole = doc.data()?.role;
-                
-                if (currentUserRole === 'super_admin') {
-                    document.getElementById('add-admin-section').classList.remove('hidden');
-                }
+            currentUserRole = sessionStorage.getItem('adminRole');
+            
+            if (currentUserRole === 'super_admin') {
+                document.getElementById('add-admin-section').classList.remove('hidden');
             }
             
-            const admins = await getAdminList();
+            const admins = getAllAdmins();
             const container = document.getElementById('admin-list');
             
             if (admins.length === 0) {
@@ -76,13 +81,14 @@
             container.innerHTML = admins.map(admin => `
                 <div class="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/10">
                     <div>
-                        <div class="font-bold text-white">${admin.email}</div>
-                        <div class="text-xs">
+                        <div class="font-bold text-white">${admin.name || admin.email}</div>
+                        <div class="text-sm text-slate-400">${admin.email}</div>
+                        <div class="text-xs mt-1">
                             <span class="px-2 py-1 rounded-full ${admin.role === 'super_admin' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}">${admin.role}</span>
                             ${admin.createdBy ? `<span class="text-slate-500 ml-2">added by ${admin.createdBy}</span>` : ''}
                         </div>
                     </div>
-                    ${currentUserRole === 'super_admin' && admin.email !== auth.currentUser?.email ? `
+                    ${currentUserRole === 'super_admin' && admin.email !== sessionStorage.getItem('adminEmail') ? `
                         <button onclick="removeAdminUser('${admin.email}')" class="text-red-400 hover:text-red-300 transition">
                             <i class="fas fa-trash"></i> Remove
                         </button>
@@ -93,50 +99,88 @@
         
         async function addNewAdmin() {
             const email = document.getElementById('new-admin-email').value;
+            const name = document.getElementById('new-admin-name').value;
+            const password = document.getElementById('new-admin-password').value;
             const role = document.getElementById('new-admin-role').value;
             const statusDiv = document.getElementById('add-status');
             
-            if (!email) {
-                statusDiv.innerHTML = '<span class="text-red-400">❌ Email required</span>';
+            if (!email || !password || !name) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ All fields required</span>';
+                return;
+            }
+            
+            if (password.length < 6) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ Password must be at least 6 characters</span>';
                 return;
             }
             
             statusDiv.innerHTML = '<span class="text-yellow-400">⏳ Adding...</span>';
             
-            try {
-                await addAdmin(email, role);
+            const result = addAdmin(email, password, role, name);
+            
+            if (result.success) {
                 statusDiv.innerHTML = '<span class="text-green-400">✅ Admin added successfully!</span>';
                 document.getElementById('new-admin-email').value = '';
+                document.getElementById('new-admin-name').value = '';
+                document.getElementById('new-admin-password').value = '';
                 loadAdminList();
                 setTimeout(() => statusDiv.innerHTML = '', 3000);
-            } catch (error) {
-                statusDiv.innerHTML = `<span class="text-red-400">❌ ${error.message}</span>`;
+            } else {
+                statusDiv.innerHTML = `<span class="text-red-400">❌ ${result.error}</span>`;
             }
         }
         
-        async function removeAdminUser(email) {
+        function removeAdminUser(email) {
             if (!confirm(`Remove admin ${email}?`)) return;
             
-            try {
-                await removeAdmin(email);
+            const result = removeAdmin(email);
+            if (result.success) {
                 loadAdminList();
-            } catch (error) {
-                alert(error.message);
+            } else {
+                alert(result.error);
+            }
+        }
+        
+        function changeAdminPassword() {
+            const oldPass = document.getElementById('old-password').value;
+            const newPass = document.getElementById('new-password').value;
+            const confirmPass = document.getElementById('confirm-password').value;
+            const statusDiv = document.getElementById('password-status');
+            
+            if (!oldPass || !newPass) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ Please enter current and new password</span>';
+                return;
+            }
+            
+            if (newPass !== confirmPass) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ New passwords do not match</span>';
+                return;
+            }
+            
+            if (newPass.length < 6) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ Password must be at least 6 characters</span>';
+                return;
+            }
+            
+            const result = changePassword(oldPass, newPass);
+            
+            if (result.success) {
+                statusDiv.innerHTML = '<span class="text-green-400">✅ Password changed successfully!</span>';
+                document.getElementById('old-password').value = '';
+                document.getElementById('new-password').value = '';
+                document.getElementById('confirm-password').value = '';
+                setTimeout(() => statusDiv.innerHTML = '', 3000);
+            } else {
+                statusDiv.innerHTML = `<span class="text-red-400">❌ ${result.error}</span>`;
             }
         }
         
         function logout() {
-            signOutAdmin();
+            adminLogout();
         }
         
-        // Check auth state
-        auth.onAuthStateChanged((user) => {
-            if (user) {
-                loadAdminList();
-            } else {
-                window.location.href = 'admin-login.html';
-            }
-        });
+        // Load on page load
+        loadAdminList();
     </script>
 </body>
 </html>
