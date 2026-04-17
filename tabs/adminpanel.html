@@ -1,293 +1,419 @@
-<!-- ===== ADMIN PANEL TAB ===== -->
-<div id="adminpanel-wrap" style="padding:0 8px 40px;">
-
-  <!-- Header -->
-  <div style="background:linear-gradient(135deg,rgba(239,68,68,0.12),rgba(168,85,247,0.10),rgba(59,130,246,0.08));border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:20px 22px;margin-bottom:16px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-      <div>
-        <div style="font-family:'Orbitron',sans-serif;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.2em;color:#ef4444;margin-bottom:4px;">🔐 Restricted Access</div>
-        <div style="font-family:'Orbitron',sans-serif;font-size:18px;font-weight:900;color:white;letter-spacing:0.04em;">ADMIN PANEL</div>
-        <div style="font-size:11px;font-weight:600;color:#64748b;margin-top:3px;">Lead Upload · Quality Check · Dashboard Push</div>
-      </div>
-      <div style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:8px 14px;text-align:center;">
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#ef4444;margin-bottom:2px;">Session</div>
-        <div id="ap-session-label" style="font-family:'Orbitron',sans-serif;font-size:13px;font-weight:900;color:white;">—</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══ SECTION 1: LEAD UPLOAD ══ -->
-  <div class="ap-section">
-    <div class="ap-section-title">📁 Lead File Upload</div>
-
-    <!-- Drop Zone -->
-    <div id="ap-dropzone" onclick="document.getElementById('ap-file-input').click()" ondragover="apDragOver(event)" ondragleave="apDragLeave(event)" ondrop="apDrop(event)">
-      <div id="ap-dz-icon" style="font-size:36px;margin-bottom:10px;">📂</div>
-      <div id="ap-dz-title" style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;color:white;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Drop Lead File Here</div>
-      <div id="ap-dz-sub" style="font-size:11px;color:#64748b;font-weight:600;">CSV or Excel (.xlsx / .xls) · Click to browse</div>
-      <input type="file" id="ap-file-input" accept=".csv,.xlsx,.xls" style="display:none;" onchange="apHandleFile(this.files[0])">
-    </div>
-
-    <!-- Column Mapper (shown after file load) -->
-    <div id="ap-col-mapper" style="display:none;margin-top:14px;">
-      <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#64748b;margin-bottom:10px;">Map Your Columns</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div>
-          <label class="ap-label">Agent Name Column</label>
-          <select id="ap-col-name" class="ap-select"></select>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+</head>
+<body>
+    <div class="p-4">
+        <!-- Dynamic Header based on admin type -->
+        <div id="admin-header" class="text-center mb-6">
+            <div id="super-admin-badge" class="hidden">
+                <div class="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/50 rounded-2xl p-4 mb-4">
+                    <div class="flex items-center justify-center gap-3 mb-2">
+                        <span class="text-4xl">👑</span>
+                        <span class="text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent uppercase">Super Admin Panel</span>
+                        <span class="text-4xl">👑</span>
+                    </div>
+                    <p class="text-yellow-400 text-sm font-bold uppercase tracking-wider">Full System Access • All Features Available</p>
+                </div>
+            </div>
+            <div id="admin-badge" class="hidden">
+                <div class="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border-2 border-blue-500/50 rounded-2xl p-4 mb-4">
+                    <div class="flex items-center justify-center gap-3 mb-2">
+                        <span class="text-4xl">🛡️</span>
+                        <span class="text-2xl font-black bg-gradient-to-r from-blue-400 to-cyan-500 bg-clip-text text-transparent uppercase">Admin Panel</span>
+                        <span class="text-4xl">🛡️</span>
+                    </div>
+                    <p class="text-blue-400 text-sm font-bold uppercase tracking-wider">Standard Admin Access • Limited Features</p>
+                </div>
+            </div>
         </div>
-        <div>
-          <label class="ap-label">Ytel ID Column</label>
-          <select id="ap-col-ytelid" class="ap-select"></select>
+
+        <!-- Super Admin Only Features (hidden for regular admins) -->
+        <div id="super-admin-features" class="hidden">
+            <!-- User Management Section -->
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+                <h3 class="text-lg font-bold text-yellow-400 mb-4 flex items-center gap-2">
+                    <i class="fas fa-users-cog"></i> 
+                    User Management
+                    <span class="text-xs bg-yellow-500/20 px-2 py-1 rounded-full text-yellow-400">Super Admin Only</span>
+                </h3>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Add New Admin Email</label>
+                            <input type="email" id="new-admin-email" placeholder="admin@example.com" 
+                                   class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Admin Name</label>
+                            <input type="text" id="new-admin-name" placeholder="Full Name" 
+                                   class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Temporary Password</label>
+                            <input type="password" id="new-admin-password" placeholder="••••••••" 
+                                   class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Admin Role</label>
+                            <select id="new-admin-role" class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
+                                <option value="admin">Regular Admin</option>
+                                <option value="super_admin">Super Admin</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="addNewAdminFromPanel()" 
+                            class="bg-green-500/20 border border-green-500/30 px-4 py-2 rounded-xl text-green-400 text-sm font-bold hover:bg-green-500/30 transition">
+                        <i class="fas fa-user-plus mr-2"></i> Add Admin
+                    </button>
+                    <div id="add-admin-status" class="text-xs mt-2"></div>
+                </div>
+            </div>
+
+            <!-- Admin List Section -->
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+                <h3 class="text-lg font-bold text-yellow-400 mb-4 flex items-center gap-2">
+                    <i class="fas fa-list"></i> 
+                    All Administrators
+                    <span class="text-xs bg-yellow-500/20 px-2 py-1 rounded-full text-yellow-400">Super Admin Only</span>
+                </h3>
+                <div id="admins-list-container" class="space-y-2 max-h-96 overflow-y-auto">
+                    <div class="text-center text-slate-400 py-4">Loading admins...</div>
+                </div>
+            </div>
+
+            <!-- System Settings Section -->
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+                <h3 class="text-lg font-bold text-yellow-400 mb-4 flex items-center gap-2">
+                    <i class="fas fa-cog"></i> 
+                    System Settings
+                    <span class="text-xs bg-yellow-500/20 px-2 py-1 rounded-full text-yellow-400">Super Admin Only</span>
+                </h3>
+                <div class="space-y-3">
+                    <button onclick="resetAllAdmins()" 
+                            class="w-full bg-red-500/20 border border-red-500/30 px-4 py-2 rounded-xl text-red-400 text-sm font-bold hover:bg-red-500/30 transition">
+                        <i class="fas fa-exclamation-triangle mr-2"></i> Reset All Admin Data (Danger)
+                    </button>
+                    <button onclick="exportAdminData()" 
+                            class="w-full bg-blue-500/20 border border-blue-500/30 px-4 py-2 rounded-xl text-blue-400 text-sm font-bold hover:bg-blue-500/30 transition">
+                        <i class="fas fa-download mr-2"></i> Export Admin Data
+                    </button>
+                </div>
+            </div>
         </div>
-        <div>
-          <label class="ap-label">Duration Column (seconds)</label>
-          <select id="ap-col-duration" class="ap-select"></select>
+
+        <!-- Common Admin Features (visible to all admins) -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+            <h3 class="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
+                <i class="fas fa-key"></i> 
+                Change Your Password
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input type="password" id="current-password" placeholder="Current Password" 
+                       class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
+                <input type="password" id="new-password-field" placeholder="New Password" 
+                       class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
+                <input type="password" id="confirm-password-field" placeholder="Confirm New Password" 
+                       class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
+            </div>
+            <button onclick="changeAdminPassword()" 
+                    class="mt-4 bg-blue-500/20 border border-blue-500/30 px-4 py-2 rounded-xl text-blue-400 text-sm font-bold hover:bg-blue-500/30 transition">
+                <i class="fas fa-save mr-2"></i> Update Password
+            </button>
+            <div id="password-status" class="text-xs mt-2"></div>
         </div>
-        <div>
-          <label class="ap-label">Team / Prefix Column</label>
-          <select id="ap-col-team" class="ap-select">
-            <option value="">(auto-detect from name)</option>
-          </select>
+
+        <!-- Broadcast Section (visible to all admins) -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-5">
+            <h3 class="text-lg font-bold text-purple-400 mb-4 flex items-center gap-2">
+                <i class="fas fa-broadcast-tower"></i> 
+                Send Broadcast Message
+            </h3>
+            <textarea id="broadcast-message" rows="3" placeholder="Type your message to all agents..." 
+                      class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm"></textarea>
+            <button onclick="sendBroadcastMessage()" 
+                    class="mt-4 bg-purple-500/20 border border-purple-500/30 px-4 py-2 rounded-xl text-purple-400 text-sm font-bold hover:bg-purple-500/30 transition">
+                <i class="fas fa-paper-plane mr-2"></i> Send to Everyone
+            </button>
+            <div id="broadcast-status" class="text-xs mt-2"></div>
         </div>
-      </div>
-      <button onclick="apProcessLeads()" class="ap-btn-primary" style="margin-top:14px;width:100%;">⚡ Process Leads</button>
     </div>
 
-    <!-- Stats after processing -->
-    <div id="ap-upload-stats" style="display:none;margin-top:14px;">
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-        <div class="ap-stat-box">
-          <div class="ap-stat-label">Total Rows</div>
-          <div id="ap-stat-total" class="ap-stat-val">0</div>
-        </div>
-        <div class="ap-stat-box" style="border-color:rgba(34,197,94,0.3);">
-          <div class="ap-stat-label" style="color:#22c55e;">Qualified (≥120s)</div>
-          <div id="ap-stat-qualified" class="ap-stat-val" style="color:#22c55e;">0</div>
-        </div>
-        <div class="ap-stat-box" style="border-color:rgba(239,68,68,0.3);">
-          <div class="ap-stat-label" style="color:#ef4444;">Filtered Out</div>
-          <div id="ap-stat-filtered" class="ap-stat-val" style="color:#ef4444;">0</div>
-        </div>
-      </div>
-    </div>
-  </div>
+    <script>
+        let currentAdminRole = null;
+        let currentAdminEmail = null;
 
-  <!-- ══ SECTION 2: LEAD QUALITY CHECK ══ -->
-  <div id="ap-quality-section" class="ap-section" style="display:none;">
-    <div class="ap-section-title">🔍 Lead Quality Check — 120s+ Filter</div>
-
-    <div style="font-size:11px;color:#64748b;font-weight:600;margin-bottom:14px;">Only GYB and GYP agents · Calls ≥ 120 seconds · Grouped by agent</div>
-
-    <!-- Agent Cards -->
-    <div id="ap-quality-results" style="display:flex;flex-direction:column;gap:10px;"></div>
-  </div>
-
-  <!-- ══ SECTION 3: SESSION SAVE TIMER ══ -->
-  <div id="ap-timer-section" class="ap-section" style="display:none;">
-    <div class="ap-section-title">⏱ Session Save Duration</div>
-    <div style="font-size:11px;color:#64748b;font-weight:600;margin-bottom:14px;">How long to keep this upload active in the dashboard before it auto-clears</div>
-
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
-      <button class="ap-timer-btn" onclick="apSetTimer(30)">30 min</button>
-      <button class="ap-timer-btn" onclick="apSetTimer(60)">1 hr</button>
-      <button class="ap-timer-btn" onclick="apSetTimer(180)">3 hrs</button>
-      <button class="ap-timer-btn" onclick="apSetTimer(480)">8 hrs</button>
-    </div>
-    <div style="display:flex;gap:10px;align-items:center;">
-      <input id="ap-custom-timer" type="number" min="1" max="1440" placeholder="Custom (mins)" class="ap-input" style="flex:1;">
-      <button onclick="apSetCustomTimer()" class="ap-btn-secondary">Set</button>
-    </div>
-    <div id="ap-timer-display" style="display:none;margin-top:12px;background:rgba(250,204,21,0.08);border:1px solid rgba(250,204,21,0.25);border-radius:12px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#facc15;">Active Until</div>
-        <div id="ap-timer-until" style="font-family:'Orbitron',sans-serif;font-size:14px;font-weight:900;color:white;margin-top:2px;">—</div>
-      </div>
-      <div id="ap-timer-countdown" style="font-family:'Orbitron',sans-serif;font-size:22px;font-weight:900;color:#facc15;">—</div>
-    </div>
-  </div>
-
-  <!-- ══ SECTION 4: PUSH TO DASHBOARD ══ -->
-  <div id="ap-push-section" class="ap-section" style="display:none;">
-    <div class="ap-section-title">🚀 Push to Dashboard</div>
-    <div style="font-size:11px;color:#64748b;font-weight:600;margin-bottom:14px;">Updates the daily lead counts on the leaderboard for all agents. Previous data is saved to history first.</div>
-
-    <!-- Preview of what will be pushed -->
-    <div id="ap-push-preview" style="margin-bottom:14px;"></div>
-
-    <button onclick="apPushToDashboard()" id="ap-push-btn" class="ap-btn-primary" style="width:100%;background:linear-gradient(90deg,rgba(34,197,94,0.8),rgba(16,185,129,0.8));border-color:rgba(34,197,94,0.4);">
-      🚀 Push Lead Counts to Dashboard
-    </button>
-    <div id="ap-push-status" style="margin-top:10px;text-align:center;font-size:12px;font-weight:700;color:#22c55e;min-height:18px;"></div>
-  </div>
-
-  <!-- ══ SECTION 5: UPLOAD HISTORY ══ -->
-  <div class="ap-section">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-      <div class="ap-section-title" style="margin-bottom:0;">📚 Upload History</div>
-      <button onclick="apClearHistory()" style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#ef4444;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:5px 10px;cursor:pointer;">Clear All</button>
-    </div>
-    <div id="ap-history-list" style="display:flex;flex-direction:column;gap:8px;">
-      <div style="text-align:center;padding:20px;font-size:12px;font-weight:700;color:#334155;">No uploads yet</div>
-    </div>
-  </div>
-
-</div>
-
-<style>
-.ap-section {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 18px;
-  padding: 18px 16px;
-  margin-bottom: 14px;
-}
-.ap-section-title {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: #e2e8f0;
-  margin-bottom: 14px;
-}
-#ap-dropzone {
-  border: 2px dashed rgba(255,255,255,0.15);
-  border-radius: 16px;
-  padding: 32px 20px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s;
-  background: rgba(255,255,255,0.02);
-}
-#ap-dropzone:hover, #ap-dropzone.drag-over {
-  border-color: rgba(250,204,21,0.5);
-  background: rgba(250,204,21,0.05);
-}
-#ap-dropzone.loaded {
-  border-color: rgba(34,197,94,0.4);
-  background: rgba(34,197,94,0.05);
-}
-.ap-label {
-  display: block;
-  font-size: 9px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #64748b;
-  margin-bottom: 6px;
-  font-family: 'Poppins', sans-serif;
-}
-.ap-select, .ap-input {
-  width: 100%;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 10px;
-  color: #f1f5f9;
-  font-family: 'Poppins', sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 10px 12px;
-  outline: none;
-  appearance: none;
-  transition: border-color 0.2s;
-}
-.ap-select:focus, .ap-input:focus { border-color: rgba(250,204,21,0.4); }
-.ap-btn-primary {
-  background: linear-gradient(90deg, rgba(250,204,21,0.8), rgba(251,146,60,0.8));
-  border: 1px solid rgba(250,204,21,0.3);
-  border-radius: 12px;
-  color: #020617;
-  font-family: 'Orbitron', sans-serif;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 13px 20px;
-  cursor: pointer;
-  transition: opacity 0.2s, transform 0.1s;
-}
-.ap-btn-primary:hover { opacity: 0.9; }
-.ap-btn-primary:active { transform: scale(0.98); }
-.ap-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-.ap-btn-secondary {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 10px;
-  color: #94a3b8;
-  font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 10px 16px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s;
-}
-.ap-btn-secondary:hover { background: rgba(255,255,255,0.1); color: white; }
-.ap-stat-box {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 12px;
-  padding: 12px;
-  text-align: center;
-}
-.ap-stat-label { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin-bottom: 4px; }
-.ap-stat-val { font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 900; color: white; }
-.ap-timer-btn {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 10px;
-  color: #94a3b8;
-  font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
-  font-weight: 900;
-  padding: 12px 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.ap-timer-btn:hover, .ap-timer-btn.selected {
-  background: rgba(250,204,21,0.12);
-  border-color: rgba(250,204,21,0.4);
-  color: #facc15;
-}
-.ap-agent-card {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px;
-  overflow: hidden;
-}
-.ap-agent-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.ap-agent-header:hover { background: rgba(255,255,255,0.04); }
-.ap-agent-calls {
-  padding: 0 14px 12px;
-  display: none;
-}
-.ap-call-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 7px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  font-size: 11px;
-  font-weight: 600;
-  color: #94a3b8;
-}
-.ap-call-row:last-child { border-bottom: none; }
-.ap-history-card {
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 12px;
-  padding: 12px 14px;
-}
-</style>
+        // Initialize panel based on admin type
+        function initAdminPanel() {
+            // Check if user is admin
+            const userRole = sessionStorage.getItem('bizUserRole');
+            const adminId = sessionStorage.getItem('bizAdminId');
+            const adminName = sessionStorage.getItem('bizAdminName');
+            
+            console.log('Admin Panel Init - Role:', userRole, 'AdminId:', adminId);
+            
+            if (userRole !== 'admin') {
+                document.body.innerHTML = '<div class="text-center text-red-400 p-8">Access Denied. Admin privileges required.</div>';
+                return;
+            }
+            
+            // Check if it's ROSE (Super Admin)
+            if (adminId === 'ROSE' || adminName === 'ROSE') {
+                currentAdminRole = 'super_admin';
+                currentAdminEmail = 'ROSE';
+                showSuperAdminPanel();
+            } else {
+                currentAdminRole = 'admin';
+                currentAdminEmail = adminId || adminName || 'admin';
+                showRegularAdminPanel();
+            }
+        }
+        
+        function showSuperAdminPanel() {
+            document.getElementById('super-admin-badge').classList.remove('hidden');
+            document.getElementById('admin-badge').classList.add('hidden');
+            document.getElementById('super-admin-features').classList.remove('hidden');
+            loadAdminsList();
+        }
+        
+        function showRegularAdminPanel() {
+            document.getElementById('super-admin-badge').classList.add('hidden');
+            document.getElementById('admin-badge').classList.remove('hidden');
+            document.getElementById('super-admin-features').classList.add('hidden');
+        }
+        
+        // Load admins list (Super Admin only)
+        function loadAdminsList() {
+            if (currentAdminRole !== 'super_admin') return;
+            
+            const adminsRaw = localStorage.getItem('biz_admins');
+            const admins = adminsRaw ? JSON.parse(adminsRaw) : {};
+            const container = document.getElementById('admins-list-container');
+            
+            if (Object.keys(admins).length === 0) {
+                container.innerHTML = '<div class="text-center text-slate-400 py-4">No admins found</div>';
+                return;
+            }
+            
+            container.innerHTML = Object.values(admins).map(admin => `
+                <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex justify-between items-center">
+                    <div>
+                        <div class="font-bold text-white text-sm">${admin.name}</div>
+                        <div class="text-xs text-slate-400">${admin.email}</div>
+                        <div class="text-xs mt-1">
+                            <span class="px-2 py-0.5 rounded-full ${admin.role === 'super_admin' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'} text-xs">
+                                ${admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                            </span>
+                            ${admin.addedBy ? `<span class="text-slate-500 ml-2">Added by: ${admin.addedBy}</span>` : ''}
+                        </div>
+                    </div>
+                    ${admin.email !== currentAdminEmail ? `
+                        <button onclick="removeAdminFromPanel('${admin.email}')" 
+                                class="bg-red-500/20 border border-red-500/30 px-3 py-1 rounded-lg text-red-400 text-xs hover:bg-red-500/30">
+                            <i class="fas fa-trash"></i> Remove
+                        </button>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+        
+        // Add new admin (Super Admin only)
+        function addNewAdminFromPanel() {
+            if (currentAdminRole !== 'super_admin') {
+                alert('Only Super Admin can add new admins');
+                return;
+            }
+            
+            const email = document.getElementById('new-admin-email').value;
+            const name = document.getElementById('new-admin-name').value;
+            const password = document.getElementById('new-admin-password').value;
+            const role = document.getElementById('new-admin-role').value;
+            const statusDiv = document.getElementById('add-admin-status');
+            
+            if (!email || !name || !password) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ All fields required</span>';
+                return;
+            }
+            
+            if (password.length < 6) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ Password must be at least 6 characters</span>';
+                return;
+            }
+            
+            // Get existing admins
+            const adminsRaw = localStorage.getItem('biz_admins');
+            const admins = adminsRaw ? JSON.parse(adminsRaw) : {};
+            
+            if (admins[email]) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ Admin already exists</span>';
+                return;
+            }
+            
+            // Add new admin
+            admins[email] = {
+                email: email,
+                name: name,
+                role: role,
+                password: btoa(password),
+                addedBy: currentAdminEmail,
+                addedAt: new Date().toISOString()
+            };
+            
+            localStorage.setItem('biz_admins', JSON.stringify(admins));
+            
+            statusDiv.innerHTML = '<span class="text-green-400">✅ Admin added successfully!</span>';
+            document.getElementById('new-admin-email').value = '';
+            document.getElementById('new-admin-name').value = '';
+            document.getElementById('new-admin-password').value = '';
+            loadAdminsList();
+            
+            setTimeout(() => statusDiv.innerHTML = '', 3000);
+        }
+        
+        // Remove admin (Super Admin only)
+        function removeAdminFromPanel(email) {
+            if (currentAdminRole !== 'super_admin') {
+                alert('Only Super Admin can remove admins');
+                return;
+            }
+            
+            if (!confirm(`Remove admin ${email}? This action cannot be undone.`)) return;
+            
+            const adminsRaw = localStorage.getItem('biz_admins');
+            const admins = adminsRaw ? JSON.parse(adminsRaw) : {};
+            delete admins[email];
+            localStorage.setItem('biz_admins', JSON.stringify(admins));
+            loadAdminsList();
+        }
+        
+        // Change password (all admins)
+        function changeAdminPassword() {
+            const currentPass = document.getElementById('current-password').value;
+            const newPass = document.getElementById('new-password-field').value;
+            const confirmPass = document.getElementById('confirm-password-field').value;
+            const statusDiv = document.getElementById('password-status');
+            
+            if (!currentPass || !newPass) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ Please enter current and new password</span>';
+                return;
+            }
+            
+            if (newPass !== confirmPass) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ New passwords do not match</span>';
+                return;
+            }
+            
+            if (newPass.length < 6) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ Password must be at least 6 characters</span>';
+                return;
+            }
+            
+            // For ROSE (super admin)
+            if (currentAdminEmail === 'ROSE') {
+                const superAdminRaw = localStorage.getItem('biz_super_admin');
+                if (superAdminRaw) {
+                    const superAdmin = JSON.parse(superAdminRaw);
+                    if (atob(superAdmin.password) === currentPass) {
+                        superAdmin.password = btoa(newPass);
+                        localStorage.setItem('biz_super_admin', JSON.stringify(superAdmin));
+                        statusDiv.innerHTML = '<span class="text-green-400">✅ Password changed successfully!</span>';
+                        clearPasswordFields();
+                        setTimeout(() => statusDiv.innerHTML = '', 3000);
+                        return;
+                    }
+                }
+                statusDiv.innerHTML = '<span class="text-red-400">❌ Current password is incorrect</span>';
+                return;
+            }
+            
+            // For regular admins
+            const adminsRaw = localStorage.getItem('biz_admins');
+            const admins = adminsRaw ? JSON.parse(adminsRaw) : {};
+            const admin = admins[currentAdminEmail];
+            
+            if (admin && atob(admin.password) === currentPass) {
+                admin.password = btoa(newPass);
+                localStorage.setItem('biz_admins', JSON.stringify(admins));
+                statusDiv.innerHTML = '<span class="text-green-400">✅ Password changed successfully!</span>';
+                clearPasswordFields();
+                setTimeout(() => statusDiv.innerHTML = '', 3000);
+            } else {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ Current password is incorrect</span>';
+            }
+        }
+        
+        function clearPasswordFields() {
+            document.getElementById('current-password').value = '';
+            document.getElementById('new-password-field').value = '';
+            document.getElementById('confirm-password-field').value = '';
+        }
+        
+        // Send broadcast message
+        function sendBroadcastMessage() {
+            const message = document.getElementById('broadcast-message').value;
+            const statusDiv = document.getElementById('broadcast-status');
+            
+            if (!message.trim()) {
+                statusDiv.innerHTML = '<span class="text-red-400">❌ Please enter a message</span>';
+                return;
+            }
+            
+            // Store broadcast in localStorage
+            const broadcast = {
+                message: message,
+                timestamp: new Date().toISOString(),
+                sentBy: sessionStorage.getItem('bizAdminName') || currentAdminEmail
+            };
+            
+            localStorage.setItem('biz_broadcast', JSON.stringify(broadcast));
+            
+            statusDiv.innerHTML = '<span class="text-green-400">✅ Broadcast sent to all agents!</span>';
+            document.getElementById('broadcast-message').value = '';
+            
+            setTimeout(() => statusDiv.innerHTML = '', 3000);
+        }
+        
+        // Reset all admins (Super Admin only)
+        function resetAllAdmins() {
+            if (currentAdminRole !== 'super_admin') return;
+            
+            if (confirm('⚠️ DANGER: This will delete ALL admins including yourself! Continue?')) {
+                localStorage.removeItem('biz_super_admin');
+                localStorage.removeItem('biz_admins');
+                alert('All admin data cleared. You will be logged out.');
+                sessionStorage.clear();
+                window.location.href = 'agent-login.html';
+            }
+        }
+        
+        // Export admin data (Super Admin only)
+        function exportAdminData() {
+            if (currentAdminRole !== 'super_admin') return;
+            
+            const adminsRaw = localStorage.getItem('biz_admins');
+            const superAdminRaw = localStorage.getItem('biz_super_admin');
+            
+            const exportData = {
+                superAdmin: superAdminRaw ? JSON.parse(superAdminRaw) : null,
+                admins: adminsRaw ? JSON.parse(adminsRaw) : {},
+                exportDate: new Date().toISOString()
+            };
+            
+            const dataStr = JSON.stringify(exportData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `admin-backup-${new Date().toISOString()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', initAdminPanel);
+    </script>
+</body>
+</html>
