@@ -1,44 +1,55 @@
 // js/super-admin.js
-// Complete Multi-Admin Management System with Super Admin Creation
+// Complete Multi-Admin System with DEFAULT SUPER ADMIN
 
 const SUPER_ADMIN_KEY = 'biz_super_admin_v1';
 const ADMINS_KEY = 'biz_admins_list_v1';
 
-// ========== INITIAL SETUP ==========
-// Run this ONCE to create the first super admin
-function setupFirstSuperAdmin(email, password, name) {
-    // Check if super admin already exists
+// ============================================
+// DEFAULT SUPER ADMIN - CHANGE THESE VALUES!
+// ============================================
+const DEFAULT_SUPER_ADMIN = {
+    email: "super@bizlevelup.com",     // 👈 CHANGE THIS to your email
+    password: "Admin123!",              // 👈 CHANGE THIS to your password
+    name: "Master Super Admin",         // 👈 CHANGE THIS to your name
+    role: "super_admin"
+};
+
+// Auto-create default super admin if none exists
+function initializeDefaultSuperAdmin() {
     const existingSuper = localStorage.getItem(SUPER_ADMIN_KEY);
-    if (existingSuper) {
-        return { success: false, error: 'Super admin already exists! Use the login page.' };
-    }
-    
-    // Create super admin
-    const superAdmin = {
-        email: email,
-        password: btoa(password), // Simple encoding (upgrade for production)
-        name: name,
-        role: 'super_admin',
-        created: new Date().toISOString(),
-        isSuper: true
-    };
-    
-    localStorage.setItem(SUPER_ADMIN_KEY, JSON.stringify(superAdmin));
-    
-    // Initialize admins list
-    const admins = {
-        [email]: {
-            email: email,
-            name: name,
+    if (!existingSuper) {
+        console.log('📌 Creating default super admin...');
+        
+        const superAdmin = {
+            email: DEFAULT_SUPER_ADMIN.email,
+            password: btoa(DEFAULT_SUPER_ADMIN.password),
+            name: DEFAULT_SUPER_ADMIN.name,
             role: 'super_admin',
-            addedBy: 'system',
-            addedAt: new Date().toISOString()
-        }
-    };
-    localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-    
-    return { success: true, message: 'Super admin created successfully!' };
+            created: new Date().toISOString(),
+            isSuper: true
+        };
+        
+        localStorage.setItem(SUPER_ADMIN_KEY, JSON.stringify(superAdmin));
+        
+        const admins = {
+            [DEFAULT_SUPER_ADMIN.email]: {
+                email: DEFAULT_SUPER_ADMIN.email,
+                name: DEFAULT_SUPER_ADMIN.name,
+                role: 'super_admin',
+                addedBy: 'system',
+                addedAt: new Date().toISOString()
+            }
+        };
+        localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+        
+        console.log('✅ Default Super Admin Created!');
+        console.log('📧 Email:', DEFAULT_SUPER_ADMIN.email);
+        console.log('🔑 Password:', DEFAULT_SUPER_ADMIN.password);
+    }
 }
+
+// Call initialization
+initializeDefaultSuperAdmin();
 
 // ========== LOGIN SYSTEM ==========
 function superAdminLogin(email, password) {
@@ -80,7 +91,7 @@ function superAdminLogin(email, password) {
     return { success: false, error: 'Invalid credentials' };
 }
 
-// ========== ADMIN MANAGEMENT (Super Admin only) ==========
+// ========== ADMIN MANAGEMENT ==========
 function getAllAdmins() {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     if (currentAdmin.role !== 'super_admin') {
@@ -128,7 +139,6 @@ function removeAdmin(email) {
         return { success: false, error: 'Only super admin can remove admins' };
     }
     
-    // Prevent removing self
     if (email === currentAdmin.email) {
         return { success: false, error: 'Cannot remove yourself' };
     }
