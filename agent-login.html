@@ -1,419 +1,550 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BIZ Berbice — Clock In</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700;900&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #020617; --border: rgba(255,255,255,0.10);
+      --gold: #facc15; --gold-dark: #ca8a04;
+      --green: #22c55e; --red: #ef4444; --purple: #a855f7;
+      --text: #f1f5f9; --muted: #64748b;
+    }
+    body {
+      background: var(--bg); font-family: 'Inter', sans-serif;
+      color: var(--text); min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      animation: pageFadeIn 0.7s ease-out;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; pointer-events: none;
+      background:
+        repeating-linear-gradient(0deg, transparent, transparent 49px, rgba(255,255,255,0.015) 49px, rgba(255,255,255,0.015) 50px),
+        repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(255,255,255,0.015) 49px, rgba(255,255,255,0.015) 50px),
+        radial-gradient(circle at 20% 10%, rgba(250,204,21,0.08), transparent 45%),
+        radial-gradient(circle at 80% 80%, rgba(56,189,248,0.08), transparent 40%);
+      animation: bgPan 18s ease-in-out infinite alternate;
+    }
+    @keyframes pageFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes bgPan { from { transform: scale(1) translateX(0); } to { transform: scale(1.03) translateX(-10px); } }
+    .card {
+      position: relative; z-index: 1; width: 100%; max-width: 400px;
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 28px; padding: 40px 30px 36px;
+      box-shadow: 0 0 80px rgba(250,204,21,0.05), 0 32px 64px rgba(0,0,0,0.4);
+      animation: cardRise 0.65s ease-out;
+      backdrop-filter: blur(4px);
+    }
+    @keyframes cardRise { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .logo-ring {
+      width: 70px; height: 70px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(250,204,21,0.15), rgba(249,115,22,0.15));
+      border: 2px solid rgba(250,204,21,0.3);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 18px; font-size: 30px;
+      animation: ringPulse 2.8s ease-in-out infinite;
+    }
+    @keyframes ringPulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(250,204,21,0.25); transform: translateY(0); }
+      50% { box-shadow: 0 0 0 10px rgba(250,204,21,0); transform: translateY(-2px); }
+    }
+    .brand {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 900;
+      text-transform: uppercase; letter-spacing: 0.22em; color: var(--muted);
+      text-align: center; margin-bottom: 4px;
+    }
+    h1 {
+      font-family: 'Orbitron', sans-serif; font-size: clamp(17px,5vw,21px);
+      font-weight: 900; text-align: center;
+      background: linear-gradient(90deg, var(--gold), #fb923c, var(--gold));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;
+    }
+    .subtitle { text-align: center; font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 26px; font-family: 'Poppins', sans-serif; }
+
+    #live-clock {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 12px; padding: 10px 16px; text-align: center;
+      margin-bottom: 22px; display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    .clock-flag { font-size: 18px; }
+    .clock-time { font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: 900; color: var(--gold); letter-spacing: 0.06em; }
+    #late-badge {
+      display: none; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em;
+      background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4);
+      color: var(--red); border-radius: 20px; padding: 3px 8px;
+    }
+
+    label { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 8px; font-family: 'Poppins', sans-serif; }
+    #ytel-input, #admin-password-input {
+      width: 100%; background: rgba(255,255,255,0.05); border: 2px solid var(--border);
+      border-radius: 16px; color: var(--text);
+      font-family: 'Poppins', sans-serif; font-weight: 700;
+      padding: 18px 20px; outline: none; text-align: center;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      margin-bottom: 6px;
+    }
+    #ytel-input { font-size: 2rem; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; }
+    #admin-password-input { font-size: 1rem; letter-spacing: 0.08em; margin-bottom: 10px; }
+    #ytel-input:focus, #admin-password-input:focus { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(250,204,21,0.10); }
+    #ytel-input.shake, #admin-password-input.shake { border-color: var(--red); animation: shake 0.4s ease; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
+    .err { color: var(--red); font-size: 11px; font-weight: 700; text-align: center; min-height: 16px; margin-bottom: 14px; }
+
+    #submit-btn {
+      width: 100%; padding: 18px; border-radius: 16px;
+      font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 13px;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      background: linear-gradient(90deg, var(--gold-dark), var(--gold), #fb923c);
+      color: #020617; border: none; cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s, box-shadow 0.2s; box-shadow: 0 0 30px rgba(250,204,21,0.25);
+    }
+    #submit-btn:hover:not(:disabled) { opacity: 0.95; box-shadow: 0 0 34px rgba(250,204,21,0.35); }
+    #submit-btn:active:not(:disabled) { transform: scale(0.97); }
+    #submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    #result-panel { display: none; animation: fadeUp 0.35s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+
+    .result-box { border-radius: 20px; overflow: hidden; margin-bottom: 14px; }
+    .result-header { padding: 24px 22px 18px; text-align: center; }
+    .result-header.is-present {
+      background: linear-gradient(135deg, rgba(34,197,94,0.14), rgba(21,128,61,0.20));
+      border: 2px solid rgba(34,197,94,0.40); border-bottom: none; border-radius: 20px 20px 0 0;
+    }
+    .result-header.is-late {
+      background: linear-gradient(135deg, rgba(239,68,68,0.14), rgba(185,28,28,0.20));
+      border: 2px solid rgba(239,68,68,0.40); border-bottom: none; border-radius: 20px 20px 0 0;
+    }
+    .result-emoji { font-size: 42px; margin-bottom: 8px; }
+    .result-name { font-family: 'Orbitron', sans-serif; font-size: clamp(14px,4vw,17px); font-weight: 900; color: white; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .result-tag { display: inline-block; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; border-radius: 20px; padding: 4px 14px; }
+    .result-tag.present { background: rgba(34,197,94,0.2); color: var(--green); border: 1px solid rgba(34,197,94,0.4); }
+    .result-tag.late    { background: rgba(239,68,68,0.2);  color: var(--red);   border: 1px solid rgba(239,68,68,0.4); }
+
+    .result-info { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: rgba(255,255,255,0.06); }
+    .result-header.is-present + .result-info { border: 2px solid rgba(34,197,94,0.40); border-top: none; border-radius: 0 0 20px 20px; overflow: hidden; }
+    .result-header.is-late   + .result-info { border: 2px solid rgba(239,68,68,0.40);  border-top: none; border-radius: 0 0 20px 20px; overflow: hidden; }
+    .info-cell { background: rgba(2,6,23,0.7); padding: 12px 14px; }
+    .info-cell.full { grid-column: 1 / -1; }
+    .info-label { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 3px; }
+    .info-value { font-size: 13px; font-weight: 700; color: white; }
+    .info-value.leads { font-family: 'Orbitron', sans-serif; font-size: 20px; color: #c084fc; }
+    .info-value.ok   { color: var(--green); }
+    .info-value.warn { color: var(--red); }
+
+    .stamp { text-align: center; font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 16px; letter-spacing: 0.04em; line-height: 1.6; }
+
+    #reset-btn {
+      width: 100%; padding: 13px; border-radius: 14px;
+      font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 10px;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+      color: var(--muted); cursor: pointer; transition: all 0.2s;
+    }
+    #reset-btn:hover { background: rgba(255,255,255,0.08); color: white; }
+  </style>
 </head>
 <body>
-    <div class="p-4">
-        <!-- Dynamic Header based on admin type -->
-        <div id="admin-header" class="text-center mb-6">
-            <div id="super-admin-badge" class="hidden">
-                <div class="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/50 rounded-2xl p-4 mb-4">
-                    <div class="flex items-center justify-center gap-3 mb-2">
-                        <span class="text-4xl">👑</span>
-                        <span class="text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent uppercase">Super Admin Panel</span>
-                        <span class="text-4xl">👑</span>
-                    </div>
-                    <p class="text-yellow-400 text-sm font-bold uppercase tracking-wider">Full System Access • All Features Available</p>
-                </div>
-            </div>
-            <div id="admin-badge" class="hidden">
-                <div class="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border-2 border-blue-500/50 rounded-2xl p-4 mb-4">
-                    <div class="flex items-center justify-center gap-3 mb-2">
-                        <span class="text-4xl">🛡️</span>
-                        <span class="text-2xl font-black bg-gradient-to-r from-blue-400 to-cyan-500 bg-clip-text text-transparent uppercase">Admin Panel</span>
-                        <span class="text-4xl">🛡️</span>
-                    </div>
-                    <p class="text-blue-400 text-sm font-bold uppercase tracking-wider">Standard Admin Access • Limited Features</p>
-                </div>
-            </div>
-        </div>
+<div class="card">
 
-        <!-- Super Admin Only Features (hidden for regular admins) -->
-        <div id="super-admin-features" class="hidden">
-            <!-- User Management Section -->
-            <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-                <h3 class="text-lg font-bold text-yellow-400 mb-4 flex items-center gap-2">
-                    <i class="fas fa-users-cog"></i> 
-                    User Management
-                    <span class="text-xs bg-yellow-500/20 px-2 py-1 rounded-full text-yellow-400">Super Admin Only</span>
-                </h3>
-                <div class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Add New Admin Email</label>
-                            <input type="email" id="new-admin-email" placeholder="admin@example.com" 
-                                   class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Admin Name</label>
-                            <input type="text" id="new-admin-name" placeholder="Full Name" 
-                                   class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Temporary Password</label>
-                            <input type="password" id="new-admin-password" placeholder="••••••••" 
-                                   class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Admin Role</label>
-                            <select id="new-admin-role" class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
-                                <option value="admin">Regular Admin</option>
-                                <option value="super_admin">Super Admin</option>
-                            </select>
-                        </div>
-                    </div>
-                    <button onclick="addNewAdminFromPanel()" 
-                            class="bg-green-500/20 border border-green-500/30 px-4 py-2 rounded-xl text-green-400 text-sm font-bold hover:bg-green-500/30 transition">
-                        <i class="fas fa-user-plus mr-2"></i> Add Admin
-                    </button>
-                    <div id="add-admin-status" class="text-xs mt-2"></div>
-                </div>
-            </div>
+  <div class="logo-ring">🏢</div>
+  <div class="brand">BIZ Level Up — Berbice</div>
+  <h1>Clock In</h1>
+  <p class="subtitle">Enter your Ytel ID — or ROSE for super admin</p>
+  <p class="subtitle" id="redirect-note" style="display:none;margin-top:-14px;margin-bottom:20px;color:#22c55e;">Login confirmed. Redirecting to dashboard…</p>
 
-            <!-- Admin List Section -->
-            <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-                <h3 class="text-lg font-bold text-yellow-400 mb-4 flex items-center gap-2">
-                    <i class="fas fa-list"></i> 
-                    All Administrators
-                    <span class="text-xs bg-yellow-500/20 px-2 py-1 rounded-full text-yellow-400">Super Admin Only</span>
-                </h3>
-                <div id="admins-list-container" class="space-y-2 max-h-96 overflow-y-auto">
-                    <div class="text-center text-slate-400 py-4">Loading admins...</div>
-                </div>
-            </div>
+  <div id="live-clock">
+    <span class="clock-flag">🇬🇾</span>
+    <span class="clock-time" id="clock-display">--:-- --</span>
+    <span id="late-badge">⏰ Late Window</span>
+  </div>
 
-            <!-- System Settings Section -->
-            <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-                <h3 class="text-lg font-bold text-yellow-400 mb-4 flex items-center gap-2">
-                    <i class="fas fa-cog"></i> 
-                    System Settings
-                    <span class="text-xs bg-yellow-500/20 px-2 py-1 rounded-full text-yellow-400">Super Admin Only</span>
-                </h3>
-                <div class="space-y-3">
-                    <button onclick="resetAllAdmins()" 
-                            class="w-full bg-red-500/20 border border-red-500/30 px-4 py-2 rounded-xl text-red-400 text-sm font-bold hover:bg-red-500/30 transition">
-                        <i class="fas fa-exclamation-triangle mr-2"></i> Reset All Admin Data (Danger)
-                    </button>
-                    <button onclick="exportAdminData()" 
-                            class="w-full bg-blue-500/20 border border-blue-500/30 px-4 py-2 rounded-xl text-blue-400 text-sm font-bold hover:bg-blue-500/30 transition">
-                        <i class="fas fa-download mr-2"></i> Export Admin Data
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Common Admin Features (visible to all admins) -->
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-            <h3 class="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
-                <i class="fas fa-key"></i> 
-                Change Your Password
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <input type="password" id="current-password" placeholder="Current Password" 
-                       class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
-                <input type="password" id="new-password-field" placeholder="New Password" 
-                       class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
-                <input type="password" id="confirm-password-field" placeholder="Confirm New Password" 
-                       class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
-            </div>
-            <button onclick="changeAdminPassword()" 
-                    class="mt-4 bg-blue-500/20 border border-blue-500/30 px-4 py-2 rounded-xl text-blue-400 text-sm font-bold hover:bg-blue-500/30 transition">
-                <i class="fas fa-save mr-2"></i> Update Password
-            </button>
-            <div id="password-status" class="text-xs mt-2"></div>
-        </div>
-
-        <!-- Broadcast Section (visible to all admins) -->
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-5">
-            <h3 class="text-lg font-bold text-purple-400 mb-4 flex items-center gap-2">
-                <i class="fas fa-broadcast-tower"></i> 
-                Send Broadcast Message
-            </h3>
-            <textarea id="broadcast-message" rows="3" placeholder="Type your message to all agents..." 
-                      class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm"></textarea>
-            <button onclick="sendBroadcastMessage()" 
-                    class="mt-4 bg-purple-500/20 border border-purple-500/30 px-4 py-2 rounded-xl text-purple-400 text-sm font-bold hover:bg-purple-500/30 transition">
-                <i class="fas fa-paper-plane mr-2"></i> Send to Everyone
-            </button>
-            <div id="broadcast-status" class="text-xs mt-2"></div>
-        </div>
+  <div id="login-form">
+    <label for="ytel-input">Your Ytel ID / Super Admin</label>
+    <input type="text" id="ytel-input" placeholder="e.g. 1055 or ROSE" autocomplete="off" onkeydown="if(event.key==='Enter') doSubmit()" />
+    <div id="admin-password-wrap" style="display:none;">
+      <label for="admin-password-input">Super Admin Password</label>
+      <input type="password" id="admin-password-input" placeholder="Enter super admin password" autocomplete="off" onkeydown="if(event.key==='Enter') doSubmit()" />
     </div>
+    <p class="err" id="err-msg"></p>
+    <button id="submit-btn" onclick="doSubmit()">Clock In →</button>
+  </div>
 
-    <script>
-        let currentAdminRole = null;
-        let currentAdminEmail = null;
+  <div id="result-panel">
+    <div class="result-box">
+      <div class="result-header" id="result-header">
+        <div class="result-emoji" id="result-emoji"></div>
+        <div class="result-name" id="result-name"></div>
+        <span class="result-tag" id="result-tag"></span>
+      </div>
+      <div class="result-info" id="result-info"></div>
+    </div>
+    <p class="stamp" id="stamp"></p>
+    <button id="reset-btn" onclick="doReset()">← Clock In Another Agent</button>
+  </div>
 
-        // Initialize panel based on admin type
-        function initAdminPanel() {
-            // Check if user is admin
-            const userRole = sessionStorage.getItem('bizUserRole');
-            const adminId = sessionStorage.getItem('bizAdminId');
-            const adminName = sessionStorage.getItem('bizAdminName');
-            
-            console.log('Admin Panel Init - Role:', userRole, 'AdminId:', adminId);
-            
-            if (userRole !== 'admin') {
-                document.body.innerHTML = '<div class="text-center text-red-400 p-8">Access Denied. Admin privileges required.</div>';
-                return;
-            }
-            
-            // Check if it's ROSE (Super Admin)
-            if (adminId === 'ROSE' || adminName === 'ROSE') {
-                currentAdminRole = 'super_admin';
-                currentAdminEmail = 'ROSE';
-                showSuperAdminPanel();
-            } else {
-                currentAdminRole = 'admin';
-                currentAdminEmail = adminId || adminName || 'admin';
-                showRegularAdminPanel();
-            }
+</div>
+<script>
+  const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
+  const SHIFT_HOUR = 10;
+  const SHIFT_MINUTE = 0;
+  const GRACE_MINUTES = 15;
+
+  function getTodayISO() {
+    return formatGuyanaDateISO(guyanaTime());
+  }
+
+  function getStoredAttendance(ytelId) {
+    const key = 'biz_att_' + ytelId + '_' + getTodayISO();
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function storeAttendance(ytelId, status, clockedAt) {
+    const key = 'biz_att_' + ytelId + '_' + getTodayISO();
+    try {
+      localStorage.setItem(key, JSON.stringify({ status, clockedAt }));
+    } catch (e) {}
+  }
+
+  function guyanaTime() {
+    return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+  }
+
+  function pad(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function formatGuyanaDateISO(d) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Guyana',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(d).reduce((acc, part) => {
+      if (part.type !== 'literal') acc[part.type] = part.value;
+      return acc;
+    }, {});
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+
+  function getGuyanaWeekday(d) {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Guyana',
+      weekday: 'short'
+    }).format(d);
+  }
+
+  function isWorkday(weekday) {
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
+  }
+
+  function toUTCDate(dateStr) {
+    return new Date(`${dateStr}T00:00:00Z`);
+  }
+
+  function nextWorkday(dateStr) {
+    const d = toUTCDate(dateStr);
+    d.setUTCDate(d.getUTCDate() + 1);
+    while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function updateAgentStreak(profile) {
+    const today = guyanaTime();
+    const todayISO = formatGuyanaDateISO(today);
+    const weekday = getGuyanaWeekday(today);
+    const allStreaks = JSON.parse(localStorage.getItem('biz_agent_streaks_v1') || '{}');
+    const current = allStreaks[profile.ytelId] || { streak: 0, lastLoginDate: '' };
+
+    if (isWorkday(weekday)) {
+      if (current.lastLoginDate !== todayISO) {
+        const shouldIncrement = current.lastLoginDate && nextWorkday(current.lastLoginDate) === todayISO;
+        current.streak = shouldIncrement ? (current.streak || 0) + 1 : 1;
+        current.lastLoginDate = todayISO;
+      }
+    } else if (!current.streak) {
+      current.streak = 1;
+    }
+
+    allStreaks[profile.ytelId] = current;
+    localStorage.setItem('biz_agent_streaks_v1', JSON.stringify(allStreaks));
+    return current.streak || 1;
+  }
+
+  function fmtTime(d) {
+    const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
+    return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
+  }
+
+  function checkLate() {
+    const g = guyanaTime();
+    const now = g.getHours() * 60 + g.getMinutes();
+    const gate = SHIFT_HOUR * 60 + SHIFT_MINUTE + GRACE_MINUTES;
+    return now > gate;
+  }
+
+  function tickClock() {
+    document.getElementById('clock-display').textContent = fmtTime(guyanaTime());
+    document.getElementById('late-badge').style.display = checkLate() ? 'inline-block' : 'none';
+  }
+
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  async function logAdminActivity(action, details) {
+    try {
+      await fetch('/api/activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminId: sessionStorage.getItem('bizAdminId') || '',
+          adminName: sessionStorage.getItem('bizAdminName') || '',
+          action,
+          details,
+          page: 'agent-login.html'
+        })
+      });
+    } catch (e) {}
+  }
+
+  async function doSubmit() {
+    const input = document.getElementById('ytel-input');
+    const adminPasswordInput = document.getElementById('admin-password-input');
+    const adminPasswordWrap = document.getElementById('admin-password-wrap');
+    const errEl = document.getElementById('err-msg');
+    const btn = document.getElementById('submit-btn');
+    const loginId = normalizeLoginId(input.value);
+    const ytelId = normalizeYtelId(input.value);
+    const inAdminMode = btn.dataset.mode === 'admin';
+
+    if (inAdminMode) {
+      doAdminLogin(adminPasswordInput, errEl, btn);
+      return;
+    }
+
+    if (!ytelId && loginId !== 'ROSE') {
+      flashError(input, errEl, btn, 'Please enter your Ytel ID.');
+      return;
+    }
+
+    if (ytelId === '0000' || loginId === 'ROSE') {
+      errEl.textContent = '';
+      adminPasswordWrap.style.display = 'block';
+      btn.dataset.mode = 'admin';
+      btn.dataset.adminId = loginId === 'ROSE' ? 'ROSE' : '0000';
+      btn.textContent = 'Super Admin Log In →';
+      adminPasswordInput.focus();
+      return;
+    }
+
+    errEl.textContent = '';
+    btn.disabled = true;
+    btn.textContent = '⏳ Clocking In...';
+
+    const existingRecord = getStoredAttendance(ytelId);
+
+    try {
+      const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
+      const sData = await sRes.json();
+
+      if (!sData.found) {
+        flashError(input, errEl, btn, 'Ytel ID not found — double-check your number.');
+        return;
+      }
+
+      if (existingRecord) {
+        showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
+      } else {
+        const status = checkLate() ? 'Late' : 'Present';
+        const clockedAt = fmtTime(guyanaTime());
+
+        const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
+        const aData = await aRes.json();
+
+        if (!aData.ok && aData.writeResult !== 'already_marked') {
+          let msg = 'Attendance marking failed — please try again.';
+          if (aData.writeResult === 'agent_not_found') {
+            msg = 'You were found in the system but not in the weekly sheet — please contact your supervisor.';
+          } else if (aData.writeResult === 'no_sheet') {
+            msg = 'Weekly attendance sheet not found — contact your supervisor.';
+          } else if (aData.writeResult === 'no_week_block') {
+            msg = 'No active week block found in the sheet — contact your supervisor.';
+          }
+          flashError(input, errEl, btn, msg);
+          return;
         }
-        
-        function showSuperAdminPanel() {
-            document.getElementById('super-admin-badge').classList.remove('hidden');
-            document.getElementById('admin-badge').classList.add('hidden');
-            document.getElementById('super-admin-features').classList.remove('hidden');
-            loadAdminsList();
-        }
-        
-        function showRegularAdminPanel() {
-            document.getElementById('super-admin-badge').classList.add('hidden');
-            document.getElementById('admin-badge').classList.remove('hidden');
-            document.getElementById('super-admin-features').classList.add('hidden');
-        }
-        
-        // Load admins list (Super Admin only)
-        function loadAdminsList() {
-            if (currentAdminRole !== 'super_admin') return;
-            
-            const adminsRaw = localStorage.getItem('biz_admins');
-            const admins = adminsRaw ? JSON.parse(adminsRaw) : {};
-            const container = document.getElementById('admins-list-container');
-            
-            if (Object.keys(admins).length === 0) {
-                container.innerHTML = '<div class="text-center text-slate-400 py-4">No admins found</div>';
-                return;
-            }
-            
-            container.innerHTML = Object.values(admins).map(admin => `
-                <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex justify-between items-center">
-                    <div>
-                        <div class="font-bold text-white text-sm">${admin.name}</div>
-                        <div class="text-xs text-slate-400">${admin.email}</div>
-                        <div class="text-xs mt-1">
-                            <span class="px-2 py-0.5 rounded-full ${admin.role === 'super_admin' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'} text-xs">
-                                ${admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
-                            </span>
-                            ${admin.addedBy ? `<span class="text-slate-500 ml-2">Added by: ${admin.addedBy}</span>` : ''}
-                        </div>
-                    </div>
-                    ${admin.email !== currentAdminEmail ? `
-                        <button onclick="removeAdminFromPanel('${admin.email}')" 
-                                class="bg-red-500/20 border border-red-500/30 px-3 py-1 rounded-lg text-red-400 text-xs hover:bg-red-500/30">
-                            <i class="fas fa-trash"></i> Remove
-                        </button>
-                    ` : ''}
-                </div>
-            `).join('');
-        }
-        
-        // Add new admin (Super Admin only)
-        function addNewAdminFromPanel() {
-            if (currentAdminRole !== 'super_admin') {
-                alert('Only Super Admin can add new admins');
-                return;
-            }
-            
-            const email = document.getElementById('new-admin-email').value;
-            const name = document.getElementById('new-admin-name').value;
-            const password = document.getElementById('new-admin-password').value;
-            const role = document.getElementById('new-admin-role').value;
-            const statusDiv = document.getElementById('add-admin-status');
-            
-            if (!email || !name || !password) {
-                statusDiv.innerHTML = '<span class="text-red-400">❌ All fields required</span>';
-                return;
-            }
-            
-            if (password.length < 6) {
-                statusDiv.innerHTML = '<span class="text-red-400">❌ Password must be at least 6 characters</span>';
-                return;
-            }
-            
-            // Get existing admins
-            const adminsRaw = localStorage.getItem('biz_admins');
-            const admins = adminsRaw ? JSON.parse(adminsRaw) : {};
-            
-            if (admins[email]) {
-                statusDiv.innerHTML = '<span class="text-red-400">❌ Admin already exists</span>';
-                return;
-            }
-            
-            // Add new admin
-            admins[email] = {
-                email: email,
-                name: name,
-                role: role,
-                password: btoa(password),
-                addedBy: currentAdminEmail,
-                addedAt: new Date().toISOString()
-            };
-            
-            localStorage.setItem('biz_admins', JSON.stringify(admins));
-            
-            statusDiv.innerHTML = '<span class="text-green-400">✅ Admin added successfully!</span>';
-            document.getElementById('new-admin-email').value = '';
-            document.getElementById('new-admin-name').value = '';
-            document.getElementById('new-admin-password').value = '';
-            loadAdminsList();
-            
-            setTimeout(() => statusDiv.innerHTML = '', 3000);
-        }
-        
-        // Remove admin (Super Admin only)
-        function removeAdminFromPanel(email) {
-            if (currentAdminRole !== 'super_admin') {
-                alert('Only Super Admin can remove admins');
-                return;
-            }
-            
-            if (!confirm(`Remove admin ${email}? This action cannot be undone.`)) return;
-            
-            const adminsRaw = localStorage.getItem('biz_admins');
-            const admins = adminsRaw ? JSON.parse(adminsRaw) : {};
-            delete admins[email];
-            localStorage.setItem('biz_admins', JSON.stringify(admins));
-            loadAdminsList();
-        }
-        
-        // Change password (all admins)
-        function changeAdminPassword() {
-            const currentPass = document.getElementById('current-password').value;
-            const newPass = document.getElementById('new-password-field').value;
-            const confirmPass = document.getElementById('confirm-password-field').value;
-            const statusDiv = document.getElementById('password-status');
-            
-            if (!currentPass || !newPass) {
-                statusDiv.innerHTML = '<span class="text-red-400">❌ Please enter current and new password</span>';
-                return;
-            }
-            
-            if (newPass !== confirmPass) {
-                statusDiv.innerHTML = '<span class="text-red-400">❌ New passwords do not match</span>';
-                return;
-            }
-            
-            if (newPass.length < 6) {
-                statusDiv.innerHTML = '<span class="text-red-400">❌ Password must be at least 6 characters</span>';
-                return;
-            }
-            
-            // For ROSE (super admin)
-            if (currentAdminEmail === 'ROSE') {
-                const superAdminRaw = localStorage.getItem('biz_super_admin');
-                if (superAdminRaw) {
-                    const superAdmin = JSON.parse(superAdminRaw);
-                    if (atob(superAdmin.password) === currentPass) {
-                        superAdmin.password = btoa(newPass);
-                        localStorage.setItem('biz_super_admin', JSON.stringify(superAdmin));
-                        statusDiv.innerHTML = '<span class="text-green-400">✅ Password changed successfully!</span>';
-                        clearPasswordFields();
-                        setTimeout(() => statusDiv.innerHTML = '', 3000);
-                        return;
-                    }
-                }
-                statusDiv.innerHTML = '<span class="text-red-400">❌ Current password is incorrect</span>';
-                return;
-            }
-            
-            // For regular admins
-            const adminsRaw = localStorage.getItem('biz_admins');
-            const admins = adminsRaw ? JSON.parse(adminsRaw) : {};
-            const admin = admins[currentAdminEmail];
-            
-            if (admin && atob(admin.password) === currentPass) {
-                admin.password = btoa(newPass);
-                localStorage.setItem('biz_admins', JSON.stringify(admins));
-                statusDiv.innerHTML = '<span class="text-green-400">✅ Password changed successfully!</span>';
-                clearPasswordFields();
-                setTimeout(() => statusDiv.innerHTML = '', 3000);
-            } else {
-                statusDiv.innerHTML = '<span class="text-red-400">❌ Current password is incorrect</span>';
-            }
-        }
-        
-        function clearPasswordFields() {
-            document.getElementById('current-password').value = '';
-            document.getElementById('new-password-field').value = '';
-            document.getElementById('confirm-password-field').value = '';
-        }
-        
-        // Send broadcast message
-        function sendBroadcastMessage() {
-            const message = document.getElementById('broadcast-message').value;
-            const statusDiv = document.getElementById('broadcast-status');
-            
-            if (!message.trim()) {
-                statusDiv.innerHTML = '<span class="text-red-400">❌ Please enter a message</span>';
-                return;
-            }
-            
-            // Store broadcast in localStorage
-            const broadcast = {
-                message: message,
-                timestamp: new Date().toISOString(),
-                sentBy: sessionStorage.getItem('bizAdminName') || currentAdminEmail
-            };
-            
-            localStorage.setItem('biz_broadcast', JSON.stringify(broadcast));
-            
-            statusDiv.innerHTML = '<span class="text-green-400">✅ Broadcast sent to all agents!</span>';
-            document.getElementById('broadcast-message').value = '';
-            
-            setTimeout(() => statusDiv.innerHTML = '', 3000);
-        }
-        
-        // Reset all admins (Super Admin only)
-        function resetAllAdmins() {
-            if (currentAdminRole !== 'super_admin') return;
-            
-            if (confirm('⚠️ DANGER: This will delete ALL admins including yourself! Continue?')) {
-                localStorage.removeItem('biz_super_admin');
-                localStorage.removeItem('biz_admins');
-                alert('All admin data cleared. You will be logged out.');
-                sessionStorage.clear();
-                window.location.href = 'agent-login.html';
-            }
-        }
-        
-        // Export admin data (Super Admin only)
-        function exportAdminData() {
-            if (currentAdminRole !== 'super_admin') return;
-            
-            const adminsRaw = localStorage.getItem('biz_admins');
-            const superAdminRaw = localStorage.getItem('biz_super_admin');
-            
-            const exportData = {
-                superAdmin: superAdminRaw ? JSON.parse(superAdminRaw) : null,
-                admins: adminsRaw ? JSON.parse(adminsRaw) : {},
-                exportDate: new Date().toISOString()
-            };
-            
-            const dataStr = JSON.stringify(exportData, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            const url = URL.createObjectURL(dataBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `admin-backup-${new Date().toISOString()}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-        
-        // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', initAdminPanel);
-    </script>
+
+        storeAttendance(ytelId, status, clockedAt);
+        showResult(sData, status, ytelId, clockedAt);
+      }
+    } catch (e) {
+      flashError(input, errEl, btn, 'Network error — check your connection and retry.');
+    }
+  }
+
+  async function doAdminLogin(adminPasswordInput, errEl, btn) {
+    const adminId = btn.dataset.adminId || '0000';
+    const adminPassword = adminId === 'ROSE' ? 'SuperAdmin' : 'admin';
+
+    if (adminPasswordInput.value !== adminPassword) {
+      flashError(adminPasswordInput, errEl, btn, 'Incorrect admin password.');
+      return;
+    }
+
+    const adminName = adminId === 'ROSE' ? 'ROSE' : 'Admin 0000';
+
+    sessionStorage.setItem('agentLoggedIn', '1');
+    sessionStorage.setItem('bizAdminUnlocked', '1');
+    sessionStorage.setItem('bizUserRole', 'admin');
+    sessionStorage.setItem('bizAdminId', adminId);
+    sessionStorage.setItem('bizAdminName', adminName);
+    sessionStorage.setItem('adminLoggedIn', 'true');
+    sessionStorage.setItem('currentAdmin', JSON.stringify({
+      email: adminId,
+      name: adminName,
+      role: 'super_admin',
+      isSuper: true
+    }));
+
+    sessionStorage.removeItem('currentAgentName');
+    sessionStorage.removeItem('currentAgentProfile');
+
+    await logAdminActivity('login', `${adminName} logged in`);
+    window.location.href = 'index.html';
+  }
+
+  function flashError(input, errEl, btn, msg) {
+    input.classList.add('shake');
+    errEl.textContent = msg;
+    btn.disabled = false;
+    btn.textContent = btn.dataset.mode === 'admin' ? 'Super Admin Log In →' : 'Clock In →';
+    setTimeout(() => input.classList.remove('shake'), 500);
+  }
+
+  function normalizeYtelId(value) {
+    return String(value || '').replace(/\D/g, '');
+  }
+
+  function normalizeLoginId(value) {
+    return String(value || '').trim().toUpperCase();
+  }
+
+  function resolveLunchValue(data) {
+    if (!data || typeof data !== 'object') return '—';
+    const candidates = [
+      data.lunch,
+      data.lunchSlot,
+      data.lunch_time,
+      data.lunchTime,
+      data['Lunch Slot'],
+      data['Lunch'],
+      data['Lunch Time'],
+      data['lunch time'],
+      data['LunchTime'],
+      data['lunchbreak'],
+      data['LunchBreak'],
+      data['lunch_break'],
+      data['lunchBreak'],
+      data['break'],
+      data['Break'],
+      data['Break Time'],
+      data['break_time']
+    ];
+    const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
+    if (match === undefined || match === null) return '—';
+    const val = String(match).trim();
+    if (!val) return '—';
+    const num = Number(val);
+    if (!isNaN(num) && num > 0 && num < 1) {
+      const totalMinutes = Math.round(num * 24 * 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const h = hours % 12 || 12;
+      return h + ':' + String(minutes).padStart(2, '0') + ' ' + ampm;
+    }
+    return val;
+  }
+
+  function showResult(data, status, ytelId, clockedAt) {
+    const late = status === 'Late';
+    const now = guyanaTime();
+    const displayTime = clockedAt || fmtTime(now);
+    const dateStr = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+
+    const header = document.getElementById('result-header');
+    header.className = 'result-header ' + (late ? 'is-late' : 'is-present');
+    document.getElementById('result-emoji').textContent = late ? '⏰' : '✅';
+    document.getElementById('result-name').textContent = data.name || 'Agent';
+    const tag = document.getElementById('result-tag');
+    tag.textContent = late ? 'Marked Late' : 'Marked Present';
+    tag.className = 'result-tag ' + (late ? 'late' : 'present');
+
+    const lunchValue = resolveLunchValue(data);
+
+    const cells = [
+      { label: 'Team', value: data.team || '—', cls: '' },
+      { label: 'Shift', value: data.shift || '—', cls: late ? 'warn' : 'ok' },
+      { label: 'Lunch Slot', value: lunchValue, cls: '' },
+      { label: 'Clocked In', value: displayTime, cls: late ? 'warn' : 'ok' },
+    ];
+
+    if (data.weekLead !== null && data.weekLead !== undefined) {
+      cells.push({ label: '⚡ Weekly Leads', value: data.weekLead, cls: 'leads', full: true });
+    }
+
+    document.getElementById('result-info').innerHTML = cells.map(c =>
+      `<div class="info-cell${c.full ? ' full' : ''}"><div class="info-label">${c.label}</div><div class="info-value ${c.cls}">${c.value}</div></div>`
+    ).join('');
+
+    document.getElementById('stamp').textContent = dateStr + ' · ' + displayTime + ' Guyana Time';
+
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('result-panel').style.display = 'block';
+    document.getElementById('redirect-note').style.display = 'block';
+
+    sessionStorage.setItem('agentLoggedIn', '1');
+    sessionStorage.setItem('bizUserRole', 'agent');
+    sessionStorage.setItem('currentAgentName', data.name || '');
+
+    const profile = {
+      name: data.name || 'Agent',
+      ytelId: ytelId || '',
+      lunch: lunchValue,
+      shift: data.shift || '—'
+    };
+
+    profile.streak = updateAgentStreak(profile);
+    sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
+
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 1200);
+  }
+
+  function doReset() {
+    document.getElementById('login-form').style.display = 'block';
+    document.getElementById('result-panel').style.display = 'none';
+    document.getElementById('redirect-note').style.display = 'none';
+    document.getElementById('ytel-input').value = '';
+    document.getElementById('admin-password-input').value = '';
+    document.getElementById('admin-password-wrap').style.display = 'none';
+    document.getElementById('err-msg').textContent = '';
+    document.getElementById('submit-btn').disabled = false;
+    document.getElementById('submit-btn').dataset.mode = '';
+    document.getElementById('submit-btn').dataset.adminId = '';
+    document.getElementById('submit-btn').textContent = 'Clock In →';
+    document.getElementById('ytel-input').focus();
+  }
+
+  window.addEventListener('DOMContentLoaded', () => document.getElementById('ytel-input').focus());
+</script>
 </body>
 </html>
