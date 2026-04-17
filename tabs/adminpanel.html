@@ -26,7 +26,7 @@
                         <span class="text-2xl font-black bg-gradient-to-r from-blue-400 to-cyan-500 bg-clip-text text-transparent uppercase">Admin Panel</span>
                         <span class="text-4xl">🛡️</span>
                     </div>
-                    <p class="text-blue-400 text-sm font-bold uppercase tracking-wider">Standard Admin Access • Limited Features</p>
+                    <p class="text-blue-400 text-sm font-bold uppercase tracking-wider">View Only Access</p>
                 </div>
             </div>
         </div>
@@ -85,66 +85,60 @@
                 </div>
             </div>
 
-            <!-- System Settings Section -->
+            <!-- Change Password Section (Super Admin only) -->
             <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-                <h3 class="text-lg font-bold text-yellow-400 mb-4 flex items-center gap-2">
-                    <i class="fas fa-cog"></i> 
-                    System Settings
-                    <span class="text-xs bg-yellow-500/20 px-2 py-1 rounded-full text-yellow-400">Super Admin Only</span>
+                <h3 class="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
+                    <i class="fas fa-key"></i> 
+                    Change Password
+                    <span class="text-xs bg-blue-500/20 px-2 py-1 rounded-full text-blue-400">Super Admin Only</span>
                 </h3>
-                <div class="space-y-3">
-                    <button onclick="resetAllAdmins()" 
-                            class="w-full bg-red-500/20 border border-red-500/30 px-4 py-2 rounded-xl text-red-400 text-sm font-bold hover:bg-red-500/30 transition">
-                        <i class="fas fa-exclamation-triangle mr-2"></i> Reset All Admin Data (Danger)
-                    </button>
-                    <button onclick="exportAdminData()" 
-                            class="w-full bg-blue-500/20 border border-blue-500/30 px-4 py-2 rounded-xl text-blue-400 text-sm font-bold hover:bg-blue-500/30 transition">
-                        <i class="fas fa-download mr-2"></i> Export Admin Data
-                    </button>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="password" id="current-password" placeholder="Current Password" 
+                           class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
+                    <input type="password" id="new-password-field" placeholder="New Password (min 6 chars)" 
+                           class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
+                    <input type="password" id="confirm-password-field" placeholder="Confirm New Password" 
+                           class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
                 </div>
+                <button onclick="changeAdminPassword()" 
+                        class="mt-4 bg-blue-500/20 border border-blue-500/30 px-4 py-2 rounded-xl text-blue-400 text-sm font-bold hover:bg-blue-500/30 transition">
+                    <i class="fas fa-save mr-2"></i> Update Password
+                </button>
+                <div id="password-status" class="text-xs mt-2"></div>
+            </div>
+
+            <!-- Broadcast Section (Super Admin only) -->
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-5">
+                <h3 class="text-lg font-bold text-purple-400 mb-4 flex items-center gap-2">
+                    <i class="fas fa-broadcast-tower"></i> 
+                    Send Broadcast Message
+                    <span class="text-xs bg-purple-500/20 px-2 py-1 rounded-full text-purple-400">Super Admin Only</span>
+                </h3>
+                <textarea id="broadcast-message" rows="3" placeholder="Type your message to all agents..." 
+                          class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm"></textarea>
+                <button onclick="sendBroadcastMessage()" 
+                        class="mt-4 bg-purple-500/20 border border-purple-500/30 px-4 py-2 rounded-xl text-purple-400 text-sm font-bold hover:bg-purple-500/30 transition">
+                    <i class="fas fa-paper-plane mr-2"></i> Send to Everyone
+                </button>
+                <div id="broadcast-status" class="text-xs mt-2"></div>
             </div>
         </div>
 
-        <!-- Common Admin Features (visible to all admins) -->
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-            <h3 class="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
-                <i class="fas fa-key"></i> 
-                Change Your Password
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <input type="password" id="current-password" placeholder="Current Password" 
-                       class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
-                <input type="password" id="new-password-field" placeholder="New Password" 
-                       class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
-                <input type="password" id="confirm-password-field" placeholder="Confirm New Password" 
-                       class="bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm">
+        <!-- Regular Admin Message (what regular admins see) -->
+        <div id="regular-admin-message" class="hidden">
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
+                <div class="text-6xl mb-4">🔒</div>
+                <h3 class="text-xl font-bold text-white mb-2">Limited Access</h3>
+                <p class="text-slate-400 text-sm">You have view-only access to the admin panel.</p>
+                <p class="text-slate-500 text-xs mt-4">Contact your Super Admin for additional permissions.</p>
             </div>
-            <button onclick="changeAdminPassword()" 
-                    class="mt-4 bg-blue-500/20 border border-blue-500/30 px-4 py-2 rounded-xl text-blue-400 text-sm font-bold hover:bg-blue-500/30 transition">
-                <i class="fas fa-save mr-2"></i> Update Password
-            </button>
-            <div id="password-status" class="text-xs mt-2"></div>
-        </div>
-
-        <!-- Broadcast Section (visible to all admins) -->
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-5">
-            <h3 class="text-lg font-bold text-purple-400 mb-4 flex items-center gap-2">
-                <i class="fas fa-broadcast-tower"></i> 
-                Send Broadcast Message
-            </h3>
-            <textarea id="broadcast-message" rows="3" placeholder="Type your message to all agents..." 
-                      class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm"></textarea>
-            <button onclick="sendBroadcastMessage()" 
-                    class="mt-4 bg-purple-500/20 border border-purple-500/30 px-4 py-2 rounded-xl text-purple-400 text-sm font-bold hover:bg-purple-500/30 transition">
-                <i class="fas fa-paper-plane mr-2"></i> Send to Everyone
-            </button>
-            <div id="broadcast-status" class="text-xs mt-2"></div>
         </div>
     </div>
 
     <script>
         let currentAdminRole = null;
         let currentAdminEmail = null;
+        let currentAdminName = null;
 
         // Initialize panel based on admin type
         function initAdminPanel() {
@@ -164,10 +158,12 @@
             if (adminId === 'ROSE' || adminName === 'ROSE') {
                 currentAdminRole = 'super_admin';
                 currentAdminEmail = 'ROSE';
+                currentAdminName = 'ROSE';
                 showSuperAdminPanel();
             } else {
                 currentAdminRole = 'admin';
                 currentAdminEmail = adminId || adminName || 'admin';
+                currentAdminName = adminName || adminId || 'Admin';
                 showRegularAdminPanel();
             }
         }
@@ -176,6 +172,7 @@
             document.getElementById('super-admin-badge').classList.remove('hidden');
             document.getElementById('admin-badge').classList.add('hidden');
             document.getElementById('super-admin-features').classList.remove('hidden');
+            document.getElementById('regular-admin-message').classList.add('hidden');
             loadAdminsList();
         }
         
@@ -183,6 +180,7 @@
             document.getElementById('super-admin-badge').classList.add('hidden');
             document.getElementById('admin-badge').classList.remove('hidden');
             document.getElementById('super-admin-features').classList.add('hidden');
+            document.getElementById('regular-admin-message').classList.remove('hidden');
         }
         
         // Load admins list (Super Admin only)
@@ -289,8 +287,13 @@
             loadAdminsList();
         }
         
-        // Change password (all admins)
+        // Change password (Super Admin only)
         function changeAdminPassword() {
+            if (currentAdminRole !== 'super_admin') {
+                alert('Only Super Admin can change password');
+                return;
+            }
+            
             const currentPass = document.getElementById('current-password').value;
             const newPass = document.getElementById('new-password-field').value;
             const confirmPass = document.getElementById('confirm-password-field').value;
@@ -329,7 +332,7 @@
                 return;
             }
             
-            // For regular admins
+            // For regular admins in super admin list
             const adminsRaw = localStorage.getItem('biz_admins');
             const admins = adminsRaw ? JSON.parse(adminsRaw) : {};
             const admin = admins[currentAdminEmail];
@@ -351,8 +354,13 @@
             document.getElementById('confirm-password-field').value = '';
         }
         
-        // Send broadcast message
+        // Send broadcast message (Super Admin only)
         function sendBroadcastMessage() {
+            if (currentAdminRole !== 'super_admin') {
+                alert('Only Super Admin can send broadcasts');
+                return;
+            }
+            
             const message = document.getElementById('broadcast-message').value;
             const statusDiv = document.getElementById('broadcast-status');
             
@@ -365,7 +373,7 @@
             const broadcast = {
                 message: message,
                 timestamp: new Date().toISOString(),
-                sentBy: sessionStorage.getItem('bizAdminName') || currentAdminEmail
+                sentBy: sessionStorage.getItem('bizAdminName') || currentAdminName || currentAdminEmail
             };
             
             localStorage.setItem('biz_broadcast', JSON.stringify(broadcast));
