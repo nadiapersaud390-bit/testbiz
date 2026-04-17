@@ -7,17 +7,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body {
-            background: #020617;
-            font-family: 'Inter', sans-serif;
-        }
-        .admin-card {
-            transition: all 0.3s ease;
-        }
-        .admin-card:hover {
-            transform: translateX(5px);
-            background: rgba(255,255,255,0.08);
-        }
+        body { background: #020617; font-family: 'Inter', sans-serif; }
+        .admin-card { transition: all 0.3s ease; }
+        .admin-card:hover { transform: translateX(5px); background: rgba(255,255,255,0.08); }
     </style>
 </head>
 <body class="p-6">
@@ -135,7 +127,6 @@
         let currentAdmin = null;
         
         function loadAdmins() {
-            // Check login
             if (!isLoggedIn()) {
                 window.location.href = 'admin-login.html';
                 return;
@@ -143,18 +134,15 @@
             
             currentAdmin = getCurrentAdmin();
             
-            // Update header
             document.getElementById('admin-info').innerHTML = `
                 Logged in as: <strong class="text-yellow-400">${currentAdmin.name}</strong> 
                 (${currentAdmin.role === 'super_admin' ? '👑 Super Admin' : '🛡️ Admin'})
             `;
             
-            // Show add admin section only for super admin
             if (currentAdmin.role === 'super_admin') {
                 document.getElementById('add-admin-section').classList.remove('hidden');
             }
             
-            // Get all admins
             const result = getAllAdmins();
             if (!result.success) {
                 document.getElementById('admins-list').innerHTML = `
@@ -165,12 +153,10 @@
             
             const admins = result.admins;
             
-            // Update stats
             document.getElementById('total-admins').textContent = admins.length;
             document.getElementById('super-admin-count').textContent = admins.filter(a => a.role === 'super_admin').length;
             document.getElementById('regular-admin-count').textContent = admins.filter(a => a.role === 'admin').length;
             
-            // Render admins list
             if (admins.length === 0) {
                 document.getElementById('admins-list').innerHTML = `
                     <div class="text-center text-slate-400 py-8">No admins found</div>
@@ -194,7 +180,6 @@
                                     ${admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
                                 </span>
                                 ${admin.addedBy ? `<span class="text-slate-500 ml-2">Added by: ${admin.addedBy}</span>` : ''}
-                                ${admin.addedAt ? `<span class="text-slate-500 ml-2">${new Date(admin.addedAt).toLocaleDateString()}</span>` : ''}
                             </div>
                         </div>
                         <div class="flex gap-2">
@@ -306,7 +291,6 @@
             }
         }
         
-        // Load on page load
         loadAdmins();
     </script>
 </body>
