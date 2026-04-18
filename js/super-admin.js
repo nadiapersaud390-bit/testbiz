@@ -100,7 +100,8 @@ function superAdminLogin(email, password) {
     
     // Check regular admins
     const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
-    const admin = admins[email];
+    const lookupKey = String(email || '').toLowerCase();
+    const admin = admins[lookupKey];
     
     if (admin && admin.password === btoa(password)) {
         sessionStorage.setItem('currentAdmin', JSON.stringify({
@@ -144,13 +145,14 @@ function addNewAdmin(email, password, name, role = 'admin') {
     }
     
     const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
+    const saveKey = String(email || '').toLowerCase();
     
-    if (admins[email]) {
+    if (admins[saveKey]) {
         return { success: false, error: 'Admin already exists' };
     }
     
-    admins[email] = {
-        email: email,
+    admins[saveKey] = {
+        email: saveKey,
         name: name,
         role: role,
         password: btoa(password),

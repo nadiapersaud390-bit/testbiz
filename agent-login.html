@@ -188,6 +188,36 @@
   </div>
 
 </div>
+<script src="js/super-admin.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  
+  const firebaseConfig = {
+    apiKey: "AIzaSyA5u7B8UJQOFG8yhE0YKWCiWCHQgaNu1mY",
+    authDomain: "biz-dashboard-4396c.firebaseapp.com",
+    databaseURL: "https://biz-dashboard-4396c-default-rtdb.firebaseio.com",
+    projectId: "biz-dashboard-4396c",
+    storageBucket: "biz-dashboard-4396c.firebasestorage.app",
+    messagingSenderId: "394155720592",
+    appId: "1:394155720592:web:b85a142cf8c885726b3d15"
+  };
+
+  try {
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    onValue(ref(db, 'admins_list'), (snapshot) => {
+      const data = snapshot.val() || {};
+      localStorage.setItem('biz_admins_list_v1', JSON.stringify(data));
+    });
+    onValue(ref(db, 'super_admin'), (snapshot) => {
+        const data = snapshot.val();
+        if (data) localStorage.setItem('biz_super_admin_v1', JSON.stringify(data));
+    });
+  } catch (e) {
+    console.warn("Firebase sync failed", e);
+  }
+</script>
 <script>
   const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
   const SHIFT_HOUR = 10;
@@ -334,12 +364,8 @@
       return;
     }
 
-    if (ytelId === '0000' || loginId === 'ROSE') {
-      errEl.textContent = '';
-      adminPasswordWrap.style.display = 'block';
-      btn.dataset.mode = 'admin';
-      btn.dataset.adminId = loginId === 'ROSE' ? 'ROSE' : '0000';
-      btn.textContent = 'Super Admin Log In →';
+      btn.dataset.adminId = loginId; // Store either email or ID
+      btn.textContent = 'Admin Log In →';
       adminPasswordInput.focus();
       return;
     }
@@ -390,33 +416,17 @@
   }
 
   async function doAdminLogin(adminPasswordInput, errEl, btn) {
-    const adminId = btn.dataset.adminId || '0000';
-    const adminPassword = adminId === 'ROSE' ? 'SuperAdmin' : 'admin';
+    const loginId = btn.dataset.adminId;
+    const password = adminPasswordInput.value;
 
-    if (adminPasswordInput.value !== adminPassword) {
-      flashError(adminPasswordInput, errEl, btn, 'Incorrect admin password.');
+    const result = window.superAdminLogin(loginId, password);
+
+    if (!result.success) {
+      flashError(adminPasswordInput, errEl, btn, result.error || 'Incorrect admin password.');
       return;
     }
 
-    const adminName = adminId === 'ROSE' ? 'ROSE' : 'Admin 0000';
-
-    sessionStorage.setItem('agentLoggedIn', '1');
-    sessionStorage.setItem('bizAdminUnlocked', '1');
-    sessionStorage.setItem('bizUserRole', 'admin');
-    sessionStorage.setItem('bizAdminId', adminId);
-    sessionStorage.setItem('bizAdminName', adminName);
-    sessionStorage.setItem('adminLoggedIn', 'true');
-    sessionStorage.setItem('currentAdmin', JSON.stringify({
-      email: adminId,
-      name: adminName,
-      role: 'super_admin',
-      isSuper: true
-    }));
-
-    sessionStorage.removeItem('currentAgentName');
-    sessionStorage.removeItem('currentAgentProfile');
-
-    await logAdminActivity('login', `${adminName} logged in`);
+    // Success - superAdminLogin already sets sessionStorage
     window.location.href = 'index.html';
   }
 

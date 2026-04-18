@@ -34,6 +34,7 @@ window.switchAdminHubTab = function(tabId) {
     if (tabId === 'monitoring' && typeof window.monitoringInit === 'function') window.monitoringInit();
     if (tabId === 'rebuttals') initRebuttalIntel();
     if (tabId === 'performance') initWeeklyPerformance();
+    if (tabId === 'admintools') ahAdminToolsInit();
 };
 
 // ── WEEKLY PERFORMANCE LOGIC ──
@@ -658,6 +659,160 @@ function renderMonitoringList(sessions) {
         `;
     }).join('');
 }
+
+// ── ADMIN TOOLS LOGIC ──
+let ahtCurrentSubTab = 'resources';
+
+window.switchAhToolsSubTab = function(tabId) {
+    ahtCurrentSubTab = tabId;
+    document.querySelectorAll('.aht-sub-section').forEach(s => s.classList.add('hidden'));
+    document.getElementById(`aht-sect-${tabId}`).classList.remove('hidden');
+
+    // Update Btn Styles
+    ['resources', 'logs', 'users'].forEach(t => {
+        const b = document.getElementById(`aht-tab-${t}`);
+        if(b) {
+            b.className = (t === tabId)
+                ? "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-cyan-500 text-white shadow-lg shadow-cyan-900/40"
+                : "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition";
+        }
+    });
+
+    if (tabId === 'logs') ahToolsLoadLogs();
+    if (tabId === 'users') ahToolsLoadUsers();
+};
+
+function ahAdminToolsInit() {
+    switchAhToolsSubTab('resources');
+}
+
+function ahToolsLoadLogs() {
+    const container = document.getElementById('ah-activity-logs');
+    if (!container) return;
+
+    if (typeof window.listenToActivityLogs === 'function') {
+        window.listenToActivityLogs((logs) => {
+            renderAhLogs(logs);
+        });
+    } else {
+        // Fallback to localStorage if Firebase listener isn't ready
+        const logs = JSON.parse(localStorage.getItem('biz_activity_logs_v1') || '[]');
+        renderAhLogs(logs);
+    }
+}
+
+function renderAhLogs(logs) {
+    const container = document.getElementById('ah-activity-logs');
+    if (!container) return;
+
+    if (logs.length === 0) {
+        container.innerHTML = '<div class="py-20 text-center text-slate-600 font-bold uppercase text-[10px] tracking-widest">Audit trail is currently empty</div>';
+        return;
+    }
+
+    window.ahCurrentLogs = logs; // Store for modal access
+    container.innerHTML = logs.slice(0, 100).map((log, idx) => {
+        const date = new Date(log.timestamp);
+        const timeStr = date.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+        return `
+            <div onclick="ahShowLogDetail('${log.id || idx}')" class="p-4 hover:bg-white/5 cursor-pointer transition flex items-center justify-between gap-4 group">
+                <div class="flex items-center gap-4">
+                    <div class="text-[9px] font-black text-slate-600 w-12 text-right">${timeStr}</div>
+                    <div>
+                        <div class="text-[11px] font-black text-white uppercase group-hover:text-blue-400 transition-colors">${log.name}</div>
+                        <div class="text-[9px] text-cyan-400 font-bold uppercase tracking-widest mt-0.5">${(log.action || '').replace(/_/g, ' ')}</div>
+                    </div>
+                </div>
+                <div class="flex-1 text-[10px] text-slate-400 bg-black/20 px-3 py-2 rounded-xl border border-white/5 truncate max-w-[300px] group-hover:border-blue-500/30 transition-colors">${log.details || ''}</div>
+                <div class="text-slate-600 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-chevron-right"></i></div>
+            </div>
+        `;
+    }).join('');
+}
+
+window.ahShowLogDetail = function(id) {
+    const modal = document.getElementById('ah-log-detail-modal');
+    if (!modal || !window.ahCurrentLogs) return;
+
+    const log = window.ahCurrentLogs.find(l => (l.id === id || window.ahCurrentLogs.indexOf(l) == id));
+    if (!log) return;
+
+    const date = new Date(log.timestamp);
+    
+    document.getElementById('ah-log-modal-id').textContent = `Log ID: ${id.length > 10 ? id.substring(0,8) + '...' : id}`;
+    document.getElementById('ah-log-modal-name').textContent = log.name;
+    document.getElementById('ah-log-modal-role').textContent = log.role || 'Admin';
+    document.getElementById('ah-log-modal-time').textContent = date.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    document.getElementById('ah-log-modal-date').textContent = date.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    document.getElementById('ah-log-modal-action').textContent = (log.action || '').replace(/_/g, ' ');
+
+    let detailsStr = log.details || 'No additional data';
+    if (typeof log.details === 'object') {
+        detailsStr = JSON.stringify(log.details, null, 2);
+    }
+    document.getElementById('ah-log-modal-details').textContent = detailsStr;
+
+    modal.classList.remove('hidden');
+};
+
+window.ahCloseLogModal = function() {
+    const modal = document.getElementById('ah-log-detail-modal');
+    if (modal) modal.classList.add('hidden');
+};
+
+function ahToolsLoadUsers() {
+    const list = document.getElementById('ah-admins-list');
+    if (!list) return;
+
+    const admins = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+    const adminArray = Object.values(admins).filter(a => a && a.email);
+
+    if (adminArray.length === 0) {
+        list.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No regular administrators found</div>';
+        return;
+    }
+
+    list.innerHTML = adminArray.map(admin => `
+        <div class="bg-white/5 border border-white/5 p-4 rounded-2xl flex justify-between items-center group">
+            <div>
+                <div class="text-[11px] font-black text-white uppercase">${admin.name}</div>
+                <div class="text-[9px] text-slate-500 font-bold">${admin.email}</div>
+                <div class="mt-2 text-[7px] font-black uppercase tracking-widest ${admin.role === 'super_admin' ? 'text-yellow-500' : 'text-cyan-400'}">${admin.role.replace('_', ' ')}</div>
+            </div>
+            <button onclick="ahRemoveAdmin('${admin.email}')" class="text-red-500/20 group-hover:text-red-500 transition p-2"><i class="fas fa-user-minus"></i></button>
+        </div>
+    `).join('');
+}
+
+window.ahAddNewAdmin = function(e) {
+    e.preventDefault();
+    const name = document.getElementById('aht-new-name').value;
+    const email = document.getElementById('aht-new-id').value;
+    const pass = document.getElementById('aht-new-pass').value;
+    const role = document.getElementById('aht-new-role').value;
+    const status = document.getElementById('aht-add-status');
+
+    if (typeof window.addNewAdmin === 'function') {
+        const res = window.addNewAdmin(email, pass, name, role);
+        if (res.success) {
+            status.innerHTML = '<span class="text-green-400">✅ Authorized successfully</span>';
+            e.target.reset();
+            ahToolsLoadUsers();
+            setTimeout(() => status.innerHTML = '', 3000);
+        } else {
+            status.innerHTML = `<span class="text-red-400">❌ ${res.error}</span>`;
+        }
+    }
+};
+
+window.ahRemoveAdmin = function(email) {
+    if (!confirm(`Revoke all privileges for ${email}?`)) return;
+    if (typeof window.removeAdmin === 'function') {
+        const res = window.removeAdmin(email);
+        if (res.success) ahToolsLoadUsers();
+        else alert(res.error);
+    }
+};
 
 window.ahDeleteSession = async function(coll, id) {
     if (!confirm("Are you sure you want to delete this record?")) return;
