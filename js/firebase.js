@@ -214,6 +214,36 @@ window.deleteAgentReportFromFirebase = async function(id) {
     await set(ref(database, 'agent_reports/' + id), null);
 };
 
+// ========== STATUS REPORTS (Super Admin Dispositions) ==========
+window.saveStatusReportToFirebase = async function(reportObj) {
+    if (!database) return { success: false, error: 'Database not initialized' };
+    try {
+        const newRef = push(ref(database, 'status_reports'));
+        reportObj.id = newRef.key;
+        await set(newRef, reportObj);
+        return { success: true, id: reportObj.id };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+};
+
+window.listenForStatusReports = function(callback) {
+    if (!database) return;
+    onValue(ref(database, 'status_reports'), (snapshot) => {
+        let sorted = [];
+        snapshot.forEach((child) => {
+            sorted.push(child.val());
+        });
+        sorted.sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+        if (callback) callback(sorted);
+    });
+};
+
+window.deleteStatusReportFromFirebase = async function(id) {
+    if (!database) return;
+    await set(ref(database, 'status_reports/' + id), null);
+};
+
 // ========== LIVE DASHBOARD & ZERO TRACKER ==========
 window.listenForLiveDashboardState = function(callback) {
     if (!database) return;

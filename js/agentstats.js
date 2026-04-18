@@ -3,15 +3,23 @@
  */
 
 let allReports = [];
+let allStatusReports = [];
 let currentReportData = null;
 let asSortCol = 'transfers';
 let asSortAsc = false;
 
 // Initialization function called from index.html (or tab load)
 window.renderAgentStatsHistory = function() {
+    if (typeof window.listenForStatusReports === 'function') {
+        window.listenForStatusReports(data => {
+            allStatusReports = data || [];
+            if(currentReportData) renderActiveReportTable();
+        });
+    }
+
     if (typeof window.listenForAgentReports === 'function') {
         window.listenForAgentReports(data => {
-            allReports = data;
+            allReports = data || [];
             
             // Clean up expired ones
             const now = new Date();
@@ -107,7 +115,8 @@ function handleFileUpload(file) {
             const parsedData = processCSVRows(results.data);
             
             if (parsedData.length === 0) {
-                updateStatsStatus('❌ No valid agent data found in CSV', true);
+                const headers = results.meta && results.meta.fields ? results.meta.fields.join(' | ') : 'none';
+                updateStatsStatus(`❌ Failed. Cols: ${headers}`, true);
                 return;
             }
             
@@ -149,27 +158,57 @@ function handleFileUpload(file) {
 }
 
 function processCSVRows(rows) {
+    if(!rows || rows.length === 0) return [];
+    
+    // Auto-detect columns from the first row Keys
+    const keys = Object.keys(rows[0]);
+    let agentColName = null;
+    let durationColName = null;
+    
+    keys.forEach(k => {
+        const lowerK = k.toLowerCase().trim();
+        if(!agentColName && (lowerK.includes('agent') || lowerK.includes('user') || lowerK.includes('name'))) {
+            agentColName = k;
+        }
+        if(!durationColName && (lowerK.includes('duration') || lowerK.includes('time') || lowerK.includes('length'))) {
+            durationColName = k;
+        }
+    });
+
+    // Fallback if fuzzy matching fails to find one
+    if(!agentColName) agentColName = keys[0] || 'Agent Name';
+    if(!durationColName) durationColName = 'Duration';
+
     const agentsMap = {};
     
     rows.forEach(row => {
-        // Handle various potential header names for Agent Name
-        const name = row['Agent Name'] || row['Agent Nan'] || row['Agent Name '] || row['Agent Id'] || 'Unknown';
-        if (name === 'Unknown' || name === '') return;
+        const name = row[agentColName] || 'Unknown';
+        if (name === 'Unknown' || String(name).trim() === '') return;
         
         let duration = 0;
-        if(row['Duration']) {
-            duration = parseInt(row['Duration'], 10) || 0;
+        if(row[durationColName]) {
+            const durRaw = String(row[durationColName]).trim();
+            // Handle hh:mm:ss format vs straight integers
+            if(durRaw.includes(':')) {
+                const parts = durRaw.split(':').map(Number);
+                if(parts.length === 2) duration = parts[0]*60 + parts[1]; // mm:ss
+                else if(parts.length === 3) duration = parts[0]*3600 + parts[1]*60 + parts[2]; // hh:mm:ss
+            } else {
+                duration = parseInt(durRaw, 10) || 0;
+            }
         }
         
-        if (!agentsMap[name]) {
-            agentsMap[name] = { name: name, connections: 0, transfers: 0 };
+        const cleanName = String(name).toUpperCase().trim();
+        
+        if (!agentsMap[cleanName]) {
+            agentsMap[cleanName] = { name: cleanName, connections: 0, transfers: 0 };
         }
         
-        agentsMap[name].connections++;
+        agentsMap[cleanName].connections++;
         
         // RULE: >= 120 seconds counts as a transfer
         if (duration >= 120) {
-            agentsMap[name].transfers++;
+            agentsMap[cleanName].transfers++;
         }
     });
     
@@ -247,18 +286,23 @@ window.viewReport = function(id) {
     // Wire up delete button
     const delBtn = document.getElementById('as-delete-btn');
     if (delBtn) {
-        delBtn.classList.remove('hidden');
-        delBtn.onclick = () => {
-            if(confirm('Permanently delete this report globally?')) {
-                if (typeof window.deleteAgentReportFromFirebase === 'function') {
-                    window.deleteAgentReportFromFirebase(id);
-                    currentReportData = null;
-                    if (typeof window.writeAdminActivityLog === 'function') {
-                        window.writeAdminActivityLog('delete_stats', `Deleted Agent Report: ${report.reportDate}`);
+        const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        if (cAdmin.role === 'super_admin' || cAdmin.isSuper) {
+            delBtn.classList.remove('hidden');
+            delBtn.onclick = () => {
+                if(confirm('Permanently delete this report globally?')) {
+                    if (typeof window.deleteAgentReportFromFirebase === 'function') {
+                        window.deleteAgentReportFromFirebase(id);
+                        currentReportData = null;
+                        if (typeof window.writeAdminActivityLog === 'function') {
+                            window.writeAdminActivityLog('delete_stats', `Deleted Agent Report: ${report.reportDate}`);
+                        }
                     }
                 }
-            }
-        };
+            };
+        } else {
+            delBtn.classList.add('hidden');
+        }
     }
     
     // Wire up Push Button
@@ -308,7 +352,31 @@ window.sortAgentStats = function(col) {
 function renderActiveReportTable() {
     if (!currentReportData) return;
     
-    let displayData = [...currentReportData.data];
+    // Find matching status report explicitly
+    const matchingStatusReport = allStatusReports.find(s => s.reportDate === currentReportData.reportDate);
+    
+    let displayData = currentReportData.data.map(d => {
+        let ci = 0, dnc = 0, ni = 0;
+        if(matchingStatusReport && matchingStatusReport.data) {
+            const statMatch = matchingStatusReport.data.find(sd => sd.name === d.name);
+            if(statMatch) {
+                ci = statMatch.CI || 0;
+                dnc = statMatch.DNC || 0;
+                ni = statMatch.NI || 0;
+            }
+        }
+        
+        let convRate = 0;
+        if (d.connections > 0) convRate = (d.transfers / d.connections) * 100;
+        
+        return {
+            ...d,
+            ci: ci,
+            dnc: dnc,
+            ni: ni,
+            rate: parseFloat(convRate.toFixed(1))
+        };
+    });
     
     // Global Stats Setup
     let totalAgents = displayData.length;
@@ -336,6 +404,9 @@ function renderActiveReportTable() {
         let valA = a[asSortCol];
         let valB = b[asSortCol];
         
+        if (valA === undefined) valA = 0;
+        if (valB === undefined) valB = 0;
+        
         if (typeof valA === 'string') valA = valA.toLowerCase();
         if (typeof valB === 'string') valB = valB.toLowerCase();
         
@@ -349,17 +420,20 @@ function renderActiveReportTable() {
     if (!tbody) return;
     
     if (displayData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-500 text-xs italic">No matching agents found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500 text-xs italic">No matching agents found.</td></tr>`;
         return;
     }
     
     tbody.innerHTML = displayData.map(d => {
         return `
-            <tr class="border-b border-white/5 hover:bg-white/5 transition group">
-                <td class="p-4 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.name}</td>
-                <td class="p-4 text-center text-slate-300">${d.connections}</td>
-                <td class="p-4 text-center text-cyan-400 font-bold">${d.transfers}</td>
-                <td class="p-4 text-center text-slate-300">${d.rate}%</td>
+            <tr class="border-b border-white/5 hover:bg-white/5 transition group text-xs">
+                <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.name}</td>
+                <td class="p-3 text-center text-slate-300">${d.connections}</td>
+                <td class="p-3 text-center text-blue-400 font-bold">${d.ci}</td>
+                <td class="p-3 text-center text-cyan-400 font-bold">${d.transfers}</td>
+                <td class="p-3 text-center text-red-400">${d.dnc}</td>
+                <td class="p-3 text-center text-yellow-400">${d.ni}</td>
+                <td class="p-3 text-center text-green-400 font-bold">${d.rate}%</td>
             </tr>
         `;
     }).join('');

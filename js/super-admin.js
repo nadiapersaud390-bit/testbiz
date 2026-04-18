@@ -227,6 +227,24 @@ function changeOwnPassword(email, oldPassword, newPassword) {
     return { success: false, error: 'Current password is incorrect' };
 }
 
+function superResetAdminPassword(email, newPassword) {
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    if (currentAdmin.role !== 'super_admin' && !currentAdmin.isSuper) {
+        return { success: false, error: 'Only super admin can reset passwords' };
+    }
+    
+    const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
+    if (!admins[email]) {
+        return { success: false, error: 'Admin not found' };
+    }
+    
+    admins[email].password = btoa(newPassword);
+    localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+    if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
+    window.writeAdminActivityLog('user_management', `Super Admin reset password for: ${email}`);
+    return { success: true, message: 'Password reset successfully' };
+}
+
 function isLoggedIn() {
     return sessionStorage.getItem('adminLoggedIn') === 'true';
 }

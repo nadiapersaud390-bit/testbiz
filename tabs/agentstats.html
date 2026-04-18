@@ -100,11 +100,14 @@
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
-                        <tr class="bg-white/5 border-b border-white/10 text-[9px] uppercase tracking-widest font-black text-slate-400">
-                            <th class="p-4 cursor-pointer hover:text-white transition" onclick="sortAgentStats('name')">Agent Name <i class="fas fa-sort ml-1"></i></th>
-                            <th class="p-4 cursor-pointer hover:text-white transition text-center" onclick="sortAgentStats('connections')">Calls <i class="fas fa-sort ml-1"></i></th>
-                            <th class="p-4 cursor-pointer hover:text-cyan-400 transition text-center" onclick="sortAgentStats('transfers')">Transfers <i class="fas fa-sort ml-1"></i></th>
-                            <th class="p-4 cursor-pointer hover:text-white transition text-center" onclick="sortAgentStats('rate')">Xfer Rate <i class="fas fa-sort ml-1"></i></th>
+                        <tr class="bg-white/5 border-b border-white/10 text-[8px] uppercase tracking-widest font-black text-slate-400">
+                            <th class="p-3 cursor-pointer hover:text-white transition" onclick="sortAgentStats('name')">Agent Name <i class="fas fa-sort ml-1 opacity-50"></i></th>
+                            <th class="p-3 cursor-pointer hover:text-white transition text-center" onclick="sortAgentStats('connections')">Calls <i class="fas fa-sort ml-1 opacity-50"></i></th>
+                            <th class="p-3 cursor-pointer hover:text-blue-400 transition text-center" onclick="sortAgentStats('ci')" title="Completed Interviews">CI <i class="fas fa-sort ml-1 opacity-50"></i></th>
+                            <th class="p-3 cursor-pointer hover:text-cyan-400 transition text-center" onclick="sortAgentStats('transfers')">Transfers <i class="fas fa-sort ml-1 opacity-50"></i></th>
+                            <th class="p-3 cursor-pointer hover:text-red-400 transition text-center" onclick="sortAgentStats('dnc')" title="Do Not Call">DNC <i class="fas fa-sort ml-1 opacity-50"></i></th>
+                            <th class="p-3 cursor-pointer hover:text-yellow-400 transition text-center" onclick="sortAgentStats('ni')" title="Not Interested">NI <i class="fas fa-sort ml-1 opacity-50"></i></th>
+                            <th class="p-3 cursor-pointer hover:text-green-400 transition text-center" onclick="sortAgentStats('rate')">Conv % <i class="fas fa-sort ml-1 opacity-50"></i></th>
                         </tr>
                     </thead>
                     <tbody id="as-table-body" class="text-sm">

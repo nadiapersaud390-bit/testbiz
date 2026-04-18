@@ -43,8 +43,9 @@
     
     <!-- Master Roster Editor (Hidden by default) -->
     <div id="ap-master-roster-panel" class="hidden bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-        <h3 class="text-lg font-bold text-purple-400 mb-4 flex items-center gap-2">
-            <i class="fas fa-users-cog"></i> Master Agent Roster
+        <h3 class="text-lg font-bold text-purple-400 mb-4 flex items-center justify-between">
+            <span class="flex items-center gap-2"><i class="fas fa-users-cog"></i> Master Agent Roster</span>
+            <button onclick="apSyncRosterFromSheets()" class="text-xs bg-white/5 px-3 py-1 rounded-xl text-white font-bold hover:bg-white/10 border border-white/10 transition"><i class="fas fa-cloud-download-alt mr-1 text-blue-400"></i> Sync from Google Sheets</button>
         </h3>
         <p class="text-xs text-slate-400 mb-4">Add every active employee here. The Zero Tracker uses this list to see who is missing from the Live Dashboard.</p>
         
@@ -181,6 +182,45 @@
             }
         }
         inp.value = '';
+    }
+
+    async function apSyncRosterFromSheets() {
+        const list = document.getElementById('ap-roster-list');
+        if(!list) return;
+        
+        list.innerHTML = `<div class="text-[10px] text-center text-slate-500 p-2"><i class="fas fa-spinner fa-spin mr-2"></i> Connecting to Google System...</div>`;
+        
+        try {
+            if (typeof API_URL === 'undefined') throw new Error('API_URL config missing');
+            const res = await fetch(API_URL);
+            const data = await res.json();
+            
+            // Extract agent names from sheets
+            let newNames = [];
+            data.forEach(a => {
+                if (a.name && typeof a.name === 'string') {
+                    const n = a.name.trim().toUpperCase();
+                    if (n !== '' && !newNames.includes(n)) newNames.push(n);
+                }
+            });
+            
+            if (newNames.length === 0) throw new Error('No agents parsed');
+            
+            if (typeof window.saveMasterRoster === 'function') {
+                await window.saveMasterRoster(newNames);
+            }
+            if (typeof window.writeAdminActivityLog === 'function') {
+                window.writeAdminActivityLog('roster', `Synced ${newNames.length} agents from Google Sheets`);
+            }
+            
+            masterRoster = newNames;
+            apRenderRoster();
+            
+        } catch(e) {
+            console.error(e);
+            list.innerHTML = `<div class="text-[10px] text-center text-red-500 p-2 border border-red-500/20 bg-red-500/10 rounded">❌ Sync failed limits/network</div>`;
+            setTimeout(apRenderRoster, 3000);
+        }
     }
 
     async function apRemoveRosterAgent(idx) {
