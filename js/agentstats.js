@@ -108,7 +108,26 @@ function handleFileUpload(file) {
     const dateMatch = file.name.match(/(\d{4}[-_]\d{2}[-_]\d{2}|\d{2}[-_]\d{2}[-_]\d{4})/);
     if(dateMatch) fileDateStr = dateMatch[1];
     
-    Papa.parse(file, {
+    // Pre-process file to strip dialer metadata (e.g. "Xfer report:")
+    const text = await file.text();
+    let lines = text.split('\n');
+    let headerIdx = -1;
+    for(let i=0; i<lines.length; i++) {
+        const lower = lines[i].toLowerCase();
+        // Look for the actual header row
+        if(lower.includes('agent id') || lower.includes('agent name')) {
+            headerIdx = i; break;
+        }
+    }
+    
+    if(headerIdx === -1) {
+        updateStatsStatus('❌ CSV Missing "Agent Name" or "Agent Id" Header', true);
+        return;
+    }
+    
+    const validCSV = lines.slice(headerIdx).join('\n');
+    
+    Papa.parse(validCSV, {
         header: true,
         skipEmptyLines: true,
         complete: async function(results) {

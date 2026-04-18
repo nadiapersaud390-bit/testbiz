@@ -43,21 +43,37 @@ function updateDashboard() {
                 agents[0].rmTotal = rm;
             }
             
-            // No dayHistory provided by CSV pipeline currently
-            dayHistory = [];
-            currentDayView = 'today';
-            
             checkLeadAlerts(agents);
-            render();
+            if (currentDayView === 'today') render();
             renderDaySubTabs();
             
             const ts = document.getElementById('timestamp');
             if (ts) ts.innerText = 'Globally Synced: ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         });
+        
+        // Auto-Link Historical CSV Reports to the Daily Tabs!
+        if (typeof window.listenForAgentReports === 'function') {
+            window.listenForAgentReports(data => {
+                if(!data) return;
+                const top5 = data.slice(0, 5); // Keep the sub-tabs clean (max 5)
+                dayHistory = top5.map(r => ({
+                    day: r.id,
+                    dayName: r.reportDate,
+                    agents: r.data.map(d => ({
+                        name: d.name,
+                        leads: d.transfers,
+                        team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.name) : 'PR'
+                    }))
+                }));
+                renderDaySubTabs();
+                if(currentDayView !== 'today') render(); // re-render if viewing a history tab
+            });
+        }
+        
         isDashboardSubscribed = true;
     } else if (isDashboardSubscribed) {
         // Just re-render if pushed manually
-        render();
+        if(typeof render === 'function') render();
     }
 }
 
@@ -109,23 +125,25 @@ function render() {
     const banner = document.getElementById('history-banner');
     if (isHistory) {
         const snap = dayHistory.find(d => d.day === currentDayView);
-        document.getElementById('history-banner-text').innerText = 'Viewing ' + (snap ? snap.dayName : DAY_FULL[currentDayView]) + ' — Final Results';
-        banner.classList.remove('hidden');
+        document.getElementById('goal-label').innerText = (snap ? snap.dayName : 'Historical') + ' Final';
+        document.getElementById('day-indicator').innerText = (snap ? snap.dayName : 'Past') + ' — Completed';
+        if (banner) {
+            document.getElementById('history-banner-text').innerText = 'Viewing Historical Record';
+            banner.classList.remove('hidden');
+        }
     } else {
-        banner.classList.add('hidden');
+        if(banner) banner.classList.add('hidden');
+        document.getElementById('goal-label').innerText = isWeekly ? 'Weekly Team Goal' : todayName + ' Daily Goal';
+        document.getElementById('day-indicator').innerText = isWeekly ? 'Weekly Sprint' : todayName + ' Performance';
     }
 
     const isAdmin = sessionStorage.getItem('bizUserRole') === 'admin';
     const targetDisplay = document.getElementById('target-display');
 
-    document.getElementById('goal-label').innerText = isWeekly ? 'Weekly Team Goal' : isHistory ? DAY_FULL[currentDayView] + ' Final' : todayName + ' Daily Goal';
-
     if (targetDisplay) {
         targetDisplay.innerText = isAdmin ? 'Target: ' + target : '';
         targetDisplay.style.display = isAdmin ? '' : 'none';
     }
-
-    document.getElementById('day-indicator').innerText = isWeekly ? 'Weekly Sprint' : isHistory ? DAY_SHORT[currentDayView] + ' — Completed' : todayName + ' Performance';
 
     // 3. Process Data
     let fullList = [];
@@ -246,7 +264,7 @@ function renderDaySubTabs() {
     let html = `<button onclick="switchDayView('today')" class="day-sub-tab is-today ${currentDayView === 'today' ? 'active' : ''}">Today</button>`;
 
     dayHistory.forEach(d => {
-        html += `<button onclick="switchDayView(${d.day})" class="day-sub-tab is-history ${currentDayView === d.day ? 'active' : ''}">${DAY_SHORT[d.day]}<span class="history-dot"></span></button>`;
+        html += `<button onclick="switchDayView('${d.day}')" class="day-sub-tab is-history ${currentDayView === d.day ? 'active' : ''}">${d.dayName}<span class="history-dot"></span></button>`;
     });
 
     container.innerHTML = html;
