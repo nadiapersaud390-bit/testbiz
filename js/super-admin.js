@@ -32,8 +32,8 @@ window.writeAdminActivityLog = function(action, details, specificAdmin = null) {
 // DEFAULT SUPER ADMIN - CHANGE THESE VALUES!
 // ============================================
 const DEFAULT_SUPER_ADMIN = {
-    email: "0000",
-    password: "admin",              // 👈 Updated to match user guidelines
+    email: "rose",
+    password: "PopoDarling",              // 👈 Updated to match user guidelines
     name: "Master Super Admin",         // 👈 CHANGE THIS to your name
     role: "super_admin"
 };
@@ -41,7 +41,8 @@ const DEFAULT_SUPER_ADMIN = {
 // Auto-create default super admin if none exists
 function initializeDefaultSuperAdmin() {
     const existingSuper = localStorage.getItem(SUPER_ADMIN_KEY);
-    if (!existingSuper) {
+    const parsedSuper = existingSuper ? JSON.parse(existingSuper) : null;
+    if (!existingSuper || parsedSuper.email === "0000") {
         console.log('📌 Creating default super admin...');
         const superAdmin = {
             email: DEFAULT_SUPER_ADMIN.email,
@@ -107,7 +108,7 @@ function superAdminLogin(email, password) {
     const superAdmin = localStorage.getItem(SUPER_ADMIN_KEY);
     if (superAdmin) {
         const admin = JSON.parse(superAdmin);
-        const isMatch = (admin.email === email || (email === 'ROSE' && admin.role === 'super_admin'));
+        const isMatch = (admin.email === email || (String(email).toUpperCase() === 'ROSE' && admin.role === 'super_admin'));
         if (isMatch && atob(admin.password) === password) {
             sessionStorage.setItem('currentAdmin', JSON.stringify({
                 email: admin.email,

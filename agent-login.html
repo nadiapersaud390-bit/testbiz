@@ -372,7 +372,7 @@
     if (isPotentialAdmin) {
       btn.dataset.mode = 'admin';
       adminPasswordWrap.style.display = 'block';
-      btn.dataset.adminId = loginIdLower; // Store lowercase to match admins_list keys
+      btn.dataset.adminId = loginId; // Store original to preserve ROSE, superAdminLogin handles lowercase for regular admins
       btn.textContent = 'Admin Log In →';
       adminPasswordInput.focus();
       return;
