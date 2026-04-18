@@ -135,9 +135,10 @@ function render() {
     const adView = document.getElementById('adminpanel-view');
     const sadView = document.getElementById('superadminpanel-view');
     const asView = document.getElementById('agentstats-view');
+    const trackerView = document.getElementById('tracker-view');
 
     // Hide all views first
-    [lView, pView, luView, prView, rbView, trView, adView, sadView, asView].forEach(v => { if (v) v.classList.add('hidden'); });
+    [lView, pView, luView, prView, rbView, trView, adView, sadView, asView, trackerView].forEach(v => { if (v) v.classList.add('hidden'); });
 
     // Handle non-leaderboard tabs
     if (currentTab === 'playbook') { pView.classList.remove('hidden'); return; }
@@ -148,6 +149,7 @@ function render() {
     if (currentTab === 'adminpanel') { if (adView) adView.classList.remove('hidden'); return; }
     if (currentTab === 'superadminpanel') { if (sadView) sadView.classList.remove('hidden'); return; }
     if (currentTab === 'agentstats') { if (asView) asView.classList.remove('hidden'); return; }
+    if (currentTab === 'tracker') { if (trackerView) trackerView.classList.remove('hidden'); return; }
 
     lView.classList.remove('hidden');
 
@@ -342,10 +344,11 @@ function switchTab(tab) {
     if (tab === 'trivia') initTriviaTab();
     if (tab === 'agentstats' && typeof renderAgentStatsHistory === 'function') renderAgentStatsHistory();
     if (tab === 'adminpanel' && typeof window.ahInitOverview === 'function') window.ahInitOverview();
+    if (tab === 'tracker' && typeof window.initTracker === 'function') window.initTracker();
 }
 
 function updateTabUI() {
-    ['daily', 'lookup', 'playbook', 'rebuttals', 'prank', 'weekly', 'trivia', 'adminpanel', 'superadminpanel', 'agentstats'].forEach(t => {
+    ['daily', 'lookup', 'playbook', 'rebuttals', 'prank', 'weekly', 'trivia', 'adminpanel', 'superadminpanel', 'agentstats', 'tracker'].forEach(t => {
         const b = document.getElementById('tab-' + t);
         if (!b) return;
 
@@ -370,6 +373,9 @@ function updateTabUI() {
             } else if (t === 'trivia') {
                 b.style.color = '#f59e0b';
                 b.style.borderColor = 'rgba(245,158,11,0.3)';
+            } else if (t === 'tracker') {
+                b.style.color = '#818cf8';
+                b.style.borderColor = 'rgba(129,140,248,0.3)';
             }
         }
     });

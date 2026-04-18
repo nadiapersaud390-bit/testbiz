@@ -399,6 +399,38 @@ window.deleteAgentFromFirestore = async function(userId) {
     }
 };
 
+// ========== AGENT LEAD TRACKER ==========
+window.listenForAgentLeads = function(ytelId, callback) {
+    if (!database) return null;
+    const leadsRef = ref(database, 'biz_agent_leads/' + ytelId);
+    const unsubscribe = onValue(leadsRef, (snapshot) => {
+        const data = snapshot.val() || {};
+        if (callback) callback(data);
+    });
+    return unsubscribe; // Allows unmounting listener if needed
+};
+
+window.saveAgentLeadsToFirebase = async function(ytelId, weekId, dataObj) {
+    if (!database) return { success: false, error: 'Database not initialized' };
+    try {
+        await set(ref(database, 'biz_agent_leads/' + ytelId + '/' + weekId), dataObj);
+        return { success: true };
+    } catch(e) {
+        console.error("Error saving lead", e);
+        return { success: false, error: e };
+    }
+};
+
+window.deleteAgentWeekFromFirebase = async function(ytelId, weekId) {
+    if (!database) return { success: false, error: 'Database not initialized' };
+    try {
+        await set(ref(database, 'biz_agent_leads/' + ytelId + '/' + weekId), null);
+        return { success: true };
+    } catch(e) {
+        return { success: false, error: e };
+    }
+};
+
 // ========== AUTHENTICATION FUNCTIONS ==========
 
 // Admin login function

@@ -162,10 +162,12 @@ async function handleFileUpload(file) {
                 const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
                 const adminName = currentAdmin.name || currentAdmin.email || 'Admin';
                 
-                const selectVal = document.getElementById('as-expiry-select').value;
+                const selectEl = document.getElementById('as-expiry-select');
+                const selectVal = selectEl ? selectEl.value : '30';
                 let expiryDays = 30;
                 if (selectVal === 'custom') {
-                    expiryDays = parseInt(document.getElementById('as-expiry-custom').value) || 30;
+                    const customEl = document.getElementById('as-expiry-custom');
+                    expiryDays = customEl ? (parseInt(customEl.value) || 30) : 30;
                 } else {
                     expiryDays = parseInt(selectVal) || 30;
                 }
