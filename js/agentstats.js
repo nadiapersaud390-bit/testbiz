@@ -6,11 +6,20 @@ let allReports = [];
 let currentReportData = null;
 let asSortCol = 'duration';
 let asSortAsc = false;
+let asSubscribed = false; // Flag to prevent multiple listeners
 
 // Initialization function called from index.html (or tab load)
 window.renderAgentStatsHistory = function() {
-    if (typeof window.listenForAgentReports === 'function') {
+    if (asSubscribed) {
+        // Just refresh the existing view if we're already subscribed
+        if (currentReportData) {
+            viewReport(currentReportData.id);
+        } else if (allReports.length > 0) {
+            viewReport(allReports[0].id);
+        }
+    } else if (typeof window.listenForAgentReports === 'function') {
         window.listenForAgentReports(data => {
+            console.log('Agent Stats: Received data update', data?.length);
             allReports = data || [];
             
             // Clean up expired ones
@@ -31,9 +40,18 @@ window.renderAgentStatsHistory = function() {
             
             renderHistoryList();
             
-            // If we don't have a currently viewed report, pick the latest
+            // If we don't have a currently viewed report, pick the latest.
+            // If we DO have one, refresh it to show data in the potentially re-loaded tab HTML.
             if (!currentReportData && allReports.length > 0) {
                 viewReport(allReports[0].id);
+            } else if (currentReportData) {
+                // Check if the current report still exists in the list
+                const stillExists = allReports.find(r => r.id === currentReportData.id);
+                if (stillExists) {
+                    viewReport(stillExists.id);
+                } else if (allReports.length > 0) {
+                    viewReport(allReports[0].id);
+                }
             }
             
             // Overwrite dashboard goals with latest report
@@ -41,6 +59,7 @@ window.renderAgentStatsHistory = function() {
                 syncLatestReportToLeaderboard(allReports[0]);
             }
         });
+        asSubscribed = true;
     }
     
     setupDropZone();

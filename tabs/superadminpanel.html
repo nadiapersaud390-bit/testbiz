@@ -335,7 +335,7 @@
         };
     }
 
-    function superParseStatusCSV(file) {
+    async function superParseStatusCSV(file) {
         const msg = document.getElementById('super-status-msg');
         if(!file.name.endsWith('.csv')) {
             msg.innerHTML = '<span class="text-red-400">❌ CSV files only!</span>';

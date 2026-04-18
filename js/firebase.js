@@ -4,6 +4,7 @@
 // Import Firebase modules
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, onValue, set, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getFirestore, doc, setDoc, getDocs, collection, query, orderBy, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // Your Firebase configuration (replace with your actual config)
@@ -21,13 +22,15 @@ const firebaseConfig = {
 // Initialize Firebase
 let app;
 let database;
+let firestore;
 let auth;
 
 try {
     app = initializeApp(firebaseConfig);
     database = getDatabase(app);
+    firestore = getFirestore(app);
     auth = getAuth(app);
-    console.log("Firebase initialized successfully");
+    console.log("Firebase & Firestore initialized successfully");
 } catch (error) {
     console.error("Firebase initialization error:", error);
 }
@@ -267,6 +270,103 @@ window.listenForMasterRoster = function(callback) {
 window.saveMasterRoster = async function(rosterArray) {
     if (!database) return;
     await set(ref(database, 'biz_master_roster'), rosterArray);
+};
+
+// ========== AGENT PROFILES (FIRESTORE) ==========
+window.saveAgentProfileToFirestore = async function(agentData) {
+    if (!firestore) return { success: false, error: 'Firestore not initialized' };
+    try {
+        const agentId = String(agentData.userId);
+        const agentRef = doc(firestore, 'agent_profiles', agentId);
+        await setDoc(agentRef, {
+            ...agentData,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+        return { success: true };
+    } catch (e) {
+        console.error("Firestore Error:", e);
+        return { success: false, error: e };
+    }
+};
+
+// ── AGENT COACHING SESSIONS ──
+window.saveCoachingSession = async (sessionData) => {
+    try {
+        const id = sessionData.id || `coach_${Date.now()}`;
+        await window.db_fs.collection("coaching_sessions").doc(id).set({
+            ...sessionData,
+            timestamp: new Date().toISOString()
+        }, { merge: true });
+        return { success: true, id };
+    } catch (e) {
+        console.error("Coaching Save Error:", e);
+        return { success: false, error: e };
+    }
+};
+
+window.listenToCoaching = (callback) => {
+    return window.db_fs.collection("coaching_sessions")
+        .orderBy("timestamp", "desc")
+        .limit(100)
+        .onSnapshot(snap => {
+            const sessions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            callback(sessions);
+        });
+};
+
+// ── LIVE MONITORING SESSIONS ──
+window.saveMonitoringSession = async (sessionData) => {
+    try {
+        const id = sessionData.id || `mon_${Date.now()}`;
+        await window.db_fs.collection("monitoring_sessions").doc(id).set({
+            ...sessionData,
+            timestamp: new Date().toISOString()
+        }, { merge: true });
+        return { success: true, id };
+    } catch (e) {
+        console.error("Monitoring Save Error:", e);
+        return { success: false, error: e };
+    }
+};
+
+window.listenToMonitoring = (callback) => {
+    return window.db_fs.collection("monitoring_sessions")
+        .orderBy("timestamp", "desc")
+        .limit(100)
+        .onSnapshot(snap => {
+            const sessions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            callback(sessions);
+        });
+};
+
+window.deleteSession = async (collection, id) => {
+    try {
+        await window.db_fs.collection(collection).doc(id).delete();
+        return { success: true };
+    } catch (e) {
+        console.error("Delete Session Error:", e);
+        return { success: false, error: e };
+    }
+};
+
+window.listenToAgentProfiles = function(callback) {
+    if (!firestore) return;
+    const q = query(collection(firestore, 'agent_profiles'), orderBy('fullName', 'asc'));
+    return onSnapshot(q, (snapshot) => {
+        const profiles = [];
+        snapshot.forEach(doc => profiles.push({ id: doc.id, ...doc.data() }));
+        callback(profiles);
+    });
+};
+
+window.deleteAgentFromFirestore = async function(userId) {
+    if (!firestore) return;
+    try {
+        await deleteDoc(doc(firestore, 'agent_profiles', String(userId)));
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
 };
 
 // ========== AUTHENTICATION FUNCTIONS ==========

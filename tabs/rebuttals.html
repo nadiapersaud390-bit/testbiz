@@ -741,6 +741,12 @@
         }
 
         activePanel = index;
+
+        // NEW: Log click for Admin Intel
+        if (typeof window.logRebuttalUsage === 'function') {
+            const btn = document.getElementById('rb-btn-' + index);
+            if (btn) window.logRebuttalUsage(index, btn.textContent);
+        }
     }
 
     function filterRebuttalSearch(searchTerm) {
