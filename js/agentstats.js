@@ -113,11 +113,18 @@ async function handleFileUpload(file) {
     
     updateStatsStatus('<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing CSV...', false);
     
-    // Auto date extraction from filename
-    // e.g. "Xfer_Report_2023-10-25.csv" -> 2023-10-25
-    let fileDateStr = new Date().toLocaleDateString();
-    const dateMatch = file.name.match(/(\d{4}[-_]\d{2}[-_]\d{2}|\d{2}[-_]\d{2}[-_]\d{4})/);
-    if(dateMatch) fileDateStr = dateMatch[1];
+    // Auto date extraction from filename (MM_DD_YYYY or YYYY-MM-DD)
+    let fileDateStr = null;
+    const _mdyM = file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})/);
+    const _ymdM = file.name.match(/(\d{4})[-_](\d{2})[-_](\d{2})/);
+    if (_mdyM) {
+        const _d = new Date(_mdyM[3] + '-' + _mdyM[1] + '-' + _mdyM[2]);
+        if (!isNaN(_d)) fileDateStr = typeof getFormattedDate === 'function' ? getFormattedDate(_d) : _d.toLocaleDateString();
+    } else if (_ymdM) {
+        const _d = new Date(_ymdM[1] + '-' + _ymdM[2] + '-' + _ymdM[3]);
+        if (!isNaN(_d)) fileDateStr = typeof getFormattedDate === 'function' ? getFormattedDate(_d) : _d.toLocaleDateString();
+    }
+    if (!fileDateStr) fileDateStr = file.name.replace(/\.csv$/i, '');
     
     // Pre-process file to strip dialer metadata (e.g. "Xfer report:")
     const text = await file.text();
@@ -253,21 +260,24 @@ function renderHistoryList() {
     
     listHtml.innerHTML = sorted.map((r, i) => {
         const isLatest = i === 0;
-        const uploadDate = new Date(r.uploadedAt).toLocaleDateString();
+        // Show file date (reportDate extracted from filename) as primary label
+        const fileDate = r.reportDate || r.filename || 'Unknown Date';
+        // Upload date shown as secondary info
+        const uploadDate = new Date(r.uploadedAt).toLocaleDateString('en-GB');
         const isActive = currentReportData && currentReportData.id === r.id;
         
         return `
-            <div onclick="viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl flex justify-between items-center ${isActive ? 'active' : ''}">
+            <div onclick="window.viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl flex justify-between items-center cursor-pointer ${isActive ? 'active' : ''}" style="cursor:pointer;">
                 <div>
                     <div class="text-xs font-bold text-white flex items-center gap-2">
-                        <i class="far fa-file-alt text-cyan-500"></i> ${r.reportDate}
+                        <i class="far fa-file-alt text-cyan-500"></i> ${fileDate}
                         ${isLatest ? '<span class="bg-cyan-500/20 text-cyan-400 text-[8px] px-1.5 py-0.5 rounded font-black tracking-widest uppercase">Latest</span>' : ''}
                     </div>
-                    <div class="text-[9px] text-slate-500 mt-0.5 ml-5 truncate w-32" title="${r.filename}">${r.filename}</div>
+                    <div class="text-[9px] text-slate-500 mt-0.5 ml-5 truncate w-32" title="${r.filename}">${r.filename || ''}</div>
                 </div>
                 <div class="text-[9px] text-slate-400 text-right">
-                    <div><i class="far fa-user"></i> ${r.author}</div>
-                    <div class="mt-0.5">${uploadDate}</div>
+                    <div><i class="far fa-user"></i> ${r.author || 'Admin'}</div>
+                    <div class="mt-0.5 text-slate-600">Uploaded: ${uploadDate}</div>
                 </div>
             </div>
         `;
@@ -422,10 +432,10 @@ function renderActiveReportTable() {
 
         return `
             <tr class="border-b border-white/5 hover:bg-white/5 transition group text-xs">
-                <td class="p-3 text-slate-400">${d.agentId}</td>
+                <td class="p-3 text-slate-400 font-mono">${d.agentId || '—'}</td>
                 <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.agentName}</td>
                 <td class="p-3 text-center ${statusColor}">${d.status}</td>
-                <td class="p-3 text-center ${durColor}">${d.duration}</td>
+                <td class="p-3 text-right ${durColor}">${d.duration}</td>
             </tr>
         `;
     }).join('');
