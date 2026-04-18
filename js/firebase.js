@@ -8,13 +8,14 @@ import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from
 
 // Your Firebase configuration (replace with your actual config)
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT.firebaseio.com",
-    projectId: "YOUR_PROJECT",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyA5u7B8UJQOFG8yhE0YKWCiWCHQgaNu1mY",
+  authDomain: "biz-dashboard-4396c.firebaseapp.com",
+  databaseURL: "https://biz-dashboard-4396c-default-rtdb.firebaseio.com",
+  projectId: "biz-dashboard-4396c",
+  storageBucket: "biz-dashboard-4396c.firebasestorage.app",
+  messagingSenderId: "394155720592",
+  appId: "1:394155720592:web:b85a142cf8c885726b3d15",
+  measurementId: "G-VMMZWCMLBR"
 };
 
 // Initialize Firebase
@@ -115,54 +116,75 @@ async function sendBroadcastMessage(message, adminId) {
 
 // ========== ACTIVITY LOGGING ==========
 
-// Function to log admin activity (prevents 405 errors)
-async function logAdminActivity(action, details) {
-    // Check if user is admin
-    const userRole = sessionStorage.getItem('bizUserRole');
-    if (userRole !== 'admin') return;
+// Function to push admin activity to Firebase directly
+window.writeAdminActivityLog = async function(action, details, specificAdmin = null) {
+    if (!database) return;
     
-    // Try to send to API, but don't error if it fails
+    let admin = specificAdmin || JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    if (!admin || (!admin.email && !admin.name)) return;
+    
     try {
-        const response = await fetch('/api/activity', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                adminId: sessionStorage.getItem('bizAdminId') || '',
-                adminName: sessionStorage.getItem('bizAdminName') || '',
-                action: action,
-                details: details,
-                page: window.location.pathname,
-                timestamp: new Date().toISOString()
-            })
-        });
-        
-        if (!response.ok) {
-            // Silently fail - API might not exist
-            console.debug("Activity log API not available, storing locally");
-            storeActivityLocally(action, details);
-        }
-    } catch (error) {
-        // Store locally instead
-        console.debug("Activity log API not available, storing locally");
-        storeActivityLocally(action, details);
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            email: admin.email || 'unknown',
+            name: admin.name || admin.email || 'unknown',
+            role: admin.role || 'unknown',
+            action: action,
+            details: details
+        };
+        await push(ref(database, 'activity_logs'), logEntry);
+    } catch(e) {
+        console.error("Activity logging failed", e);
     }
-}
+};
 
-// Store activity in localStorage as fallback
-function storeActivityLocally(action, details) {
-    const activities = JSON.parse(localStorage.getItem('biz_activity_log') || '[]');
-    activities.unshift({
-        action: action,
-        details: details,
-        adminId: sessionStorage.getItem('bizAdminId') || '',
-        adminName: sessionStorage.getItem('bizAdminName') || '',
-        timestamp: new Date().toISOString()
+window.listenForActivityLogs = function(callback) {
+    if (!database) return;
+    onValue(ref(database, 'activity_logs'), (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            const logsArray = Object.keys(data).map(k => ({id: k, ...data[k]}));
+            logsArray.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+            callback(logsArray);
+        } else {
+            callback([]);
+        }
     });
-    
-    // Keep only last 100 activities
-    const trimmed = activities.slice(0, 100);
-    localStorage.setItem('biz_activity_log', JSON.stringify(trimmed));
-}
+};
+
+window.clearFirebaseActivityLogs = async function() {
+    if (!database) return;
+    try {
+        await set(ref(database, 'activity_logs'), null);
+    } catch(e) {}
+};
+
+window.listenForAdmins = function(callback) {
+    if (!database) return;
+    onValue(ref(database, 'admins_list'), (snapshot) => {
+        const data = snapshot.val() || {};
+        localStorage.setItem('biz_admins_list_v1', JSON.stringify(data));
+        if (callback) callback(data);
+    });
+};
+
+window.saveAdminsListToFirebase = async function(adminsObj) {
+    if (!database) return;
+    await set(ref(database, 'admins_list'), adminsObj);
+};
+
+window.listenForSuperAdmin = function() {
+    if (!database) return;
+    onValue(ref(database, 'super_admin'), (snapshot) => {
+        const data = snapshot.val();
+        if (data) localStorage.setItem('biz_super_admin_v1', JSON.stringify(data));
+    });
+};
+
+window.saveSuperAdminToFirebase = async function(superAdminObj) {
+    if (!database) return;
+    await set(ref(database, 'super_admin'), superAdminObj);
+};
 
 // ========== AUTHENTICATION FUNCTIONS ==========
 
@@ -183,7 +205,9 @@ async function adminLogin(email, password) {
         sessionStorage.setItem('bizAdminEmail', user.email);
         sessionStorage.setItem('adminLoggedIn', 'true');
         
-        await logAdminActivity('login', `Admin ${user.email} logged in`);
+        if (typeof window.writeAdminActivityLog === 'function') {
+            await window.writeAdminActivityLog('login', `Admin ${user.email} logged in via Auth`);
+        }
         
         return { success: true, user: user };
     } catch (error) {
@@ -252,6 +276,11 @@ function initFirebaseListeners() {
     listenForBroadcasts();
     listenForLeadAlerts();
     
+    if (typeof window.listenForAdmins === 'function') {
+        window.listenForAdmins(); // auto-sync admins from Firebase on load
+        window.listenForSuperAdmin();
+    }
+    
     // Check for stored broadcast on page load
     const storedBroadcast = localStorage.getItem('biz_broadcast');
     if (storedBroadcast) {
@@ -275,7 +304,7 @@ function initFirebaseListeners() {
 window.showBroadcastBar = showBroadcastBar;
 window.hideBroadcastBar = hideBroadcastBar;
 window.sendBroadcastMessage = sendBroadcastMessage;
-window.logAdminActivity = logAdminActivity;
+window.adminLogin = adminLogin;
 window.adminLogin = adminLogin;
 window.adminLogout = adminLogout;
 window.showLeadAlert = showLeadAlert;

@@ -1,0 +1,223 @@
+<div class="p-4 max-w-4xl mx-auto">
+    <!-- Super Admin Header -->
+    <div class="text-center mb-6">
+        <div class="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/50 rounded-2xl p-4 mb-4">
+            <div class="flex items-center justify-center gap-3 mb-2">
+                <span class="text-4xl">👑</span>
+                <span class="text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent uppercase">Super Admin</span>
+                <span class="text-4xl">👑</span>
+            </div>
+            <p class="text-yellow-400 text-sm font-bold uppercase tracking-wider">Full System Access & Audit Logs</p>
+        </div>
+    </div>
+
+    <!-- Activity Logger Section (NEW) -->
+    <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-cyan-400 flex items-center gap-2">
+                <i class="fas fa-history"></i> 
+                Admin Activity Logs
+            </h3>
+            <button onclick="clearActivityLogs()" class="text-xs bg-red-500/20 border border-red-500/30 text-red-400 px-3 py-1 rounded-lg hover:bg-red-500/30 transition">
+                <i class="fas fa-trash mr-1"></i> Clear Logs
+            </button>
+        </div>
+        <div class="bg-black/30 rounded-xl max-h-80 overflow-y-auto border border-white/5 shadow-inner p-2" id="activity-logs-container">
+            <!-- Logs go here -->
+            <div class="text-center text-slate-500 py-8 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Loading logs...</div>
+        </div>
+    </div>
+
+    <!-- User Management Section -->
+    <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+        <h3 class="text-lg font-bold text-yellow-400 mb-4 flex items-center gap-2">
+            <i class="fas fa-users-cog"></i> 
+            User Management
+        </h3>
+        <div class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Email</label>
+                    <input type="email" id="super-new-admin-email" placeholder="admin@example.com" 
+                           class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm focus:border-yellow-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Name</label>
+                    <input type="text" id="super-new-admin-name" placeholder="Full Name" 
+                           class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm focus:border-yellow-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Temp Password</label>
+                    <input type="password" id="super-new-admin-password" placeholder="••••••••" 
+                           class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm focus:border-yellow-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-400 mb-2">Role</label>
+                    <select id="super-new-admin-role" class="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-white text-sm focus:border-yellow-400">
+                        <option value="admin">Regular Admin</option>
+                        <option value="super_admin">Super Admin</option>
+                    </select>
+                </div>
+            </div>
+            <button onclick="superAddNewAdmin()" 
+                    class="bg-green-500/20 border border-green-500/30 px-4 py-2 rounded-xl text-green-400 text-sm font-bold hover:bg-green-500/30 transition">
+                <i class="fas fa-user-plus mr-2"></i> Add Admin
+            </button>
+            <div id="super-add-admin-status" class="text-xs mt-2"></div>
+        </div>
+    </div>
+
+    <!-- Admin List Section -->
+    <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+        <h3 class="text-lg font-bold text-yellow-400 mb-4 flex items-center gap-2">
+            <i class="fas fa-list"></i> 
+            All Administrators
+        </h3>
+        <div id="super-admins-list" class="space-y-2 max-h-64 overflow-y-auto p-2">
+            <div class="text-center text-slate-400 py-4">Loading admins...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function renderActivityLogs(firebaseLogs) {
+        const container = document.getElementById('activity-logs-container');
+        if (!container) return;
+        try {
+            let logs = firebaseLogs;
+            if (!logs || !Array.isArray(logs)) {
+                logs = JSON.parse(localStorage.getItem('biz_activity_logs_v1') || '[]');
+            }
+            if (logs.length === 0) {
+                container.innerHTML = '<div class="text-center text-slate-500 py-6 text-xs font-bold uppercase tracking-widest">No activity logs found.</div>';
+                return;
+            }
+            container.innerHTML = logs.map(log => {
+                const date = new Date(log.timestamp);
+                const timeStr = date.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+                const dateStr = date.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+                
+                // Color code actions
+                let actionColor = 'text-blue-400';
+                if (log.action.includes('login') && !log.action.includes('failed')) actionColor = 'text-green-400';
+                else if (log.action.includes('fail')) actionColor = 'text-red-400';
+                else if (log.action.includes('logout')) actionColor = 'text-yellow-400';
+                else if (log.action.includes('upload')) actionColor = 'text-purple-400';
+                else if (log.action.includes('tab_click')) actionColor = 'text-slate-400';
+                else if (log.action.includes('user')) actionColor = 'text-cyan-400';
+
+                return `
+                <div class="border-b border-white/5 py-3 px-3 hover:bg-white/5 transition flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-16 text-[9px] uppercase font-bold text-slate-500 tracking-wider flex-shrink-0 text-right">${timeStr} <br> ${dateStr}</div>
+                        <div>
+                            <div class="text-sm font-bold text-white flex items-center gap-2">
+                                ${log.name} 
+                                <span class="bg-white/10 px-2 py-0.5 rounded-full text-[8px] uppercase font-black tracking-widest ${log.role === 'super_admin' ? 'text-yellow-400' : 'text-slate-400'}">${log.role.replace('_', ' ')}</span>
+                            </div>
+                            <div class="text-xs ${actionColor} font-black uppercase tracking-wider mt-1">${log.action.replace('_', ' ')}</div>
+                        </div>
+                    </div>
+                    <div class="text-sm text-slate-300 md:text-right max-w-sm truncate whitespace-normal bg-black/40 px-3 py-2 rounded-xl border border-white/5">${log.details}</div>
+                </div>
+                `;
+            }).join('');
+        } catch(e) {
+            container.innerHTML = '<div class="text-center text-red-500 py-6">Error loading logs</div>';
+        }
+    }
+
+    function clearActivityLogs() {
+        if(confirm('Are you sure you want to clear all activity logs? This action cannot be undone.')) {
+            localStorage.setItem('biz_activity_logs_v1', '[]');
+            if (typeof window.clearFirebaseActivityLogs === 'function') window.clearFirebaseActivityLogs();
+            renderActivityLogs([]);
+            if (typeof window.writeAdminActivityLog === 'function') window.writeAdminActivityLog('clear_logs', 'Cleared all activity logs manually');
+        }
+    }
+
+    function superLoadAdmins() {
+        const adminsRaw = localStorage.getItem('biz_admins_list_v1');
+        const admins = adminsRaw ? JSON.parse(adminsRaw) : {};
+        const container = document.getElementById('super-admins-list');
+        const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        
+        if (Object.keys(admins).length === 0) {
+            container.innerHTML = '<div class="text-center text-slate-400 py-4 font-bold text-sm">No regular admins found</div>';
+            return;
+        }
+        
+        container.innerHTML = Object.values(admins).map(admin => `
+            <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex justify-between items-center hover:bg-white/10 transition">
+                <div>
+                    <div class="font-bold text-white text-sm">${admin.name}</div>
+                    <div class="text-xs text-slate-400">${admin.email}</div>
+                    <div class="text-xs mt-1">
+                        <span class="px-2 py-0.5 rounded-full ${admin.role === 'super_admin' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'} text-[9px] uppercase font-black tracking-widest">
+                            ${admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                        </span>
+                    </div>
+                </div>
+                ${admin.email !== cAdmin.email ? `
+                    <button onclick="superRemoveAdmin('${admin.email}')" 
+                            class="bg-red-500/20 border border-red-500/30 px-3 py-1.5 rounded-lg text-red-400 text-xs font-bold hover:bg-red-500/30 transition">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                ` : '<span class="text-xs font-black uppercase tracking-widest text-slate-500 bg-white/5 px-3 py-1 rounded-lg">You</span>'}
+            </div>
+        `).join('');
+    }
+
+    function superAddNewAdmin() {
+        const email = document.getElementById('super-new-admin-email').value;
+        const name = document.getElementById('super-new-admin-name').value;
+        const password = document.getElementById('super-new-admin-password').value;
+        const role = document.getElementById('super-new-admin-role').value;
+        const statusDiv = document.getElementById('super-add-admin-status');
+        
+        if (!email || !name || !password) {
+            statusDiv.innerHTML = '<span class="text-red-400 font-bold">❌ All fields required</span>';
+            return;
+        }
+        
+        if (typeof addNewAdmin === 'function') {
+            const res = addNewAdmin(email, password, name, role);
+            if (res.success) {
+                statusDiv.innerHTML = '<span class="text-green-400 font-bold">✅ Admin added!</span>';
+                document.getElementById('super-new-admin-email').value = '';
+                document.getElementById('super-new-admin-name').value = '';
+                document.getElementById('super-new-admin-password').value = '';
+                superLoadAdmins();
+                setTimeout(() => statusDiv.innerHTML = '', 3000);
+            } else {
+                statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ ${res.error}</span>`;
+            }
+        }
+    }
+
+    function superRemoveAdmin(email) {
+        if (!confirm(`Remove admin ${email}?`)) return;
+        if (typeof removeAdmin === 'function') {
+            const res = removeAdmin(email);
+            if (res.success) superLoadAdmins();
+            else alert(res.error);
+        }
+    }
+
+    // Init when this tab is loaded
+    setTimeout(() => {
+        if (typeof window.listenForActivityLogs === 'function') {
+            window.listenForActivityLogs(renderActivityLogs);
+        } else {
+            renderActivityLogs();
+        }
+        
+        superLoadAdmins();
+        
+        // Setup polling just for admins list since it pulls from synced localStorage
+        // Activity logs are completely reactive now!
+        setInterval(() => {
+            if(document.getElementById('super-admins-list')) superLoadAdmins();
+        }, 5000);
+    }, 100);
+</script>

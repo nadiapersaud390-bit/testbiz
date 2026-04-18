@@ -403,6 +403,10 @@ function apPushToDashboard() {
     sessionStorage.setItem(AP_DASHBOARD_KEY, JSON.stringify(pushData));
   }
 
+  if (typeof window.writeAdminActivityLog === 'function') {
+      window.writeAdminActivityLog('file_upload', 'Pushed new lead data to dashboard. Update included ' + Object.keys(apAgentMap).length + ' agents.');
+  }
+
   // Signal the global agents array to refresh with this data
   apInjectIntoDashboard(pushData);
 

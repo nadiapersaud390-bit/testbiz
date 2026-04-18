@@ -3,6 +3,30 @@
 
 const SUPER_ADMIN_KEY = 'biz_super_admin_v1';
 const ADMINS_KEY = 'biz_admins_list_v1';
+const ACTIVITY_LOG_KEY = 'biz_activity_logs_v1';
+
+window.writeAdminActivityLog = function(action, details, specificAdmin = null) {
+    let admin = specificAdmin || JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    if (!admin || (!admin.email && !admin.name)) return;
+    
+    let logs = [];
+    try {
+        logs = JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY) || '[]');
+    } catch(e) {}
+    
+    logs.unshift({
+        id: Date.now(),
+        timestamp: new Date().toISOString(),
+        email: admin.email || 'unknown',
+        name: admin.name || admin.email || 'unknown',
+        role: admin.role || 'unknown',
+        action: action,
+        details: details
+    });
+    
+    if (logs.length > 500) logs = logs.slice(0, 500); // keep max 500 logs
+    localStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(logs));
+};
 
 // ============================================
 // DEFAULT SUPER ADMIN - CHANGE THESE VALUES!
@@ -30,6 +54,7 @@ function initializeDefaultSuperAdmin() {
         };
         
         localStorage.setItem(SUPER_ADMIN_KEY, JSON.stringify(superAdmin));
+        if (typeof window.saveSuperAdminToFirebase === 'function') window.saveSuperAdminToFirebase(superAdmin);
         
         const admins = {
             [DEFAULT_SUPER_ADMIN.email]: {
@@ -41,6 +66,7 @@ function initializeDefaultSuperAdmin() {
             }
         };
         localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+        if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
         
         console.log('✅ Default Super Admin Created!');
         console.log('📧 Email:', DEFAULT_SUPER_ADMIN.email);
@@ -67,6 +93,7 @@ function superAdminLogin(email, password) {
             sessionStorage.setItem('adminLoggedIn', 'true');
             sessionStorage.setItem('bizAdminUnlocked', '1');
             sessionStorage.setItem('bizUserRole', 'admin');
+            window.writeAdminActivityLog('login', 'Super Admin logged in', {email: admin.email, name: admin.name, role: 'super_admin'});
             return { success: true, role: 'super_admin' };
         }
     }
@@ -85,9 +112,11 @@ function superAdminLogin(email, password) {
         sessionStorage.setItem('adminLoggedIn', 'true');
         sessionStorage.setItem('bizAdminUnlocked', '1');
         sessionStorage.setItem('bizUserRole', 'admin');
+        window.writeAdminActivityLog('login', 'Admin logged in', {email: admin.email, name: admin.name, role: admin.role || 'admin'});
         return { success: true, role: admin.role || 'admin' };
     }
     
+    window.writeAdminActivityLog('login_failed', 'Failed admin login attempt: ' + email, {email: email, name: 'Unknown', role: 'unknown'});
     return { success: false, error: 'Invalid credentials' };
 }
 
@@ -130,6 +159,8 @@ function addNewAdmin(email, password, name, role = 'admin') {
     };
     
     localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+    if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
+    window.writeAdminActivityLog('user_management', 'Added new admin: ' + email);
     return { success: true, message: 'Admin added successfully' };
 }
 
@@ -146,7 +177,9 @@ function removeAdmin(email) {
     const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
     delete admins[email];
     localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+    if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
     
+    window.writeAdminActivityLog('user_management', 'Removed admin: ' + email);
     return { success: true, message: 'Admin removed successfully' };
 }
 
@@ -163,6 +196,8 @@ function updateAdminRole(email, newRole) {
     
     admins[email].role = newRole;
     localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+    if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
+    window.writeAdminActivityLog('user_management', `Updated role for ${email} to ${newRole}`);
     return { success: true, message: 'Role updated successfully' };
 }
 
@@ -174,6 +209,7 @@ function changeOwnPassword(email, oldPassword, newPassword) {
         if (admin.email === email && atob(admin.password) === oldPassword) {
             admin.password = btoa(newPassword);
             localStorage.setItem(SUPER_ADMIN_KEY, JSON.stringify(admin));
+            if (typeof window.saveSuperAdminToFirebase === 'function') window.saveSuperAdminToFirebase(admin);
             return { success: true, message: 'Password changed successfully' };
         }
     }
@@ -184,6 +220,7 @@ function changeOwnPassword(email, oldPassword, newPassword) {
     if (admin && atob(admin.password) === oldPassword) {
         admin.password = btoa(newPassword);
         localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+        if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
         return { success: true, message: 'Password changed successfully' };
     }
     
@@ -195,6 +232,7 @@ function isLoggedIn() {
 }
 
 function logout() {
+    window.writeAdminActivityLog('logout', 'Admin logged out');
     sessionStorage.removeItem('currentAdmin');
     sessionStorage.removeItem('adminLoggedIn');
     sessionStorage.removeItem('bizAdminUnlocked');
@@ -204,4 +242,25 @@ function logout() {
 
 function getCurrentAdmin() {
     return JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+}
+
+function setupFirstSuperAdmin(email, password, name) {
+    const superAdmin = {
+        email: email,
+        password: btoa(password),
+        name: name,
+        role: 'super_admin',
+        created: new Date().toISOString(),
+        isSuper: true
+    };
+    
+    // Clear old data just to be safe
+    localStorage.removeItem(ADMINS_KEY);
+    
+    localStorage.setItem(SUPER_ADMIN_KEY, JSON.stringify(superAdmin));
+    if (typeof window.saveSuperAdminToFirebase === 'function') {
+        window.saveSuperAdminToFirebase(superAdmin);
+    }
+    
+    return { success: true };
 }

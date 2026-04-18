@@ -19,17 +19,9 @@ async function logAdminActivity(action, details) {
     if (sessionStorage.getItem('bizUserRole') !== 'admin') return;
 
     try {
-        await fetch('/api/activity', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                adminId: sessionStorage.getItem('bizAdminId') || '',
-                adminName: sessionStorage.getItem('bizAdminName') || '',
-                action,
-                details,
-                page: 'index.html'
-            })
-        });
+        if (typeof window.writeAdminActivityLog === 'function') {
+            window.writeAdminActivityLog(action, details);
+        }
     } catch (e) {}
 }
 
@@ -168,7 +160,8 @@ function dismissLeadAlert() {
         <button onclick="switchTab('prank')" id="tab-prank" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#a855f7;">🚨 Prank</button>
         <button onclick="requestWeekly()" id="tab-weekly" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-lock text-[9px] mr-1 opacity-60"></i>Weekly</button>
         <button onclick="switchTab('trivia')" id="tab-trivia" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);">🎯 Trivia Blitz</button>
-        <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#ef4444;border-color:rgba(239,68,68,0.35);grid-column:1/-1;">🔐 Admin Panel</button>
+        <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#ef4444;border-color:rgba(239,68,68,0.35);grid-column:1/-1;">🛡️ Admin Tools</button>
+        <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#eab308;border-color:rgba(234,179,8,0.35);grid-column:1/-1;margin-top:-4px;">👑 Super Admin</button>
     </div>
 
     <div id="day-sub-tabs-wrapper" class="hidden px-2 mb-5 max-w-2xl mx-auto">
@@ -182,6 +175,7 @@ function dismissLeadAlert() {
     <div id="prank-view" class="hidden" data-tab-src="tabs/prank.html"></div>
     <div id="trivia-view" class="hidden" data-tab-src="tabs/trivia.html"></div>
     <div id="adminpanel-view" class="hidden" data-tab-src="tabs/adminpanel.html"></div>
+    <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html"></div>
 
 </div>
 
@@ -231,6 +225,7 @@ window.switchTab = async function(tab) {
         prank: 'prank-view',
         trivia: 'trivia-view',
         adminpanel: 'adminpanel-view',
+        superadminpanel: 'superadminpanel-view',
         weekly: 'leaderboard-view'
     };
 
@@ -246,14 +241,22 @@ window.switchTab = async function(tab) {
 
 document.addEventListener('DOMContentLoaded', () => {
     const adminTab = document.getElementById('tab-adminpanel');
+    const superAdminTab = document.getElementById('tab-superadminpanel');
     const userRole = sessionStorage.getItem('bizUserRole');
     
-    console.log('User role:', userRole);
+    // Check if super admin by reading the parsed currentAdmin object
+    let isSuper = false;
+    try {
+        const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        if (cAdmin.role === 'super_admin' || cAdmin.isSuper) isSuper = true;
+    } catch(e) {}
     
     // Show admin panel tab ONLY for admin users
-    if (adminTab && userRole === 'admin') {
-        adminTab.classList.remove('hidden');
-        console.log('Admin tab revealed');
+    if (userRole === 'admin') {
+        if (adminTab) adminTab.classList.remove('hidden');
+        if (isSuper && superAdminTab) {
+            superAdminTab.classList.remove('hidden');
+        }
     }
 
     loadTab('leaderboard-view');
