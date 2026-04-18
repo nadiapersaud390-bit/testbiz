@@ -113,9 +113,13 @@ function updateDashboard() {
                         const id = d.agentId || d.ytelId || d.name;
                         const name = d.agentName || d.name;
                         const rawName = d.rawName || name;
+                        
+                        // Use a composite key to ensure unique agents are merged correctly
+                        const aggKey = (id || 'ID') + '_' + (name || 'NAME');
+                        
                         if(id) {
-                            if(!agg[id]) {
-                                agg[id] = { 
+                            if(!agg[aggKey]) {
+                                agg[aggKey] = { 
                                     name: name, 
                                     leads: 0, 
                                     rawName: rawName,

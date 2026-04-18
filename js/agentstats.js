@@ -443,15 +443,15 @@ function renderActiveReportTable() {
     let totalCalls = displayData.length;
     let totalXfers = 0;
     
+    // Use a unique map to count real people, even if they have multiple rows
+    let uniqueAgents = {};
     displayData.forEach(d => {
-        // Use a combination of ID and Name for unique counting to be safe
-        const uniqueKey = (d.agentId || d.ytelId || '') + '_' + (d.agentName || '');
-        totalAgentsMap[uniqueKey] = true;
+        const key = (d.agentId || d.ytelId || 'ID') + '_' + (d.agentName || 'NAME');
+        uniqueAgents[key] = true;
         if(d.duration >= 120) totalXfers++;
     });
     
-    // If the user expects 43, it means they are counting rows in their file
-    const agentCount = displayData.length;
+    const agentCount = Object.keys(uniqueAgents).length;
     document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
     document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = totalCalls);
     document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
