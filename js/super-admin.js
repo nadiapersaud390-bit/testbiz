@@ -57,17 +57,21 @@ function initializeDefaultSuperAdmin() {
 }
 
 // Seed specific default regular admins if they don't exist
+// Default regular admin credentials (always guaranteed)
+const DEFAULT_ADMIN_ACCOUNTS = [
+    { id: "momo",  name: "Momo",  pass: "0000" },
+    { id: "jamal", name: "Jamal", pass: "0000" }
+];
+
 function seedDefaultAdmins() {
     const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
     let changed = false;
 
-    const defaults = [
-        { id: "momo", name: "momo", pass: "0000" },
-        { id: "jamal", name: "jamal", pass: "0000" }
-    ];
-
-    defaults.forEach(d => {
-        if (!admins[d.id]) {
+    DEFAULT_ADMIN_ACCOUNTS.forEach(d => {
+        // Always overwrite system accounts so Firebase can't strip them
+        const existing = admins[d.id];
+        const isSystemAccount = !existing || existing.addedBy === 'system';
+        if (isSystemAccount) {
             admins[d.id] = {
                 email: d.id,
                 name: d.name,
@@ -82,12 +86,16 @@ function seedDefaultAdmins() {
 
     if (changed) {
         localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+        // Attempt Firebase sync — may not be available on login page
         if (typeof window.saveAdminsListToFirebase === 'function') {
             window.saveAdminsListToFirebase(admins);
         }
-        console.log('✅ Default regular admins seeded.');
+        console.log('✅ Default admins seeded to localStorage.');
     }
 }
+
+// Expose so the login page can also call this after Firebase sync
+window.seedDefaultAdmins = seedDefaultAdmins;
 
 // Call initializations
 initializeDefaultSuperAdmin();

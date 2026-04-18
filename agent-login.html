@@ -207,8 +207,14 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     onValue(ref(db, 'admins_list'), (snapshot) => {
-      const data = snapshot.val() || {};
-      localStorage.setItem('biz_admins_list_v1', JSON.stringify(data));
+      const firebaseData = snapshot.val() || {};
+      // MERGE: get existing local data first, then overlay Firebase data
+      // This ensures system-seeded accounts (momo, jamal) are never wiped
+      const localData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+      const merged = Object.assign({}, localData, firebaseData);
+      localStorage.setItem('biz_admins_list_v1', JSON.stringify(merged));
+      // Re-seed defaults in case Firebase didn't have them
+      if (typeof window.seedDefaultAdmins === 'function') window.seedDefaultAdmins();
     });
     onValue(ref(db, 'super_admin'), (snapshot) => {
         const data = snapshot.val();
@@ -360,12 +366,13 @@
     }
 
     const adminData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
-    const isPotentialAdmin = (loginId === 'ROSE' || loginId === '0000' || adminData[loginId.toLowerCase()]);
+    const loginIdLower = loginId.toLowerCase();
+    const isPotentialAdmin = (loginId === 'ROSE' || loginId === '0000' || !!adminData[loginIdLower]);
 
     if (isPotentialAdmin) {
       btn.dataset.mode = 'admin';
       adminPasswordWrap.style.display = 'block';
-      btn.dataset.adminId = loginId; // Store either email or ID
+      btn.dataset.adminId = loginIdLower; // Store lowercase to match admins_list keys
       btn.textContent = 'Admin Log In →';
       adminPasswordInput.focus();
       return;
