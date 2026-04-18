@@ -663,26 +663,50 @@ function renderMonitoringList(sessions) {
 // ── ADMIN TOOLS LOGIC ──
 let ahtCurrentSubTab = 'resources';
 
-window.switchAhToolsSubTab = function(tabId) {
-    ahtCurrentSubTab = tabId;
-    document.querySelectorAll('.aht-sub-section').forEach(s => s.classList.add('hidden'));
-    document.getElementById(`aht-sect-${tabId}`).classList.remove('hidden');
-
-    // Update Btn Styles
-    ['resources', 'logs', 'users'].forEach(t => {
-        const b = document.getElementById(`aht-tab-${t}`);
-        if(b) {
-            b.className = (t === tabId)
-                ? "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-cyan-500 text-white shadow-lg shadow-cyan-900/40"
-                : "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition";
+window.switchAhToolsSubTab = function(sub) {
+    const subs = ['resources', 'logs', 'users', 'performance'];
+    subs.forEach(s => {
+        const sect = document.getElementById('aht-sect-' + s);
+        const tab = document.getElementById('aht-tab-' + s);
+        if (sect) sect.classList.add('hidden');
+        if (tab) {
+            tab.classList.remove('bg-cyan-500', 'text-white', 'shadow-lg', 'shadow-cyan-900/40');
+            tab.classList.add('text-slate-400');
         }
     });
 
-    if (tabId === 'logs') ahToolsLoadLogs();
-    if (tabId === 'users') ahToolsLoadUsers();
+    const activeSect = document.getElementById('aht-sect-' + sub);
+    const activeTab = document.getElementById('aht-tab-' + sub);
+
+    // Role check for 'users' sub-tab
+    const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const isSuper = cAdmin.role === 'super_admin' || cAdmin.isSuper;
+    if (sub === 'users' && !isSuper) {
+        switchAhToolsSubTab('resources');
+        return;
+    }
+
+    if (activeSect) activeSect.classList.remove('hidden');
+    if (activeTab) {
+        activeTab.classList.remove('text-slate-400');
+        activeTab.classList.add('bg-cyan-500', 'text-white', 'shadow-lg', 'shadow-cyan-900/40');
+    }
+
+    if (sub === 'logs') listenForActivityLogs(renderAhLogs);
+    if (sub === 'users') ahToolsLoadUsers();
+    if (sub === 'performance') ahToolsLoadPerformance();
 };
 
 function ahAdminToolsInit() {
+    const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const isSuper = cAdmin.role === 'super_admin' || cAdmin.isSuper;
+    
+    const userTabBtn = document.getElementById('aht-tab-users');
+    if (userTabBtn) {
+        if (isSuper) userTabBtn.classList.remove('hidden');
+        else userTabBtn.classList.add('hidden');
+    }
+    
     switchAhToolsSubTab('resources');
 }
 
@@ -710,21 +734,22 @@ function renderAhLogs(logs) {
         return;
     }
 
-    window.ahCurrentLogs = logs; // Store for modal access
+    window.ahCurrentLogs = logs; 
     container.innerHTML = logs.slice(0, 100).map((log, idx) => {
         const date = new Date(log.timestamp);
         const timeStr = date.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+        const dateStr = date.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+        
         return `
-            <div onclick="ahShowLogDetail('${log.id || idx}')" class="p-4 hover:bg-white/5 cursor-pointer transition flex items-center justify-between gap-4 group">
+            <div class="p-4 hover:bg-white/5 transition flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 last:border-0 group">
                 <div class="flex items-center gap-4">
-                    <div class="text-[9px] font-black text-slate-600 w-12 text-right">${timeStr}</div>
+                    <div class="text-[9px] font-black text-slate-500 w-12 text-right flex-shrink-0">${timeStr}<br>${dateStr}</div>
                     <div>
-                        <div class="text-[11px] font-black text-white uppercase group-hover:text-blue-400 transition-colors">${log.name}</div>
-                        <div class="text-[9px] text-cyan-400 font-bold uppercase tracking-widest mt-0.5">${(log.action || '').replace(/_/g, ' ')}</div>
+                        <div class="text-[11px] font-black text-white uppercase group-hover:text-cyan-400 transition-colors">${log.name}</div>
+                        <div class="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">${(log.action || '').replace(/_/g, ' ')}</div>
                     </div>
                 </div>
-                <div class="flex-1 text-[10px] text-slate-400 bg-black/20 px-3 py-2 rounded-xl border border-white/5 truncate max-w-[300px] group-hover:border-blue-500/30 transition-colors">${log.details || ''}</div>
-                <div class="text-slate-600 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-chevron-right"></i></div>
+                <div class="text-[10px] text-slate-300 bg-black/40 px-3 py-2 rounded-xl border border-white/5 max-w-md whitespace-normal leading-relaxed">${log.details || ''}</div>
             </div>
         `;
     }).join('');
@@ -822,7 +847,86 @@ window.ahDeleteSession = async function(coll, id) {
 // Ensure init runs when tab switches
 window.switchTab = (function(orig) {
     return function(tab) {
-        if (tab === 'adminpanel') setTimeout(ahInitOverview, 100);
+        if (tab === 'adminpanel') setTimeout(ahAdminToolsInit, 100);
         return orig.apply(this, arguments);
     };
-})(window.switchTab);
+})(window.switchTab || function(){});
+
+window.ahToolsLoadPerformance = function() {
+    const tbody = document.getElementById('ah-performance-table-body');
+    const empty = document.getElementById('ah-perf-empty');
+    if (!tbody) return;
+
+    if (typeof window.listenForAgentReports === 'function') {
+        window.listenForAgentReports(reports => {
+            if (!reports || !reports.length) {
+                if(empty) empty.classList.remove('hidden');
+                tbody.innerHTML = '';
+                return;
+            }
+            if(empty) empty.classList.add('hidden');
+
+            // 1. Determine "Current Week" (Monday start)
+            const now = new Date();
+            const day = now.getDay(); 
+            const diff = now.getDate() - day + (day === 0 ? -6 : 1); 
+            const monday = new Date(now.setDate(diff));
+            monday.setHours(0,0,0,0);
+            
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            sunday.setHours(23,59,59,999);
+
+            const rangeEl = document.getElementById('ah-perf-range');
+            if(rangeEl) rangeEl.textContent = `Tracking: ${monday.toLocaleDateString()} — ${sunday.toLocaleDateString()}`;
+
+            // 2. Filter reports for this week
+            const thisWeekReports = reports.filter(r => {
+                const rd = new Date(r.uploadedAt);
+                return rd >= monday && rd <= sunday;
+            });
+
+            // 3. Aggregate by agent and weekday
+            const matrix = {}; 
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+            thisWeekReports.forEach(r => {
+                const reportDay = days[new Date(r.uploadedAt).getDay()];
+                (r.data || []).forEach(a => {
+                    const name = a.agentName;
+                    if (!matrix[name]) {
+                        matrix[name] = { team: a.team || '—', Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, total: 0 };
+                    }
+                    // Aggregate counts for that day
+                    matrix[name][reportDay] = (matrix[name][reportDay] || 0) + (a.dailyLeads || 0);
+                    matrix[name].total += (a.dailyLeads || 0);
+                });
+            });
+
+            // 4. Render
+            const sorted = Object.keys(matrix).sort((a,b) => matrix[b].total - matrix[a].total);
+            tbody.innerHTML = sorted.map(name => {
+                const m = matrix[name];
+                return `
+                    <tr class="hover:bg-white/5 transition-colors group border-b border-white/5 last:border-0">
+                        <td class="py-4 px-2">
+                            <div class="text-[11px] font-black text-white uppercase group-hover:text-cyan-400 transition-colors">${name}</div>
+                        </td>
+                        <td class="py-4 px-2">
+                            <span class="text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${m.team==='BB'?'bg-purple-500/10 text-purple-400 border border-purple-500/20':'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'}">${m.team}</span>
+                        </td>
+                        <td class="py-4 px-2 text-center text-[10px] font-bold ${m.Mon>0?'text-white':'text-slate-700'}">${m.Mon || '—'}</td>
+                        <td class="py-4 px-2 text-center text-[10px] font-bold ${m.Tue>0?'text-white':'text-slate-700'}">${m.Tue || '—'}</td>
+                        <td class="py-4 px-2 text-center text-[10px] font-bold ${m.Wed>0?'text-white':'text-slate-700'}">${m.Wed || '—'}</td>
+                        <td class="py-4 px-2 text-center text-[10px] font-bold ${m.Thu>0?'text-white':'text-slate-700'}">${m.Thu || '—'}</td>
+                        <td class="py-4 px-2 text-center text-[10px] font-bold ${m.Fri>0?'text-white':'text-slate-700'}">${m.Fri || '—'}</td>
+                        <td class="py-4 px-2 text-center text-[10px] font-bold ${m.Sat>0?'text-white':'text-slate-700'}">${m.Sat || '—'}</td>
+                        <td class="py-4 px-2 text-right">
+                            <span class="text-sm font-black text-cyan-400 italic">${m.total}</span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        });
+    }
+};

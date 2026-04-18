@@ -1,5 +1,10 @@
 function timeAgo(date){const m=Math.floor((Date.now()-date.getTime())/60000);if(m<1)return'Just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
 function escapeHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function getFormattedDate(d = new Date()) {
+    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+    const weekday = { weekday: 'short' };
+    return d.toLocaleDateString('en-US', options) + ' (' + d.toLocaleDateString('en-US', weekday) + ')';
+}
 
 // ============================================================
 // CLOCK UPDATE

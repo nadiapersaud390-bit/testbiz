@@ -55,13 +55,24 @@ function updateDashboard() {
         if (typeof window.listenForAgentReports === 'function') {
             window.listenForAgentReports(data => {
                 if(!data) return;
-                const top5 = data.slice(0, 5); // Keep the sub-tabs clean (max 5)
-                dayHistory = top5.map(r => {
+                
+                // 1. Determine "Current Week" (Monday start)
+                const now = new Date();
+                const day = now.getDay();
+                const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+                const monday = new Date(now.setDate(diff));
+                monday.setHours(0,0,0,0);
+
+                // Filter for current week only
+                const thisWeek = data.filter(r => new Date(r.uploadedAt) >= monday);
+                
+                dayHistory = thisWeek.map(r => {
                     const agg = {};
-                    r.data.forEach(d => {
-                        if(d.agentName) {
-                            if(!agg[d.agentName]) agg[d.agentName] = 0;
-                            if(d.duration >= 120) agg[d.agentName]++;
+                    (r.data || []).forEach(d => {
+                        const name = d.agentName || d.name;
+                        if(name) {
+                            if(!agg[name]) agg[name] = 0;
+                            agg[name] += (d.dailyLeads || 0);
                         }
                     });
                     
@@ -76,7 +87,7 @@ function updateDashboard() {
                     };
                 });
                 renderDaySubTabs();
-                if(currentDayView !== 'today') render(); // re-render if viewing a history tab
+                if(currentDayView !== 'today') render(); 
             });
         }
         

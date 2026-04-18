@@ -380,27 +380,21 @@ function apPushToDashboard() {
 
   // Build the data object that dashboard.js will read
   const pushData = {
+    dateLabel: typeof getFormattedDate === 'function' ? getFormattedDate() : new Date().toLocaleDateString(),
     pushedAt:  Date.now(),
-    pushedBy:  'admin',
+    pushedBy:  sessionStorage.getItem('bizAdminName') || 'admin',
     expiresAt: apTimerEnd ? apTimerEnd.getTime() : null,
-    agents:    {}
-  };
-
-  Object.values(apAgentMap).forEach(a => {
-    pushData.agents[a.name] = {
+    agents:    Object.values(apAgentMap).map(a => ({
       name:       a.name,
       ytelId:     a.ytelId,
       team:       a.team,
       prefix:     a.prefix,
       dailyLeads: a.count
-    };
-  });
+    }))
+  };
 
-  try {
-    localStorage.setItem(AP_DASHBOARD_KEY, JSON.stringify(pushData));
-  } catch(e) {
-    console.warn('localStorage unavailable, using sessionStorage');
-    sessionStorage.setItem(AP_DASHBOARD_KEY, JSON.stringify(pushData));
+  if (typeof window.saveLiveDashboardState === 'function') {
+      window.saveLiveDashboardState(pushData);
   }
 
   if (typeof window.writeAdminActivityLog === 'function') {
@@ -453,24 +447,29 @@ function apInjectIntoDashboard(pushData) {
 }
 
 // ── History ────────────────────────────────────────────────────────────────────
-function apSaveCurrentToHistory() {
-  // Only save if there's active dashboard data to archive
+async function apSaveCurrentToHistory() {
   const existing = apGetDashboardData();
   if (!existing || !existing.agents || !Object.keys(existing.agents).length) return;
 
-  const history = apGetHistory();
-  history.unshift({
-    id:        Date.now(),
-    savedAt:   existing.pushedAt || Date.now(),
+  const reportObj = {
+    reportDate: existing.dateLabel || (typeof getFormattedDate === 'function' ? getFormattedDate() : new Date().toLocaleDateString()),
+    uploadedAt: new Date().toISOString(),
+    pushedAt: existing.pushedAt,
     expiresAt: existing.expiresAt,
-    agents:    existing.agents,
-    totalAgents: Object.keys(existing.agents).length,
-    totalLeads:  Object.values(existing.agents).reduce((s,a) => s + (a.dailyLeads||0), 0)
-  });
+    totalAgents: (existing.agents || []).length || 0,
+    totalLeads: (existing.agents || []).reduce((s, a) => s + (a.dailyLeads || 0), 0),
+    data: (existing.agents || []).map(a => ({
+        agentName: a.name,
+        ytelId: a.ytelId,
+        team: a.team,
+        prefix: a.prefix,
+        dailyLeads: a.dailyLeads
+    }))
+  };
 
-  // Keep last 20 uploads
-  const trimmed = history.slice(0, 20);
-  try { localStorage.setItem(AP_HISTORY_KEY, JSON.stringify(trimmed)); } catch(e) {}
+  if (typeof window.saveAgentReportToFirebase === 'function') {
+      await window.saveAgentReportToFirebase(reportObj);
+  }
 }
 
 function apGetHistory() {
@@ -484,37 +483,53 @@ function apGetDashboardData() {
   } catch(e) { return null; }
 }
 
+window.apHistoryData = []; // Store for restoration
 function apLoadHistory() {
-  const history = apGetHistory();
+  if (typeof window.listenForAgentReports === 'function') {
+      // Setup listener only once
+      if (!window._apHistorySubscribed) {
+          window.listenForAgentReports(data => {
+              window.apHistoryData = data || [];
+              apRenderHistoryList(window.apHistoryData);
+          });
+          window._apHistorySubscribed = true;
+      } else {
+          apRenderHistoryList(window.apHistoryData);
+      }
+  }
+}
+
+function apRenderHistoryList(history) {
   const container = document.getElementById('ap-history-list');
+  if (!container) return;
+  
   if (!history.length) {
-    container.innerHTML = '<div style="text-align:center;padding:20px;font-size:12px;font-weight:700;color:#334155;">No uploads yet</div>';
+    container.innerHTML = '<div style="text-align:center;padding:20px;font-size:12px;font-weight:700;color:#334155;">No global uploads yet</div>';
     return;
   }
 
   container.innerHTML = history.map((entry, idx) => {
-    const d = new Date(entry.savedAt);
-    const dateStr = d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric', timeZone:'America/Guyana' });
+    const d = new Date(entry.uploadedAt);
     const timeStr = d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', timeZone:'America/Guyana' });
     const expired = entry.expiresAt && Date.now() > entry.expiresAt;
 
     return `<div class="ap-history-card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
         <div>
-          <div style="font-size:12px;font-weight:900;color:white;">${dateStr} · ${timeStr}</div>
+          <div style="font-size:12px;font-weight:900;color:white;">${entry.reportDate} <span style="color:#64748b;font-weight:600;margin-left:4px;">${timeStr}</span></div>
           <div style="font-size:10px;font-weight:600;color:#475569;margin-top:2px;">${entry.totalAgents} agents · ${entry.totalLeads} total leads</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
-          ${expired ? '<span style="font-size:9px;font-weight:900;text-transform:uppercase;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:6px;padding:2px 7px;color:#ef4444;">Expired</span>' : '<span style="font-size:9px;font-weight:900;text-transform:uppercase;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:6px;padding:2px 7px;color:#22c55e;">Saved</span>'}
-          <button onclick="apRestoreUpload(${idx})" style="font-size:9px;font-weight:900;text-transform:uppercase;background:rgba(250,204,21,0.1);border:1px solid rgba(250,204,21,0.25);border-radius:7px;padding:4px 9px;color:#facc15;cursor:pointer;letter-spacing:0.06em;">Restore</button>
-          <button onclick="apDeleteHistory(${idx})" style="font-size:9px;font-weight:900;text-transform:uppercase;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:7px;padding:4px 9px;color:#ef4444;cursor:pointer;">Delete</button>
+          ${expired ? '<span style="font-size:9px;font-weight:900;text-transform:uppercase;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:6px;padding:2px 7px;color:#ef4444;">Expired</span>' : '<span style="font-size:9px;font-weight:900;text-transform:uppercase;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:6px;padding:2px 7px;color:#22c55e;">Synced</span>'}
+          <button onclick="apRestoreUpload('${entry.id}')" style="font-size:9px;font-weight:900;text-transform:uppercase;background:rgba(250,204,21,0.1);border:1px solid rgba(250,204,21,0.25);border-radius:7px;padding:4px 9px;color:#facc15;cursor:pointer;letter-spacing:0.06em;">Restore</button>
+          <button onclick="apDeleteHistory('${entry.id}')" style="font-size:9px;font-weight:900;text-transform:uppercase;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:7px;padding:4px 9px;color:#ef4444;cursor:pointer;">Delete</button>
         </div>
       </div>
       <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
-        ${Object.values(entry.agents).sort((a,b)=>(b.dailyLeads||0)-(a.dailyLeads||0)).slice(0,6).map(a =>
-          `<span style="font-size:10px;font-weight:700;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:3px 9px;color:#94a3b8;">${a.name.split(' ')[0]} <span style="color:${a.prefix==='GYB'?'#c084fc':'#a78bfa'}">${a.dailyLeads}</span></span>`
+        ${(entry.data || []).sort((a,b)=>(b.dailyLeads||0)-(a.dailyLeads||0)).slice(0,6).map(a =>
+          `<span style="font-size:10px;font-weight:700;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:3px 9px;color:#94a3b8;">${(a.agentName || '').split(' ')[0]} <span style="color:${a.prefix==='GYB'?'#c084fc':'#a78bfa'}">${a.dailyLeads}</span></span>`
         ).join('')}
-        ${Object.keys(entry.agents).length > 6 ? `<span style="font-size:10px;font-weight:700;color:#475569;">+${Object.keys(entry.agents).length - 6} more</span>` : ''}
+        ${(entry.data || []).length > 6 ? `<span style="font-size:10px;font-weight:700;color:#475569;">+${(entry.data || []).length - 6} more</span>` : ''}
       </div>
     </div>`;
   }).join('');
