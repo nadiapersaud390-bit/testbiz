@@ -341,6 +341,7 @@ function switchTab(tab) {
     if (tab === 'lookup') renderLookupHistory();
     if (tab === 'trivia') initTriviaTab();
     if (tab === 'agentstats' && typeof renderAgentStatsHistory === 'function') renderAgentStatsHistory();
+    if (tab === 'adminpanel' && typeof window.ahInitOverview === 'function') window.ahInitOverview();
 }
 
 function updateTabUI() {

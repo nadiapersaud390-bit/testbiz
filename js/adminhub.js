@@ -227,7 +227,7 @@ function renderRebuttalIntel(usage) {
 }
 
 // Initialize Overview Data
-function ahInitOverview() {
+window.ahInitOverview = function() {
     // Permission Check for Admin Tools Toggle
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
@@ -235,6 +235,10 @@ function ahInitOverview() {
     
     if (toolsBtn && !isSuper) {
         toolsBtn.classList.add('hidden');
+        // Double check: if they are somehow ON the tab, kick them back to overview
+        if (typeof window.switchAdminHubTab === 'function' && ahCurrentSubTab === 'admintools') {
+            window.switchAdminHubTab('overview');
+        }
     }
 
     // Clock

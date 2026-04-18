@@ -43,7 +43,6 @@ function initializeDefaultSuperAdmin() {
     const existingSuper = localStorage.getItem(SUPER_ADMIN_KEY);
     if (!existingSuper) {
         console.log('📌 Creating default super admin...');
-        
         const superAdmin = {
             email: DEFAULT_SUPER_ADMIN.email,
             password: btoa(DEFAULT_SUPER_ADMIN.password),
@@ -52,46 +51,47 @@ function initializeDefaultSuperAdmin() {
             created: new Date().toISOString(),
             isSuper: true
         };
-        
         localStorage.setItem(SUPER_ADMIN_KEY, JSON.stringify(superAdmin));
         if (typeof window.saveSuperAdminToFirebase === 'function') window.saveSuperAdminToFirebase(superAdmin);
-        
-        const admins = {
-            [DEFAULT_SUPER_ADMIN.email]: {
-                email: DEFAULT_SUPER_ADMIN.email,
-                name: DEFAULT_SUPER_ADMIN.name,
-                role: 'super_admin',
-                addedBy: 'system',
-                addedAt: new Date().toISOString()
-            },
-            "momo": {
-                email: "momo",
-                name: "momo",
-                password: btoa("0000"),
-                role: "admin",
-                addedBy: "system",
-                addedAt: new Date().toISOString()
-            },
-            "jamal": {
-                email: "jamal",
-                name: "jamal",
-                password: btoa("0000"),
-                role: "admin",
-                addedBy: "system",
-                addedAt: new Date().toISOString()
-            }
-        };
-        localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-        if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-        
-        console.log('✅ Default Super Admin Created!');
-        console.log('📧 Email:', DEFAULT_SUPER_ADMIN.email);
-        console.log('🔑 Password:', DEFAULT_SUPER_ADMIN.password);
     }
 }
 
-// Call initialization
+// Seed specific default regular admins if they don't exist
+function seedDefaultAdmins() {
+    const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
+    let changed = false;
+
+    const defaults = [
+        { id: "momo", name: "momo", pass: "0000" },
+        { id: "jamal", name: "jamal", pass: "0000" }
+    ];
+
+    defaults.forEach(d => {
+        if (!admins[d.id]) {
+            admins[d.id] = {
+                email: d.id,
+                name: d.name,
+                password: btoa(d.pass),
+                role: 'admin',
+                addedBy: 'system',
+                addedAt: new Date().toISOString()
+            };
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+        if (typeof window.saveAdminsListToFirebase === 'function') {
+            window.saveAdminsListToFirebase(admins);
+        }
+        console.log('✅ Default regular admins seeded.');
+    }
+}
+
+// Call initializations
 initializeDefaultSuperAdmin();
+seedDefaultAdmins();
 
 // ========== LOGIN SYSTEM ==========
 function superAdminLogin(email, password) {
