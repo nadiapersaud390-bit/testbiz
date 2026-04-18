@@ -83,14 +83,24 @@ function updateDashboard() {
                     
                     const agg = {};
                     (r.data || []).forEach(d => {
+                        const id = d.agentId || d.ytelId || d.name;
                         const name = d.agentName || d.name;
                         const rawName = d.rawName || name;
-                        if(name) {
-                            if(!agg[name]) agg[name] = { leads: 0, rawName: rawName };
+                        if(id) {
+                            if(!agg[id]) {
+                                agg[id] = { 
+                                    name: name, 
+                                    leads: 0, 
+                                    rawName: rawName,
+                                    ytelId: id 
+                                };
+                            }
                             
                             let l = d.dailyLeads || 0;
+                            // If it's a raw dialer report (duration available), 
+                            // count 2+ mins as a transfer
                             if(d.duration !== undefined && d.duration >= 120) l = 1;
-                            agg[name].leads += l;
+                            agg[id].leads += l;
                         }
                     });
                     
@@ -98,10 +108,12 @@ function updateDashboard() {
                         day: day,
                         dayName: day,
                         fullDate: r.reportDate,
-                        agents: Object.keys(agg).map(name => ({
-                            name: name,
-                            leads: agg[name].leads,
-                            team: typeof normalizeTeam === 'function' ? normalizeTeam('', agg[name].rawName) : 'PR'
+                        agents: Object.values(agg).map(a => ({
+                            name: a.name,
+                            leads: a.leads,
+                            ytelId: a.ytelId,
+                            rawName: a.rawName,
+                            team: typeof normalizeTeam === 'function' ? normalizeTeam('', a.rawName) : 'PR'
                         }))
                     };
                 });

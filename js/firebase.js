@@ -431,6 +431,39 @@ window.deleteAgentWeekFromFirebase = async function(ytelId, weekId) {
     }
 };
 
+// ========== DASHBOARD PRESENCE ==========
+window.ahUpdateAgentPresence = async function(ytelId, name, status) {
+    if (!database) return;
+    try {
+        const presenceRef = ref(database, 'dashboard_presence/' + ytelId);
+        await set(presenceRef, {
+            name: name,
+            status: status,
+            lastSeen: Date.now(),
+            date: new Date().toISOString().split('T')[0] // Track by day
+        });
+    } catch(e) {
+        console.error("Presence update failed", e);
+    }
+};
+
+window.ahListenForPresence = function(callback) {
+    if (!database) return;
+    onValue(ref(database, 'dashboard_presence'), (snapshot) => {
+        const data = snapshot.val() || {};
+        const today = new Date().toISOString().split('T')[0];
+        const active = {};
+        
+        // Only count people who logged in TODAY
+        for (const id in data) {
+            if (data[id].date === today) {
+                active[id] = data[id];
+            }
+        }
+        callback(active);
+    });
+};
+
 // ========== AUTHENTICATION FUNCTIONS ==========
 
 // Admin login function

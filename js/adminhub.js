@@ -254,6 +254,14 @@ window.ahInitOverview = function() {
     if (typeof window.listenForLiveDashboardState === 'function') {
         window.listenForLiveDashboardState(handleLiveStateUpdate);
     }
+    
+    // Dashboard Presence Sync
+    if (typeof window.ahListenForPresence === 'function') {
+        window.ahListenForPresence(presence => {
+            window.ahOnlinePresences = presence;
+            if (window.agents) handleLiveStateUpdate({ agents: window.agents });
+        });
+    }
 }
 
 let ahAttFilterTeam = 'ALL';
@@ -390,27 +398,49 @@ function handleLiveStateUpdate(state) {
     if (document.getElementById('ah-pr-count')) document.getElementById('ah-pr-count').innerHTML = `${prXfers} <span class="text-xs text-slate-500">Transfers</span>`;
     if (document.getElementById('ah-rm-count')) document.getElementById('ah-rm-count').innerHTML = `${rmXfers} <span class="text-xs text-slate-500">Transfers</span>`;
     
-    // Populate Online Grid
+    // Populate Online & Offline Grids
     const onlineGrid = document.getElementById('ah-online-grid');
-    if (onlineGrid) {
-        onlineGrid.innerHTML = agents.map(a => {
+    const offlineGrid = document.getElementById('ah-offline-grid');
+    
+    if (onlineGrid && offlineGrid) {
+        const presence = window.ahOnlinePresences || {};
+        const onlineAgents = agents.filter(a => presence[a.ytelId]);
+        const offlineAgents = agents.filter(a => !presence[a.ytelId]);
+
+        onlineGrid.innerHTML = onlineAgents.map(a => {
             const team = normalizeTeam(a.team, a.name);
             const colorClass = ahTeamColors[team] || 'slate-500';
+            const status = presence[a.ytelId]?.status || 'Online';
             return `
-                <div class="bg-white/5 border border-white/10 rounded-xl p-2 flex items-center gap-2 hover:bg-white/10 transition group cursor-help" title="${a.status}">
-                    <div class="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                <div class="bg-white/5 border border-white/10 rounded-xl p-2 flex items-center gap-2 hover:bg-white/10 transition group cursor-help" title="${status}">
+                    <div class="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
                     <div class="flex-1 overflow-hidden">
                         <div class="text-[9px] font-black text-white truncate uppercase">${a.name}</div>
                         <div class="text-[7px] font-bold text-${colorClass} uppercase tracking-tighter">${team} TEAM</div>
                     </div>
                 </div>
             `;
+        }).join('') || '<div class="col-span-3 py-6 text-center text-[8px] text-slate-600 font-bold uppercase tracking-widest">No agents logged in yet</div>';
+
+        offlineGrid.innerHTML = offlineAgents.map(a => {
+            const team = normalizeTeam(a.team, a.name);
+            const colorClass = ahTeamColors[team] || 'slate-500';
+            return `
+                <div class="bg-white/5 border border-white/5 opacity-40 rounded-xl p-2 flex items-center gap-2 hover:opacity-100 transition grayscale hover:grayscale-0">
+                    <div class="w-1.5 h-1.5 bg-slate-700 rounded-full"></div>
+                    <div class="flex-1 overflow-hidden">
+                        <div class="text-[9px] font-black text-slate-400 truncate uppercase">${a.name}</div>
+                        <div class="text-[7px] font-bold text-slate-600 uppercase tracking-tighter">${team}</div>
+                    </div>
+                </div>
+            `;
         }).join('');
     }
 
-    // Update Broadcast Audience
+    // Update Broadcast Audience (Only those online)
     if (document.getElementById('ah-broadcast-audience')) {
-        document.getElementById('ah-broadcast-audience').innerText = agents.length;
+        const onlineCount = agents.filter(a => (window.ahOnlinePresences || {})[a.ytelId]).length;
+        document.getElementById('ah-broadcast-audience').innerText = onlineCount;
     }
 }
 

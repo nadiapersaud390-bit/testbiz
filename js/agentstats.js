@@ -229,10 +229,25 @@ function processCSVRows(rows) {
     // Agent Id, Agent Name, Current Status, Duration
     
     const keys = Object.keys(rows[0]);
-    let idCol = keys.find(k => k.toLowerCase().includes('agent id')) || keys[0];
-    let nameCol = keys.find(k => k.toLowerCase().includes('agent name')) || keys[1];
-    let statusCol = keys.find(k => k.toLowerCase().includes('status')) || keys[2];
-    let durationColName = keys.find(k => k.toLowerCase().includes('duration') || k.toLowerCase().includes('time')) || keys[3];
+    let idCol = keys.find(k => {
+        const l = k.toLowerCase();
+        return l.includes('agent id') || l.includes('user id') || l.includes('extension') || l.includes('ext') || l === 'id';
+    }) || keys[0];
+    
+    let nameCol = keys.find(k => {
+        const l = k.toLowerCase();
+        return l.includes('agent name') || l.includes('full name') || l.includes('agent') || l === 'name';
+    }) || keys[1];
+    
+    let statusCol = keys.find(k => {
+        const l = k.toLowerCase();
+        return l.includes('status') || l.includes('state');
+    }) || keys[2];
+    
+    let durationColName = keys.find(k => {
+        const l = k.toLowerCase();
+        return l.includes('duration') || l.includes('time') || l.includes('length');
+    }) || keys[3];
 
     const parsedArray = [];
     

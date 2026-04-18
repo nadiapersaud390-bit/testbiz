@@ -421,6 +421,9 @@
         }
 
         storeAttendance(ytelId, status, clockedAt);
+        if (typeof window.ahUpdateAgentPresence === 'function') {
+          window.ahUpdateAgentPresence(ytelId, sData.name, status);
+        }
         showResult(sData, status, ytelId, clockedAt);
       }
     } catch (e) {
