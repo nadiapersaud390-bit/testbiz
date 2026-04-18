@@ -217,6 +217,36 @@ window.deleteAgentReportFromFirebase = async function(id) {
     await set(ref(database, 'agent_reports/' + id), null);
 };
 
+/**
+ * Prunes agent reports older than 30 days to maintain Firebase performance.
+ * Runs automatically during administrative initialization.
+ */
+window.ahPruneOldReports = async function() {
+    if (!database) return;
+    try {
+        onValue(ref(database, 'agent_reports'), async (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+            
+            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+            let deletedCount = 0;
+            
+            for (const id in data) {
+                const uploadedAt = new Date(data[id].uploadedAt).getTime();
+                if (uploadedAt < thirtyDaysAgo) {
+                    await set(ref(database, 'agent_reports/' + id), null);
+                    deletedCount++;
+                }
+            }
+            if (deletedCount > 0) {
+                console.log(`Pruned ${deletedCount} legacy reports from Firebase.`);
+            }
+        }, { onlyOnce: true });
+    } catch(e) {
+        console.error("Cleanup Error:", e);
+    }
+};
+
 // ========== STATUS REPORTS (Super Admin Dispositions) ==========
 window.saveStatusReportToFirebase = async function(reportObj) {
     if (!database) return { success: false, error: 'Database not initialized' };

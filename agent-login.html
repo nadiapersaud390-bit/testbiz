@@ -359,14 +359,20 @@
       return;
     }
 
-    if (!ytelId && loginId !== 'ROSE') {
-      flashError(input, errEl, btn, 'Please enter your Ytel ID.');
-      return;
-    }
+    const adminData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+    const isPotentialAdmin = (loginId === 'ROSE' || loginId === '0000' || adminData[loginId.toLowerCase()]);
 
+    if (isPotentialAdmin) {
+      btn.dataset.mode = 'admin';
+      adminPasswordWrap.style.display = 'block';
       btn.dataset.adminId = loginId; // Store either email or ID
       btn.textContent = 'Admin Log In →';
       adminPasswordInput.focus();
+      return;
+    }
+
+    if (!ytelId) {
+      flashError(input, errEl, btn, 'Please enter your Ytel ID.');
       return;
     }
 

@@ -6,17 +6,7 @@
 let allAgentProfiles = [];
 let apIsSubscribed = false;
 
-window.switchTab = (function(orig) {
-    return async function(tab) {
-        if (tab === 'agentprofiles') {
-            initAgentProfiles();
-        }
-        return orig.apply(this, arguments);
-    };
-})(window.switchTab);
-
-// Initialize tab logic
-async function initAgentProfiles() {
+window.initAgentProfiles = async function() {
     if (apIsSubscribed) return;
     
     const container = document.getElementById('ap-agent-list');
@@ -39,7 +29,7 @@ async function initAgentProfiles() {
         console.error("Firestore listener not found in firebase.js");
         container.innerHTML = '<div class="col-span-full py-10 text-center text-red-400 font-bold uppercase tracking-widest">❌ Database Connection Failed</div>';
     }
-}
+};
 
 // Auto-fill logic for Ytel Name based on Team selection
 window.apAutoFillYtel = function() {
@@ -199,9 +189,9 @@ window.apFilterAgents = function() {
     `).join('');
 };
 
-// Modal Management
+// Inline Form Management (Replaces Modal)
 window.apOpenModal = function(mode = 'add', userId = null) {
-    const modal = document.getElementById('ap-modal');
+    const inlineSect = document.getElementById('ah-profiles-inline');
     const form = document.getElementById('ap-form');
     const title = document.getElementById('ap-modal-title');
     const modeInput = document.getElementById('ap-form-mode');
@@ -209,6 +199,8 @@ window.apOpenModal = function(mode = 'add', userId = null) {
     const deleteBtn = document.getElementById('ap-delete-btn');
     const userIdInput = document.getElementById('ap-userid');
     
+    if (!inlineSect || !form) return;
+
     // Reset form
     form.reset();
     statusDiv.innerHTML = 'System Status: Ready';
@@ -216,7 +208,7 @@ window.apOpenModal = function(mode = 'add', userId = null) {
     if (mode === 'edit' && userId) {
         const agent = allAgentProfiles.find(p => p.userId === userId);
         if (agent) {
-            title.innerText = 'Edit Profile';
+            title.innerText = 'Edit Agent: ' + agent.fullName;
             modeInput.value = 'edit';
             deleteBtn.classList.remove('hidden');
             userIdInput.disabled = true; // Cannot change ID on edit
@@ -233,18 +225,19 @@ window.apOpenModal = function(mode = 'add', userId = null) {
             document.getElementById('ap-break').value = agent.breakTime || '';
         }
     } else {
-        title.innerText = 'Add New Agent';
+        title.innerText = 'Add New Remote Agent';
         modeInput.value = 'add';
         deleteBtn.classList.add('hidden');
         userIdInput.disabled = false;
     }
     
-    modal.classList.remove('hidden');
+    inlineSect.classList.remove('hidden');
+    inlineSect.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 window.apCloseModal = function() {
-    const modal = document.getElementById('ap-modal');
-    modal.classList.add('hidden');
+    const inlineSect = document.getElementById('ah-profiles-inline');
+    if (inlineSect) inlineSect.classList.add('hidden');
     document.getElementById('ap-userid').disabled = false;
 };
 

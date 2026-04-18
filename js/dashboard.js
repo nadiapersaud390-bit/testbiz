@@ -345,7 +345,8 @@ function updateTabUI() {
 }
 
 function requestWeekly() {
-    if (weeklyUnlocked) {
+    const isAdmin = sessionStorage.getItem('bizUserRole') === 'admin';
+    if (weeklyUnlocked || isAdmin) {
         currentTab = 'weekly';
         updateTabUI();
         render();
@@ -354,7 +355,7 @@ function requestWeekly() {
     }
 
     const modal = document.getElementById('pw-modal');
-    modal.classList.remove('hidden');
+    if (modal) modal.classList.remove('hidden');
 
     const input = document.getElementById('pw-input');
     input.value = '';

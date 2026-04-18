@@ -29,6 +29,7 @@ window.switchAdminHubTab = function(tabId) {
     
     // Lazy Load/Init Sub-modules
     // Lazy Load/Init Sub-modules
+    if (tabId === 'profiles' && typeof window.initAgentProfiles === 'function') window.initAgentProfiles();
     if (tabId === 'stats' && typeof window.renderAgentStatsHistory === 'function') window.renderAgentStatsHistory();
     if (tabId === 'coaching' && typeof window.coachingInit === 'function') window.coachingInit();
     if (tabId === 'monitoring' && typeof window.monitoringInit === 'function') window.monitoringInit();
@@ -42,10 +43,18 @@ function initWeeklyPerformance() {
     // Set current week range
     const rangeEl = document.getElementById('ah-weekly-range');
     if (rangeEl) {
-        const start = new Date();
-        start.setDate(start.getDate() - start.getDay() + 1); // Monday
+        const now = new Date();
+        const start = new Date(now);
+        // Set to previous Monday
+        const day = now.getDay();
+        const diff = (day === 0 ? -6 : 1) - day; 
+        start.setDate(now.getDate() + diff);
+        start.setHours(0,0,0,0);
+        
         const end = new Date(start);
-        end.setDate(end.getDate() + 4); // Friday
+        end.setDate(start.getDate() + 6); // Sunday
+        end.setHours(23,59,59,999);
+        
         rangeEl.innerText = `${start.toLocaleDateString('en-US', {month:'short', day:'numeric'})} - ${end.toLocaleDateString('en-US', {month:'short', day:'numeric'})}, ${start.getFullYear()}`;
     }
 
@@ -390,12 +399,18 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.ahShowTeamBreakdown = function(team) {
-    const modal = document.getElementById('ah-team-modal');
+    const detailSect = document.getElementById('ah-sect-team-detail');
     const title = document.getElementById('ah-team-modal-title');
     const icon = document.getElementById('ah-team-modal-icon');
     const list = document.getElementById('ah-team-modal-list');
     
-    if (!modal || !window.agents) return;
+    if (!detailSect || !window.agents) return;
+
+    // Toggle logic: If clicking the SAME team that is already visible, hide it.
+    if (!detailSect.classList.contains('hidden') && detailSect.dataset.currentTeam === team) {
+        detailSect.classList.add('hidden');
+        return;
+    }
 
     const teamNames = { BB: 'Berbice', PR: 'Providence', RM: 'Remote' };
     const teamIcons = { BB: '🦁', PR: '🐆', RM: '🌐' };
@@ -403,7 +418,7 @@ window.ahShowTeamBreakdown = function(team) {
 
     title.innerText = `${teamNames[team]} Team`;
     icon.innerText = teamIcons[team];
-    icon.className = `w-20 h-20 rounded-[2rem] flex items-center justify-center text-4xl shadow-2xl bg-${colorClass}/20 text-${colorClass}`;
+    icon.className = `w-16 h-16 rounded-[2rem] flex items-center justify-center text-3xl shadow-2xl bg-${colorClass}/20 text-${colorClass}`;
     
     const filtered = window.agents.filter(a => normalizeTeam(a.team, a.name) === team);
     const totalXfers = filtered.reduce((sum, a) => sum + (Number(a.dailyLeads) || 0), 0);
@@ -413,29 +428,29 @@ window.ahShowTeamBreakdown = function(team) {
     document.getElementById('ah-team-modal-avg').innerText = filtered.length ? (totalXfers / filtered.length).toFixed(1) : '0.0';
 
     list.innerHTML = filtered.sort((a,b) => (Number(b.dailyLeads)||0) - (Number(a.dailyLeads)||0)).map(a => `
-        <tr class="hover:bg-white/5 transition">
-            <td class="py-4">
-                <div class="text-[13px] font-black text-white uppercase">${a.name}</div>
-                <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${a.status || 'Active'}</div>
+        <tr class="hover:bg-white/5 transition border-b border-white/5 last:border-0 text-[11px]">
+            <td class="py-3">
+                <div class="font-black text-white uppercase">${a.name}</div>
             </td>
-            <td class="py-4 text-[10px] text-slate-500 font-bold">${a.ytelId || '----'}</td>
-            <td class="py-4">
+            <td class="py-3">
                 <span class="flex items-center gap-1.5 text-[9px] font-black uppercase text-green-400">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                    <span class="w-1 h-1 rounded-full bg-green-500"></span>
                     Online
                 </span>
             </td>
-            <td class="py-4 text-right">
-                <div class="text-[14px] font-black text-white italic">${a.dailyLeads || 0}</div>
+            <td class="py-3 text-right">
+                <div class="font-black text-white italic">${a.dailyLeads || 0}</div>
             </td>
         </tr>
-    `).join('') || '<tr><td colspan="4" class="py-20 text-center text-slate-600 font-bold uppercase tracking-widest">No agents online in this team</td></tr>';
+    `).join('') || '<tr><td colspan="3" class="py-10 text-center text-slate-600 font-bold uppercase tracking-widest text-[9px]">No agents found</td></tr>';
 
-    modal.classList.remove('hidden');
+    detailSect.classList.remove('hidden');
+    detailSect.dataset.currentTeam = team;
+    detailSect.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
-window.ahCloseTeamModal = function() {
-    document.getElementById('ah-team-modal').classList.add('hidden');
+window.ahCloseTeamDetail = function() {
+    document.getElementById('ah-sect-team-detail').classList.add('hidden');
 };
 
 window.ahEditGoal = function() {
@@ -447,15 +462,16 @@ window.ahEditGoal = function() {
 };
 
 // ── COACHING LOGIC ──
-window.ahOpenCoachingModal = function() {
+window.ahOpenCoachingInline = function() {
     const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     document.getElementById('coach-admin-name').value = cAdmin.name || cAdmin.email || 'Admin';
     document.getElementById('ah-coaching-form').reset();
-    document.getElementById('ah-coaching-modal').classList.remove('hidden');
+    document.getElementById('ah-coaching-inline').classList.remove('hidden');
+    document.getElementById('ah-coaching-inline').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
-window.ahCloseCoachingModal = function() {
-    document.getElementById('ah-coaching-modal').classList.add('hidden');
+window.ahCloseCoachingInline = function() {
+    document.getElementById('ah-coaching-inline').classList.add('hidden');
 };
 
 window.ahHandleCoachingSubmit = async function(e) {
@@ -491,7 +507,7 @@ window.ahHandleCoachingSubmit = async function(e) {
             window.writeAdminActivityLog('coaching', `Logged coaching session for ${repName} on "${topic}"`);
         }
         setTimeout(() => {
-            ahCloseCoachingModal();
+            ahCloseCoachingInline();
             saveBtn.disabled = false;
             status.innerHTML = '';
         }, 1500);
@@ -554,15 +570,16 @@ function renderCoachingList(sessions) {
 }
 
 // ── MONITORING LOGIC ──
-window.ahOpenMonitoringModal = function() {
+window.ahOpenMonitoringInline = function() {
     const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     document.getElementById('mon-admin-name').value = cAdmin.name || cAdmin.email || 'Admin';
     document.getElementById('ah-monitoring-form').reset();
-    document.getElementById('ah-monitoring-modal').classList.remove('hidden');
+    document.getElementById('ah-monitoring-inline').classList.remove('hidden');
+    document.getElementById('ah-monitoring-inline').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
-window.ahCloseMonitoringModal = function() {
-    document.getElementById('ah-monitoring-modal').classList.add('hidden');
+window.ahCloseMonitoringInline = function() {
+    document.getElementById('ah-monitoring-inline').classList.add('hidden');
 };
 
 window.ahHandleMonitoringSubmit = async function(e) {
@@ -597,7 +614,7 @@ window.ahHandleMonitoringSubmit = async function(e) {
             window.writeAdminActivityLog('monitoring', `Logged QA check for ${repName}`);
         }
         setTimeout(() => {
-            ahCloseMonitoringModal();
+            ahCloseMonitoringInline();
             saveBtn.disabled = false;
             status.innerHTML = '';
         }, 1500);
@@ -701,6 +718,11 @@ function ahAdminToolsInit() {
     const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = cAdmin.role === 'super_admin' || cAdmin.isSuper;
     
+    // Auto-cleanup legacy data once on init
+    if (typeof window.ahPruneOldReports === 'function') {
+        window.ahPruneOldReports();
+    }
+
     const userTabBtn = document.getElementById('aht-tab-users');
     if (userTabBtn) {
         if (isSuper) userTabBtn.classList.remove('hidden');

