@@ -263,18 +263,20 @@ function updateStatsStatus(msg, isError) {
 }
 
 function renderHistoryList() {
-    const listHtml = document.getElementById('as-history-list');
-    if (!listHtml) return;
+    const listHtmls = document.querySelectorAll('#as-history-list');
+    if (listHtmls.length === 0) return;
     
     if (allReports.length === 0) {
-        listHtml.innerHTML = '<div class="text-center text-slate-500 text-xs py-8">No historical reports inside database.</div>';
+        listHtmls.forEach(listHtml => {
+            listHtml.innerHTML = '<div class="text-center text-slate-500 text-xs py-8">No historical reports inside database.</div>';
+        });
         return;
     }
     
     // Sort descending by upload time
     const sorted = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
     
-    listHtml.innerHTML = sorted.map((r, i) => {
+    const htmlOutput = sorted.map((r, i) => {
         const isLatest = i === 0;
         // Show file date (reportDate extracted from filename) as primary label
         const fileDate = r.reportDate || r.filename || 'Unknown Date';
@@ -298,6 +300,10 @@ function renderHistoryList() {
             </div>
         `;
     }).join('');
+    
+    listHtmls.forEach(listHtml => {
+        listHtml.innerHTML = htmlOutput;
+    });
 }
 
 window.viewReport = function(id) {
@@ -307,13 +313,13 @@ window.viewReport = function(id) {
     currentReportData = report;
     renderHistoryList(); // updates active highlight
     
-    document.getElementById('as-report-title').innerText = 'Report: ' + report.reportDate;
-    document.getElementById('as-report-date').innerHTML = `<i class="far fa-calendar-alt mr-1"></i> Uploaded ${new Date(report.uploadedAt).toLocaleDateString()}`;
-    document.getElementById('as-report-author').innerHTML = `<i class="far fa-user mr-1"></i> ${report.author}`;
+    document.querySelectorAll('#as-report-title').forEach(el => el.innerText = 'Report: ' + report.reportDate);
+    document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> Uploaded ${new Date(report.uploadedAt).toLocaleDateString()}`);
+    document.querySelectorAll('#as-report-author').forEach(el => el.innerHTML = `<i class="far fa-user mr-1"></i> ${report.author}`);
     
     // Wire up delete button
-    const delBtn = document.getElementById('as-delete-btn');
-    if (delBtn) {
+    const delBtns = document.querySelectorAll('#as-delete-btn');
+    delBtns.forEach(delBtn => {
         const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
         if (cAdmin.role === 'super_admin' || cAdmin.isSuper) {
             delBtn.classList.remove('hidden');
@@ -331,11 +337,11 @@ window.viewReport = function(id) {
         } else {
             delBtn.classList.add('hidden');
         }
-    }
+    });
     
     // Wire up Push Button
-    const pushBtn = document.getElementById('as-push-btn');
-    if (pushBtn) {
+    const pushBtns = document.querySelectorAll('#as-push-btn');
+    pushBtns.forEach(pushBtn => {
         pushBtn.classList.remove('hidden');
         pushBtn.onclick = async () => {
             if(confirm(`Broadcast this report (${report.reportDate}) to the LIVE Leaderboard for all agents?`)) {
@@ -361,8 +367,8 @@ window.viewReport = function(id) {
                 
                 if (typeof window.saveLiveDashboardState === 'function') {
                     await window.saveLiveDashboardState(pushState);
-                    pushBtn.innerHTML = '✅ Pushed!';
-                    setTimeout(() => pushBtn.innerHTML = '🚀 Push to Daily Full Board', 2000);
+                    pushBtns.forEach(btn => btn.innerHTML = '✅ Pushed!');
+                    setTimeout(() => pushBtns.forEach(btn => btn.innerHTML = '🚀 Push to Daily Full Board'), 2000);
                     
                     if (typeof window.writeAdminActivityLog === 'function') {
                         window.writeAdminActivityLog('push_dashboard', `Pushed Report to Live Dashboard: ${report.reportDate}`);
@@ -370,7 +376,7 @@ window.viewReport = function(id) {
                 }
             }
         };
-    }
+    });
     
     renderActiveReportTable();
 };
@@ -400,13 +406,16 @@ function renderActiveReportTable() {
         if(d.duration >= 120) totalXfers++;
     });
     
-    document.getElementById('as-stat-agents').innerText = Object.keys(totalAgentsMap).length;
-    document.getElementById('as-stat-calls').innerText = totalCalls;
-    document.getElementById('as-stat-transfers').innerText = totalXfers;
-    document.getElementById('as-stat-rate').innerText = totalCalls > 0 ? ((totalXfers / totalCalls)*100).toFixed(1) + '%' : '0%';
+    document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = Object.keys(totalAgentsMap).length);
+    document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = totalCalls);
+    document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
+    document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = totalCalls > 0 ? ((totalXfers / totalCalls)*100).toFixed(1) + '%' : '0%');
     
     // Search Filter
-    const searchVal = (document.getElementById('as-search-input')?.value || '').toLowerCase();
+    let searchVal = '';
+    const searchInput = document.getElementById('as-search-input');
+    if (searchInput) searchVal = searchInput.value.toLowerCase();
+    
     if (searchVal) {
         displayData = displayData.filter(d => d.agentName.toLowerCase().includes(searchVal));
     }
@@ -428,15 +437,15 @@ function renderActiveReportTable() {
     });
     
     // Render
-    const tbody = document.getElementById('as-table-body');
-    if (!tbody) return;
+    const tbodies = document.querySelectorAll('#as-table-body');
+    if (tbodies.length === 0) return;
     
     if (displayData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-500 text-xs italic">No matching rows found.</td></tr>`;
+        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-500 text-xs italic">No matching rows found.</td></tr>`);
         return;
     }
     
-    tbody.innerHTML = displayData.map(d => {
+    const htmlOutput = displayData.map(d => {
         // Highlight logic for Status and Durations
         let statusColor = 'text-slate-300';
         if(d.status.includes('XFER') || d.status.includes('TRANS')) statusColor = 'text-cyan-400 font-bold';
@@ -455,6 +464,8 @@ function renderActiveReportTable() {
             </tr>
         `;
     }).join('');
+    
+    tbodies.forEach(tbody => tbody.innerHTML = htmlOutput);
 }
 
 // Automatically pipeline the LATEST report into the daily leaderboard goals
