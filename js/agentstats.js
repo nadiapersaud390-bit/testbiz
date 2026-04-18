@@ -149,43 +149,57 @@ async function handleFileUpload(file) {
         header: true,
         skipEmptyLines: true,
         complete: async function(results) {
-            const parsedData = processCSVRows(results.data);
-            
-            if (parsedData.length === 0) {
-                const headers = results.meta && results.meta.fields ? results.meta.fields.join(' | ') : 'none';
-                updateStatsStatus(`❌ Failed. Cols: ${headers}`, true);
-                return;
-            }
-            
-            // Build report object
-            const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-            const adminName = currentAdmin.name || currentAdmin.email || 'Admin';
-            
-            const expiryDays = parseInt(document.getElementById('as-expiry-select').value) || 30;
-            const expiryDate = new Date();
-            expiryDate.setDate(expiryDate.getDate() + expiryDays);
-            
-            const reportObj = {
-                filename: file.name,
-                reportDate: fileDateStr,
-                uploadedAt: new Date().toISOString(),
-                expiresAt: expiryDate.toISOString(),
-                author: adminName,
-                data: parsedData
-            };
-            
-            // Save to Firebase
-            if (typeof window.saveAgentReportToFirebase === 'function') {
-                const res = await window.saveAgentReportToFirebase(reportObj);
-                if(res.success) {
-                    updateStatsStatus('✅ Report uploaded & synced globally', false);
-                    if (typeof window.writeAdminActivityLog === 'function') {
-                        window.writeAdminActivityLog('upload_stats', `Uploaded new Agent Stats Report: ${file.name}`);
-                    }
-                    setTimeout(() => updateStatsStatus('', false), 3000);
-                } else {
-                    updateStatsStatus('❌ Failed to upload to cloud', true);
+            try {
+                const parsedData = processCSVRows(results.data);
+                
+                if (parsedData.length === 0) {
+                    const headers = results.meta && results.meta.fields ? results.meta.fields.join(' | ') : 'none';
+                    updateStatsStatus(`❌ Failed. Cols: ${headers}`, true);
+                    return;
                 }
+                
+                // Build report object
+                const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+                const adminName = currentAdmin.name || currentAdmin.email || 'Admin';
+                
+                const selectVal = document.getElementById('as-expiry-select').value;
+                let expiryDays = 30;
+                if (selectVal === 'custom') {
+                    expiryDays = parseInt(document.getElementById('as-expiry-custom').value) || 30;
+                } else {
+                    expiryDays = parseInt(selectVal) || 30;
+                }
+                
+                const expiryDate = new Date();
+                expiryDate.setDate(expiryDate.getDate() + expiryDays);
+                
+                const reportObj = {
+                    filename: file.name,
+                    reportDate: fileDateStr,
+                    uploadedAt: new Date().toISOString(),
+                    expiresAt: expiryDate.toISOString(),
+                    author: adminName,
+                    data: parsedData
+                };
+                
+                // Save to Firebase
+                if (typeof window.saveAgentReportToFirebase === 'function') {
+                    const res = await window.saveAgentReportToFirebase(reportObj);
+                    if(res && res.success) {
+                        updateStatsStatus('✅ Report uploaded & synced globally', false);
+                        if (typeof window.writeAdminActivityLog === 'function') {
+                            window.writeAdminActivityLog('upload_stats', `Uploaded new Agent Stats Report: ${file.name}`);
+                        }
+                        setTimeout(() => updateStatsStatus('', false), 3000);
+                    } else {
+                        const errMsg = (res && res.error && res.error.message) ? res.error.message : 'Unknown error';
+                        updateStatsStatus(`❌ Failed to upload: ${errMsg}`, true);
+                    }
+                } else {
+                    updateStatsStatus('❌ Firebase not connected. Please reload.', true);
+                }
+            } catch(err) {
+                updateStatsStatus('❌ Error processing CSV: ' + err.message, true);
             }
         },
         error: function(err) {

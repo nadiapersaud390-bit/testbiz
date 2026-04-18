@@ -19,12 +19,14 @@
                 <i class="fas fa-cloud-upload-alt text-cyan-500"></i>
             </h3>
             
-             <select id="as-expiry-select" class="w-full bg-black/40 border border-white/10 rounded-xl p-2 text-white text-[10px] font-bold uppercase tracking-widest mb-3 focus:border-cyan-500 outline-none transition">
+             <select id="as-expiry-select" class="w-full bg-black/40 border border-white/10 rounded-xl p-2 text-white text-[10px] font-bold uppercase tracking-widest mb-3 focus:border-cyan-500 outline-none transition" onchange="const c=document.getElementById('as-expiry-custom'); if(this.value==='custom'){c.classList.remove('hidden');c.focus();}else{c.classList.add('hidden');}">
                 <option value="7">Auto-Delete: 7 Days</option>
                 <option value="30" selected>Auto-Delete: 30 Days</option>
                 <option value="60">Auto-Delete: 60 Days</option>
                 <option value="90">Auto-Delete: 90 Days</option>
+                <option value="custom">Custom amount...</option>
             </select>
+            <input type="number" id="as-expiry-custom" placeholder="Enter custom days..." class="hidden w-full bg-black/40 border border-white/10 rounded-xl p-2 text-white text-[10px] font-bold uppercase tracking-widest mb-3 focus:border-cyan-500 outline-none transition" min="1">
 
             <div id="as-drop-zone" class="border-2 border-dashed border-cyan-500/30 rounded-xl p-6 text-center hover:border-cyan-400 hover:bg-cyan-500/5 transition cursor-pointer flex flex-col items-center justify-center">
                 <input type="file" id="as-file-input" accept=".csv" class="hidden">
