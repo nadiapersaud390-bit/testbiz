@@ -429,8 +429,11 @@ function handleLiveStateUpdate(state) {
                 <div class="bg-white/5 border border-white/5 opacity-40 rounded-xl p-2 flex items-center gap-2 hover:opacity-100 transition grayscale hover:grayscale-0">
                     <div class="w-1.5 h-1.5 bg-slate-700 rounded-full"></div>
                     <div class="flex-1 overflow-hidden">
-                        <div class="text-[9px] font-black text-slate-400 truncate uppercase">${a.name}</div>
-                        <div class="text-[7px] font-bold text-slate-600 uppercase tracking-tighter">${team}</div>
+                        <div class="text-[9px] font-black text-slate-400 truncate uppercase">${a.name || 'Unknown Agent'}</div>
+                        <div class="flex justify-between items-center mt-0.5">
+                            <div class="text-[7px] font-bold text-slate-600 uppercase tracking-tighter">${team}</div>
+                            <div class="text-[7px] font-black text-slate-700 uppercase tracking-widest">${a.ytelId || ''}</div>
+                        </div>
                     </div>
                 </div>
             `;

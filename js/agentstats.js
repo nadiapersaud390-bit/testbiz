@@ -229,25 +229,31 @@ function processCSVRows(rows) {
     // Agent Id, Agent Name, Current Status, Duration
     
     const keys = Object.keys(rows[0]);
+    
+    // 1. Identify ID Column
     let idCol = keys.find(k => {
         const l = k.toLowerCase();
-        return l === 'agent id' || l === 'user id' || l === 'ext' || l === 'id' || l.includes('extension');
+        return l === 'agent id' || l === 'user id' || l === 'ext' || l === 'id' || l === 'extension';
     }) || keys.find(k => k.toLowerCase().includes('id')) || keys[0];
     
+    // 2. Identify Name Column (Must NOT be the ID column)
     let nameCol = keys.find(k => {
         const l = k.toLowerCase();
+        if (k === idCol) return false; // Skip if already picked as ID
         return l === 'agent name' || l === 'full name' || l === 'name' || (l.includes('agent') && !l.includes('id'));
-    }) || keys[1];
+    }) || keys.find(k => k !== idCol && k.toLowerCase().includes('name')) || keys.find(k => k !== idCol) || keys[1];
     
+    // 3. Identify Status Column
     let statusCol = keys.find(k => {
         const l = k.toLowerCase();
-        return l.includes('status') || l.includes('state');
-    }) || keys[2];
+        return (l.includes('status') || l.includes('state')) && k !== idCol && k !== nameCol;
+    }) || keys.find(k => k !== idCol && k !== nameCol) || keys[2];
     
+    // 4. Identify Duration Column
     let durationColName = keys.find(k => {
         const l = k.toLowerCase();
-        return l.includes('duration') || l.includes('time') || l.includes('length');
-    }) || keys[3];
+        return (l.includes('duration') || l.includes('time') || l.includes('length')) && k !== idCol && k !== nameCol && k !== statusCol;
+    }) || keys.find(k => k !== idCol && k !== nameCol && k !== statusCol) || keys[3];
 
     const parsedArray = [];
     
@@ -258,9 +264,8 @@ function processCSVRows(rows) {
         
         if (cleanName === 'UNKNOWN' || cleanName === '') return;
         
-        // Only remove if it's JUST 'PH' or similar, not a real name like 'Phillip'
-        const isPhPlaceholder = (rawName === 'PH' || rawName === 'PH ' || id === 'PH' || id === 'PH ');
-        if (isPhPlaceholder) return; 
+        // Skip placeholders/training accounts starting with PH
+        if (rawName.startsWith('PH') || id.startsWith('PH')) return; 
         
         const status = String(row[statusCol] || '').trim();
         
