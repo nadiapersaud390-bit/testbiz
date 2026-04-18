@@ -113,16 +113,18 @@ async function handleFileUpload(file) {
     
     updateStatsStatus('<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing CSV...', false);
     
-    // Auto date extraction from filename (MM_DD_YYYY or YYYY-MM-DD)
     let fileDateStr = null;
     const _mdyM = file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})/);
     const _ymdM = file.name.match(/(\d{4})[-_](\d{2})[-_](\d{2})/);
+    let parsedReportDate = new Date();
+    
     if (_mdyM) {
-        const _d = new Date(_mdyM[3] + '-' + _mdyM[1] + '-' + _mdyM[2]);
-        if (!isNaN(_d)) fileDateStr = typeof getFormattedDate === 'function' ? getFormattedDate(_d) : _d.toLocaleDateString();
+        // Add T12:00:00 to prevent local timezone from shifting the day backwards
+        parsedReportDate = new Date(_mdyM[3] + '-' + _mdyM[1] + '-' + _mdyM[2] + 'T12:00:00');
+        if (!isNaN(parsedReportDate)) fileDateStr = typeof getFormattedDate === 'function' ? getFormattedDate(parsedReportDate) : parsedReportDate.toLocaleDateString();
     } else if (_ymdM) {
-        const _d = new Date(_ymdM[1] + '-' + _ymdM[2] + '-' + _ymdM[3]);
-        if (!isNaN(_d)) fileDateStr = typeof getFormattedDate === 'function' ? getFormattedDate(_d) : _d.toLocaleDateString();
+        parsedReportDate = new Date(_ymdM[1] + '-' + _ymdM[2] + '-' + _ymdM[3] + 'T12:00:00');
+        if (!isNaN(parsedReportDate)) fileDateStr = typeof getFormattedDate === 'function' ? getFormattedDate(parsedReportDate) : parsedReportDate.toLocaleDateString();
     }
     if (!fileDateStr) fileDateStr = file.name.replace(/\.csv$/i, '');
     
@@ -174,15 +176,6 @@ async function handleFileUpload(file) {
                 
                 const expiryDate = new Date();
                 expiryDate.setDate(expiryDate.getDate() + expiryDays);
-                
-                let parsedReportDate = new Date();
-                try {
-                    const parts = fileDateStr.split('_');
-                    if(parts.length === 3) {
-                        // MM_DD_YYYY to YYYY-MM-DD
-                        parsedReportDate = new Date(`${parts[2]}-${parts[0]}-${parts[1]}T12:00:00`);
-                    }
-                } catch(e) {}
                 
                 const dayName = typeof getGuyanaDayName === 'function' ? getGuyanaDayName(parsedReportDate) : 'MON';
                 

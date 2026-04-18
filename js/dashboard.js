@@ -198,7 +198,9 @@ function render() {
     if (isHistory) {
         const snap = dayHistory.find(d => d.day === currentDayView);
         if (snap) {
-            fullList = [...snap.agents].sort((a, b) => b.leads - a.leads);
+            fullList = [...snap.agents]
+                .filter(a => !(a.name && String(a.name).toUpperCase().includes('PH')))
+                .sort((a, b) => b.leads - a.leads);
             fullList = fullList.map(a => ({
                 ...a,
                 team: normalizeTeam(a.team, a.name)
@@ -210,12 +212,14 @@ function render() {
             });
         }
     } else {
-        fullList = agents.map(a => ({
-            name: a.name,
-            leads: isWeekly ? (a.weeklyLeads || 0) : (a.dailyLeads || 0),
-            team: normalizeTeam(a.team, a.name),
-            ytelId: a.ytelId || ''
-        })).sort((a, b) => b.leads - a.leads);
+        fullList = agents
+            .filter(a => !(a.name && String(a.name).toUpperCase().includes('PH')))
+            .map(a => ({
+                name: a.name,
+                leads: isWeekly ? (a.weeklyLeads || 0) : (a.dailyLeads || 0),
+                team: normalizeTeam(a.team, a.name),
+                ytelId: a.ytelId || ''
+            })).sort((a, b) => b.leads - a.leads);
 
         fullList.forEach(a => {
             if (a.team === 'PR') prTotal += a.leads;
