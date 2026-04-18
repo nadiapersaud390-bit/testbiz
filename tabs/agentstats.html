@@ -1,0 +1,132 @@
+<div class="p-4 max-w-6xl mx-auto flex flex-col md:flex-row gap-6">
+    <!-- Sidebar: Controls & History -->
+    <div class="w-full md:w-1/3 flex flex-col gap-6">
+        
+        <!-- Header -->
+        <div class="bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border-2 border-cyan-500/30 rounded-2xl p-5 text-center shadow-[0_0_20px_rgba(6,182,212,0.15)] relative overflow-hidden group">
+            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent -translate-x-full group-hover:block transition-transform duration-1000 group-hover:translate-x-full"></div>
+            <div class="flex items-center justify-center gap-3 mb-2 relative z-10">
+                <span class="text-4xl text-cyan-400">📊</span>
+                <span class="text-2xl font-black bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent uppercase tracking-tight">Agent Stats</span>
+            </div>
+            <p class="text-cyan-400/80 text-[10px] font-bold uppercase tracking-widest relative z-10">Core Performance Analytics Hub</p>
+        </div>
+
+        <!-- Uploader -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/[0.07] transition duration-300">
+            <h3 class="text-white font-black uppercase text-sm mb-4 tracking-wider flex items-center justify-between">
+                <span>Upload CSV</span>
+                <i class="fas fa-cloud-upload-alt text-cyan-500"></i>
+            </h3>
+            
+             <select id="as-expiry-select" class="w-full bg-black/40 border border-white/10 rounded-xl p-2 text-white text-[10px] font-bold uppercase tracking-widest mb-3 focus:border-cyan-500 outline-none transition">
+                <option value="7">Auto-Delete: 7 Days</option>
+                <option value="30" selected>Auto-Delete: 30 Days</option>
+                <option value="60">Auto-Delete: 60 Days</option>
+                <option value="90">Auto-Delete: 90 Days</option>
+            </select>
+
+            <div id="as-drop-zone" class="border-2 border-dashed border-cyan-500/30 rounded-xl p-6 text-center hover:border-cyan-400 hover:bg-cyan-500/5 transition cursor-pointer flex flex-col items-center justify-center">
+                <input type="file" id="as-file-input" accept=".csv" class="hidden">
+                <i class="fas fa-file-csv text-3xl text-cyan-500/50 mb-2"></i>
+                <div class="text-xs text-slate-300 font-bold">Click or Drag Dialer CSV here</div>
+                <div class="text-[9px] text-slate-500 mt-1">Xfer Report / Daily Overview</div>
+            </div>
+
+            <div id="as-upload-status" class="mt-4 text-[10px] text-center font-bold"></div>
+        </div>
+
+        <!-- History -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 flex-1 min-h-[300px] flex flex-col">
+            <h3 class="text-white font-black uppercase text-sm mb-4 tracking-wider flex items-center justify-between">
+                <span>Report History</span>
+                <i class="fas fa-history text-slate-400"></i>
+            </h3>
+            <div id="as-history-list" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                <div class="text-center text-slate-500 text-xs py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Loading cloud history...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content: Data View -->
+    <div class="w-full md:w-2/3 flex flex-col gap-6">
+        
+        <!-- Controls & Meta -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <h2 id="as-report-title" class="text-xl font-black text-white italic tracking-tight">No Report Selected</h2>
+                <div id="as-report-meta" class="flex items-center gap-3 mt-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                    <span id="as-report-date"><i class="far fa-calendar-alt mr-1"></i> --</span>
+                    <span id="as-report-author"><i class="far fa-user mr-1"></i> --</span>
+                </div>
+            </div>
+            
+            <div class="flex gap-2 w-full sm:w-auto">
+                <button id="as-push-btn" class="hidden bg-green-500/10 border border-green-500/30 text-green-400 px-3 py-2 rounded-xl hover:bg-green-500/20 transition text-xs font-bold whitespace-nowrap" title="Push to Live Leaderboard">
+                    🚀 Push to Daily Full Board
+                </button>
+                <div class="relative flex-1 sm:w-48">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="as-search-input" placeholder="Search Agents..." class="w-full bg-black/40 border border-white/10 rounded-xl py-2 pl-8 pr-3 text-white text-xs focus:border-cyan-500 outline-none transition">
+                </div>
+                <button id="as-delete-btn" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 p-2 rounded-xl hover:bg-red-500/20 transition" title="Delete Report">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Global Stats Row -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-zinc-900 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
+                <div class="text-2xl font-black text-white" id="as-stat-agents">0</div>
+                <div class="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Total Agents</div>
+            </div>
+            <div class="bg-zinc-900 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
+                <div class="text-2xl font-black text-white" id="as-stat-calls">0</div>
+                <div class="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Total Connections</div>
+            </div>
+            <div class="bg-cyan-950 border border-cyan-500/30 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
+                <div class="text-2xl font-black text-cyan-400" id="as-stat-transfers">0</div>
+                <div class="text-[9px] text-cyan-500/70 uppercase font-black tracking-widest mt-1">Transfers (≥120s)</div>
+            </div>
+            <div class="bg-zinc-900 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
+                <div class="text-2xl font-black text-white" id="as-stat-rate">0%</div>
+                <div class="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Avg Transfer Rate</div>
+            </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden flex-1 flex flex-col">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-white/5 border-b border-white/10 text-[9px] uppercase tracking-widest font-black text-slate-400">
+                            <th class="p-4 cursor-pointer hover:text-white transition" onclick="sortAgentStats('name')">Agent Name <i class="fas fa-sort ml-1"></i></th>
+                            <th class="p-4 cursor-pointer hover:text-white transition text-center" onclick="sortAgentStats('connections')">Calls <i class="fas fa-sort ml-1"></i></th>
+                            <th class="p-4 cursor-pointer hover:text-cyan-400 transition text-center" onclick="sortAgentStats('transfers')">Transfers <i class="fas fa-sort ml-1"></i></th>
+                            <th class="p-4 cursor-pointer hover:text-white transition text-center" onclick="sortAgentStats('rate')">Xfer Rate <i class="fas fa-sort ml-1"></i></th>
+                        </tr>
+                    </thead>
+                    <tbody id="as-table-body" class="text-sm">
+                        <tr>
+                            <td colspan="4" class="p-8 text-center text-slate-500 text-xs italic">Select a report from history or upload a new CSV.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<style>
+/* Scoped CSS for Agent Stats */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(6,182,212,0.5); }
+
+.report-item { transition: all 0.2s ease; cursor: pointer; border-left: 2px solid transparent; }
+.report-item:hover { background: rgba(255,255,255,0.05); }
+.report-item.active { background: rgba(6,182,212,0.1); border-left-color: #06b6d4; }
+</style>

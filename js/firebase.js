@@ -186,6 +186,59 @@ window.saveSuperAdminToFirebase = async function(superAdminObj) {
     await set(ref(database, 'super_admin'), superAdminObj);
 };
 
+// ========== AGENT STATS (REPORTS) ==========
+window.listenForAgentReports = function(callback) {
+    if (!database) return;
+    onValue(ref(database, 'agent_reports'), (snapshot) => {
+        const data = snapshot.val() || {};
+        const reportsArray = Object.keys(data).map(k => ({id: k, ...data[k]}));
+        // Sort descending by timestamp
+        reportsArray.sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+        if (callback) callback(reportsArray);
+    });
+};
+
+window.saveAgentReportToFirebase = async function(reportObj) {
+    if (!database) return;
+    try {
+        const newRef = push(ref(database, 'agent_reports'));
+        await set(newRef, reportObj);
+        return { success: true, id: newRef.key };
+    } catch(e) {
+        return { success: false, error: e };
+    }
+};
+
+window.deleteAgentReportFromFirebase = async function(id) {
+    if (!database) return;
+    await set(ref(database, 'agent_reports/' + id), null);
+};
+
+// ========== LIVE DASHBOARD & ZERO TRACKER ==========
+window.listenForLiveDashboardState = function(callback) {
+    if (!database) return;
+    onValue(ref(database, 'live_dashboard_state'), (snapshot) => {
+        if (callback) callback(snapshot.val());
+    });
+};
+
+window.saveLiveDashboardState = async function(stateObj) {
+    if (!database) return;
+    await set(ref(database, 'live_dashboard_state'), stateObj);
+};
+
+window.listenForMasterRoster = function(callback) {
+    if (!database) return;
+    onValue(ref(database, 'biz_master_roster'), (snapshot) => {
+        if (callback) callback(snapshot.val());
+    });
+};
+
+window.saveMasterRoster = async function(rosterArray) {
+    if (!database) return;
+    await set(ref(database, 'biz_master_roster'), rosterArray);
+};
+
 // ========== AUTHENTICATION FUNCTIONS ==========
 
 // Admin login function

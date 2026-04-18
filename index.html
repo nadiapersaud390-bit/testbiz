@@ -10,6 +10,7 @@
 </head>
 <body class="p-4 pb-20">
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>
 if (sessionStorage.getItem('agentLoggedIn') !== '1') {
     window.location.replace('agent-login.html');
@@ -176,6 +177,7 @@ function dismissLeadAlert() {
     <div id="trivia-view" class="hidden" data-tab-src="tabs/trivia.html"></div>
     <div id="adminpanel-view" class="hidden" data-tab-src="tabs/adminpanel.html"></div>
     <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html"></div>
+    <div id="agentstats-view" class="hidden" data-tab-src="tabs/agentstats.html"></div>
 
 </div>
 
@@ -190,6 +192,7 @@ function dismissLeadAlert() {
 <script src="js/leadalerts.js"></script>
 <script src="js/broadcast.js"></script>
 <script src="js/topperformer.js"></script>
+<script src="js/agentstats.js"></script>
 
 <script>
 const _loadedTabs = new Set();
@@ -226,6 +229,7 @@ window.switchTab = async function(tab) {
         trivia: 'trivia-view',
         adminpanel: 'adminpanel-view',
         superadminpanel: 'superadminpanel-view',
+        agentstats: 'agentstats-view',
         weekly: 'leaderboard-view'
     };
 

@@ -4,72 +4,68 @@
  * The logged-in agent's own row is highlighted automatically.
  */
 
-async function updateDashboard() {
+let isDashboardSubscribed = false;
+
+function updateDashboard() {
     const btn = document.getElementById('refresh-btn');
-    if (btn) btn.classList.add('spin-anim');
+    if (btn) {
+        btn.classList.add('spin-anim');
+        setTimeout(() => btn.classList.remove('spin-anim'), 1000);
+    }
 
-    try {
-        const res = await fetch(API_URL);
-        agents = await res.json();
-
-        // Data enrichment
-        agents.forEach(a => {
-            a.team = normalizeTeam(a.team, a.name);
-        });
-
-        // Client-side Guyana day override
-        if (agents.length > 0) {
-            agents[0].todayName = getGuyanaToday();
-        }
-
-        // Process Day History
-        if (agents.length > 0 && agents[0].dayHistory) {
-            dayHistory = agents[0].dayHistory;
-            dayHistory.forEach(d => {
-                d.agents.forEach(a => {
-                    a.team = normalizeTeam(a.team, a.name);
-                });
-            });
-        }
-
-        // Calculate Team Totals if missing
-        if (agents.length > 0 && !agents[0].prTotal && !agents[0].bbTotal && !agents[0].rmTotal) {
-            let pr = 0, bb = 0, rm = 0;
+    if (!isDashboardSubscribed && typeof window.listenForLiveDashboardState === 'function') {
+        window.listenForLiveDashboardState((state) => {
+            if (!state) {
+                const ts = document.getElementById('timestamp');
+                if (ts) ts.innerText = 'System Offline: No Live Data';
+                return;
+            }
+            
+            // Construct agents array
+            agents = state.agents || [];
+            
+            // Re-apply normalizations
             agents.forEach(a => {
-                if (a.team === 'PR') pr += (a.dailyLeads || 0);
-                else if (a.team === 'BB') bb += (a.dailyLeads || 0);
-                else if (a.team === 'RM') rm += (a.dailyLeads || 0);
+                a.team = normalizeTeam(a.team, a.name);
             });
-            agents[0].prTotal = pr;
-            agents[0].bbTotal = bb;
-            agents[0].rmTotal = rm;
-        }
-
-        // Update prank list
-        if (agents.length > 0 && agents[0].prankNumbers && agents[0].prankNumbers.length > 0) {
-            agents[0].prankNumbers.forEach(n => {
-                if (n && !KNOWN_PRANK_NUMBERS.includes(n)) KNOWN_PRANK_NUMBERS.push(n);
-            });
-        }
-
-        checkLeadAlerts(agents);
+            
+            if (agents.length > 0) {
+                agents[0].todayName = state.dateLabel || getGuyanaToday();
+                
+                let pr = 0, bb = 0, rm = 0;
+                agents.forEach(a => {
+                    if (a.team === 'PR') pr += (a.dailyLeads || 0);
+                    else if (a.team === 'BB') bb += (a.dailyLeads || 0);
+                    else if (a.team === 'RM') rm += (a.dailyLeads || 0);
+                });
+                agents[0].prTotal = pr;
+                agents[0].bbTotal = bb;
+                agents[0].rmTotal = rm;
+            }
+            
+            // No dayHistory provided by CSV pipeline currently
+            dayHistory = [];
+            currentDayView = 'today';
+            
+            checkLeadAlerts(agents);
+            render();
+            renderDaySubTabs();
+            
+            const ts = document.getElementById('timestamp');
+            if (ts) ts.innerText = 'Globally Synced: ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        });
+        isDashboardSubscribed = true;
+    } else if (isDashboardSubscribed) {
+        // Just re-render if pushed manually
         render();
-        renderDaySubTabs();
-
-        const ts = document.getElementById('timestamp');
-        if (ts) ts.innerText = 'Live: ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-    } catch (e) {
-        const ts = document.getElementById('timestamp');
-        if (ts) ts.innerText = 'System Offline';
-        console.error("Dashboard Update Error:", e);
-    } finally {
-        if (btn) setTimeout(() => btn.classList.remove('spin-anim'), 1000);
     }
 }
 
-// Auto-refresh every 10 seconds
-setInterval(updateDashboard, 10000);
+// Check every few seconds to hook up initialization if it missed
+setInterval(() => {
+    if(!isDashboardSubscribed) updateDashboard();
+}, 5000);
+updateDashboard();
 
 function render() {
     // 1. Session Info (used for highlighting own row only)
@@ -84,9 +80,12 @@ function render() {
     const prView = document.getElementById('prank-view');
     const rbView = document.getElementById('rebuttals-view');
     const trView = document.getElementById('trivia-view');
+    const adView = document.getElementById('adminpanel-view');
+    const sadView = document.getElementById('superadminpanel-view');
+    const asView = document.getElementById('agentstats-view');
 
     // Hide all views first
-    [lView, pView, luView, prView, rbView, trView].forEach(v => { if (v) v.classList.add('hidden'); });
+    [lView, pView, luView, prView, rbView, trView, adView, sadView, asView].forEach(v => { if (v) v.classList.add('hidden'); });
 
     // Handle non-leaderboard tabs
     if (currentTab === 'playbook') { pView.classList.remove('hidden'); return; }
@@ -94,6 +93,9 @@ function render() {
     if (currentTab === 'prank') { if (prView) prView.classList.remove('hidden'); return; }
     if (currentTab === 'rebuttals') { if (rbView) rbView.classList.remove('hidden'); return; }
     if (currentTab === 'trivia') { if (trView) trView.classList.remove('hidden'); return; }
+    if (currentTab === 'adminpanel') { if (adView) adView.classList.remove('hidden'); return; }
+    if (currentTab === 'superadminpanel') { if (sadView) sadView.classList.remove('hidden'); return; }
+    if (currentTab === 'agentstats') { if (asView) asView.classList.remove('hidden'); return; }
 
     lView.classList.remove('hidden');
 
@@ -269,10 +271,11 @@ function switchTab(tab) {
 
     if (tab === 'lookup') renderLookupHistory();
     if (tab === 'trivia') initTriviaTab();
+    if (tab === 'agentstats' && typeof renderAgentStatsHistory === 'function') renderAgentStatsHistory();
 }
 
 function updateTabUI() {
-    ['daily', 'lookup', 'playbook', 'rebuttals', 'prank', 'weekly', 'trivia'].forEach(t => {
+    ['daily', 'lookup', 'playbook', 'rebuttals', 'prank', 'weekly', 'trivia', 'adminpanel', 'superadminpanel', 'agentstats'].forEach(t => {
         const b = document.getElementById('tab-' + t);
         if (!b) return;
 

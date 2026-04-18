@@ -12,27 +12,64 @@
     </div>
 
     <!-- Quick Tools Section -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <!-- Lead Management Placeholder -->
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition cursor-pointer flex items-center justify-between group">
-            <div>
-                <h3 class="text-lg font-bold text-white group-hover:text-cyan-400 transition flex items-center gap-2">
-                    <i class="fas fa-file-upload text-cyan-500"></i> Upload Leads
-                </h3>
-                <p class="text-xs text-slate-400 mt-1">Upload daily lead lists or custom CSVs.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <!-- Agent Stats Navigator -->
+        <div onclick="switchTab('agentstats')" class="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition cursor-pointer flex flex-col justify-between group">
+            <div class="flex items-center gap-2 mb-2">
+                <i class="fas fa-chart-line text-cyan-500 text-xl"></i>
+                <h3 class="text-sm font-bold text-white group-hover:text-cyan-400 transition">Agent Stats</h3>
             </div>
-            <i class="fas fa-arrow-right text-slate-500 group-hover:text-cyan-400"></i>
+            <p class="text-[10px] text-slate-400">Core performance analytics from dialer CSVs.</p>
         </div>
 
-        <!-- Call Recordings Placeholder -->
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition cursor-pointer flex items-center justify-between group">
-            <div>
-                <h3 class="text-lg font-bold text-white group-hover:text-purple-400 transition flex items-center gap-2">
-                    <i class="fas fa-headphones text-purple-500"></i> Call Recordings
-                </h3>
-                <p class="text-xs text-slate-400 mt-1">Review QA and 120s qualification recordings.</p>
+        <!-- Master Roster Config -->
+        <div onclick="apToggleMasterRoster()" class="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition cursor-pointer flex flex-col justify-between group">
+            <div class="flex items-center gap-2 mb-2">
+                <i class="fas fa-users-cog text-purple-500 text-xl"></i>
+                <h3 class="text-sm font-bold text-white group-hover:text-purple-400 transition">Master Roster</h3>
             </div>
-            <i class="fas fa-arrow-right text-slate-500 group-hover:text-purple-400"></i>
+            <p class="text-[10px] text-slate-400">Manage all expected agents.</p>
+        </div>
+
+        <!-- Zero Performance Tracker -->
+        <div onclick="apCheckZeroPerformance()" class="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition cursor-pointer flex flex-col justify-between group">
+            <div class="flex items-center gap-2 mb-2">
+                <i class="fas fa-skull text-red-500 text-xl"></i>
+                <h3 class="text-sm font-bold text-white group-hover:text-red-400 transition">Zero Track</h3>
+            </div>
+            <p class="text-[10px] text-slate-400">Identify agents with 0 live transfers.</p>
+        </div>
+    </div>
+    
+    <!-- Master Roster Editor (Hidden by default) -->
+    <div id="ap-master-roster-panel" class="hidden bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+        <h3 class="text-lg font-bold text-purple-400 mb-4 flex items-center gap-2">
+            <i class="fas fa-users-cog"></i> Master Agent Roster
+        </h3>
+        <p class="text-xs text-slate-400 mb-4">Add every active employee here. The Zero Tracker uses this list to see who is missing from the Live Dashboard.</p>
+        
+        <div class="flex gap-2 mb-4">
+            <input type="text" id="ap-roster-add-input" placeholder="AGENT NAME..." class="flex-1 bg-black/40 border border-white/10 rounded-xl py-2 px-3 text-white text-xs focus:border-purple-500 outline-none uppercase font-bold" onkeydown="if(event.key==='Enter')apAddRosterAgent()">
+            <button onclick="apAddRosterAgent()" class="bg-purple-500/20 border border-purple-500/30 text-purple-400 px-4 py-2 rounded-xl hover:bg-purple-500/30 transition text-xs font-bold">Add</button>
+        </div>
+        
+        <div id="ap-roster-list" class="bg-black/20 p-2 rounded-xl max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
+            <!-- Populated via JS -->
+            <div class="text-[10px] text-center text-slate-500 p-2">Loading roster...</div>
+        </div>
+    </div>
+    
+    <!-- Zero Performance Panel (Hidden by default) -->
+    <div id="ap-zero-panel" class="hidden bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+        <h3 class="text-lg font-bold text-red-500 mb-4 flex items-center gap-2">
+            <i class="fas fa-skull"></i> Zero Performance Tracker
+        </h3>
+        <div class="flex justify-between items-center mb-3">
+            <p class="text-xs text-slate-400">Agents in the Master Roster currently at 0 transfers.</p>
+            <button onclick="apRunZeroCheck()" class="text-[10px] bg-white/5 px-2 py-1 rounded hover:bg-white/10 text-white"><i class="fas fa-sync-alt"></i></button>
+        </div>
+        <div id="ap-zero-list" class="bg-black/20 p-2 rounded-xl max-h-64 overflow-y-auto">
+            <!-- Populated via JS -->
         </div>
     </div>
 
@@ -88,5 +125,114 @@
         document.getElementById('regular-broadcast-message').value = '';
         
         setTimeout(() => statusDiv.innerHTML = '', 3000);
+    }
+    
+    // ========== MASTER ROSTER AND ZERO TRACKER ==========
+    let masterRoster = [];
+
+    // Initialize roster listening when this tab is loaded
+    setTimeout(() => {
+        if (typeof window.listenForMasterRoster === 'function') {
+            window.listenForMasterRoster((data) => {
+                masterRoster = data || [];
+                apRenderRoster();
+            });
+        }
+    }, 500);
+
+    function apToggleMasterRoster() {
+        const p = document.getElementById('ap-master-roster-panel');
+        if(p) p.classList.toggle('hidden');
+    }
+
+    function apRenderRoster() {
+        const list = document.getElementById('ap-roster-list');
+        if (!list) return;
+        
+        // Sort alphabetically
+        masterRoster.sort((a,b) => a.localeCompare(b));
+        
+        if (masterRoster.length === 0) {
+            list.innerHTML = `<div class="text-[10px] text-center text-slate-500 p-2">Roster is empty. Add agents above.</div>`;
+            return;
+        }
+        
+        list.innerHTML = masterRoster.map((name, i) => `
+            <div class="flex justify-between items-center bg-white/5 px-3 py-1.5 rounded hover:bg-white/10 transition group">
+                <span class="text-xs font-bold text-white uppercase">${name}</span>
+                <button onclick="apRemoveRosterAgent(${i})" class="text-red-500/50 hover:text-red-400 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-times"></i></button>
+            </div>
+        `).join('');
+    }
+
+    async function apAddRosterAgent() {
+        const inp = document.getElementById('ap-roster-add-input');
+        if(!inp) return;
+        const name = inp.value.trim().toUpperCase();
+        if(!name) return;
+        
+        if(!masterRoster.includes(name)) {
+            masterRoster.push(name);
+            if (typeof window.saveMasterRoster === 'function') {
+                await window.saveMasterRoster(masterRoster);
+                if (typeof window.writeAdminActivityLog === 'function') {
+                    window.writeAdminActivityLog('roster', `Added ${name} to Master Roster`);
+                }
+            }
+        }
+        inp.value = '';
+    }
+
+    async function apRemoveRosterAgent(idx) {
+        const name = masterRoster[idx];
+        masterRoster.splice(idx, 1);
+        if (typeof window.saveMasterRoster === 'function') {
+            await window.saveMasterRoster(masterRoster);
+            if (typeof window.writeAdminActivityLog === 'function') {
+                window.writeAdminActivityLog('roster', `Removed ${name} from Master Roster`);
+            }
+        }
+    }
+
+    function apCheckZeroPerformance() {
+        const zp = document.getElementById('ap-zero-panel');
+        if(zp) zp.classList.toggle('hidden');
+        if(zp && !zp.classList.contains('hidden')) {
+            apRunZeroCheck();
+        }
+    }
+
+    function apRunZeroCheck() {
+        const list = document.getElementById('ap-zero-list');
+        if(!list) return;
+        list.innerHTML = '<div class="text-[10px] text-center text-slate-500 p-4"><i class="fas fa-spinner fa-spin mr-2"></i> Analyzing Live Dashboard...</div>';
+        
+        // We fetch the current LIVE DASHBOARD state once.
+        if (typeof window.listenForLiveDashboardState === 'function') {
+            // We use a one-off listener. But actually, "agents" global array in dashboard.js holds the live data!
+            // The cleanest way is to just read "agents" global from dashboard since we are in the same window!
+            const liveAgents = typeof window.agents !== 'undefined' ? window.agents : [];
+            
+            let zeroes = [];
+            
+            // For every roster person, see if they are in liveAgents with leads > 0
+            masterRoster.forEach(rosterName => {
+                const found = liveAgents.find(a => String(a.name).trim().toUpperCase() === rosterName);
+                if (!found || (found.dailyLeads || 0) === 0) {
+                    zeroes.push({ name: rosterName });
+                }
+            });
+            
+            if (zeroes.length === 0) {
+                list.innerHTML = `<div class="text-center p-6"><i class="fas fa-check-circle text-green-500 text-3xl mb-2"></i><div class="text-xs text-slate-400 font-bold uppercase tracking-widest">Everyone has transfers!</div></div>`;
+            } else {
+                list.innerHTML = zeroes.map(z => `
+                    <div class="p-2 border-b border-white/5 flex items-center gap-3">
+                        <div class="text-pink-500/80 bg-pink-500/10 h-6 w-6 rounded-full flex items-center justify-center font-black text-[10px]">0</div>
+                        <span class="text-xs font-bold text-slate-300 uppercase">${z.name}</span>
+                    </div>
+                `).join('');
+            }
+        }
     }
 </script>
