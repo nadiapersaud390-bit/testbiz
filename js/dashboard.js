@@ -84,9 +84,13 @@ function updateDashboard() {
                     const agg = {};
                     (r.data || []).forEach(d => {
                         const name = d.agentName || d.name;
+                        const rawName = d.rawName || name;
                         if(name) {
-                            if(!agg[name]) agg[name] = 0;
-                            agg[name] += (d.dailyLeads || 0);
+                            if(!agg[name]) agg[name] = { leads: 0, rawName: rawName };
+                            
+                            let l = d.dailyLeads || 0;
+                            if(d.duration !== undefined && d.duration >= 120) l = 1;
+                            agg[name].leads += l;
                         }
                     });
                     
@@ -96,8 +100,8 @@ function updateDashboard() {
                         fullDate: r.reportDate,
                         agents: Object.keys(agg).map(name => ({
                             name: name,
-                            leads: agg[name],
-                            team: typeof normalizeTeam === 'function' ? normalizeTeam('', name) : 'PR'
+                            leads: agg[name].leads,
+                            team: typeof normalizeTeam === 'function' ? normalizeTeam('', agg[name].rawName) : 'PR'
                         }))
                     };
                 });
@@ -199,7 +203,7 @@ function render() {
         const snap = dayHistory.find(d => d.day === currentDayView);
         if (snap) {
             fullList = [...snap.agents]
-                .filter(a => !(a.name && String(a.name).toUpperCase().includes('PH')))
+                .filter(a => !(a.name && String(a.name).toUpperCase().startsWith('PH ')))
                 .sort((a, b) => b.leads - a.leads);
             fullList = fullList.map(a => ({
                 ...a,
@@ -213,9 +217,9 @@ function render() {
         }
     } else {
         fullList = agents
-            .filter(a => !(a.name && String(a.name).toUpperCase().includes('PH')))
+            .filter(a => !(a.name && String(a.name).toUpperCase().startsWith('PH ')))
             .map(a => ({
-                name: a.name,
+                name: typeof stripPrefix === 'function' ? stripPrefix(a.name).toUpperCase() : a.name,
                 leads: isWeekly ? (a.weeklyLeads || 0) : (a.dailyLeads || 0),
                 team: normalizeTeam(a.team, a.name),
                 ytelId: a.ytelId || ''

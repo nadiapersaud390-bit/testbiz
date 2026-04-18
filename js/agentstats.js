@@ -231,10 +231,11 @@ function processCSVRows(rows) {
     
     rows.forEach(row => {
         const id = String(row[idCol] || '').trim();
-        const name = String(row[nameCol] || 'Unknown').toUpperCase().trim();
+        const rawName = String(row[nameCol] || 'Unknown').toUpperCase().trim();
+        const cleanName = typeof stripPrefix === 'function' ? stripPrefix(rawName).toUpperCase() : rawName;
         
-        if (name === 'UNKNOWN' || name === '') return;
-        if (name.includes('PH') || id.includes('PH')) return; // Completely remove any agent with PH
+        if (cleanName === 'UNKNOWN' || cleanName === '') return;
+        if (rawName.startsWith('PH ') || id.startsWith('PH')) return; // Completely remove any agent with PH prefix
         
         const status = String(row[statusCol] || '').trim();
         
@@ -252,7 +253,8 @@ function processCSVRows(rows) {
         
         parsedArray.push({
             agentId: String(id).trim(),
-            agentName: String(name).toUpperCase().trim(),
+            agentName: cleanName,
+            rawName: rawName,
             status: status.toUpperCase(),
             duration: duration
         });
@@ -351,13 +353,14 @@ window.viewReport = function(id) {
     pushBtns.forEach(pushBtn => {
         pushBtn.classList.remove('hidden');
         pushBtn.onclick = async () => {
-            if(confirm(`Broadcast this report (${report.reportDate}) to the LIVE Leaderboard for all agents?`)) {
+            if(confirm(`WARNING: This will overwrite the "TODAY" Live Leaderboard with this report (${report.reportDate}).\n\nNote: If this is an old report (like from yesterday), you DO NOT need to push it! It automatically goes to the correct Mon-Fri tab just by uploading it.\n\nAre you sure you want to broadcast this to the LIVE "TODAY" board?`)) {
                 
                 // Aggregate total transfers before pushing
                 const aggMap = {};
                 report.data.forEach(d => {
-                    if(!aggMap[d.agentName]) aggMap[d.agentName] = { name: d.agentName, transfers: 0 };
-                    if(d.duration >= 120) aggMap[d.agentName].transfers++;
+                    const rawKey = d.rawName || d.agentName;
+                    if(!aggMap[rawKey]) aggMap[rawKey] = { name: d.agentName, rawName: rawKey, transfers: 0 };
+                    if(d.duration >= 120) aggMap[rawKey].transfers++;
                 });
                 const aggregatedList = Object.values(aggMap);
                 
@@ -367,7 +370,7 @@ window.viewReport = function(id) {
                     pushedBy: report.author,
                     agents: aggregatedList.map(d => ({
                         name: d.name,
-                        team: typeof getTeam === 'function' ? getTeam('', d.name) : 'PR',
+                        team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName) : 'PR',
                         dailyLeads: d.transfers
                     }))
                 };

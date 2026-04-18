@@ -32,15 +32,35 @@ function getGuyanaToday() {
 let lookupHistory = [];
 try { lookupHistory = JSON.parse(localStorage.getItem('bizlookup_history') || '[]'); } catch(e) {}
 
+function stripPrefix(raw) {
+  return String(raw||'')
+    .replace(/\n/g, ' ')
+    .replace(/^GUYB\s+/i, '')
+    .replace(/^GUYP\d*\s+/i, '')
+    .replace(/^GYB\s+/i, '')
+    .replace(/^GYP\d*\s+/i, '')
+    .replace(/^GTM\s+/i, '')
+    .replace(/^GUY\s+/i,  '')
+    .replace(/^GUY[PB]?\d*-/i, '')
+    .trim();
+}
+
 function normalizeTeam(team, name) {
   const rawTeam = String(team || '').trim().toUpperCase();
-  const rawName = String(name || '').trim().toUpperCase();
+  const rawName = String(name || '').trim().toUpperCase().replace(/[\s-]+/g,'');
+  
   if (REMOTE_AGENT_NAMES.has(rawName)) return 'RM';
-  if (rawName.startsWith('RM ') || rawName.startsWith('REMOTE ') || rawName.startsWith('GTR') || rawName.startsWith('GTM')) return 'RM';
-  if (rawName.startsWith('GYB')) return 'BB';
+  if (rawName.startsWith('RM') || rawName.startsWith('REMOTE') || rawName.startsWith('GTR') || rawName.startsWith('GTM')) return 'RM';
+  
+  // Providence (PR) prefixes
+  if (rawName.startsWith('GUYP') || rawName.startsWith('GYP')) return 'PR';
+  // Berbice (BB) prefixes
+  if (rawName.startsWith('GUYB') || rawName.startsWith('GYB')) return 'BB';
+  
   if (['RM', 'REMOTE'].includes(rawTeam)) return 'RM';
   if (['BB', 'BERB', 'BERBICE'].includes(rawTeam)) return 'BB';
   if (['PR', 'PROV', 'PROVIDENCE'].includes(rawTeam)) return 'PR';
+  
   return 'PR';
 }
 
