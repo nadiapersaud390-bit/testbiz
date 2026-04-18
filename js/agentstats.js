@@ -3,20 +3,12 @@
  */
 
 let allReports = [];
-let allStatusReports = [];
 let currentReportData = null;
-let asSortCol = 'transfers';
+let asSortCol = 'duration';
 let asSortAsc = false;
 
 // Initialization function called from index.html (or tab load)
 window.renderAgentStatsHistory = function() {
-    if (typeof window.listenForStatusReports === 'function') {
-        window.listenForStatusReports(data => {
-            allStatusReports = data || [];
-            if(currentReportData) renderActiveReportTable();
-        });
-    }
-
     if (typeof window.listenForAgentReports === 'function') {
         window.listenForAgentReports(data => {
             allReports = data || [];
@@ -94,7 +86,7 @@ function setupDropZone() {
     });
 }
 
-function handleFileUpload(file) {
+async function handleFileUpload(file) {
     if (!file.name.endsWith('.csv')) {
         updateStatsStatus('❌ Please upload a CSV file', true);
         return;
@@ -179,35 +171,27 @@ function handleFileUpload(file) {
 function processCSVRows(rows) {
     if(!rows || rows.length === 0) return [];
     
-    // Auto-detect columns from the first row Keys
-    const keys = Object.keys(rows[0]);
-    let agentColName = null;
-    let durationColName = null;
+    // Process columns based on user's exact specification:
+    // Agent Id, Agent Name, Current Status, Duration
     
-    keys.forEach(k => {
-        const lowerK = k.toLowerCase().trim();
-        if(!agentColName && (lowerK.includes('agent') || lowerK.includes('user') || lowerK.includes('name'))) {
-            agentColName = k;
-        }
-        if(!durationColName && (lowerK.includes('duration') || lowerK.includes('time') || lowerK.includes('length'))) {
-            durationColName = k;
-        }
-    });
+    const keys = Object.keys(rows[0]);
+    let idCol = keys.find(k => k.toLowerCase().includes('agent id')) || keys[0];
+    let nameCol = keys.find(k => k.toLowerCase().includes('agent name')) || keys[1];
+    let statusCol = keys.find(k => k.toLowerCase().includes('status')) || keys[2];
+    let durationColName = keys.find(k => k.toLowerCase().includes('duration') || k.toLowerCase().includes('time')) || keys[3];
 
-    // Fallback if fuzzy matching fails to find one
-    if(!agentColName) agentColName = keys[0] || 'Agent Name';
-    if(!durationColName) durationColName = 'Duration';
-
-    const agentsMap = {};
+    const parsedArray = [];
     
     rows.forEach(row => {
-        const name = row[agentColName] || 'Unknown';
+        const id = row[idCol] || '';
+        const name = row[nameCol] || 'Unknown';
         if (name === 'Unknown' || String(name).trim() === '') return;
+        
+        const status = String(row[statusCol] || '').trim();
         
         let duration = 0;
         if(row[durationColName]) {
             const durRaw = String(row[durationColName]).trim();
-            // Handle hh:mm:ss format vs straight integers
             if(durRaw.includes(':')) {
                 const parts = durRaw.split(':').map(Number);
                 if(parts.length === 2) duration = parts[0]*60 + parts[1]; // mm:ss
@@ -217,33 +201,13 @@ function processCSVRows(rows) {
             }
         }
         
-        const cleanName = String(name).toUpperCase().trim();
-        
-        if (!agentsMap[cleanName]) {
-            agentsMap[cleanName] = { name: cleanName, connections: 0, transfers: 0 };
-        }
-        
-        agentsMap[cleanName].connections++;
-        
-        // RULE: >= 120 seconds counts as a transfer
-        if (duration >= 120) {
-            agentsMap[cleanName].transfers++;
-        }
-    });
-    
-    const parsedArray = [];
-    for (const key in agentsMap) {
-        let rate = 0;
-        if(agentsMap[key].connections > 0) {
-            rate = (agentsMap[key].transfers / agentsMap[key].connections) * 100;
-        }
         parsedArray.push({
-            name: agentsMap[key].name,
-            connections: agentsMap[key].connections,
-            transfers: agentsMap[key].transfers,
-            rate: parseFloat(rate.toFixed(1))
+            agentId: String(id).trim(),
+            agentName: String(name).toUpperCase().trim(),
+            status: status.toUpperCase(),
+            duration: duration
         });
-    }
+    });
     
     return parsedArray;
 }
@@ -331,11 +295,19 @@ window.viewReport = function(id) {
         pushBtn.onclick = async () => {
             if(confirm(`Broadcast this report (${report.reportDate}) to the LIVE Leaderboard for all agents?`)) {
                 
+                // Aggregate total transfers before pushing
+                const aggMap = {};
+                report.data.forEach(d => {
+                    if(!aggMap[d.agentName]) aggMap[d.agentName] = { name: d.agentName, transfers: 0 };
+                    if(d.duration >= 120) aggMap[d.agentName].transfers++;
+                });
+                const aggregatedList = Object.values(aggMap);
+                
                 const pushState = {
                     dateLabel: report.reportDate,
                     pushedAt: new Date().toISOString(),
                     pushedBy: report.author,
-                    agents: report.data.map(d => ({
+                    agents: aggregatedList.map(d => ({
                         name: d.name,
                         team: typeof getTeam === 'function' ? getTeam('', d.name) : 'PR',
                         dailyLeads: d.transfers
@@ -371,43 +343,19 @@ window.sortAgentStats = function(col) {
 function renderActiveReportTable() {
     if (!currentReportData) return;
     
-    // Find matching status report explicitly
-    const matchingStatusReport = allStatusReports.find(s => s.reportDate === currentReportData.reportDate);
-    
-    let displayData = currentReportData.data.map(d => {
-        let ci = 0, dnc = 0, ni = 0;
-        if(matchingStatusReport && matchingStatusReport.data) {
-            const statMatch = matchingStatusReport.data.find(sd => sd.name === d.name);
-            if(statMatch) {
-                ci = statMatch.CI || 0;
-                dnc = statMatch.DNC || 0;
-                ni = statMatch.NI || 0;
-            }
-        }
-        
-        let convRate = 0;
-        if (d.connections > 0) convRate = (d.transfers / d.connections) * 100;
-        
-        return {
-            ...d,
-            ci: ci,
-            dnc: dnc,
-            ni: ni,
-            rate: parseFloat(convRate.toFixed(1))
-        };
-    });
+    let displayData = [...currentReportData.data];
     
     // Global Stats Setup
-    let totalAgents = displayData.length;
-    let totalCalls = 0;
+    let totalAgentsMap = {};
+    let totalCalls = displayData.length;
     let totalXfers = 0;
     
     displayData.forEach(d => {
-        totalCalls += d.connections;
-        totalXfers += d.transfers;
+        totalAgentsMap[d.agentName] = true;
+        if(d.duration >= 120) totalXfers++;
     });
     
-    document.getElementById('as-stat-agents').innerText = totalAgents;
+    document.getElementById('as-stat-agents').innerText = Object.keys(totalAgentsMap).length;
     document.getElementById('as-stat-calls').innerText = totalCalls;
     document.getElementById('as-stat-transfers').innerText = totalXfers;
     document.getElementById('as-stat-rate').innerText = totalCalls > 0 ? ((totalXfers / totalCalls)*100).toFixed(1) + '%' : '0%';
@@ -415,7 +363,7 @@ function renderActiveReportTable() {
     // Search Filter
     const searchVal = (document.getElementById('as-search-input')?.value || '').toLowerCase();
     if (searchVal) {
-        displayData = displayData.filter(d => d.name.toLowerCase().includes(searchVal));
+        displayData = displayData.filter(d => d.agentName.toLowerCase().includes(searchVal));
     }
     
     // Sorting
@@ -439,20 +387,26 @@ function renderActiveReportTable() {
     if (!tbody) return;
     
     if (displayData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500 text-xs italic">No matching agents found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-500 text-xs italic">No matching rows found.</td></tr>`;
         return;
     }
     
     tbody.innerHTML = displayData.map(d => {
+        // Highlight logic for Status and Durations
+        let statusColor = 'text-slate-300';
+        if(d.status.includes('XFER') || d.status.includes('TRANS')) statusColor = 'text-cyan-400 font-bold';
+        else if(d.status.includes('DNC')) statusColor = 'text-red-400';
+        else if(d.status.includes('NI')) statusColor = 'text-yellow-400';
+        else if(d.status.includes('CI')) statusColor = 'text-blue-400';
+        
+        let durColor = d.duration >= 120 ? 'text-cyan-400 font-bold' : 'text-slate-300';
+
         return `
             <tr class="border-b border-white/5 hover:bg-white/5 transition group text-xs">
-                <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.name}</td>
-                <td class="p-3 text-center text-slate-300">${d.connections}</td>
-                <td class="p-3 text-center text-blue-400 font-bold">${d.ci}</td>
-                <td class="p-3 text-center text-cyan-400 font-bold">${d.transfers}</td>
-                <td class="p-3 text-center text-red-400">${d.dnc}</td>
-                <td class="p-3 text-center text-yellow-400">${d.ni}</td>
-                <td class="p-3 text-center text-green-400 font-bold">${d.rate}%</td>
+                <td class="p-3 text-slate-400">${d.agentId}</td>
+                <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.agentName}</td>
+                <td class="p-3 text-center ${statusColor}">${d.status}</td>
+                <td class="p-3 text-center ${durColor}">${d.duration}</td>
             </tr>
         `;
     }).join('');
@@ -463,11 +417,15 @@ function syncLatestReportToLeaderboard(latestReport) {
     if (!latestReport || !latestReport.data) return;
     
     const pushData = { agents: {} };
+    // Need to aggregate since new report data is raw rows
+    const aggMap = {};
     latestReport.data.forEach(d => {
-        // Map "transfers" to the leaderboard's "dailyLeads" target.
-        // We look up the agent's team inside dashboard variables if possible (apAgentMap)
-        // Since we are separated, we just inject
-        pushData.agents[d.name] = { leads: d.transfers }; 
+        if(!aggMap[d.agentName]) aggMap[d.agentName] = 0;
+        if(d.duration >= 120) aggMap[d.agentName]++;
+    });
+    
+    Object.keys(aggMap).forEach(name => {
+        pushData.agents[name] = { leads: aggMap[name] }; 
     });
     
 // Use adminpanel's injection tool locally just for immediate goal bar updates

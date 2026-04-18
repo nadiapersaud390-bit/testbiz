@@ -56,15 +56,25 @@ function updateDashboard() {
             window.listenForAgentReports(data => {
                 if(!data) return;
                 const top5 = data.slice(0, 5); // Keep the sub-tabs clean (max 5)
-                dayHistory = top5.map(r => ({
-                    day: r.id,
-                    dayName: r.reportDate,
-                    agents: r.data.map(d => ({
-                        name: d.name,
-                        leads: d.transfers,
-                        team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.name) : 'PR'
-                    }))
-                }));
+                dayHistory = top5.map(r => {
+                    const agg = {};
+                    r.data.forEach(d => {
+                        if(d.agentName) {
+                            if(!agg[d.agentName]) agg[d.agentName] = 0;
+                            if(d.duration >= 120) agg[d.agentName]++;
+                        }
+                    });
+                    
+                    return {
+                        day: r.id,
+                        dayName: r.reportDate,
+                        agents: Object.keys(agg).map(name => ({
+                            name: name,
+                            leads: agg[name],
+                            team: typeof normalizeTeam === 'function' ? normalizeTeam('', name) : 'PR'
+                        }))
+                    };
+                });
                 renderDaySubTabs();
                 if(currentDayView !== 'today') render(); // re-render if viewing a history tab
             });
