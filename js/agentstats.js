@@ -380,9 +380,10 @@ window.viewReport = function(id) {
                 // Aggregate total transfers before pushing
                 const aggMap = {};
                 report.data.forEach(d => {
+                    const id = d.agentId || d.ytelId || d.agentName;
                     const rawKey = d.rawName || d.agentName;
-                    if(!aggMap[rawKey]) aggMap[rawKey] = { name: d.agentName, rawName: rawKey, transfers: 0 };
-                    if(d.duration >= 120) aggMap[rawKey].transfers++;
+                    if(!aggMap[id]) aggMap[id] = { name: d.agentName, rawName: rawKey, transfers: 0, ytelId: id };
+                    if(d.duration >= 120) aggMap[id].transfers++;
                 });
                 const aggregatedList = Object.values(aggMap);
                 
@@ -392,6 +393,7 @@ window.viewReport = function(id) {
                     pushedBy: report.author,
                     agents: aggregatedList.map(d => ({
                         name: d.name,
+                        ytelId: d.ytelId,
                         team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName) : 'PR',
                         dailyLeads: d.transfers
                     }))
@@ -434,7 +436,8 @@ function renderActiveReportTable() {
     let totalXfers = 0;
     
     displayData.forEach(d => {
-        totalAgentsMap[d.agentName] = true;
+        const id = d.agentId || d.ytelId || d.agentName;
+        totalAgentsMap[id] = true;
         if(d.duration >= 120) totalXfers++;
     });
     
