@@ -346,9 +346,11 @@ window.listenToCoaching = (callback) => {
 
 // ── LIVE MONITORING SESSIONS ──
 window.saveMonitoringSession = async (sessionData) => {
+    if (!firestore) return { success: false, error: 'Firestore not initialized' };
     try {
         const id = sessionData.id || `mon_${Date.now()}`;
-        await window.db_fs.collection("monitoring_sessions").doc(id).set({
+        const docRef = doc(firestore, "monitoring_sessions", id);
+        await setDoc(docRef, {
             ...sessionData,
             timestamp: new Date().toISOString()
         }, { merge: true });
@@ -360,13 +362,14 @@ window.saveMonitoringSession = async (sessionData) => {
 };
 
 window.listenToMonitoring = (callback) => {
-    return window.db_fs.collection("monitoring_sessions")
-        .orderBy("timestamp", "desc")
-        .limit(100)
-        .onSnapshot(snap => {
-            const sessions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            callback(sessions);
-        });
+    if (!firestore) return;
+    const q = query(collection(firestore, "monitoring_sessions"), orderBy("timestamp", "desc"));
+    return onSnapshot(q, snap => {
+        const sessions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(sessions);
+    }, (error) => {
+        console.error("Monitoring Listener Error:", error);
+    });
 };
 
 window.deleteSession = async (collection, id) => {
@@ -380,12 +383,24 @@ window.deleteSession = async (collection, id) => {
 };
 
 window.listenToAgentProfiles = function(callback) {
-    if (!firestore) return;
+    if (!firestore) {
+        console.warn("Firestore not ready for Agent Profiles");
+        return;
+    }
     const q = query(collection(firestore, 'agent_profiles'), orderBy('fullName', 'asc'));
     return onSnapshot(q, (snapshot) => {
         const profiles = [];
         snapshot.forEach(doc => profiles.push({ id: doc.id, ...doc.data() }));
         callback(profiles);
+    }, (error) => {
+        console.error("Profiles Listener Error (Indices?):", error);
+        // Fallback: remove ordering if it's an index issue
+        const fallbackQ = query(collection(firestore, 'agent_profiles'));
+        onSnapshot(fallbackQ, (snapshot) => {
+            const profiles = [];
+            snapshot.forEach(doc => profiles.push({ id: doc.id, ...doc.data() }));
+            callback(profiles);
+        });
     });
 };
 

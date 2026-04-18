@@ -257,7 +257,10 @@ function processCSVRows(rows) {
         const cleanName = typeof stripPrefix === 'function' ? stripPrefix(rawName).toUpperCase() : rawName;
         
         if (cleanName === 'UNKNOWN' || cleanName === '') return;
-        if (rawName.startsWith('PH ') || id.startsWith('PH')) return; // Completely remove any agent with PH prefix
+        
+        // Only remove if it's JUST 'PH' or similar, not a real name like 'Phillip'
+        const isPhPlaceholder = (rawName === 'PH' || rawName === 'PH ' || id === 'PH' || id === 'PH ');
+        if (isPhPlaceholder) return; 
         
         const status = String(row[statusCol] || '').trim();
         
@@ -436,12 +439,15 @@ function renderActiveReportTable() {
     let totalXfers = 0;
     
     displayData.forEach(d => {
-        const id = d.agentId || d.ytelId || d.agentName;
-        totalAgentsMap[id] = true;
+        // Use a combination of ID and Name for unique counting to be safe
+        const uniqueKey = (d.agentId || d.ytelId || '') + '_' + (d.agentName || '');
+        totalAgentsMap[uniqueKey] = true;
         if(d.duration >= 120) totalXfers++;
     });
     
-    document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = Object.keys(totalAgentsMap).length);
+    // If the user expects 43, it might be the total row count or unique name+id pairs
+    const agentCount = Object.keys(totalAgentsMap).length;
+    document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
     document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = totalCalls);
     document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
     document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = totalCalls > 0 ? ((totalXfers / totalCalls)*100).toFixed(1) + '%' : '0%');

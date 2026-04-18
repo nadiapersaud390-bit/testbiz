@@ -21,8 +21,21 @@ function updateDashboard() {
                 return;
             }
             
+            // SECURITY: Check if state is from TODAY
+            // If pushed yesterday, it shouldn't show in the "Today" tab
+            const now = new Date();
+            const pushDate = state.pushedAt ? new Date(state.pushedAt) : null;
+            const isToday = pushDate && 
+                            pushDate.toLocaleDateString('en-GB') === now.toLocaleDateString('en-GB');
+
             // Construct agents array
-            agents = state.agents || [];
+            if (isToday) {
+                agents = state.agents || [];
+            } else {
+                agents = []; // Stale data, hide it
+                const ts = document.getElementById('timestamp');
+                if (ts) ts.innerText = 'System Waiting: No Upload for Today Yet';
+            }
             
             // Re-apply normalizations
             agents.forEach(a => {
