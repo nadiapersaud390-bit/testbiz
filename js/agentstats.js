@@ -189,6 +189,13 @@ async function handleFileUpload(file) {
                     data: parsedData
                 };
                 
+                // OVERWRITE LOGIC: Delete existing report for the same date if it exists
+                const existingReport = allReports.find(r => r.reportDate === fileDateStr);
+                if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
+                    console.log('Overwrite: Deleting existing report for', fileDateStr);
+                    await window.deleteAgentReportFromFirebase(existingReport.id);
+                }
+                
                 // Save to Firebase
                 if (typeof window.saveAgentReportToFirebase === 'function') {
                     const res = await window.saveAgentReportToFirebase(reportObj);

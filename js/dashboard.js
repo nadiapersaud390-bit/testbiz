@@ -205,10 +205,16 @@ function render() {
             fullList = [...snap.agents]
                 .filter(a => !(a.name && String(a.name).toUpperCase().startsWith('PH ')))
                 .sort((a, b) => b.leads - a.leads);
-            fullList = fullList.map(a => ({
-                ...a,
-                team: normalizeTeam(a.team, a.name)
-            }));
+            fullList = fullList.map(a => {
+                const cleanName = typeof stripPrefix === 'function' ? stripPrefix(a.name).toUpperCase() : a.name;
+                const rawName = a.rawName || a.name;
+                return {
+                    ...a,
+                    name: cleanName,
+                    rawName: rawName,
+                    team: normalizeTeam(a.team, rawName)
+                };
+            });
             fullList.forEach(a => {
                 if (a.team === 'PR') prTotal += a.leads;
                 else if (a.team === 'BB') bbTotal += a.leads;
@@ -236,7 +242,7 @@ function render() {
     fullList.forEach(agent => {
         totalLeads += agent.leads;
         if (agent.leads >= 12) masters++;
-        if (agent.leads > 0) activeReps++;
+        activeReps++; // Count every agent in the list to reach 40+ total
     });
 
     // 5. All users see the full leaderboard

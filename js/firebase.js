@@ -228,12 +228,12 @@ window.ahPruneOldReports = async function() {
             const data = snapshot.val();
             if (!data) return;
             
-            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+            const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
             let deletedCount = 0;
             
             for (const id in data) {
                 const uploadedAt = new Date(data[id].uploadedAt).getTime();
-                if (uploadedAt < thirtyDaysAgo) {
+                if (uploadedAt < ninetyDaysAgo) {
                     await set(ref(database, 'agent_reports/' + id), null);
                     deletedCount++;
                 }
