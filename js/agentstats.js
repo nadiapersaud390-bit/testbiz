@@ -175,9 +175,21 @@ async function handleFileUpload(file) {
                 const expiryDate = new Date();
                 expiryDate.setDate(expiryDate.getDate() + expiryDays);
                 
+                let parsedReportDate = new Date();
+                try {
+                    const parts = fileDateStr.split('_');
+                    if(parts.length === 3) {
+                        // MM_DD_YYYY to YYYY-MM-DD
+                        parsedReportDate = new Date(`${parts[2]}-${parts[0]}-${parts[1]}T12:00:00`);
+                    }
+                } catch(e) {}
+                
+                const dayName = typeof getGuyanaDayName === 'function' ? getGuyanaDayName(parsedReportDate) : 'MON';
+                
                 const reportObj = {
                     filename: file.name,
                     reportDate: fileDateStr,
+                    dayOfWeek: dayName,
                     uploadedAt: new Date().toISOString(),
                     expiresAt: expiryDate.toISOString(),
                     author: adminName,
@@ -225,9 +237,11 @@ function processCSVRows(rows) {
     const parsedArray = [];
     
     rows.forEach(row => {
-        const id = row[idCol] || '';
-        const name = row[nameCol] || 'Unknown';
-        if (name === 'Unknown' || String(name).trim() === '') return;
+        const id = String(row[idCol] || '').trim();
+        const name = String(row[nameCol] || 'Unknown').toUpperCase().trim();
+        
+        if (name === 'UNKNOWN' || name === '') return;
+        if (name.includes('PH') || id.includes('PH')) return; // Completely remove any agent with PH
         
         const status = String(row[statusCol] || '').trim();
         

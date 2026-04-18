@@ -353,16 +353,22 @@ function updateTabUI() {
         if (!b) return;
 
         if (t === currentTab) {
-            b.className = 'flex-1 glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all tab-active';
+            b.classList.add('tab-active');
+            b.classList.remove('text-slate-500');
             b.style.background = '';
             b.style.color = '';
 
             if (t === 'trivia') {
                 b.style.background = 'linear-gradient(90deg,rgba(255,229,0,0.2),rgba(255,107,0,0.2))';
                 b.style.borderColor = 'rgba(255,229,0,0.5)';
+            } else if (t === 'adminpanel') {
+                b.style.color = 'white';
+            } else if (t === 'superadminpanel') {
+                b.style.color = 'white';
             }
         } else {
-            b.className = 'flex-1 glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500';
+            b.classList.remove('tab-active');
+            b.classList.add('text-slate-500');
             b.style.background = '';
 
             if (t === 'rebuttals') {
@@ -376,6 +382,12 @@ function updateTabUI() {
             } else if (t === 'tracker') {
                 b.style.color = '#818cf8';
                 b.style.borderColor = 'rgba(129,140,248,0.3)';
+            } else if (t === 'adminpanel') {
+                b.style.color = '#ef4444';
+                b.style.borderColor = 'rgba(239,68,68,0.35)';
+            } else if (t === 'superadminpanel') {
+                b.style.color = '#eab308';
+                b.style.borderColor = 'rgba(234,179,8,0.35)';
             }
         }
     });
