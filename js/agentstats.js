@@ -105,6 +105,96 @@ function setupDropZone() {
     });
 }
 
+// Holds staged data before user confirms upload
+let _asStagedFile = null;
+let _asStagedParsed = null;
+let _asStagedDateStr = null;
+let _asStagedParsedDate = null;
+let _asRetentionDays = 30;
+
+window.asSetRetention = function(days) {
+    if (!days || isNaN(days) || days < 1) return;
+    _asRetentionDays = days;
+    // Update button styles
+    [30, 60, 90].forEach(d => {
+        const btn = document.getElementById(`as-ret-${d}`);
+        if (btn) btn.className = d === days ? 'as-ret-btn active-ret' : 'as-ret-btn';
+    });
+    // Update expiry display
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + days);
+    const expiryEl = document.getElementById('as-expiry-display');
+    if (expiryEl) expiryEl.innerText = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+window.asToggleDateOverride = function(checked) {
+    const input = document.getElementById('as-report-date-input');
+    if (!input) return;
+    input.readOnly = !checked;
+    input.style.borderColor = checked ? 'rgba(6,182,212,0.5)' : '';
+    input.style.cursor = checked ? 'text' : 'default';
+};
+
+window.asConfirmUpload = async function() {
+    if (!_asStagedParsed || !_asStagedFile) {
+        updateStatsStatus('❌ No file staged. Please re-select your CSV.', true);
+        return;
+    }
+    
+    // Read possibly-overridden date
+    const dateInput = document.getElementById('as-report-date-input');
+    const isOverride = document.getElementById('as-date-override-check')?.checked;
+    let finalDateStr = _asStagedDateStr;
+    if (isOverride && dateInput && dateInput.value.trim()) {
+        finalDateStr = dateInput.value.trim();
+    }
+    
+    updateStatsStatus('<i class="fas fa-spinner fa-spin mr-2"></i> Saving to Firebase...', false);
+    
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const adminName = currentAdmin.name || currentAdmin.email || 'Admin';
+    
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + _asRetentionDays);
+    
+    const dayName = typeof getGuyanaDayName === 'function' ? getGuyanaDayName(_asStagedParsedDate) : 'MON';
+    
+    const reportObj = {
+        filename: _asStagedFile.name,
+        reportDate: finalDateStr,
+        dayOfWeek: dayName,
+        uploadedAt: new Date().toISOString(),
+        expiresAt: expiryDate.toISOString(),
+        author: adminName,
+        data: _asStagedParsed
+    };
+    
+    // Overwrite existing report for same date
+    const existingReport = allReports.find(r => r.reportDate === finalDateStr);
+    if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
+        await window.deleteAgentReportFromFirebase(existingReport.id);
+    }
+    
+    if (typeof window.saveAgentReportToFirebase === 'function') {
+        const res = await window.saveAgentReportToFirebase(reportObj);
+        if (res && res.success) {
+            updateStatsStatus('✅ Report saved successfully!', false);
+            if (typeof window.writeAdminActivityLog === 'function') {
+                window.writeAdminActivityLog('upload_stats', `Uploaded Agent Stats Report: ${_asStagedFile.name}`);
+            }
+            // Hide panel, reset
+            document.getElementById('as-upload-panel').classList.add('hidden');
+            _asStagedFile = null; _asStagedParsed = null;
+            setTimeout(() => updateStatsStatus('', false), 3000);
+        } else {
+            const errMsg = (res && res.error && res.error.message) ? res.error.message : 'Unknown error';
+            updateStatsStatus(`❌ Failed: ${errMsg}`, true);
+        }
+    } else {
+        updateStatsStatus('❌ Firebase not connected. Please reload.', true);
+    }
+};
+
 async function handleFileUpload(file) {
     if (!file.name.endsWith('.csv')) {
         updateStatsStatus('❌ Please upload a CSV file', true);
@@ -119,7 +209,6 @@ async function handleFileUpload(file) {
     let parsedReportDate = new Date();
     
     if (_mdyM) {
-        // Add T12:00:00 to prevent local timezone from shifting the day backwards
         parsedReportDate = new Date(_mdyM[3] + '-' + _mdyM[1] + '-' + _mdyM[2] + 'T12:00:00');
         if (!isNaN(parsedReportDate)) fileDateStr = typeof getFormattedDate === 'function' ? getFormattedDate(parsedReportDate) : parsedReportDate.toLocaleDateString();
     } else if (_ymdM) {
@@ -128,13 +217,12 @@ async function handleFileUpload(file) {
     }
     if (!fileDateStr) fileDateStr = file.name.replace(/\.csv$/i, '');
     
-    // Pre-process file to strip dialer metadata (e.g. "Xfer report:")
+    // Pre-process: find actual header row
     const text = await file.text();
     let lines = text.split('\n');
     let headerIdx = -1;
     for(let i=0; i<lines.length; i++) {
         const lower = lines[i].toLowerCase();
-        // Look for the actual header row
         if(lower.includes('agent id') || lower.includes('agent name')) {
             headerIdx = i; break;
         }
@@ -160,58 +248,26 @@ async function handleFileUpload(file) {
                     return;
                 }
                 
-                // Build report object
-                const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-                const adminName = currentAdmin.name || currentAdmin.email || 'Admin';
+                // Stage for confirmation
+                _asStagedFile = file;
+                _asStagedParsed = parsedData;
+                _asStagedDateStr = fileDateStr;
+                _asStagedParsedDate = parsedReportDate;
+                _asRetentionDays = 30;
                 
-                const selectEl = document.getElementById('as-expiry-select');
-                const selectVal = selectEl ? selectEl.value : '30';
-                let expiryDays = 30;
-                if (selectVal === 'custom') {
-                    const customEl = document.getElementById('as-expiry-custom');
-                    expiryDays = customEl ? (parseInt(customEl.value) || 30) : 30;
-                } else {
-                    expiryDays = parseInt(selectVal) || 30;
-                }
+                // Populate panel
+                const dateInput = document.getElementById('as-report-date-input');
+                if (dateInput) dateInput.value = fileDateStr;
                 
-                const expiryDate = new Date();
-                expiryDate.setDate(expiryDate.getDate() + expiryDays);
+                // Reset retention to 30 days
+                asSetRetention(30);
                 
-                const dayName = typeof getGuyanaDayName === 'function' ? getGuyanaDayName(parsedReportDate) : 'MON';
+                // Show panel
+                const panel = document.getElementById('as-upload-panel');
+                if (panel) panel.classList.remove('hidden');
                 
-                const reportObj = {
-                    filename: file.name,
-                    reportDate: fileDateStr,
-                    dayOfWeek: dayName,
-                    uploadedAt: new Date().toISOString(),
-                    expiresAt: expiryDate.toISOString(),
-                    author: adminName,
-                    data: parsedData
-                };
+                updateStatsStatus(`✅ Ready: ${parsedData.length} rows — ${new Set(parsedData.map(d=>d.agentName)).size} agents detected`, false);
                 
-                // OVERWRITE LOGIC: Delete existing report for the same date if it exists
-                const existingReport = allReports.find(r => r.reportDate === fileDateStr);
-                if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
-                    console.log('Overwrite: Deleting existing report for', fileDateStr);
-                    await window.deleteAgentReportFromFirebase(existingReport.id);
-                }
-                
-                // Save to Firebase
-                if (typeof window.saveAgentReportToFirebase === 'function') {
-                    const res = await window.saveAgentReportToFirebase(reportObj);
-                    if(res && res.success) {
-                        updateStatsStatus('✅ Report uploaded & synced globally', false);
-                        if (typeof window.writeAdminActivityLog === 'function') {
-                            window.writeAdminActivityLog('upload_stats', `Uploaded new Agent Stats Report: ${file.name}`);
-                        }
-                        setTimeout(() => updateStatsStatus('', false), 3000);
-                    } else {
-                        const errMsg = (res && res.error && res.error.message) ? res.error.message : 'Unknown error';
-                        updateStatsStatus(`❌ Failed to upload: ${errMsg}`, true);
-                    }
-                } else {
-                    updateStatsStatus('❌ Firebase not connected. Please reload.', true);
-                }
             } catch(err) {
                 updateStatsStatus('❌ Error processing CSV: ' + err.message, true);
             }
@@ -264,8 +320,8 @@ function processCSVRows(rows) {
         
         if (cleanName === 'UNKNOWN' || cleanName === '') return;
         
-        // Skip placeholders/training accounts starting with PH (with space)
-        if (rawName.startsWith('PH ') || id.startsWith('PH ')) return; 
+        // Skip placeholders/training accounts: raw name must start with 'PH ' (uppercase, space after)
+        if (rawName.startsWith('PH ')) return;
         
         const status = String(row[statusCol] || '').trim();
         
@@ -385,13 +441,14 @@ window.viewReport = function(id) {
         pushBtn.onclick = async () => {
             if(confirm(`WARNING: This will overwrite the "TODAY" Live Leaderboard with this report (${report.reportDate}).\n\nNote: If this is an old report (like from yesterday), you DO NOT need to push it! It automatically goes to the correct Mon-Fri tab just by uploading it.\n\nAre you sure you want to broadcast this to the LIVE "TODAY" board?`)) {
                 
-                // Aggregate total transfers before pushing
+                // Aggregate by agent NAME (not just ID) to preserve all unique people
                 const aggMap = {};
                 report.data.forEach(d => {
+                    const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
                     const id = d.agentId || d.ytelId || d.agentName;
                     const rawKey = d.rawName || d.agentName;
-                    if(!aggMap[id]) aggMap[id] = { name: d.agentName, rawName: rawKey, transfers: 0, ytelId: id };
-                    if(d.duration >= 120) aggMap[id].transfers++;
+                    if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0, ytelId: id };
+                    if(d.duration >= 120) aggMap[nameKey].transfers++;
                 });
                 const aggregatedList = Object.values(aggMap);
                 
@@ -436,77 +493,76 @@ window.sortAgentStats = function(col) {
 function renderActiveReportTable() {
     if (!currentReportData) return;
     
-    let displayData = [...currentReportData.data];
+    const rawRows = currentReportData.data;
     
-    // Global Stats Setup
-    let totalAgentsMap = {};
-    let totalCalls = displayData.length;
-    let totalXfers = 0;
-    
-    // Use a unique map to count real people, even if they have multiple rows
-    let uniqueAgents = {};
-    displayData.forEach(d => {
-        const key = (d.agentId || d.ytelId || 'ID') + '_' + (d.agentName || 'NAME');
-        uniqueAgents[key] = true;
-        if(d.duration >= 120) totalXfers++;
+    // ── AGGREGATE: one entry per unique agent name ──
+    const agentMap = {};
+    rawRows.forEach(d => {
+        const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
+        if (!agentMap[nameKey]) {
+            agentMap[nameKey] = {
+                agentId: d.agentId || '—',
+                agentName: d.agentName,
+                rawName: d.rawName || d.agentName,
+                totalCalls: 0,
+                transfers: 0   // rows with duration >= 120
+            };
+        }
+        agentMap[nameKey].totalCalls++;
+        if (d.duration >= 120) agentMap[nameKey].transfers++;
     });
     
-    const agentCount = Object.keys(uniqueAgents).length;
+    let aggregated = Object.values(agentMap);
+    
+    // ── GLOBAL STATS ──
+    const agentCount = aggregated.length;
+    const totalXfers = aggregated.reduce((s, a) => s + a.transfers, 0);
+    const totalCalls = rawRows.length;
+    
+    console.log('[AgentStats] Unique agent names:', agentCount, aggregated.map(a => a.agentName));
     document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
     document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = totalCalls);
     document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
-    document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = totalCalls > 0 ? ((totalXfers / totalCalls)*100).toFixed(1) + '%' : '0%');
+    document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = agentCount > 0 ? ((totalXfers / agentCount)*100).toFixed(1) + '%' : '0%');
     
-    // Search Filter
+    // ── SEARCH FILTER ──
     let searchVal = '';
     const searchInput = document.getElementById('as-search-input');
-    if (searchInput) searchVal = searchInput.value.toLowerCase();
-    
+    if (searchInput) searchVal = searchInput.value.toLowerCase().trim();
     if (searchVal) {
-        displayData = displayData.filter(d => d.agentName.toLowerCase().includes(searchVal));
+        aggregated = aggregated.filter(d => d.agentName.toLowerCase().includes(searchVal));
     }
     
-    // Sorting
-    displayData.sort((a,b) => {
-        let valA = a[asSortCol];
-        let valB = b[asSortCol];
-        
-        if (valA === undefined) valA = 0;
-        if (valB === undefined) valB = 0;
-        
+    // ── SORT ──
+    const sortKey = asSortCol === 'duration' ? 'transfers' : asSortCol;
+    aggregated.sort((a, b) => {
+        let valA = a[sortKey] ?? 0;
+        let valB = b[sortKey] ?? 0;
         if (typeof valA === 'string') valA = valA.toLowerCase();
         if (typeof valB === 'string') valB = valB.toLowerCase();
-        
         if (valA < valB) return asSortAsc ? -1 : 1;
         if (valA > valB) return asSortAsc ? 1 : -1;
         return 0;
     });
     
-    // Render
+    // ── RENDER TABLE ──
     const tbodies = document.querySelectorAll('#as-table-body');
     if (tbodies.length === 0) return;
     
-    if (displayData.length === 0) {
-        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-500 text-xs italic">No matching rows found.</td></tr>`);
+    if (aggregated.length === 0) {
+        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-500 text-xs italic">No matching agents found.</td></tr>`);
         return;
     }
     
-    const htmlOutput = displayData.map(d => {
-        // Highlight logic for Status and Durations
-        let statusColor = 'text-slate-300';
-        if(d.status.includes('XFER') || d.status.includes('TRANS')) statusColor = 'text-cyan-400 font-bold';
-        else if(d.status.includes('DNC')) statusColor = 'text-red-400';
-        else if(d.status.includes('NI')) statusColor = 'text-yellow-400';
-        else if(d.status.includes('CI')) statusColor = 'text-blue-400';
-        
-        let durColor = d.duration >= 120 ? 'text-cyan-400 font-bold' : 'text-slate-300';
-
+    const htmlOutput = aggregated.map(d => {
+        const xferColor = d.transfers > 0 ? 'text-cyan-400 font-bold' : 'text-slate-600';
+        const xferLabel = d.transfers > 0 ? `${d.transfers} XFER` : '0';
         return `
             <tr class="border-b border-white/5 hover:bg-white/5 transition group text-xs">
-                <td class="p-3 text-slate-400 font-mono">${d.agentId || '—'}</td>
+                <td class="p-3 text-slate-400 font-mono">${d.agentId}</td>
                 <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.agentName}</td>
-                <td class="p-3 text-center ${statusColor}">${d.status}</td>
-                <td class="p-3 text-right ${durColor}">${d.duration}</td>
+                <td class="p-3 text-center ${xferColor}">${xferLabel}</td>
+                <td class="p-3 text-right text-slate-400">${d.totalCalls} calls</td>
             </tr>
         `;
     }).join('');
