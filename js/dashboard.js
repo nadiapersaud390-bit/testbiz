@@ -25,12 +25,26 @@ function updateDashboard() {
             // If pushed yesterday, it shouldn't show in the "Today" tab
             const now = new Date();
             const pushDate = state.pushedAt ? new Date(state.pushedAt) : null;
+            
+            // Check if dateLabel matches today (e.g. "Apr 18, 2026")
+            const todayStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            const labelMatches = state.dateLabel && state.dateLabel.includes(todayStr);
+            
             const isToday = pushDate && 
-                            pushDate.toLocaleDateString('en-GB') === now.toLocaleDateString('en-GB');
+                            pushDate.toLocaleDateString('en-GB') === now.toLocaleDateString('en-GB') &&
+                            labelMatches;
 
             // Construct agents array
             if (isToday) {
-                agents = state.agents || [];
+                agents = (state.agents || []).map(a => {
+                    // If name is just numbers (ID), try to find real name in master roster
+                    let realName = a.name;
+                    if (window.biz_master_roster && /^\d+$/.test(a.name)) {
+                        const profile = window.biz_master_roster.find(p => String(p.userId) === String(a.name));
+                        if (profile) realName = profile.fullName;
+                    }
+                    return { ...a, name: realName };
+                });
             } else {
                 agents = []; // Stale data, hide it
                 const ts = document.getElementById('timestamp');

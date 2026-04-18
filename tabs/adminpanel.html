@@ -34,6 +34,9 @@
             <button onclick="switchAdminHubTab('admintools')" id="ah-tab-admintools" class="ah-nav-btn">
                 <i class="fas fa-tools"></i> Admin Tools
             </button>
+            <button onclick="switchAdminHubTab('zero')" id="ah-tab-zero" class="ah-nav-btn border-t border-white/5 mt-1 pt-2">
+                <i class="fas fa-ghost text-slate-500"></i> Zero Performance
+            </button>
         </nav>
 
         <div class="mt-auto pt-6 border-t border-white/5">
@@ -149,10 +152,21 @@
                     <h3 class="text-2xl font-black text-white uppercase tracking-tight">📅 Attendance Hub</h3>
                     <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Daily, Weekly & Monthly Records</p>
                 </div>
-                <div class="flex gap-2 bg-white/5 p-1 rounded-2xl border border-white/10">
-                    <button onclick="switchAttView('daily')" id="att-v-daily" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-blue-500 text-white shadow-lg shadow-blue-900/40">Daily</button>
-                    <button onclick="switchAttView('weekly')" id="att-v-weekly" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition">Weekly</button>
-                    <button onclick="switchAttView('monthly')" id="att-v-monthly" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition">Monthly</button>
+                <div class="flex items-center gap-3">
+                    <!-- Historical Report Selector -->
+                    <div class="hidden sm:flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+                        <i class="far fa-calendar-alt text-slate-500 text-[10px]"></i>
+                        <select id="ah-att-report-select" onchange="ahSelectAttReport(this.value)" class="bg-transparent text-white text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer">
+                            <option value="live" class="bg-slate-900">Live Today</option>
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+
+                    <div class="flex gap-2 bg-white/5 p-1 rounded-2xl border border-white/10">
+                        <button onclick="switchAttView('daily')" id="att-v-daily" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-blue-500 text-white shadow-lg shadow-blue-900/40">Daily</button>
+                        <button onclick="switchAttView('weekly')" id="att-v-weekly" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition">Weekly</button>
+                        <button onclick="switchAttView('monthly')" id="att-v-monthly" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition">Monthly</button>
+                    </div>
                 </div>
             </div>
 
@@ -790,6 +804,43 @@
                 </div>
             </div>
         </div>
+
+        <!-- ZERO PERFORMANCE SECTION -->
+        <div id="ah-sect-zero" class="ah-section hidden">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h3 class="text-2xl font-black text-white uppercase tracking-tight">👻 Zero Performance</h3>
+                    <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Agents with 0 transfers (Daily & Weekly)</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- DAILY ZERO -->
+                <div class="glass p-6 rounded-[2.5rem] border border-white/5">
+                    <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping"></span>
+                        Daily Zero Transfers
+                    </h4>
+                    <div id="ah-zero-daily-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                        <!-- Populated by JS -->
+                        <div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">Scanning roster...</div>
+                    </div>
+                </div>
+
+                <!-- WEEKLY ZERO -->
+                <div class="glass p-6 rounded-[2.5rem] border border-white/5">
+                    <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 bg-orange-500 rounded-full"></span>
+                        Weekly Zero Transfers
+                    </h4>
+                    <div id="ah-zero-weekly-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                        <!-- Populated by JS -->
+                        <div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">Awaiting Weekly Sync...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- BROADCAST SYSTEM SECTION -->
         <div id="ah-sect-broadcast" class="ah-section hidden">
             <div class="flex justify-between items-center mb-8">

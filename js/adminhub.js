@@ -45,7 +45,58 @@ window.switchAdminHubTab = function(tabId) {
     if (tabId === 'rebuttals') initRebuttalIntel();
     if (tabId === 'performance') initWeeklyPerformance();
     if (tabId === 'admintools') ahAdminToolsInit();
+    if (tabId === 'zero') ahInitZeroPerf();
 };
+
+function ahInitZeroPerf() {
+    const dailyList = document.getElementById('ah-zero-daily-list');
+    const weeklyList = document.getElementById('ah-zero-weekly-list');
+    if (!dailyList || !weeklyList) return;
+
+    const agents = window.agents || [];
+    
+    // 1. Daily Zero
+    const dailyZeros = agents.filter(a => (a.dailyLeads || 0) === 0);
+    dailyList.innerHTML = dailyZeros.map(a => {
+        const team = normalizeTeam(a.team, a.name);
+        const colorClass = ahTeamColors[team] || 'slate-500';
+        return `
+            <div class="bg-white/5 border border-white/5 rounded-2xl p-4 flex justify-between items-center group hover:bg-white/10 transition">
+                <div class="flex items-center gap-3">
+                    <div class="w-2 h-2 rounded-full bg-slate-700"></div>
+                    <div>
+                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${a.name}</div>
+                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${a.ytelId || '---'} | ${team}</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[10px] font-black text-red-400 uppercase italic">0 Xfers</div>
+                </div>
+            </div>
+        `;
+    }).join('') || '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agents with 0 transfers today! 🚀</div>';
+
+    // 2. Weekly Zero
+    const weeklyZeros = agents.filter(a => (a.weeklyLeads || 0) === 0);
+    weeklyList.innerHTML = weeklyZeros.map(a => {
+        const team = normalizeTeam(a.team, a.name);
+        const colorClass = ahTeamColors[team] || 'slate-500';
+        return `
+            <div class="bg-white/5 border border-white/5 rounded-2xl p-4 flex justify-between items-center group hover:bg-white/10 transition">
+                <div class="flex items-center gap-3">
+                    <div class="w-2 h-2 rounded-full bg-slate-700"></div>
+                    <div>
+                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${a.name}</div>
+                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${a.ytelId || '---'} | ${team}</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[10px] font-black text-orange-400 uppercase italic">0 Weekly Xfers</div>
+                </div>
+            </div>
+        `;
+    }).join('') || '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">Everyone has at least 1 transfer this week! 🏆</div>';
+}
 
 // ── WEEKLY PERFORMANCE LOGIC ──
 function initWeeklyPerformance() {
@@ -262,10 +313,39 @@ window.ahInitOverview = function() {
             if (window.agents) handleLiveStateUpdate({ agents: window.agents });
         });
     }
+
+    // Historical Attendance Sync
+    if (typeof window.listenForAgentReports === 'function') {
+        window.listenForAgentReports(reports => {
+            const select = document.getElementById('ah-att-report-select');
+            if (!select) return;
+            
+            // Keep the 'Live' option
+            select.innerHTML = '<option value="live" class="bg-slate-900">Live Today</option>';
+            
+            // Sort by date desc
+            const sorted = [...reports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+            sorted.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.className = 'bg-slate-900';
+                opt.innerText = r.reportDate || r.filename;
+                select.appendChild(opt);
+            });
+            
+            window.ahAllReports = reports;
+        });
+    }
 }
 
 let ahAttFilterTeam = 'ALL';
 let ahAttCurrentView = 'daily';
+let ahAttSelectedReportId = 'live';
+
+window.ahSelectAttReport = function(id) {
+    ahAttSelectedReportId = id;
+    renderDailyAttendance();
+};
 
 window.switchAttView = function(view) {
     ahAttCurrentView = view;
@@ -298,11 +378,37 @@ window.filterAttTeam = function(team) {
 
 function renderDailyAttendance() {
     const list = document.getElementById('att-daily-list');
-    if (!list || !window.agents) return;
+    if (!list) return;
+
+    let sourceData = [];
+    if (ahAttSelectedReportId === 'live') {
+        sourceData = window.agents || [];
+    } else if (window.ahAllReports) {
+        const report = window.ahAllReports.find(r => r.id === ahAttSelectedReportId);
+        if (report && report.data) {
+            sourceData = report.data.map(d => {
+                const id = d.agentId || d.ytelId || d.agentName;
+                return {
+                    name: d.agentName,
+                    ytelId: id,
+                    team: d.team || '',
+                    status: (d.duration >= 120) ? 'Present' : 'Absent',
+                    loginTime: d.loginTime || (d.duration >= 120 ? 'LOGGED' : '--:--'),
+                    rawName: d.rawName || d.agentName
+                };
+            });
+        }
+    }
     
-    const filtered = window.agents.filter(a => {
+    if (sourceData.length === 0) {
+        list.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500 font-bold uppercase tracking-widest">No attendance records found. Please select a date or upload a report.</td></tr>';
+        return;
+    }
+
+    const filtered = sourceData.filter(a => {
         if (ahAttFilterTeam === 'ALL') return true;
-        return normalizeTeam(a.team, a.name) === ahAttFilterTeam;
+        const team = normalizeTeam(a.team, a.rawName || a.name);
+        return team === ahAttFilterTeam;
     });
     
     if (filtered.length === 0) {

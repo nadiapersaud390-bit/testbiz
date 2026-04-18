@@ -383,25 +383,41 @@ window.deleteSession = async (collection, id) => {
 };
 
 window.listenToAgentProfiles = function(callback) {
-    if (!firestore) {
-        console.warn("Firestore not ready for Agent Profiles");
-        return;
-    }
-    const q = query(collection(firestore, 'agent_profiles'), orderBy('fullName', 'asc'));
-    return onSnapshot(q, (snapshot) => {
-        const profiles = [];
-        snapshot.forEach(doc => profiles.push({ id: doc.id, ...doc.data() }));
-        callback(profiles);
-    }, (error) => {
-        console.error("Profiles Listener Error (Indices?):", error);
-        // Fallback: remove ordering if it's an index issue
-        const fallbackQ = query(collection(firestore, 'agent_profiles'));
-        onSnapshot(fallbackQ, (snapshot) => {
+    // Strategy: Try modular firestore first, but fallback to compat window.db if needed
+    const useModular = (fs) => {
+        const q = query(collection(fs, 'agent_profiles'), orderBy('fullName', 'asc'));
+        return onSnapshot(q, (snapshot) => {
             const profiles = [];
             snapshot.forEach(doc => profiles.push({ id: doc.id, ...doc.data() }));
             callback(profiles);
+        }, (error) => {
+            console.warn("Modular Listener Error, trying fallback...", error);
+            const fallbackQ = query(collection(fs, 'agent_profiles'));
+            onSnapshot(fallbackQ, (snapshot) => {
+                const profiles = [];
+                snapshot.forEach(doc => profiles.push({ id: doc.id, ...doc.data() }));
+                callback(profiles);
+            });
         });
-    });
+    };
+
+    if (firestore) {
+        return useModular(firestore);
+    } else if (window.db && typeof window.db.collection === 'function') {
+        console.log("Using Compat Firestore for Agent Profiles");
+        return window.db.collection('agent_profiles').orderBy('fullName', 'asc').onSnapshot(snap => {
+            const profiles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            callback(profiles);
+        }, err => {
+            console.error("Compat Firestore Error:", err);
+            window.db.collection('agent_profiles').onSnapshot(snap => {
+                const profiles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                callback(profiles);
+            });
+        });
+    } else {
+        console.warn("No Firestore instance found for Agent Profiles");
+    }
 };
 
 window.deleteAgentFromFirestore = async function(userId) {
