@@ -264,8 +264,8 @@ function processCSVRows(rows) {
         
         if (cleanName === 'UNKNOWN' || cleanName === '') return;
         
-        // Skip placeholders/training accounts starting with PH
-        if (rawName.startsWith('PH') || id.startsWith('PH')) return; 
+        // Skip placeholders/training accounts starting with PH (with space)
+        if (rawName.startsWith('PH ') || id.startsWith('PH ')) return; 
         
         const status = String(row[statusCol] || '').trim();
         
@@ -450,8 +450,8 @@ function renderActiveReportTable() {
         if(d.duration >= 120) totalXfers++;
     });
     
-    // If the user expects 43, it might be the total row count or unique name+id pairs
-    const agentCount = Object.keys(totalAgentsMap).length;
+    // If the user expects 43, it means they are counting rows in their file
+    const agentCount = displayData.length;
     document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
     document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = totalCalls);
     document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
