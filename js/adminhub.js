@@ -12,6 +12,15 @@ const ahTeamColors = {
 
 // Internal tab switcher
 window.switchAdminHubTab = function(tabId) {
+    // Permission Check for Admin Tools
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    
+    if (tabId === 'admintools' && !isSuper) {
+        console.warn('Unauthorized access to Admin Tools blocked.');
+        return;
+    }
+
     ahCurrentSubTab = tabId;
     
     // Update Nav Buttons
@@ -219,6 +228,15 @@ function renderRebuttalIntel(usage) {
 
 // Initialize Overview Data
 function ahInitOverview() {
+    // Permission Check for Admin Tools Toggle
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    const toolsBtn = document.getElementById('ah-tab-admintools');
+    
+    if (toolsBtn && !isSuper) {
+        toolsBtn.classList.add('hidden');
+    }
+
     // Clock
     setInterval(() => {
         const d = document.getElementById('ah-live-clock');

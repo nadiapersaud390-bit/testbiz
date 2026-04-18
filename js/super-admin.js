@@ -63,6 +63,22 @@ function initializeDefaultSuperAdmin() {
                 role: 'super_admin',
                 addedBy: 'system',
                 addedAt: new Date().toISOString()
+            },
+            "momo": {
+                email: "momo",
+                name: "momo",
+                password: btoa("0000"),
+                role: "admin",
+                addedBy: "system",
+                addedAt: new Date().toISOString()
+            },
+            "jamal": {
+                email: "jamal",
+                name: "jamal",
+                password: btoa("0000"),
+                role: "admin",
+                addedBy: "system",
+                addedAt: new Date().toISOString()
             }
         };
         localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));

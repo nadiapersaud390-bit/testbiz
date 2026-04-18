@@ -6,6 +6,21 @@ function getFormattedDate(d = new Date()) {
     return d.toLocaleDateString('en-US', options) + ' (' + d.toLocaleDateString('en-US', weekday) + ')';
 }
 
+function getGuyanaDayName(d = new Date()) {
+    const options = { weekday: 'short', timeZone: 'America/Guyana' };
+    return d.toLocaleDateString('en-US', options).toUpperCase(); // "MON", "TUE" etc.
+}
+
+function isSameWeek(d1, d2) {
+    const getStartOfWeek = (d) => {
+        const date = new Date(d);
+        const day = date.getDay();
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+        return new Date(date.setDate(diff)).setHours(0,0,0,0);
+    };
+    return getStartOfWeek(d1) === getStartOfWeek(d2);
+}
+
 // ============================================================
 // CLOCK UPDATE
 // ============================================================

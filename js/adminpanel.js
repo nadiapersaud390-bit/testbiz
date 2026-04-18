@@ -453,6 +453,7 @@ async function apSaveCurrentToHistory() {
 
   const reportObj = {
     reportDate: existing.dateLabel || (typeof getFormattedDate === 'function' ? getFormattedDate() : new Date().toLocaleDateString()),
+    dayOfWeek: typeof getGuyanaDayName === 'function' ? getGuyanaDayName() : 'MON',
     uploadedAt: new Date().toISOString(),
     pushedAt: existing.pushedAt,
     expiresAt: existing.expiresAt,

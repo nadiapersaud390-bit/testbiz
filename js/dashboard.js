@@ -63,10 +63,24 @@ function updateDashboard() {
                 const monday = new Date(now.setDate(diff));
                 monday.setHours(0,0,0,0);
 
-                // Filter for current week only
                 const thisWeek = data.filter(r => new Date(r.uploadedAt) >= monday);
                 
-                dayHistory = thisWeek.map(r => {
+                const weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+                const weekMap = {};
+                
+                thisWeek.forEach(r => {
+                    const dayKey = r.dayOfWeek || (typeof getGuyanaDayName === 'function' ? getGuyanaDayName(new Date(r.uploadedAt)) : 'MON');
+                    if (weekdays.includes(dayKey)) {
+                        if (!weekMap[dayKey] || new Date(r.uploadedAt) > new Date(weekMap[dayKey].uploadedAt)) {
+                           weekMap[dayKey] = r;
+                        }
+                    }
+                });
+
+                dayHistory = weekdays.map(day => {
+                    const r = weekMap[day];
+                    if (!r) return { day: day, empty: true, dayName: day };
+                    
                     const agg = {};
                     (r.data || []).forEach(d => {
                         const name = d.agentName || d.name;
@@ -77,8 +91,9 @@ function updateDashboard() {
                     });
                     
                     return {
-                        day: r.id,
-                        dayName: r.reportDate,
+                        day: day,
+                        dayName: day,
+                        fullDate: r.reportDate,
                         agents: Object.keys(agg).map(name => ({
                             name: name,
                             leads: agg[name],
@@ -146,16 +161,24 @@ function render() {
     const banner = document.getElementById('history-banner');
     if (isHistory) {
         const snap = dayHistory.find(d => d.day === currentDayView);
-        document.getElementById('goal-label').innerText = (snap ? snap.dayName : 'Historical') + ' Final';
-        document.getElementById('day-indicator').innerText = (snap ? snap.dayName : 'Past') + ' — Completed';
+        const dayLong = snap ? (snap.dayName === 'MON' ? 'Monday' : 
+                               snap.dayName === 'TUE' ? 'Tuesday' : 
+                               snap.dayName === 'WED' ? 'Wednesday' : 
+                               snap.dayName === 'THU' ? 'Thursday' : 
+                               snap.dayName === 'FRI' ? 'Friday' : 
+                               snap.dayName === 'SAT' ? 'Saturday' : 
+                               snap.dayName === 'SUN' ? 'Sunday' : snap.dayName) : 'Historical';
+        
+        document.getElementById('goal-label').innerText = dayLong.toUpperCase() + ' FINAL';
+        document.getElementById('day-indicator').innerText = (dayLong.substring(0,3).toUpperCase()) + ' — COMPLETED';
         if (banner) {
-            document.getElementById('history-banner-text').innerText = 'Viewing Historical Record';
+            document.getElementById('history-banner-text').innerHTML = `<i class="fas fa-history mr-2"></i> VIEWING ${dayLong.toUpperCase()} — FINAL RESULTS`;
             banner.classList.remove('hidden');
         }
     } else {
         if(banner) banner.classList.add('hidden');
-        document.getElementById('goal-label').innerText = isWeekly ? 'Weekly Team Goal' : todayName + ' Daily Goal';
-        document.getElementById('day-indicator').innerText = isWeekly ? 'Weekly Sprint' : todayName + ' Performance';
+        document.getElementById('goal-label').innerText = isWeekly ? 'Weekly Team Goal' : todayName.toUpperCase() + ' DAILY GOAL';
+        document.getElementById('day-indicator').innerText = isWeekly ? 'Weekly Sprint' : todayName.toUpperCase() + ' PERFORMANCE';
     }
 
     const isAdmin = sessionStorage.getItem('bizUserRole') === 'admin';
@@ -285,7 +308,14 @@ function renderDaySubTabs() {
     let html = `<button onclick="switchDayView('today')" class="day-sub-tab is-today ${currentDayView === 'today' ? 'active' : ''}">Today</button>`;
 
     dayHistory.forEach(d => {
-        html += `<button onclick="switchDayView('${d.day}')" class="day-sub-tab is-history ${currentDayView === d.day ? 'active' : ''}">${d.dayName}<span class="history-dot"></span></button>`;
+        const hasHistory = !d.empty;
+        const isActive = currentDayView === d.day;
+        html += `
+            <button onclick="switchDayView('${d.day}')" 
+                    class="day-sub-tab is-history ${isActive ? 'active' : ''}" 
+                    ${!hasHistory ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}>
+                ${d.dayName}${hasHistory ? '<span class="history-dot"></span>' : ''}
+            </button>`;
     });
 
     container.innerHTML = html;
