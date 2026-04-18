@@ -231,12 +231,12 @@ function processCSVRows(rows) {
     const keys = Object.keys(rows[0]);
     let idCol = keys.find(k => {
         const l = k.toLowerCase();
-        return l.includes('agent id') || l.includes('user id') || l.includes('extension') || l.includes('ext') || l === 'id';
-    }) || keys[0];
+        return l === 'agent id' || l === 'user id' || l === 'ext' || l === 'id' || l.includes('extension');
+    }) || keys.find(k => k.toLowerCase().includes('id')) || keys[0];
     
     let nameCol = keys.find(k => {
         const l = k.toLowerCase();
-        return l.includes('agent name') || l.includes('full name') || l.includes('agent') || l === 'name';
+        return l === 'agent name' || l === 'full name' || l === 'name' || (l.includes('agent') && !l.includes('id'));
     }) || keys[1];
     
     let statusCol = keys.find(k => {
