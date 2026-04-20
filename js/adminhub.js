@@ -382,36 +382,17 @@ function renderRebuttalIntel(usage) {
 window.ahInitOverview = function() {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    const isMomo = currentAdmin.name === 'Momo';
     
     const toolsBtn = document.getElementById('ah-tab-admintools');
     const statsBtn = document.getElementById('ah-tab-stats');
     
-    if (!isSuper) {
-        // Standard Admins (like 0000) 
+    // Role-based sidebar cleanup
+    if (!isSuper && !isMomo) {
+        // Standard Admins (like 0000) - Hide restricted tools
         if (toolsBtn) toolsBtn.classList.add('hidden');
         if (statsBtn) statsBtn.classList.add('hidden');
         
-        // Hide Trivia and Super
-        const triviaBtn = document.getElementById('ah-tab-trivia');
-        const superBtn  = document.getElementById('ah-tab-super');
-        if (triviaBtn) triviaBtn.classList.add('hidden');
-        if (superBtn)  superBtn.classList.add('hidden');
-
-        // Transform 'Tracker' back to 'Zero Performance' and make it full width
-        const zeroBtn = document.getElementById('ah-tab-zero');
-        if (zeroBtn) {
-            zeroBtn.classList.remove('flex', 'flex-col', 'items-center', 'justify-center', 'py-4');
-            zeroBtn.classList.add('ah-nav-btn', 'w-full');
-            // Remove the grid wrapper's grid class to allow full width
-            const gridWrapper = zeroBtn.parentElement;
-            if (gridWrapper) {
-                gridWrapper.classList.remove('grid', 'grid-cols-2');
-                gridWrapper.classList.add('flex', 'flex-col');
-            }
-            zeroBtn.innerHTML = '<i class="fas fa-ghost mr-2"></i> Zero Performance';
-        }
-
-        // Double check: if they are somehow ON a restricted tab, kick them back to overview
         if (['admintools','stats','trivia','super'].includes(ahCurrentSubTab)) {
             window.switchAdminHubTab('overview');
         }
