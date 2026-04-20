@@ -575,10 +575,15 @@ async function ahLoadWeeklyMatrix(team) {
     }
 }
 
+let ahLastUpdate = 0;
 function handleLiveStateUpdate(state) {
     if (!state || !state.agents) return;
+    window.agents = state.agents; // Data sync stays instant
     
-    window.agents = state.agents; // Ensure global availability
+    // Throttle the heavy UI rendering (max once per second)
+    const now = Date.now();
+    if (now - ahLastUpdate < 1000) return; 
+    ahLastUpdate = now;
     
     // Update Datalists for modals
     const coachList = document.getElementById('coach-rep-list');
