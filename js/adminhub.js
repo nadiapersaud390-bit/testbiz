@@ -54,19 +54,34 @@ function ahInitZeroPerf() {
     if (!dailyList || !weeklyList) return;
 
     const agents = window.agents || [];
-    
+    const profiles = window.allAgentProfiles || [];
+
+    // Helper: look up real full name from agent profiles using the agent's
+    // numeric ID (which may be stored in a.name or a.ytelId).
+    function getDisplayName(a) {
+        const uid = String(a.ytelId || a.name || '').trim();
+        const profile = profiles.find(p => String(p.userId).trim() === uid);
+        return profile ? profile.fullName.toUpperCase() : (a.name || '—');
+    }
+
+    // Helper: return the best ID to show in the subtitle line.
+    function getDisplayId(a) {
+        const uid = String(a.ytelId || a.name || '').trim();
+        const profile = profiles.find(p => String(p.userId).trim() === uid);
+        return profile ? profile.userId : (a.ytelId || a.name || '---');
+    }
+
     // 1. Daily Zero
     const dailyZeros = agents.filter(a => (a.dailyLeads || 0) === 0);
     dailyList.innerHTML = dailyZeros.map(a => {
         const team = normalizeTeam(a.team, a.name);
-        const colorClass = ahTeamColors[team] || 'slate-500';
         return `
             <div class="bg-white/5 border border-white/5 rounded-2xl p-4 flex justify-between items-center group hover:bg-white/10 transition">
                 <div class="flex items-center gap-3">
                     <div class="w-2 h-2 rounded-full bg-slate-700"></div>
                     <div>
-                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${a.name}</div>
-                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${a.ytelId || '---'} | ${team}</div>
+                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${getDisplayName(a)}</div>
+                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${getDisplayId(a)} | ${team}</div>
                     </div>
                 </div>
                 <div class="text-right">
@@ -80,14 +95,13 @@ function ahInitZeroPerf() {
     const weeklyZeros = agents.filter(a => (a.weeklyLeads || 0) === 0);
     weeklyList.innerHTML = weeklyZeros.map(a => {
         const team = normalizeTeam(a.team, a.name);
-        const colorClass = ahTeamColors[team] || 'slate-500';
         return `
             <div class="bg-white/5 border border-white/5 rounded-2xl p-4 flex justify-between items-center group hover:bg-white/10 transition">
                 <div class="flex items-center gap-3">
                     <div class="w-2 h-2 rounded-full bg-slate-700"></div>
                     <div>
-                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${a.name}</div>
-                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${a.ytelId || '---'} | ${team}</div>
+                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${getDisplayName(a)}</div>
+                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${getDisplayId(a)} | ${team}</div>
                     </div>
                 </div>
                 <div class="text-right">

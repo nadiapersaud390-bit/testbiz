@@ -15,6 +15,7 @@ window.initAgentProfiles = async function() {
     if (typeof window.listenToAgentProfiles === 'function') {
         window.listenToAgentProfiles((profiles) => {
             allAgentProfiles = profiles || [];
+            window.allAgentProfiles = allAgentProfiles; // Expose globally for name lookups
             apFilterAgents();
             
             // Sync current session's agent profile to banner if needed
