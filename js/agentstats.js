@@ -554,7 +554,7 @@ function renderActiveReportTable() {
         return `
             <tr class="border-b border-white/5 hover:bg-white/5 transition group text-[11px]">
                 <td class="p-3 text-slate-500 font-mono">${d.agentId}</td>
-                <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.agentName}</td>
+                <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.rawName || d.agentName}</td>
                 <td class="p-3 text-center text-slate-400 truncate max-w-[100px]" title="${d.status}">${d.status}</td>
                 <td class="p-3 text-center text-slate-300 font-mono">${d.duration}s</td>
                 <td class="p-3 text-right ${typeColor}">${typeLabel}</td>
