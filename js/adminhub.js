@@ -21,7 +21,7 @@ window.switchAdminHubTab = function(tabId) {
         console.warn('Unauthorized access to Admin Tools blocked.');
         return;
     }
-    if (tabId === 'stats' && !isSuper && !isMomo) {
+    if (tabId === 'stats' && !isSuper) {
         console.warn('Unauthorized access to Agent Stats blocked.');
         return;
     }
@@ -366,19 +366,19 @@ function renderRebuttalIntel(usage) {
 
 // Initialize Overview Data
 window.ahInitOverview = function() {
-    // Permission Check for Admin Tools Toggle
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
-    const isMomo = String(currentAdmin.email || '').toLowerCase() === 'momo';
     
     const toolsBtn = document.getElementById('ah-tab-admintools');
     const statsBtn = document.getElementById('ah-tab-stats');
     
     if (!isSuper) {
+        // Standard Admins (like 0000) cannot see Stats or Admin Tools
         if (toolsBtn) toolsBtn.classList.add('hidden');
-        if (statsBtn && !isMomo) statsBtn.classList.add('hidden');
+        if (statsBtn) statsBtn.classList.add('hidden');
         
         // Double check: if they are somehow ON a restricted tab, kick them back to overview
-        if (ahCurrentSubTab === 'admintools' || (ahCurrentSubTab === 'stats' && !isMomo)) {
+        if (ahCurrentSubTab === 'admintools' || ahCurrentSubTab === 'stats') {
             window.switchAdminHubTab('overview');
         }
     }

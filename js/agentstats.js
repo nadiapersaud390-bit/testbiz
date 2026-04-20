@@ -183,9 +183,20 @@ window.asConfirmUpload = async function() {
             if (typeof window.writeAdminActivityLog === 'function') {
                 window.writeAdminActivityLog('upload_stats', `Uploaded Agent Stats Report: ${_asStagedFile.name}`);
             }
+            
             // Hide panel, reset
             document.getElementById('as-upload-panel').classList.add('hidden');
             _asStagedFile = null; _asStagedParsed = null;
+            
+            // Automatically view the report just uploaded
+            const newId = res.id;
+            if (newId) {
+                // Wait briefly for the listener to catch the new data in allReports
+                setTimeout(() => {
+                    if (typeof window.viewReport === 'function') window.viewReport(newId);
+                }, 500);
+            }
+
             setTimeout(() => updateStatsStatus('', false), 3000);
         } else {
             const errMsg = (res && res.error && res.error.message) ? res.error.message : 'Unknown error';

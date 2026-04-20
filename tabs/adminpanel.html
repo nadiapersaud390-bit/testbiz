@@ -46,15 +46,27 @@
                 </button>
             </div>
 
-            <!-- Group 4: MANAGEMENT (2) -->
+            <!-- Group 4: MANAGEMENT (2x2 Grid) -->
             <div class="flex flex-col gap-1">
                 <div class="px-3 mb-1 text-[7px] font-black text-slate-500 uppercase tracking-[0.2em]">Management</div>
-                <button onclick="switchAdminHubTab('zero')" id="ah-tab-zero" class="ah-nav-btn">
-                    <i class="fas fa-ghost"></i> Performance Tracker
-                </button>
-                <button onclick="switchAdminHubTab('admintools')" id="ah-tab-admintools" class="ah-nav-btn">
-                    <i class="fas fa-tools"></i> Admin Tools
-                </button>
+                <div class="grid grid-cols-2 gap-2 px-2">
+                    <button onclick="switchAdminHubTab('trivia')" id="ah-tab-trivia" class="ah-nav-btn flex flex-col items-center justify-center py-4 text-center">
+                        <i class="fas fa-bullseye mb-1"></i>
+                        <span class="text-[8px]">Trivia</span>
+                    </button>
+                    <button onclick="switchAdminHubTab('zero')" id="ah-tab-zero" class="ah-nav-btn flex flex-col items-center justify-center py-4 text-center">
+                        <i class="fas fa-clipboard-list mb-1"></i>
+                        <span class="text-[8px]">Tracker</span>
+                    </button>
+                    <button onclick="switchAdminHubTab('admintools')" id="ah-tab-admintools" class="ah-nav-btn flex flex-col items-center justify-center py-4 text-center">
+                        <i class="fas fa-shield-alt mb-1"></i>
+                        <span class="text-[8px]">Admin</span>
+                    </button>
+                    <button onclick="switchAdminHubTab('super')" id="ah-tab-super" class="ah-nav-btn flex flex-col items-center justify-center py-4 text-center">
+                        <i class="fas fa-crown mb-1"></i>
+                        <span class="text-[8px]">Super</span>
+                    </button>
+                </div>
             </div>
         </nav>
 
