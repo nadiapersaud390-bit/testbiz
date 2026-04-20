@@ -14,6 +14,7 @@ const ahTeamColors = {
 window.switchAdminHubTab = function(tabId) {
     // Permission Check for Admin Tools
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
     const isMomo = String(currentAdmin.email || '').toLowerCase() === 'momo';
     
     if (tabId === 'admintools' && !isSuper) {

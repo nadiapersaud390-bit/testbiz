@@ -4,7 +4,7 @@
 
 let allReports = [];
 let currentReportData = null;
-let asSortCol = 'duration';
+let asSortCol = 'totalDuration';
 let asSortAsc = false;
 let asSubscribed = false; // Flag to prevent multiple listeners
 
@@ -543,16 +543,22 @@ function renderActiveReportTable() {
     aggregated.sort((a, b) => {
         let valA = a[sortKey] ?? 0;
         let valB = b[sortKey] ?? 0;
-        if (typeof valA === 'string') {
+        
+        const typeA = typeof valA;
+        const typeB = typeof valB;
+
+        if (typeA === 'string' && typeB === 'string') {
             valA = valA.toLowerCase();
             valB = valB.toLowerCase();
             if (valA < valB) return asSortAsc ? -1 : 1;
             if (valA > valB) return asSortAsc ? 1 : -1;
+            return 0;
         } else {
-            // For numbers, default is DESC (high to low) if asSortAsc is false
-            return asSortAsc ? (valA - valB) : (valB - valA);
+            // For numbers (or mixed types, treat as numbers), default is DESC (high to low)
+            const numA = parseFloat(valA) || 0;
+            const numB = parseFloat(valB) || 0;
+            return asSortAsc ? (numA - numB) : (numB - numA);
         }
-        return 0;
     });
     
     // ── RENDER TABLE ──
