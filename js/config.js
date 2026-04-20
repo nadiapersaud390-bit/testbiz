@@ -47,19 +47,26 @@ function stripPrefix(raw) {
 
 function normalizeTeam(team, name) {
   const rawTeam = String(team || '').trim().toUpperCase();
-  const rawName = String(name || '').trim().toUpperCase().replace(/[\s-]+/g,'');
+  const rawName = String(name || '').trim().toUpperCase();
+  const rawNameNoSpace = rawName.replace(/[\s-]+/g,'');
   
-  if (REMOTE_AGENT_NAMES.has(rawName)) return 'RM';
-  if (rawName.startsWith('RM') || rawName.startsWith('REMOTE') || rawName.startsWith('GTR') || rawName.startsWith('GTM')) return 'RM';
-  
-  // Providence (PR) prefixes
-  if (rawName.startsWith('GUYP') || rawName.startsWith('GYP')) return 'PR';
-  // Berbice (BB) prefixes
-  if (rawName.startsWith('GUYB') || rawName.startsWith('GYB')) return 'BB';
-  
+  // 1. Explicit Overrides First (If the roster says they are RM, they are RM)
   if (['RM', 'REMOTE'].includes(rawTeam)) return 'RM';
   if (['BB', 'BERB', 'BERBICE'].includes(rawTeam)) return 'BB';
   if (['PR', 'PROV', 'PROVIDENCE'].includes(rawTeam)) return 'PR';
+
+  // 2. Known Remote Agents (Manual list)
+  // Check both with and without spaces for robustness
+  const isRemote = [...REMOTE_AGENT_NAMES].some(rn => {
+    const cleanRN = rn.toUpperCase().replace(/[\s-]+/g,'');
+    return rawName === rn.toUpperCase() || rawNameNoSpace === cleanRN;
+  });
+  if (isRemote) return 'RM';
+  
+  // 3. Prefix Auto-Detection (Only if no explicit team set)
+  if (rawNameNoSpace.startsWith('RM') || rawNameNoSpace.startsWith('REMOTE') || rawNameNoSpace.startsWith('GTR') || rawNameNoSpace.startsWith('GTM')) return 'RM';
+  if (rawNameNoSpace.startsWith('GUYP') || rawNameNoSpace.startsWith('GYP')) return 'PR';
+  if (rawNameNoSpace.startsWith('GUYB') || rawNameNoSpace.startsWith('GYB')) return 'BB';
   
   return 'PR';
 }
