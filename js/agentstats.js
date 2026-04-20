@@ -453,27 +453,46 @@ window.viewReport = function(id) {
         pushBtn.onclick = async () => {
             if(confirm(`WARNING: This will overwrite the "TODAY" Live Leaderboard with this report (${report.reportDate}).\n\nNote: If this is an old report (like from yesterday), you DO NOT need to push it! It automatically goes to the correct Mon-Fri tab just by uploading it.\n\nAre you sure you want to broadcast this to the LIVE "TODAY" board?`)) {
                 
-                // Aggregate by agent NAME (not just ID) to preserve all unique people
-                const aggMap = {};
+                // 1. Get the Full Roster (all 50 agents)
+                const roster = window.allAgentProfiles || [];
+                const rosterMap = {};
+                
+                roster.forEach(p => {
+                    const nameKey = (p.fullName || 'UNKNOWN').trim().toUpperCase();
+                    rosterMap[nameKey] = {
+                        name: p.fullName,
+                        ytelId: p.userId,
+                        team: p.team || 'PR',
+                        dailyLeads: 0, 
+                        rawName: p.fullName
+                    };
+                });
+
+                // 2. Merge in the CSV data
                 report.data.forEach(d => {
                     const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
-                    const id = d.agentId || d.ytelId || d.agentName;
-                    const rawKey = d.rawName || d.agentName;
-                    if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0, ytelId: id };
-                    if(d.duration >= 120) aggMap[nameKey].transfers++;
+                    if (rosterMap[nameKey]) {
+                        if (d.duration >= 120) rosterMap[nameKey].dailyLeads++;
+                    } else {
+                        // Safety catch for agents not in roster
+                        const id = d.agentId || d.ytelId || '';
+                        rosterMap[nameKey] = {
+                            name: d.agentName,
+                            ytelId: id,
+                            team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName || d.agentName) : 'PR',
+                            dailyLeads: (d.duration >= 120 ? 1 : 0),
+                            rawName: d.rawName || d.agentName
+                        };
+                    }
                 });
-                const aggregatedList = Object.values(aggMap);
+
+                const finalAgents = Object.values(rosterMap);
                 
                 const pushState = {
                     dateLabel: report.reportDate,
                     pushedAt: new Date().toISOString(),
                     pushedBy: report.author,
-                    agents: aggregatedList.map(d => ({
-                        name: d.name,
-                        ytelId: d.ytelId,
-                        team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName) : 'PR',
-                        dailyLeads: d.transfers
-                    }))
+                    agents: finalAgents
                 };
                 
                 if (typeof window.saveLiveDashboardState === 'function') {

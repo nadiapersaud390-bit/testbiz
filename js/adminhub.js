@@ -135,23 +135,37 @@ function ahInitZeroPerf() {
             </div>`;
     }
 
-    // ── 1. DAILY: today's uploaded report ─────────────────────────────────────
-    const todayReport  = reports.find(r => r.reportDate === todayStr());
-    const dailyCounts  = todayReport ? countXfers(todayReport.data) : {};
-    const hasDailyUpload = !!todayReport;
+    // Use the full roster as the definitive source
+    const roster = window.allAgentProfiles || [];
+    const liveAgents = window.agents || [];
+    const reports = window.allAgentReports || [];
 
-    if (profiles.length === 0) {
+    // Helper to find an agent's count in a map or array
+    function getDailyCount(p) {
+        // Try live data first
+        const pId = String(p.userId || '').trim();
+        const pName = String(p.fullName || '').trim().toUpperCase();
+        const live = liveAgents.find(a => String(a.ytelId).trim() === pId || (a.name && a.name.toUpperCase() === pName));
+        if (live) return Number(live.dailyLeads) || 0;
+
+        // Try today's report second
+        const todayReport = reports.find(r => r.reportDate === todayStr());
+        if (todayReport) {
+            const row = todayReport.data.find(d => String(d.agentId).trim() === pId || (d.agentName && d.agentName.toUpperCase() === pName));
+            return row ? (Number(row.dailyLeads) || 0) : 0;
+        }
+        return 0;
+    }
+
+    // ── 1. DAILY: Show anyone in roster with 0 leads ───────────────────────────
+    if (roster.length === 0) {
         dailyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agents in roster yet</div>';
-    } else if (!hasDailyUpload) {
-        dailyList.innerHTML = '<div class="py-10 text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">Upload today\'s report to see daily zeros</div>';
     } else {
-        const zeros = profiles.filter(p => getCount(p, dailyCounts) === 0);
+        const zeros = roster.filter(p => getDailyCount(p) === 0);
         if (zeros.length === 0) {
             dailyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers today!</div>';
         } else {
-            dailyList.innerHTML = zeros.map(p =>
-                renderRow(p, 0, true, false)
-            ).join('');
+            dailyList.innerHTML = zeros.map(p => renderRow(p, 0, true, false)).join('');
         }
     }
 
