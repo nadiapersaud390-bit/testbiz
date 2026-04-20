@@ -384,6 +384,10 @@ window.ahInitOverview = function() {
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
     const isMomo = currentAdmin.name === 'Momo';
     
+    // Store globally so switchAdminHubTab can access them
+    window.ahIsSuperAdmin = isSuper;
+    window.ahIsMomo = isMomo;
+    
     const toolsBtn = document.getElementById('ah-tab-admintools');
     const statsBtn = document.getElementById('ah-tab-stats');
     
