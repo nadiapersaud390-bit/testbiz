@@ -4,8 +4,8 @@
 
 let allReports = [];
 let currentReportData = null;
-let asSortCol = 'totalDuration';
-let asSortAsc = false;
+let asSortCol = 'agentName';
+let asSortAsc = true;
 let asSubscribed = false; // Flag to prevent multiple listeners
 
 // Initialization function called from index.html (or tab load)
@@ -539,30 +539,44 @@ function renderActiveReportTable() {
         }
     });
     
-    // ── RENDER TABLE ──
+    // ── CHUNKED RENDERING ──
     const tbodies = document.querySelectorAll('#as-table-body');
     if (displayRows.length === 0) {
         tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500 text-xs italic">No matching leads found.</td></tr>`);
         return;
     }
-    
-    const htmlOutput = displayRows.map(d => {
-        const isXfer = (d.duration || 0) >= 120;
-        const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
-        const typeLabel = isXfer ? 'XFER' : 'CONN';
-        
-        return `
-            <tr class="border-b border-white/5 hover:bg-white/5 transition group text-[11px]">
-                <td class="p-3 text-slate-500 font-mono">${d.agentId}</td>
-                <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.rawName || d.agentName}</td>
-                <td class="p-3 text-center text-slate-400 truncate max-w-[100px]" title="${d.status}">${d.status}</td>
-                <td class="p-3 text-center text-slate-300 font-mono">${d.duration}s</td>
-                <td class="p-3 text-right ${typeColor}">${typeLabel}</td>
-            </tr>
-        `;
-    }).join('');
-    
-    tbodies.forEach(tbody => tbody.innerHTML = htmlOutput);
+
+    const chunkSize = 50;
+    let currentIndex = 0;
+    tbodies.forEach(tbody => tbody.innerHTML = ''); // Clear first
+
+    function renderNextChunk() {
+        const nextBatch = displayRows.slice(currentIndex, currentIndex + chunkSize);
+        const html = nextBatch.map(d => {
+            const isXfer = (d.duration || 0) >= 120;
+            const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
+            const typeLabel = isXfer ? 'XFER' : 'CONN';
+            
+            return `
+                <tr class="border-b border-white/5 hover:bg-white/5 transition group text-[11px]">
+                    <td class="p-3 text-slate-500 font-mono">${d.agentId}</td>
+                    <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.rawName || d.agentName}</td>
+                    <td class="p-3 text-center text-slate-400 truncate max-w-[100px]" title="${d.status}">${d.status}</td>
+                    <td class="p-3 text-center text-slate-300 font-mono">${d.duration}s</td>
+                    <td class="p-3 text-right ${typeColor}">${typeLabel}</td>
+                </tr>
+            `;
+        }).join('');
+
+        tbodies.forEach(tbody => tbody.insertAdjacentHTML('beforeend', html));
+        currentIndex += chunkSize;
+
+        if (currentIndex < displayRows.length) {
+            requestAnimationFrame(renderNextChunk);
+        }
+    }
+
+    renderNextChunk();
 }
 
 // Automatically pipeline the LATEST report into the daily leaderboard goals

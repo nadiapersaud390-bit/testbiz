@@ -58,8 +58,21 @@ function ahInitZeroPerf() {
     const weeklyList = document.getElementById('ah-zero-weekly-list');
     if (!dailyList || !weeklyList) return;
 
-    const profiles = window.agents || []; // Use active daily agents instead of static profiles
+    // Prefer active daily agents, but fallback to the full roster if needed
+    const profiles = (window.agents && window.agents.length > 0) ? window.agents : (window.allAgentProfiles || []);
     const reports  = window.allAgentReports  || [];
+
+    // Helper to find an agent's count in a map using multiple possible keys (ID, Name, etc)
+    function getCount(p, countMap) {
+        const id1 = String(p.ytelId || '').trim();
+        const id2 = String(p.userId || '').trim();
+        const name = (p.name || p.fullName || '').trim().toUpperCase();
+        
+        if (id1 && countMap[id1] !== undefined) return countMap[id1];
+        if (id2 && countMap[id2] !== undefined) return countMap[id2];
+        if (name && countMap[name]) return countMap[name];
+        return 0;
+    }
 
     // ── Date helpers ──────────────────────────────────────────────────────────
     function todayStr() {
@@ -132,7 +145,7 @@ function ahInitZeroPerf() {
     } else if (!hasDailyUpload) {
         dailyList.innerHTML = '<div class="py-10 text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">Upload today\'s report to see daily zeros</div>';
     } else {
-        const zeros = profiles.filter(p => (dailyCounts[p.ytelId || p.userId] || 0) === 0);
+        const zeros = profiles.filter(p => getCount(p, dailyCounts) === 0);
         if (zeros.length === 0) {
             dailyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers today!</div>';
         } else {
@@ -161,7 +174,7 @@ function ahInitZeroPerf() {
             });
         });
 
-        const zeros = profiles.filter(p => (weeklyCounts[p.ytelId || p.userId] || 0) === 0);
+        const zeros = profiles.filter(p => getCount(p, weeklyCounts) === 0);
         if (zeros.length === 0) {
             weeklyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers this week!</div>';
         } else {
@@ -466,20 +479,34 @@ function renderDailyAttendance() {
     if (!list) return;
 
     let sourceData = [];
+    const roster = window.allAgentProfiles || [];
+    const liveAgents = window.agents || [];
+
     if (ahAttSelectedReportId === 'live') {
-        sourceData = window.agents || [];
+        sourceData = roster.map(p => {
+            const live = liveAgents.find(la => String(la.ytelId) === String(p.userId) || (la.name && la.name.toUpperCase() === p.fullName.toUpperCase()));
+            return {
+                name: p.fullName,
+                ytelId: p.userId,
+                team: p.team || '',
+                status: live ? 'Present' : 'Absent',
+                loginTime: live ? (live.loginTime || 'LOGGED') : '--:--',
+                rawName: p.fullName
+            };
+        });
     } else if (window.ahAllReports) {
         const report = window.ahAllReports.find(r => r.id === ahAttSelectedReportId);
         if (report && report.data) {
-            sourceData = report.data.map(d => {
-                const id = d.agentId || d.ytelId || d.agentName;
+            const reportData = report.data;
+            sourceData = roster.map(p => {
+                const match = reportData.find(d => String(d.agentId) === String(p.userId) || (d.agentName && d.agentName.toUpperCase() === p.fullName.toUpperCase()));
                 return {
-                    name: d.agentName,
-                    ytelId: id,
-                    team: d.team || '',
-                    status: (d.duration >= 120) ? 'Present' : 'Absent',
-                    loginTime: d.loginTime || (d.duration >= 120 ? 'LOGGED' : '--:--'),
-                    rawName: d.rawName || d.agentName
+                    name: p.fullName,
+                    ytelId: p.userId,
+                    team: p.team || '',
+                    status: (match && match.duration >= 120) ? 'Present' : 'Absent',
+                    loginTime: (match && match.duration >= 120) ? 'LOGGED' : '--:--',
+                    rawName: p.fullName
                 };
             });
         }
@@ -595,8 +622,22 @@ function handleLiveStateUpdate(state) {
     
     if (onlineGrid && offlineGrid) {
         const presence = window.ahOnlinePresences || {};
-        const onlineAgents = agents.filter(a => presence[a.ytelId]);
-        const offlineAgents = agents.filter(a => !presence[a.ytelId]);
+        const roster = window.allAgentProfiles || [];
+        
+        // Map roster to include live data
+        const fullAgentList = roster.map(p => {
+            const live = agents.find(a => String(a.ytelId) === String(p.userId) || (a.name && a.name.toUpperCase() === p.fullName.toUpperCase()));
+            return {
+                ...p,
+                name: p.fullName,
+                ytelId: p.userId,
+                dailyLeads: live ? (live.dailyLeads || 0) : 0,
+                isOnline: !!presence[p.userId]
+            };
+        });
+
+        const onlineAgents = fullAgentList.filter(a => a.isOnline);
+        const offlineAgents = fullAgentList.filter(a => !a.isOnline);
 
         onlineGrid.innerHTML = onlineAgents.map(a => {
             const team = normalizeTeam(a.team, a.name);
@@ -607,11 +648,14 @@ function handleLiveStateUpdate(state) {
                     <div class="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
                     <div class="flex-1 overflow-hidden">
                         <div class="text-[9px] font-black text-white truncate uppercase">${a.name}</div>
-                        <div class="text-[7px] font-bold text-${colorClass} uppercase tracking-tighter">${team} TEAM</div>
+                        <div class="flex justify-between items-center mt-0.5">
+                            <div class="text-[7px] font-bold text-${colorClass} uppercase tracking-tighter">${team}</div>
+                            <div class="text-[7px] font-black text-cyan-400 italic">${a.dailyLeads}</div>
+                        </div>
                     </div>
                 </div>
             `;
-        }).join('') || '<div class="col-span-3 py-6 text-center text-[8px] text-slate-600 font-bold uppercase tracking-widest">No agents logged in yet</div>';
+        }).join('') || '<div class="col-span-3 py-6 text-center text-[8px] text-slate-600 font-bold uppercase tracking-widest">No agents online</div>';
 
         offlineGrid.innerHTML = offlineAgents.map(a => {
             const team = normalizeTeam(a.team, a.name);
@@ -623,7 +667,7 @@ function handleLiveStateUpdate(state) {
                         <div class="text-[9px] font-black text-slate-400 truncate uppercase">${a.name || 'Unknown Agent'}</div>
                         <div class="flex justify-between items-center mt-0.5">
                             <div class="text-[7px] font-bold text-slate-600 uppercase tracking-tighter">${team}</div>
-                            <div class="text-[7px] font-black text-slate-700 uppercase tracking-widest">${a.ytelId || ''}</div>
+                            <div class="text-[7px] font-black text-slate-800 uppercase tracking-widest">${a.dailyLeads}</div>
                         </div>
                     </div>
                 </div>
