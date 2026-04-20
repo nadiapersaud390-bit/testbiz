@@ -392,8 +392,10 @@ window.ahInitOverview = function() {
         }
     }, 1000);
 
-    // Pre-load Agent Profiles in the background so name lookups are instant
-    // across all tabs (Zero Performance, etc.) without needing to visit the Profiles tab first.
+    // 1. Sync Roster from Google Sheet first
+    ahSyncRosterFromSheet();
+
+    // 2. Pre-load Agent Profiles from Firebase as a secondary backup
     if (typeof window.initAgentProfiles === 'function') {
         window.initAgentProfiles();
     }
@@ -1240,5 +1242,31 @@ window.ahToolsLoadPerformance = function() {
                 `;
             }).join('');
         });
+    }
+};
+
+window.ahSyncRosterFromSheet = async function() {
+    console.log('[AdminHub] Syncing roster from Google Sheet...');
+    try {
+        const resp = await fetch(`${API_URL}?action=getRoster`);
+        const roster = await resp.json();
+        
+        if (Array.isArray(roster) && roster.length > 0) {
+            console.log(`[AdminHub] Successfully pulled ${roster.length} agents from Sheet.`);
+            window.allAgentProfiles = roster;
+            
+            // Refresh currently visible tabs
+            if (window.ahCurrentSubTab === 'overview') {
+                if (window.agents) handleLiveStateUpdate({ agents: window.agents });
+            }
+            if (window.ahCurrentSubTab === 'attendance') {
+                renderDailyAttendance();
+            }
+            if (window.ahCurrentSubTab === 'zero') {
+                ahInitZeroPerf();
+            }
+        }
+    } catch (e) {
+        console.error('[AdminHub] Roster sync failed:', e);
     }
 };
