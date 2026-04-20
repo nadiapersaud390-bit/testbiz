@@ -625,6 +625,8 @@ function handleLiveStateUpdate(state) {
     if (onlineGrid && offlineGrid) {
         const presence = window.ahOnlinePresences || {};
         const roster = window.allAgentProfiles || [];
+        const rosterTotalEl = document.getElementById('ah-roster-total');
+        if (rosterTotalEl) rosterTotalEl.textContent = roster.length;
         
         // Map roster to include live data
         const fullAgentList = roster.map(p => {
@@ -1255,9 +1257,10 @@ window.ahSyncRosterFromSheet = async function() {
             console.log(`[AdminHub] Successfully pulled ${roster.length} agents from Sheet.`);
             window.allAgentProfiles = roster;
             
-            // Refresh currently visible tabs
-            if (window.ahCurrentSubTab === 'overview') {
-                if (window.agents) handleLiveStateUpdate({ agents: window.agents });
+
+            // Refresh currently visible tabs immediately
+            if (window.ahCurrentSubTab === 'overview' || !window.ahCurrentSubTab) {
+                handleLiveStateUpdate({ agents: window.agents || [] });
             }
             if (window.ahCurrentSubTab === 'attendance') {
                 renderDailyAttendance();
