@@ -496,51 +496,29 @@ function renderActiveReportTable() {
     
     const rawRows = currentReportData.data;
     
-    // ── AGGREGATE: one entry per unique agent ID ──
-    const agentMap = {};
-    rawRows.forEach(d => {
-        const idKey = String(d.agentId || '').trim();
-        if (!idKey) return; // Skip empty rows
-        
-        if (!agentMap[idKey]) {
-            agentMap[idKey] = {
-                agentId: idKey,
-                agentName: d.agentName,
-                rawName: d.rawName || d.agentName,
-                totalCalls: 0,
-                transfers: 0,
-                totalDuration: 0
-            };
-        }
-        agentMap[idKey].totalCalls++;
-        agentMap[idKey].totalDuration += (d.duration || 0);
-        if (d.duration >= 120) agentMap[idKey].transfers++;
-    });
-    
-    let aggregated = Object.values(agentMap);
-    
-    // ── GLOBAL STATS (Calculated from the filtered list) ──
-    const agentCount = aggregated.length;
-    const totalXfers = aggregated.reduce((s, a) => s + a.transfers, 0);
-    const totalCalls = aggregated.reduce((s, a) => s + a.totalCalls, 0);
-    const totalDuration = aggregated.reduce((s, a) => s + a.totalDuration, 0);
+    // ── GLOBAL STATS (Calculated from raw rows) ──
+    const totalXfers = rawRows.filter(d => (d.duration || 0) >= 120).length;
+    const totalCalls = rawRows.length;
+    const agentCount = new Set(rawRows.map(d => d.agentId)).size;
     
     document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
     document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = totalCalls);
     document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
     document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = agentCount > 0 ? ((totalXfers / agentCount)*100).toFixed(1) + '%' : '0%');
     
+    let displayRows = [...rawRows];
+    
     // ── SEARCH FILTER ──
     let searchVal = '';
     const searchInput = document.getElementById('as-search-input');
     if (searchInput) searchVal = searchInput.value.toLowerCase().trim();
     if (searchVal) {
-        aggregated = aggregated.filter(d => d.agentName.toLowerCase().includes(searchVal));
+        displayRows = displayRows.filter(d => d.agentName.toLowerCase().includes(searchVal) || d.agentId.toLowerCase().includes(searchVal));
     }
     
     // ── SORT ──
-    const sortKey = asSortCol;
-    aggregated.sort((a, b) => {
+    const sortKey = asSortCol === 'totalDuration' || asSortCol === 'totalCalls' ? 'duration' : asSortCol;
+    displayRows.sort((a, b) => {
         let valA = a[sortKey] ?? 0;
         let valB = b[sortKey] ?? 0;
         
@@ -563,23 +541,23 @@ function renderActiveReportTable() {
     
     // ── RENDER TABLE ──
     const tbodies = document.querySelectorAll('#as-table-body');
-    if (tbodies.length === 0) return;
-    
-    if (aggregated.length === 0) {
-        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-500 text-xs italic">No matching agents found.</td></tr>`);
+    if (displayRows.length === 0) {
+        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500 text-xs italic">No matching leads found.</td></tr>`);
         return;
     }
     
-    const htmlOutput = aggregated.map(d => {
-        const xferColor = d.transfers > 0 ? 'text-cyan-400 font-bold' : 'text-slate-600';
-        const xferLabel = d.transfers > 0 ? d.transfers : '0';
+    const htmlOutput = displayRows.map(d => {
+        const isXfer = (d.duration || 0) >= 120;
+        const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
+        const typeLabel = isXfer ? 'XFER' : 'CONN';
+        
         return `
             <tr class="border-b border-white/5 hover:bg-white/5 transition group text-[11px]">
                 <td class="p-3 text-slate-500 font-mono">${d.agentId}</td>
                 <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.agentName}</td>
-                <td class="p-3 text-center ${xferColor}">${xferLabel}</td>
-                <td class="p-3 text-center text-slate-300 font-mono">${d.totalCalls}</td>
-                <td class="p-3 text-right text-slate-400 font-mono">${d.totalDuration}s</td>
+                <td class="p-3 text-center text-slate-400 truncate max-w-[100px]" title="${d.status}">${d.status}</td>
+                <td class="p-3 text-center text-slate-300 font-mono">${d.duration}s</td>
+                <td class="p-3 text-right ${typeColor}">${typeLabel}</td>
             </tr>
         `;
     }).join('');

@@ -58,7 +58,7 @@ function ahInitZeroPerf() {
     const weeklyList = document.getElementById('ah-zero-weekly-list');
     if (!dailyList || !weeklyList) return;
 
-    const profiles = window.allAgentProfiles || [];
+    const profiles = window.agents || []; // Use active daily agents instead of static profiles
     const reports  = window.allAgentReports  || [];
 
     // ── Date helpers ──────────────────────────────────────────────────────────
@@ -112,8 +112,8 @@ function ahInitZeroPerf() {
                 <div class="flex items-center gap-3">
                     <div class="w-2 h-2 rounded-full ${dotColor}"></div>
                     <div>
-                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${p.fullName.toUpperCase()}</div>
-                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${p.userId} | ${team}</div>
+                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${(p.name || p.fullName || 'Unknown').toUpperCase()}</div>
+                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${p.ytelId || p.userId || '----'} | ${team}</div>
                     </div>
                 </div>
                 <div class="text-right">
@@ -129,13 +129,17 @@ function ahInitZeroPerf() {
 
     if (profiles.length === 0) {
         dailyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agents in roster yet</div>';
+    } else if (!hasDailyUpload) {
+        dailyList.innerHTML = '<div class="py-10 text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">Upload today\'s report to see daily zeros</div>';
     } else {
-        const sorted = [...profiles].sort((a, b) =>
-            (dailyCounts[b.userId] || 0) - (dailyCounts[a.userId] || 0)
-        );
-        dailyList.innerHTML = sorted.map(p =>
-            renderRow(p, dailyCounts[p.userId] || 0, hasDailyUpload, false)
-        ).join('');
+        const zeros = profiles.filter(p => (dailyCounts[p.ytelId || p.userId] || 0) === 0);
+        if (zeros.length === 0) {
+            dailyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers today!</div>';
+        } else {
+            dailyList.innerHTML = zeros.map(p =>
+                renderRow(p, 0, true, false)
+            ).join('');
+        }
     }
 
     // ── 2. WEEKLY: aggregate all uploads from Mon → today ────────────────────
@@ -157,12 +161,14 @@ function ahInitZeroPerf() {
             });
         });
 
-        const sorted = [...profiles].sort((a, b) =>
-            (weeklyCounts[b.userId] || 0) - (weeklyCounts[a.userId] || 0)
-        );
-        weeklyList.innerHTML = sorted.map(p =>
-            renderRow(p, weeklyCounts[p.userId] || 0, true, true)
-        ).join('');
+        const zeros = profiles.filter(p => (weeklyCounts[p.ytelId || p.userId] || 0) === 0);
+        if (zeros.length === 0) {
+            weeklyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers this week!</div>';
+        } else {
+            weeklyList.innerHTML = zeros.map(p =>
+                renderRow(p, 0, true, true)
+            ).join('');
+        }
     }
 }
 
