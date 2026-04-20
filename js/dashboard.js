@@ -542,5 +542,6 @@ window.showTeamDrilldown = function(teamCode) {
         </div>
     `).join('') || '<div class="py-10 text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest">No agents assigned to this team</div>';
 
+    modal.style.display = 'flex';
     modal.classList.remove('hidden');
 };

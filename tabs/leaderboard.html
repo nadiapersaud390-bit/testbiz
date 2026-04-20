@@ -67,14 +67,14 @@
 <div id="leaderboard" class="leaderboard-grid space-y-3 md:space-y-0 px-2"></div>
 
 <!-- Team Drilldown Modal -->
-<div id="team-drill-modal" class="modal-overlay hidden" style="z-index: 10000; position: fixed; inset: 0; background: rgba(2,6,23,0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 16px;">
+<div id="team-drill-modal" class="modal-overlay hidden" style="z-index: 10000; position: fixed; inset: 0; background: rgba(2,6,23,0.85); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 16px;">
     <div class="glass p-6 rounded-[2rem] w-full max-w-sm border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
         <div class="flex justify-between items-start mb-6">
             <div>
                 <div id="team-drill-tag" class="text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded border border-white/10 inline-block mb-1">Team</div>
                 <div id="team-drill-title" class="header-font text-2xl font-black text-white italic uppercase tracking-tighter">Team Breakdown</div>
             </div>
-            <button onclick="document.getElementById('team-drill-modal').classList.add('hidden')" class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:bg-white/10 transition-all text-xs">✕</button>
+            <button onclick="document.getElementById('team-drill-modal').style.display='none'; document.getElementById('team-drill-modal').classList.add('hidden')" class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:bg-white/10 transition-all text-xs">✕</button>
         </div>
         <div id="team-drill-list" class="space-y-2 overflow-y-auto pr-2 custom-scrollbar">
             <!-- Agents will be injected here -->
