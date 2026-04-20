@@ -5,28 +5,8 @@ const SUPER_ADMIN_KEY = 'biz_super_admin_v1';
 const ADMINS_KEY = 'biz_admins_list_v1';
 const ACTIVITY_LOG_KEY = 'biz_activity_logs_v1';
 
-window.writeAdminActivityLog = function(action, details, specificAdmin = null) {
-    let admin = specificAdmin || JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    if (!admin || (!admin.email && !admin.name)) return;
-    
-    let logs = [];
-    try {
-        logs = JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY) || '[]');
-    } catch(e) {}
-    
-    logs.unshift({
-        id: Date.now(),
-        timestamp: new Date().toISOString(),
-        email: admin.email || 'unknown',
-        name: admin.name || admin.email || 'unknown',
-        role: admin.role || 'unknown',
-        action: action,
-        details: details
-    });
-    
-    if (logs.length > 500) logs = logs.slice(0, 500); // keep max 500 logs
-    localStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(logs));
-};
+// window.writeAdminActivityLog is now handled by js/firebase.js for cloud syncing.
+// This prevents local storage from overwriting global audit logs.
 
 // ============================================
 // DEFAULT SUPER ADMIN - CHANGE THESE VALUES!
