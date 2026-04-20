@@ -373,12 +373,32 @@ window.ahInitOverview = function() {
     const statsBtn = document.getElementById('ah-tab-stats');
     
     if (!isSuper) {
-        // Standard Admins (like 0000) cannot see Stats or Admin Tools
+        // Standard Admins (like 0000) 
         if (toolsBtn) toolsBtn.classList.add('hidden');
         if (statsBtn) statsBtn.classList.add('hidden');
         
+        // Hide Trivia and Super
+        const triviaBtn = document.getElementById('ah-tab-trivia');
+        const superBtn  = document.getElementById('ah-tab-super');
+        if (triviaBtn) triviaBtn.classList.add('hidden');
+        if (superBtn)  superBtn.classList.add('hidden');
+
+        // Transform 'Tracker' back to 'Zero Performance' and make it full width
+        const zeroBtn = document.getElementById('ah-tab-zero');
+        if (zeroBtn) {
+            zeroBtn.classList.remove('flex', 'flex-col', 'items-center', 'justify-center', 'py-4');
+            zeroBtn.classList.add('ah-nav-btn', 'w-full');
+            // Remove the grid wrapper's grid class to allow full width
+            const gridWrapper = zeroBtn.parentElement;
+            if (gridWrapper) {
+                gridWrapper.classList.remove('grid', 'grid-cols-2');
+                gridWrapper.classList.add('flex', 'flex-col');
+            }
+            zeroBtn.innerHTML = '<i class="fas fa-ghost mr-2"></i> Zero Performance';
+        }
+
         // Double check: if they are somehow ON a restricted tab, kick them back to overview
-        if (ahCurrentSubTab === 'admintools' || ahCurrentSubTab === 'stats') {
+        if (['admintools','stats','trivia','super'].includes(ahCurrentSubTab)) {
             window.switchAdminHubTab('overview');
         }
     }
@@ -628,25 +648,55 @@ function handleLiveStateUpdate(state) {
     const offlineGrid = document.getElementById('ah-offline-grid');
     
     if (onlineGrid && offlineGrid) {
-        const presence = window.ahOnlinePresences || {};
+        // 1. Prepare Roster Map for fast lookup
         const roster = window.allAgentProfiles || [];
         const rosterTotalEl = document.getElementById('ah-roster-total');
         if (rosterTotalEl) rosterTotalEl.textContent = roster.length;
+
+        const presence = window.ahOnlinePresences || {};
+        const liveAgents = window.agents || [];
         
-        // Map roster to include live data
+        // 2. Build the full list starting with the roster
+        const rosterIds = new Set();
         const fullAgentList = roster.map(p => {
-            const live = agents.find(a => String(a.ytelId) === String(p.userId) || (a.name && a.name.toUpperCase() === p.fullName.toUpperCase()));
+            const pId = String(p.userId || '').trim();
+            const pName = String(p.fullName || '').trim().toUpperCase();
+            rosterIds.add(pId);
+
+            // Find live data matching this roster entry
+            const live = liveAgents.find(a => {
+                const aId = String(a.ytelId || '').trim();
+                const aName = String(a.name || '').trim().toUpperCase();
+                return (aId === pId && aId !== '') || (aName === pName && aName !== '');
+            });
+
             return {
                 ...p,
                 name: p.fullName,
                 ytelId: p.userId,
                 dailyLeads: live ? (live.dailyLeads || 0) : 0,
-                isOnline: !!presence[p.userId]
+                isOnline: !!presence[pId],
+                inRoster: true
             };
         });
 
+        // 3. ADD agents who are online but NOT in the roster (Safety Catch)
+        liveAgents.forEach(a => {
+            const aId = String(a.ytelId || '').trim();
+            if (!rosterIds.has(aId)) {
+                fullAgentList.push({
+                    name: a.name,
+                    ytelId: aId,
+                    team: '??',
+                    dailyLeads: a.dailyLeads || 0,
+                    isOnline: !!presence[aId],
+                    inRoster: false
+                });
+            }
+        });
+
         const onlineAgents = fullAgentList.filter(a => a.isOnline);
-        const offlineAgents = fullAgentList.filter(a => !a.isOnline);
+        const offlineAgents = fullAgentList.filter(a => !a.isOnline && a.inRoster);
 
         onlineGrid.innerHTML = onlineAgents.map(a => {
             const team = normalizeTeam(a.team, a.name);
