@@ -51,7 +51,7 @@ window.switchAdminHubTab = function(tabId) {
         if (tabId === 'coaching' && typeof window.coachingInit === 'function') window.coachingInit();
         if (tabId === 'monitoring' && typeof window.monitoringInit === 'function') window.monitoringInit();
         if (tabId === 'rebuttals' && typeof initRebuttalIntel === 'function') initRebuttalIntel();
-        if (tabId === 'weekly' && typeof initWeeklyPerformance === 'function') initWeeklyPerformance();
+        if (tabId === 'performance' && typeof initWeeklyPerformance === 'function') initWeeklyPerformance();
         if (tabId === 'admintools' && typeof ahAdminToolsInit === 'function') ahAdminToolsInit();
         if (tabId === 'zero' && typeof ahInitZeroPerf === 'function') ahInitZeroPerf();
     } catch (e) {
@@ -1220,13 +1220,8 @@ window.ahDeleteSession = async function(coll, id) {
     await window.deleteSession(coll, id);
 };
 
-// Ensure init runs when tab switches
-window.switchTab = (function(orig) {
-    return function(tab) {
-        if (tab === 'adminpanel') setTimeout(ahAdminToolsInit, 100);
-        return orig.apply(this, arguments);
-    };
-})(window.switchTab || function(){});
+// Tab initialization is now handled in index.html switchTab wrapper
+// to ensure the Hub is active immediately upon switching.
 
 window.ahToolsLoadPerformance = function() {
     const tbody = document.getElementById('ah-performance-table-body');

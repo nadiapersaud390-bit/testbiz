@@ -273,6 +273,18 @@ window.switchTab = async function(tab) {
     const viewId = tabViewMap[tab];
     if (viewId) await loadTab(viewId);
 
+    // Initialize Admin Hub if switching to it
+    if (tab === 'adminpanel' && typeof window.ahInitOverview === 'function') {
+        setTimeout(() => {
+            window.ahInitOverview();
+            window.switchAdminHubTab('overview');
+        }, 100);
+    }
+
+    if (tab === 'superadminpanel' && typeof window.saInitAudit === 'function') {
+        setTimeout(window.saInitAudit, 100);
+    }
+
     _origSwitchTab(tab);
 };
 
