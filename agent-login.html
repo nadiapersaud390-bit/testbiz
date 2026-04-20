@@ -209,7 +209,7 @@
     onValue(ref(db, 'admins_list'), (snapshot) => {
       const firebaseData = snapshot.val() || {};
       // MERGE: get existing local data first, then overlay Firebase data
-      // This ensures system-seeded accounts (momo, jamal) are never wiped
+      // This ensures system-seeded accounts (momo, 0000) are never wiped
       const localData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
       const merged = Object.assign({}, localData, firebaseData);
       localStorage.setItem('biz_admins_list_v1', JSON.stringify(merged));

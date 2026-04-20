@@ -21,6 +21,7 @@ window.renderAgentStatsHistory = function() {
         window.listenForAgentReports(data => {
             console.log('Agent Stats: Received data update', data?.length);
             allReports = data || [];
+            window.allAgentReports = allReports; // Expose globally for Zero Performance tab
             
             // Clean up expired ones
             const now = new Date();
@@ -485,7 +486,7 @@ window.sortAgentStats = function(col) {
         asSortAsc = !asSortAsc;
     } else {
         asSortCol = col;
-        asSortAsc = false; // default desc for new col
+        asSortAsc = (col === 'agentName' || col === 'agentId'); // default asc for strings, desc for numbers
     }
     renderActiveReportTable();
 };
@@ -495,31 +496,35 @@ function renderActiveReportTable() {
     
     const rawRows = currentReportData.data;
     
-    // ── AGGREGATE: one entry per unique agent name ──
+    // ── AGGREGATE: one entry per unique agent ID ──
     const agentMap = {};
     rawRows.forEach(d => {
-        const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
-        if (!agentMap[nameKey]) {
-            agentMap[nameKey] = {
-                agentId: d.agentId || '—',
+        const idKey = String(d.agentId || '').trim();
+        if (!idKey) return; // Skip empty rows
+        
+        if (!agentMap[idKey]) {
+            agentMap[idKey] = {
+                agentId: idKey,
                 agentName: d.agentName,
                 rawName: d.rawName || d.agentName,
                 totalCalls: 0,
-                transfers: 0   // rows with duration >= 120
+                transfers: 0,
+                totalDuration: 0
             };
         }
-        agentMap[nameKey].totalCalls++;
-        if (d.duration >= 120) agentMap[nameKey].transfers++;
+        agentMap[idKey].totalCalls++;
+        agentMap[idKey].totalDuration += (d.duration || 0);
+        if (d.duration >= 120) agentMap[idKey].transfers++;
     });
     
     let aggregated = Object.values(agentMap);
     
-    // ── GLOBAL STATS ──
+    // ── GLOBAL STATS (Calculated from the filtered list) ──
     const agentCount = aggregated.length;
     const totalXfers = aggregated.reduce((s, a) => s + a.transfers, 0);
-    const totalCalls = rawRows.length;
+    const totalCalls = aggregated.reduce((s, a) => s + a.totalCalls, 0);
+    const totalDuration = aggregated.reduce((s, a) => s + a.totalDuration, 0);
     
-    console.log('[AgentStats] Unique agent names:', agentCount, aggregated.map(a => a.agentName));
     document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
     document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = totalCalls);
     document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
@@ -534,14 +539,19 @@ function renderActiveReportTable() {
     }
     
     // ── SORT ──
-    const sortKey = asSortCol === 'duration' ? 'transfers' : asSortCol;
+    const sortKey = asSortCol;
     aggregated.sort((a, b) => {
         let valA = a[sortKey] ?? 0;
         let valB = b[sortKey] ?? 0;
-        if (typeof valA === 'string') valA = valA.toLowerCase();
-        if (typeof valB === 'string') valB = valB.toLowerCase();
-        if (valA < valB) return asSortAsc ? -1 : 1;
-        if (valA > valB) return asSortAsc ? 1 : -1;
+        if (typeof valA === 'string') {
+            valA = valA.toLowerCase();
+            valB = valB.toLowerCase();
+            if (valA < valB) return asSortAsc ? -1 : 1;
+            if (valA > valB) return asSortAsc ? 1 : -1;
+        } else {
+            // For numbers, default is DESC (high to low) if asSortAsc is false
+            return asSortAsc ? (valA - valB) : (valB - valA);
+        }
         return 0;
     });
     
@@ -556,13 +566,14 @@ function renderActiveReportTable() {
     
     const htmlOutput = aggregated.map(d => {
         const xferColor = d.transfers > 0 ? 'text-cyan-400 font-bold' : 'text-slate-600';
-        const xferLabel = d.transfers > 0 ? `${d.transfers} XFER` : '0';
+        const xferLabel = d.transfers > 0 ? d.transfers : '0';
         return `
-            <tr class="border-b border-white/5 hover:bg-white/5 transition group text-xs">
-                <td class="p-3 text-slate-400 font-mono">${d.agentId}</td>
+            <tr class="border-b border-white/5 hover:bg-white/5 transition group text-[11px]">
+                <td class="p-3 text-slate-500 font-mono">${d.agentId}</td>
                 <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.agentName}</td>
                 <td class="p-3 text-center ${xferColor}">${xferLabel}</td>
-                <td class="p-3 text-right text-slate-400">${d.totalCalls} calls</td>
+                <td class="p-3 text-center text-slate-300 font-mono">${d.totalCalls}</td>
+                <td class="p-3 text-right text-slate-400 font-mono">${d.totalDuration}s</td>
             </tr>
         `;
     }).join('');

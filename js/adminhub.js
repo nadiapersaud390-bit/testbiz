@@ -14,10 +14,14 @@ const ahTeamColors = {
 window.switchAdminHubTab = function(tabId) {
     // Permission Check for Admin Tools
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    const isMomo = String(currentAdmin.email || '').toLowerCase() === 'momo';
     
     if (tabId === 'admintools' && !isSuper) {
         console.warn('Unauthorized access to Admin Tools blocked.');
+        return;
+    }
+    if (tabId === 'stats' && !isSuper && !isMomo) {
+        console.warn('Unauthorized access to Agent Stats blocked.');
         return;
     }
 
@@ -53,63 +57,112 @@ function ahInitZeroPerf() {
     const weeklyList = document.getElementById('ah-zero-weekly-list');
     if (!dailyList || !weeklyList) return;
 
-    const agents = window.agents || [];
     const profiles = window.allAgentProfiles || [];
+    const reports  = window.allAgentReports  || [];
 
-    // Helper: look up real full name from agent profiles using the agent's
-    // numeric ID (which may be stored in a.name or a.ytelId).
-    function getDisplayName(a) {
-        const uid = String(a.ytelId || a.name || '').trim();
-        const profile = profiles.find(p => String(p.userId).trim() === uid);
-        return profile ? profile.fullName.toUpperCase() : (a.name || '—');
+    // ── Date helpers ──────────────────────────────────────────────────────────
+    function todayStr() {
+        const n = new Date();
+        return `${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}/${n.getFullYear()}`;
     }
 
-    // Helper: return the best ID to show in the subtitle line.
-    function getDisplayId(a) {
-        const uid = String(a.ytelId || a.name || '').trim();
-        const profile = profiles.find(p => String(p.userId).trim() === uid);
-        return profile ? profile.userId : (a.ytelId || a.name || '---');
+    function parseReportDate(str) {
+        if (!str) return null;
+        const p = str.split('/');
+        if (p.length !== 3) return null;
+        return new Date(`${p[2]}-${p[0]}-${p[1]}T12:00:00`);
     }
 
-    // 1. Daily Zero
-    const dailyZeros = agents.filter(a => (a.dailyLeads || 0) === 0);
-    dailyList.innerHTML = dailyZeros.map(a => {
-        const team = normalizeTeam(a.team, a.name);
+    function weekStart() {
+        const n = new Date();
+        const diff = (n.getDay() === 0 ? -6 : 1) - n.getDay();
+        const mon = new Date(n);
+        mon.setDate(n.getDate() + diff);
+        mon.setHours(0, 0, 0, 0);
+        return mon;
+    }
+
+    // ── Compute transfer counts from report rows ───────────────────────────────
+    // Returns { userId -> xferCount }
+    function countXfers(rows) {
+        const map = {};
+        (rows || []).forEach(row => {
+            const uid = String(row.agentId || '').trim();
+            if (!uid) return;
+            if (!map[uid]) map[uid] = 0;
+            if ((row.duration || 0) >= 120) map[uid]++;
+        });
+        return map;
+    }
+
+    // ── Shared row renderer ────────────────────────────────────────────────────
+    function renderRow(p, xfers, hasUpload, isWeekly) {
+        const team       = p.team || 'PR';
+        const hasXfer    = xfers > 0;
+        const dotColor   = hasXfer ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-slate-700';
+        const xferColor  = hasXfer ? 'text-cyan-400' : (isWeekly ? 'text-orange-400' : 'text-red-400');
+        let xferLabel;
+        if (!hasUpload)      xferLabel = '—';
+        else if (hasXfer)    xferLabel = `${xfers} XFER${xfers !== 1 ? 'S' : ''}`;
+        else                 xferLabel = isWeekly ? '0 WEEKLY XFERS' : '0 XFERS';
+
         return `
             <div class="bg-white/5 border border-white/5 rounded-2xl p-4 flex justify-between items-center group hover:bg-white/10 transition">
                 <div class="flex items-center gap-3">
-                    <div class="w-2 h-2 rounded-full bg-slate-700"></div>
+                    <div class="w-2 h-2 rounded-full ${dotColor}"></div>
                     <div>
-                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${getDisplayName(a)}</div>
-                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${getDisplayId(a)} | ${team}</div>
+                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${p.fullName.toUpperCase()}</div>
+                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${p.userId} | ${team}</div>
                     </div>
                 </div>
                 <div class="text-right">
-                    <div class="text-[10px] font-black text-red-400 uppercase italic">0 Xfers</div>
+                    <div class="text-[10px] font-black ${xferColor} uppercase italic">${xferLabel}</div>
                 </div>
-            </div>
-        `;
-    }).join('') || '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agents with 0 transfers today! 🚀</div>';
+            </div>`;
+    }
 
-    // 2. Weekly Zero
-    const weeklyZeros = agents.filter(a => (a.weeklyLeads || 0) === 0);
-    weeklyList.innerHTML = weeklyZeros.map(a => {
-        const team = normalizeTeam(a.team, a.name);
-        return `
-            <div class="bg-white/5 border border-white/5 rounded-2xl p-4 flex justify-between items-center group hover:bg-white/10 transition">
-                <div class="flex items-center gap-3">
-                    <div class="w-2 h-2 rounded-full bg-slate-700"></div>
-                    <div>
-                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${getDisplayName(a)}</div>
-                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${getDisplayId(a)} | ${team}</div>
-                    </div>
-                </div>
-                <div class="text-right">
-                    <div class="text-[10px] font-black text-orange-400 uppercase italic">0 Weekly Xfers</div>
-                </div>
-            </div>
-        `;
-    }).join('') || '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">Everyone has at least 1 transfer this week! 🏆</div>';
+    // ── 1. DAILY: today's uploaded report ─────────────────────────────────────
+    const todayReport  = reports.find(r => r.reportDate === todayStr());
+    const dailyCounts  = todayReport ? countXfers(todayReport.data) : {};
+    const hasDailyUpload = !!todayReport;
+
+    if (profiles.length === 0) {
+        dailyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agents in roster yet</div>';
+    } else {
+        const sorted = [...profiles].sort((a, b) =>
+            (dailyCounts[b.userId] || 0) - (dailyCounts[a.userId] || 0)
+        );
+        dailyList.innerHTML = sorted.map(p =>
+            renderRow(p, dailyCounts[p.userId] || 0, hasDailyUpload, false)
+        ).join('');
+    }
+
+    // ── 2. WEEKLY: aggregate all uploads from Mon → today ────────────────────
+    const mon = weekStart();
+    const weekReports = reports.filter(r => {
+        const d = parseReportDate(r.reportDate);
+        return d && d >= mon;
+    });
+
+    if (weekReports.length === 0) {
+        weeklyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">Awaiting this week\'s report upload...</div>';
+    } else {
+        // Merge all days' counts
+        const weeklyCounts = {};
+        weekReports.forEach(r => {
+            const day = countXfers(r.data);
+            Object.entries(day).forEach(([uid, n]) => {
+                weeklyCounts[uid] = (weeklyCounts[uid] || 0) + n;
+            });
+        });
+
+        const sorted = [...profiles].sort((a, b) =>
+            (weeklyCounts[b.userId] || 0) - (weeklyCounts[a.userId] || 0)
+        );
+        weeklyList.innerHTML = sorted.map(p =>
+            renderRow(p, weeklyCounts[p.userId] || 0, true, true)
+        ).join('');
+    }
 }
 
 // ── WEEKLY PERFORMANCE LOGIC ──
@@ -294,14 +347,18 @@ function renderRebuttalIntel(usage) {
 // Initialize Overview Data
 window.ahInitOverview = function() {
     // Permission Check for Admin Tools Toggle
-    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
-    const toolsBtn = document.getElementById('ah-tab-admintools');
+    const isMomo = String(currentAdmin.email || '').toLowerCase() === 'momo';
     
-    if (toolsBtn && !isSuper) {
-        toolsBtn.classList.add('hidden');
-        // Double check: if they are somehow ON the tab, kick them back to overview
-        if (typeof window.switchAdminHubTab === 'function' && ahCurrentSubTab === 'admintools') {
+    const toolsBtn = document.getElementById('ah-tab-admintools');
+    const statsBtn = document.getElementById('ah-tab-stats');
+    
+    if (!isSuper) {
+        if (toolsBtn) toolsBtn.classList.add('hidden');
+        if (statsBtn && !isMomo) statsBtn.classList.add('hidden');
+        
+        // Double check: if they are somehow ON a restricted tab, kick them back to overview
+        if (ahCurrentSubTab === 'admintools' || (ahCurrentSubTab === 'stats' && !isMomo)) {
             window.switchAdminHubTab('overview');
         }
     }
@@ -314,6 +371,12 @@ window.ahInitOverview = function() {
             d.innerText = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         }
     }, 1000);
+
+    // Pre-load Agent Profiles in the background so name lookups are instant
+    // across all tabs (Zero Performance, etc.) without needing to visit the Profiles tab first.
+    if (typeof window.initAgentProfiles === 'function') {
+        window.initAgentProfiles();
+    }
 
     // Sync from global 'agents' and 'roster' (from dashboard.js)
     if (typeof window.listenForLiveDashboardState === 'function') {
@@ -348,6 +411,7 @@ window.ahInitOverview = function() {
             });
             
             window.ahAllReports = reports;
+            window.allAgentReports = reports; // Keep in sync for Zero Performance tab
         });
     }
 }

@@ -61,12 +61,21 @@ function initializeDefaultSuperAdmin() {
 // Default regular admin credentials (always guaranteed)
 const DEFAULT_ADMIN_ACCOUNTS = [
     { id: "momo",  name: "Momo",  pass: "0000" },
-    { id: "jamal", name: "Jamal", pass: "0000" }
+    { id: "0000", name: "Admin", pass: "admin" }
 ];
 
 function seedDefaultAdmins() {
     const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
     let changed = false;
+
+    // Cleanup old system accounts not in current defaults
+    const currentDefaultIds = DEFAULT_ADMIN_ACCOUNTS.map(d => d.id);
+    Object.keys(admins).forEach(id => {
+        if (admins[id].addedBy === 'system' && !currentDefaultIds.includes(id)) {
+            delete admins[id];
+            changed = true;
+        }
+    });
 
     DEFAULT_ADMIN_ACCOUNTS.forEach(d => {
         // Always overwrite system accounts so Firebase can't strip them
