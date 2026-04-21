@@ -21,8 +21,13 @@ const DEFAULT_SUPER_ADMIN = {
 // Auto-create default super admin if none exists
 function initializeDefaultSuperAdmin() {
     const existingSuper = localStorage.getItem(SUPER_ADMIN_KEY);
-    const parsedSuper = existingSuper ? JSON.parse(existingSuper) : null;
-    if (!existingSuper || parsedSuper.email === "0000") {
+    let parsedSuper = null;
+    try {
+        parsedSuper = existingSuper ? JSON.parse(existingSuper) : null;
+    } catch (e) {
+        console.warn('⚠️ Corrupted super admin data, resetting...');
+    }
+    if (!existingSuper || !parsedSuper || parsedSuper.email === "0000") {
         console.log('📌 Creating default super admin...');
         const superAdmin = {
             email: DEFAULT_SUPER_ADMIN.email,
@@ -108,7 +113,9 @@ function superAdminLogin(email, password) {
             sessionStorage.setItem('adminLoggedIn', 'true');
             sessionStorage.setItem('bizAdminUnlocked', '1');
             sessionStorage.setItem('bizUserRole', 'admin');
-            window.writeAdminActivityLog('login', 'Super Admin logged in', {email: admin.email, name: admin.name, role: 'super_admin'});
+            if (typeof window.writeAdminActivityLog === 'function') {
+                window.writeAdminActivityLog('login', 'Super Admin logged in', {email: admin.email, name: admin.name, role: 'super_admin'});
+            }
             return { success: true, role: 'super_admin' };
         }
     }
@@ -128,11 +135,15 @@ function superAdminLogin(email, password) {
         sessionStorage.setItem('adminLoggedIn', 'true');
         sessionStorage.setItem('bizAdminUnlocked', '1');
         sessionStorage.setItem('bizUserRole', 'admin');
-        window.writeAdminActivityLog('login', 'Admin logged in', {email: admin.email, name: admin.name, role: admin.role || 'admin'});
+        if (typeof window.writeAdminActivityLog === 'function') {
+            window.writeAdminActivityLog('login', 'Admin logged in', {email: admin.email, name: admin.name, role: admin.role || 'admin'});
+        }
         return { success: true, role: admin.role || 'admin' };
     }
     
-    window.writeAdminActivityLog('login_failed', 'Failed admin login attempt: ' + email, {email: email, name: 'Unknown', role: 'unknown'});
+    if (typeof window.writeAdminActivityLog === 'function') {
+        window.writeAdminActivityLog('login_failed', 'Failed admin login attempt: ' + email, {email: email, name: 'Unknown', role: 'unknown'});
+    }
     return { success: false, error: 'Invalid credentials' };
 }
 
@@ -177,7 +188,9 @@ function addNewAdmin(email, password, name, role = 'admin') {
     
     localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
     if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-    window.writeAdminActivityLog('user_management', 'Added new admin: ' + email);
+    if (typeof window.writeAdminActivityLog === 'function') {
+        window.writeAdminActivityLog('user_management', 'Added new admin: ' + email);
+    }
     return { success: true, message: 'Admin added successfully' };
 }
 
@@ -196,7 +209,9 @@ function removeAdmin(email) {
     localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
     if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
     
-    window.writeAdminActivityLog('user_management', 'Removed admin: ' + email);
+    if (typeof window.writeAdminActivityLog === 'function') {
+        window.writeAdminActivityLog('user_management', 'Removed admin: ' + email);
+    }
     return { success: true, message: 'Admin removed successfully' };
 }
 
@@ -214,7 +229,9 @@ function updateAdminRole(email, newRole) {
     admins[email].role = newRole;
     localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
     if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-    window.writeAdminActivityLog('user_management', `Updated role for ${email} to ${newRole}`);
+    if (typeof window.writeAdminActivityLog === 'function') {
+        window.writeAdminActivityLog('user_management', `Updated role for ${email} to ${newRole}`);
+    }
     return { success: true, message: 'Role updated successfully' };
 }
 
@@ -258,7 +275,9 @@ function superResetAdminPassword(email, newPassword) {
     admins[email].password = btoa(newPassword);
     localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
     if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-    window.writeAdminActivityLog('user_management', `Super Admin reset password for: ${email}`);
+    if (typeof window.writeAdminActivityLog === 'function') {
+        window.writeAdminActivityLog('user_management', `Super Admin reset password for: ${email}`);
+    }
     return { success: true, message: 'Password reset successfully' };
 }
 
@@ -267,7 +286,9 @@ function isLoggedIn() {
 }
 
 function logout() {
-    window.writeAdminActivityLog('logout', 'Admin logged out');
+    if (typeof window.writeAdminActivityLog === 'function') {
+        window.writeAdminActivityLog('logout', 'Admin logged out');
+    }
     sessionStorage.removeItem('currentAdmin');
     sessionStorage.removeItem('adminLoggedIn');
     sessionStorage.removeItem('bizAdminUnlocked');
