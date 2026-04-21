@@ -14,6 +14,28 @@ const ahTeamColors = {
 window.switchAdminHubTab = function(tabId) {
     console.log(`[AdminHub] Attempting switch to: ${tabId}`);
     
+    // State Tracking
+    ahCurrentSubTab = tabId;
+    window.ahCurrentSubTab = tabId; // Ensure global visibility
+
+    let currentAdmin = {};
+    try {
+        currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    } catch (e) {
+        console.warn("Session data corrupted, using default permissions.");
+    }
+    
+    // Permission Resolution
+    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper || window.ahIsSuperAdmin;
+    const isMomo = (currentAdmin.name === 'Momo') || (String(currentAdmin.email || '').toLowerCase() === 'momo') || window.ahIsMomo;
+    
+    // Access Control
+    if ((tabId === 'admintools' || tabId === 'stats') && !isSuper && !isMomo) {
+        console.warn(`[AdminHub] Access denied for restricted tab: ${tabId}`);
+        window.switchAdminHubTab('overview');
+        return;
+    }
+
     // 1. Update Sidebar
     const buttons = document.querySelectorAll('.ah-nav-btn');
     buttons.forEach(btn => {
@@ -28,10 +50,8 @@ window.switchAdminHubTab = function(tabId) {
     if (targetSection) {
         sections.forEach(s => s.classList.add('hidden'));
         targetSection.classList.remove('hidden');
-        console.log(`[AdminHub] Section ah-sect-${tabId} is now visible.`);
     } else {
         console.error(`[AdminHub] Target section ah-sect-${tabId} NOT FOUND.`);
-        // Fallback
         if (tabId !== 'overview') window.switchAdminHubTab('overview');
         return;
     }
