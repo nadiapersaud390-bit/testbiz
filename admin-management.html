@@ -6,7 +6,6 @@
     <title>Admin Hub - Business Management System</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        /* Additional styles for admin hub */
         * {
             margin: 0;
             padding: 0;
@@ -116,7 +115,6 @@
             font-size: 0.9em;
         }
         
-        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -243,7 +241,6 @@
 </head>
 <body>
     <div class="admin-container">
-        <!-- Header -->
         <div class="admin-header">
             <div>
                 <h1>🏢 Admin Hub</h1>
@@ -257,7 +254,6 @@
             </div>
         </div>
         
-        <!-- Statistics -->
         <div class="stats-grid">
             <div class="stat-card">
                 <h3>Total Agents</h3>
@@ -277,7 +273,6 @@
             </div>
         </div>
         
-        <!-- Hub Cards -->
         <h2>Management Dashboard</h2>
         <div class="hub-grid">
             <div class="hub-card" onclick="openManageAgents()">
@@ -318,7 +313,6 @@
         </div>
     </div>
     
-    <!-- Modal for Manage Agents -->
     <div id="agentsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('agentsModal')">&times;</span>
@@ -347,7 +341,6 @@
         </div>
     </div>
     
-    <!-- Modal for Reports -->
     <div id="reportsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('reportsModal')">&times;</span>
@@ -375,7 +368,6 @@
         </div>
     </div>
     
-    <!-- Modal for System Settings -->
     <div id="settingsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('settingsModal')">&times;</span>
@@ -405,7 +397,6 @@
         </div>
     </div>
     
-    <!-- Modal for Payment Tracking -->
     <div id="paymentModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('paymentModal')">&times;</span>
@@ -419,7 +410,6 @@
         </div>
     </div>
     
-    <!-- Modal for Support Tickets -->
     <div id="ticketsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('ticketsModal')">&times;</span>
@@ -428,7 +418,6 @@
         </div>
     </div>
     
-    <!-- Modal for Activity Logs -->
     <div id="logsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('logsModal')">&times;</span>
@@ -438,7 +427,7 @@
     </div>
     
     <script>
-        // User credentials database (for reference)
+        // User credentials database
         const users = {
             'rose': {
                 password: 'PopoDarling',
@@ -484,7 +473,6 @@
             }
         }
         
-        // Navigation Functions
         function openManageAgents() {
             openModal('agentsModal');
             loadAgents();
@@ -519,7 +507,6 @@
             logActivity('Viewed Activity Logs');
         }
         
-        // Modal Functions
         function openModal(modalId) {
             document.getElementById(modalId).style.display = 'block';
         }
@@ -528,14 +515,12 @@
             document.getElementById(modalId).style.display = 'none';
         }
         
-        // Close modal when clicking outside
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) {
                 event.target.style.display = 'none';
             }
         }
         
-        // Agent Management
         let agents = JSON.parse(localStorage.getItem('agents')) || [];
         
         function loadAgents() {
@@ -605,7 +590,6 @@
             });
         }
         
-        // Report Generation
         function generateReport() {
             const reportType = document.getElementById('reportType').value;
             const dateRange = document.getElementById('dateRange').value;
@@ -632,7 +616,6 @@
             logActivity(`Generated ${reportType} report`);
         }
         
-        // Settings Management
         function loadSettings() {
             const settings = JSON.parse(localStorage.getItem('systemSettings')) || {
                 systemName: 'Business Management System',
@@ -665,7 +648,6 @@
             });
         }
         
-        // Payment Search
         function searchPayments() {
             const searchTerm = document.getElementById('searchPayment').value;
             const resultsDiv = document.getElementById('paymentResults');
@@ -673,9 +655,7 @@
             const mockPayments = [
                 { id: 'TRX001', customer: 'John Doe', amount: '$500', status: 'Completed', date: '2026-04-20' },
                 { id: 'TRX002', customer: 'Jane Smith', amount: '$750', status: 'Pending', date: '2026-04-19' },
-                { id: 'TRX003', customer: 'Bob Johnson', amount: '$300', status: 'Completed', date: '2026-04-18' },
-                { id: 'TRX004', customer: 'Alice Brown', amount: '$1200', status: 'Processing', date: '2026-04-17' },
-                { id: 'TRX005', customer: 'Charlie Wilson', amount: '$450', status: 'Completed', date: '2026-04-16' }
+                { id: 'TRX003', customer: 'Bob Johnson', amount: '$300', status: 'Completed', date: '2026-04-18' }
             ];
             
             let filtered = mockPayments;
@@ -701,13 +681,11 @@
             logActivity(`Searched payments for: ${searchTerm || 'all'}`);
         }
         
-        // Support Tickets
         function loadTickets() {
             const tickets = JSON.parse(localStorage.getItem('supportTickets')) || [
                 { id: 'TKT001', customer: 'Alice Brown', subject: 'Login Issue', status: 'Open', priority: 'High' },
                 { id: 'TKT002', customer: 'Charlie Wilson', subject: 'Payment Failed', status: 'In Progress', priority: 'Urgent' },
-                { id: 'TKT003', customer: 'Diana Prince', subject: 'Feature Request', status: 'Closed', priority: 'Low' },
-                { id: 'TKT004', customer: 'Eve Adams', subject: 'Account Update', status: 'Open', priority: 'Medium' }
+                { id: 'TKT003', customer: 'Diana Prince', subject: 'Feature Request', status: 'Closed', priority: 'Low' }
             ];
             
             const ticketsList = document.getElementById('ticketsList');
@@ -726,17 +704,16 @@
         }
         
         function updateTicketStatus(ticketId) {
-            const newStatus = prompt('Enter new status (Open/In Progress/Closed/Resolved):');
-            if (newStatus && ['Open', 'In Progress', 'Closed', 'Resolved'].includes(newStatus)) {
+            const newStatus = prompt('Enter new status (Open/In Progress/Closed):');
+            if (newStatus && ['Open', 'In Progress', 'Closed'].includes(newStatus)) {
                 logActivity(`Updated ticket ${ticketId} status to ${newStatus}`);
                 alert(`Ticket ${ticketId} updated to ${newStatus}`);
                 loadTickets();
             } else if (newStatus) {
-                alert('Invalid status. Please use: Open, In Progress, Closed, or Resolved');
+                alert('Invalid status. Please use: Open, In Progress, or Closed');
             }
         }
         
-        // Activity Logs
         function loadLogs() {
             const logs = JSON.parse(localStorage.getItem('activityLogs')) || [];
             const logsList = document.getElementById('logsList');
@@ -768,7 +745,6 @@
             localStorage.setItem('activityLogs', logs);
         }
         
-        // Update Statistics
         function updateStats() {
             const totalAgentsSpan = document.getElementById('totalAgents');
             const activeTicketsSpan = document.getElementById('activeTickets');
@@ -782,7 +758,7 @@
             if (totalReportsSpan) totalReportsSpan.textContent = Math.floor(Math.random() * 50) + 10;
         }
         
-        // Logout Function
+        // Updated logout function
         function logout() {
             const userData = JSON.parse(localStorage.getItem('currentUser'));
             if (confirm(`Are you sure you want to logout ${userData?.name || 'Admin'}?`)) {
