@@ -75,11 +75,30 @@ window.switchAdminHubTab = function(tabId) {
             case 'stats': if(typeof initAgentStats === 'function') initAgentStats(); break;
             case 'zero': if(typeof ahInitZeroPerf === 'function') ahInitZeroPerf(); break;
             case 'rebuttals': if(typeof window.initRebuttalIntel === 'function') window.initRebuttalIntel(); break;
+            case 'playbook': if(typeof ahInitPlaybook === 'function') ahInitPlaybook(); break;
         }
     } catch (err) {
         console.error(`[AdminHub] Failed to initialize sub-module: ${tabId}`, err);
     }
 };
+
+function ahInitPlaybook() {
+    const container = document.getElementById('ah-playbook-content');
+    if (!container) return;
+    
+    // Load content if it hasn't been loaded yet
+    if (container.querySelector('.animate-spin') || container.innerHTML.trim() === '') {
+        fetch('tabs/playbook.html')
+            .then(res => res.text())
+            .then(html => {
+                container.innerHTML = html;
+            })
+            .catch(err => {
+                console.error("Failed to load playbook for admin hub", err);
+                container.innerHTML = '<div class="py-20 text-center text-red-500 font-bold uppercase tracking-widest">❌ Failed to load Master Playbook</div>';
+            });
+    }
+}
 
 function ahInitZeroPerf() {
     const dailyList = document.getElementById('ah-zero-daily-list');

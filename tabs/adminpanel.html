@@ -38,9 +38,12 @@
                 </button>
             </div>
 
-            <!-- Group 3: INTELLIGENCE (2) -->
+            <!-- Group 3: INTELLIGENCE (3) -->
             <div class="flex flex-col gap-1">
                 <div class="px-3 mb-1 text-[7px] font-black text-slate-500 uppercase tracking-[0.2em]">Intelligence</div>
+                <button onclick="switchAdminHubTab('playbook')" id="ah-tab-playbook" class="ah-nav-btn">
+                    <i class="fas fa-book-open"></i> Playbook
+                </button>
                 <button onclick="switchAdminHubTab('rebuttals')" id="ah-tab-rebuttals" class="ah-nav-btn">
                     <i class="fas fa-brain"></i> Rebuttal Intel
                 </button>
@@ -616,6 +619,22 @@
         </div>
     </div>
 
+
+        <!-- PLAYBOOK SECTION -->
+        <div id="ah-sect-playbook" class="ah-section hidden">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h3 class="text-2xl font-black text-white uppercase tracking-tight">📖 Master Playbook</h3>
+                    <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Guidelines, Logistics & Quality Standards</p>
+                </div>
+            </div>
+            <div id="ah-playbook-content">
+                <div class="py-20 text-center">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500 mb-4"></div>
+                    <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Loading Playbook...</p>
+                </div>
+            </div>
+        </div>
 
         <!-- REBUTTAL INTEL SECTION -->
         <div id="ah-sect-rebuttals" class="ah-section hidden">
