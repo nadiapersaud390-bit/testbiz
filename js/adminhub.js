@@ -10,56 +10,74 @@ const ahTeamColors = {
     RM: 'cyan-400'
 };
 
-// Internal tab switcher
+/// Internal tab switcher with state protection
 window.switchAdminHubTab = function(tabId) {
+    console.log(`[AdminHub] Switching to sub-tab: ${tabId}`);
+    
     let currentAdmin = {};
     try {
         currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     } catch (e) {
-        console.error("Error parsing currentAdmin from sessionStorage", e);
+        console.warn("Session data corrupted, using default permissions.");
     }
+    
+    // Permission Resolution
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper || window.ahIsSuperAdmin;
     const isMomo = (currentAdmin.name === 'Momo') || (String(currentAdmin.email || '').toLowerCase() === 'momo') || window.ahIsMomo;
     
-    // Role-based access control
+    // Access Control
     if ((tabId === 'admintools' || tabId === 'stats') && !isSuper && !isMomo) {
-        console.warn(`Unauthorized access to ${tabId} blocked.`);
-        // Optional: Notify user or redirect to overview
-        if (ahCurrentSubTab === tabId || !ahCurrentSubTab) window.switchAdminHubTab('overview');
+        console.warn(`[AdminHub] Access denied for restricted tab: ${tabId}`);
+        if (!ahCurrentSubTab || ahCurrentSubTab === tabId) {
+            window.switchAdminHubTab('overview');
+        }
         return;
     }
 
     ahCurrentSubTab = tabId;
-    
-    // Update Nav Buttons: Handle both standard and special buttons
-    document.querySelectorAll('.ah-nav-btn, .ah-nav-btn-special').forEach(btn => {
+
+    // 1. Update Sidebar UI
+    const navButtons = document.querySelectorAll('.ah-nav-btn, .ah-nav-btn-special');
+    navButtons.forEach(btn => {
         btn.classList.remove('active');
-        if (btn.id === `ah-tab-${tabId}`) btn.classList.add('active');
+        // Match by both simple ID and exact tab name
+        if (btn.id === `ah-tab-${tabId}`) {
+            btn.classList.add('active');
+        }
+    });
+
+    // 2. Toggle Visibility
+    const sections = document.querySelectorAll('.ah-section');
+    let found = false;
+    sections.forEach(sect => {
+        if (sect.id === `ah-sect-${tabId}`) {
+            sect.classList.remove('hidden');
+            found = true;
+        } else {
+            sect.classList.add('hidden');
+        }
     });
     
-    // Update Content Sections
-    const sections = document.querySelectorAll('.ah-section');
-    sections.forEach(sect => sect.classList.add('hidden'));
-    
-    const target = document.getElementById(`ah-sect-${tabId}`);
-    if (target) {
-        target.classList.remove('hidden');
-    } else {
-        console.error(`Target section ah-sect-${tabId} not found.`);
+    if (!found) {
+        console.error(`[AdminHub] Section not found: ah-sect-${tabId}`);
+        // Fallback to overview if section missing
+        if (tabId !== 'overview') window.switchAdminHubTab('overview');
+        return;
     }
-    
-    // Lazy Load/Init Sub-modules with Error Protection
+
+    // 3. Initialize Sub-module
     try {
-        if (tabId === 'profiles' && typeof window.initAgentProfiles === 'function') window.initAgentProfiles();
-        if (tabId === 'stats' && typeof window.renderAgentStatsHistory === 'function') window.renderAgentStatsHistory();
-        if (tabId === 'coaching' && typeof window.coachingInit === 'function') window.coachingInit();
-        if (tabId === 'monitoring' && typeof window.monitoringInit === 'function') window.monitoringInit();
-        if (tabId === 'rebuttals' && typeof initRebuttalIntel === 'function') initRebuttalIntel();
-        if (tabId === 'performance' && typeof initWeeklyPerformance === 'function') initWeeklyPerformance();
-        if (tabId === 'admintools' && typeof ahAdminToolsInit === 'function') ahAdminToolsInit();
-        if (tabId === 'zero' && typeof ahInitZeroPerf === 'function') ahInitZeroPerf();
-    } catch (e) {
-        console.error(`Error initializing sub-module ${tabId}:`, e);
+        switch(tabId) {
+            case 'overview': if(typeof window.ahInitOverview === 'function') window.ahInitOverview(); break;
+            case 'profiles': if(typeof window.initAgentProfiles === 'function') window.initAgentProfiles(); break;
+            case 'attendance': if(typeof renderDailyAttendance === 'function') renderDailyAttendance(); break;
+            case 'performance': if(typeof initWeeklyPerformance === 'function') initWeeklyPerformance(); break;
+            case 'stats': if(typeof initAgentStats === 'function') initAgentStats(); break;
+            case 'zero': if(typeof ahInitZeroPerf === 'function') ahInitZeroPerf(); break;
+            case 'rebuttals': if(typeof window.initRebuttalIntel === 'function') window.initRebuttalIntel(); break;
+        }
+    } catch (err) {
+        console.error(`[AdminHub] Failed to initialize sub-module: ${tabId}`, err);
     }
 };
 
