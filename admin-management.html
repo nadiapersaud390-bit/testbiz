@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Hub - Business Management System</title>
-    <link rel="stylesheet" href="css/style.css">
     <style>
         * {
             margin: 0;
@@ -13,7 +12,7 @@
         }
         
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: Arial, sans-serif;
             background: #f5f5f5;
         }
         
@@ -42,7 +41,6 @@
             padding: 10px 20px;
             border-radius: 5px;
             cursor: pointer;
-            transition: all 0.3s;
             font-size: 14px;
         }
         
@@ -64,11 +62,6 @@
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             text-align: center;
-            transition: transform 0.3s;
-        }
-        
-        .stat-card:hover {
-            transform: translateY(-5px);
         }
         
         .stat-number {
@@ -91,7 +84,7 @@
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
+            transition: transform 0.3s;
             text-align: center;
         }
         
@@ -115,6 +108,7 @@
             font-size: 0.9em;
         }
         
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -124,29 +118,16 @@
             width: 100%;
             height: 100%;
             background-color: rgba(0,0,0,0.5);
-            overflow: auto;
         }
         
         .modal-content {
             background-color: white;
-            margin: 5% auto;
+            margin: 10% auto;
             padding: 30px;
             border-radius: 10px;
             width: 90%;
-            max-width: 600px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-            animation: slideDown 0.3s ease;
-        }
-        
-        @keyframes slideDown {
-            from {
-                transform: translateY(-50px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
+            max-width: 500px;
+            position: relative;
         }
         
         .close {
@@ -155,11 +136,13 @@
             font-size: 28px;
             font-weight: bold;
             cursor: pointer;
-            transition: color 0.3s;
+            position: absolute;
+            right: 20px;
+            top: 10px;
         }
         
         .close:hover {
-            color: #000;
+            color: black;
         }
         
         .form-group {
@@ -170,15 +153,13 @@
             display: block;
             margin-bottom: 5px;
             font-weight: bold;
-            color: #333;
         }
         
-        .form-group input, .form-group select, .form-group textarea {
+        .form-group input, .form-group select {
             width: 100%;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 5px;
-            font-size: 14px;
         }
         
         .submit-btn {
@@ -188,54 +169,31 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 16px;
             width: 100%;
+            font-size: 16px;
         }
         
         .submit-btn:hover {
             opacity: 0.9;
         }
         
-        .agents-list {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        
-        .agent-item {
+        .message {
             padding: 10px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            margin-top: 10px;
+            border-radius: 5px;
+            display: none;
         }
         
-        .delete-agent, .update-status {
-            background: #ff4444;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 3px;
-            cursor: pointer;
-            margin-left: 10px;
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
         }
         
-        .update-status {
-            background: #4CAF50;
-        }
-        
-        @media (max-width: 768px) {
-            .hub-grid {
-                grid-template-columns: 1fr;
-            }
-            .modal-content {
-                width: 95%;
-                margin: 10% auto;
-            }
-            .admin-header {
-                flex-direction: column;
-                text-align: center;
-                gap: 15px;
-            }
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
         }
     </style>
 </head>
@@ -246,12 +204,7 @@
                 <h1>🏢 Admin Hub</h1>
                 <p id="welcomeMessage">Welcome back, Administrator</p>
             </div>
-            <div style="display: flex; gap: 15px; align-items: center;">
-                <div style="text-align: right;">
-                    <div id="userDisplay" style="font-size: 14px; margin-bottom: 5px;"></div>
-                    <button class="logout-btn" onclick="logout()">Logout</button>
-                </div>
-            </div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
         
         <div class="stats-grid">
@@ -275,44 +228,45 @@
         
         <h2>Management Dashboard</h2>
         <div class="hub-grid">
-            <div class="hub-card" onclick="openManageAgents()">
+            <div class="hub-card" onclick="openModal('agentsModal')">
                 <div class="hub-icon">👥</div>
                 <h3>Manage Agents</h3>
-                <p>Add, edit, or remove agent accounts and permissions</p>
+                <p>Add, edit, or remove agent accounts</p>
             </div>
             
-            <div class="hub-card" onclick="openViewReports()">
+            <div class="hub-card" onclick="openModal('reportsModal')">
                 <div class="hub-icon">📊</div>
                 <h3>View Reports</h3>
-                <p>Access sales, performance, and analytics data</p>
+                <p>Access sales and performance data</p>
             </div>
             
-            <div class="hub-card" onclick="openSystemSettings()">
+            <div class="hub-card" onclick="openModal('settingsModal')">
                 <div class="hub-icon">⚙️</div>
                 <h3>System Settings</h3>
-                <p>Configure system parameters and preferences</p>
+                <p>Configure system parameters</p>
             </div>
             
-            <div class="hub-card" onclick="openPaymentTracking()">
+            <div class="hub-card" onclick="openModal('paymentModal')">
                 <div class="hub-icon">💰</div>
                 <h3>Payment Tracking</h3>
-                <p>Monitor transactions and payment history</p>
+                <p>Monitor transactions</p>
             </div>
             
-            <div class="hub-card" onclick="openSupportTickets()">
+            <div class="hub-card" onclick="openModal('ticketsModal')">
                 <div class="hub-icon">🎫</div>
                 <h3>Support Tickets</h3>
-                <p>Manage customer support requests</p>
+                <p>Manage customer requests</p>
             </div>
             
-            <div class="hub-card" onclick="openActivityLogs()">
+            <div class="hub-card" onclick="openModal('logsModal')">
                 <div class="hub-icon">📝</div>
                 <h3>Activity Logs</h3>
-                <p>View system activity and audit trails</p>
+                <p>View system activity</p>
             </div>
         </div>
     </div>
     
+    <!-- Manage Agents Modal -->
     <div id="agentsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('agentsModal')">&times;</span>
@@ -332,15 +286,17 @@
                 </div>
                 <div class="form-group">
                     <label>Phone:</label>
-                    <input type="tel" id="agentPhone">
+                    <input type="text" id="agentPhone">
                 </div>
                 <button type="submit" class="submit-btn">Add Agent</button>
             </form>
-            <h3 style="margin-top: 30px;">Current Agents</h3>
-            <div id="agentsList" class="agents-list"></div>
+            <div id="agentMessage" class="message"></div>
+            <h3 style="margin-top: 20px;">Current Agents</h3>
+            <div id="agentsList"></div>
         </div>
     </div>
     
+    <!-- Reports Modal -->
     <div id="reportsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('reportsModal')">&times;</span>
@@ -351,16 +307,6 @@
                     <option value="sales">Sales Report</option>
                     <option value="performance">Agent Performance</option>
                     <option value="payments">Payment Report</option>
-                    <option value="tickets">Support Tickets Report</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Date Range:</label>
-                <select id="dateRange">
-                    <option value="today">Today</option>
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
-                    <option value="year">This Year</option>
                 </select>
             </div>
             <button class="submit-btn" onclick="generateReport()">Generate Report</button>
@@ -368,48 +314,39 @@
         </div>
     </div>
     
+    <!-- Settings Modal -->
     <div id="settingsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('settingsModal')">&times;</span>
             <h2>System Settings</h2>
-            <form id="settingsForm">
-                <div class="form-group">
-                    <label>System Name:</label>
-                    <input type="text" id="systemName" value="Business Management System">
-                </div>
-                <div class="form-group">
-                    <label>Admin Email:</label>
-                    <input type="email" id="adminEmail" value="admin@example.com">
-                </div>
-                <div class="form-group">
-                    <label>Session Timeout (minutes):</label>
-                    <input type="number" id="sessionTimeout" value="30">
-                </div>
-                <div class="form-group">
-                    <label>Enable 2FA:</label>
-                    <select id="enable2FA">
-                        <option value="yes">Yes</option>
-                        <option value="no" selected>No</option>
-                    </select>
-                </div>
-                <button type="submit" class="submit-btn">Save Settings</button>
-            </form>
+            <div class="form-group">
+                <label>System Name:</label>
+                <input type="text" id="systemName">
+            </div>
+            <div class="form-group">
+                <label>Admin Email:</label>
+                <input type="email" id="adminEmail">
+            </div>
+            <button class="submit-btn" onclick="saveSettings()">Save Settings</button>
+            <div id="settingsMessage" class="message"></div>
         </div>
     </div>
     
+    <!-- Payment Modal -->
     <div id="paymentModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('paymentModal')">&times;</span>
             <h2>Payment Tracking</h2>
             <div class="form-group">
-                <label>Search Transaction:</label>
-                <input type="text" id="searchPayment" placeholder="Transaction ID or Customer Name">
+                <label>Search:</label>
+                <input type="text" id="searchPayment" placeholder="Transaction ID or Customer">
             </div>
             <button class="submit-btn" onclick="searchPayments()">Search</button>
             <div id="paymentResults" style="margin-top: 20px;"></div>
         </div>
     </div>
     
+    <!-- Tickets Modal -->
     <div id="ticketsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('ticketsModal')">&times;</span>
@@ -418,6 +355,7 @@
         </div>
     </div>
     
+    <!-- Logs Modal -->
     <div id="logsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('logsModal')">&times;</span>
@@ -427,118 +365,56 @@
     </div>
     
     <script>
-        // User credentials database
-        const users = {
-            'rose': {
-                password: 'PopoDarling',
-                role: 'admin',
-                name: 'Rose'
-            },
-            'momo': {
-                password: '242424',
-                role: 'admin',
-                name: 'Momo'
-            },
-            '0000': {
-                password: 'admin',
-                role: 'super_admin',
-                name: 'System Admin'
-            }
-        };
-        
-        // Display current user info
-        function displayUserInfo() {
-            const userData = JSON.parse(localStorage.getItem('currentUser'));
-            if (userData) {
-                const welcomeElement = document.getElementById('welcomeMessage');
-                const userDisplay = document.getElementById('userDisplay');
-                
-                if (welcomeElement) {
-                    welcomeElement.innerHTML = `Welcome back, ${userData.name}! <span style="font-size: 12px;">(${userData.role})</span>`;
-                }
-                
-                if (userDisplay) {
-                    userDisplay.innerHTML = `<strong>${userData.name}</strong><br><span style="font-size: 11px;">${userData.username}</span>`;
-                }
-            }
-        }
-        
-        // Check if admin is logged in
+        // Check if logged in
         function checkAuth() {
             const isLoggedIn = localStorage.getItem('adminLoggedIn');
             if (!isLoggedIn || isLoggedIn !== 'true') {
                 window.location.href = 'admin-login.html';
             } else {
-                displayUserInfo();
+                // Display user info
+                const userData = JSON.parse(localStorage.getItem('currentUser'));
+                if (userData) {
+                    document.getElementById('welcomeMessage').innerHTML = `Welcome back, ${userData.name}! (${userData.role})`;
+                }
             }
         }
         
-        function openManageAgents() {
-            openModal('agentsModal');
-            loadAgents();
-            logActivity('Opened Manage Agents');
-        }
-        
-        function openViewReports() {
-            openModal('reportsModal');
-            logActivity('Opened View Reports');
-        }
-        
-        function openSystemSettings() {
-            openModal('settingsModal');
-            loadSettings();
-            logActivity('Opened System Settings');
-        }
-        
-        function openPaymentTracking() {
-            openModal('paymentModal');
-            logActivity('Opened Payment Tracking');
-        }
-        
-        function openSupportTickets() {
-            openModal('ticketsModal');
-            loadTickets();
-            logActivity('Opened Support Tickets');
-        }
-        
-        function openActivityLogs() {
-            openModal('logsModal');
-            loadLogs();
-            logActivity('Viewed Activity Logs');
-        }
-        
+        // Open modal
         function openModal(modalId) {
             document.getElementById(modalId).style.display = 'block';
+            // Load data based on modal
+            if (modalId === 'agentsModal') loadAgents();
+            if (modalId === 'ticketsModal') loadTickets();
+            if (modalId === 'logsModal') loadLogs();
         }
         
+        // Close modal
         function closeModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
         }
         
+        // Close modal when clicking outside
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) {
                 event.target.style.display = 'none';
             }
         }
         
+        // Agent Management
         let agents = JSON.parse(localStorage.getItem('agents')) || [];
         
         function loadAgents() {
-            const agentsList = document.getElementById('agentsList');
-            if (!agentsList) return;
-            
+            const container = document.getElementById('agentsList');
             if (agents.length === 0) {
-                agentsList.innerHTML = '<p style="text-align: center; padding: 20px;">No agents added yet.</p>';
+                container.innerHTML = '<p>No agents added yet.</p>';
             } else {
-                agentsList.innerHTML = '';
+                container.innerHTML = '';
                 agents.forEach((agent, index) => {
-                    agentsList.innerHTML += `
-                        <div class="agent-item">
-                            <div>
-                                <strong>${agent.name}</strong><br>
-                                ${agent.email} | ${agent.phone || 'No phone'}
-                            </div>
-                            <button class="delete-agent" onclick="deleteAgent(${index})">Delete</button>
+                    container.innerHTML += `
+                        <div style="padding: 10px; border-bottom: 1px solid #ddd;">
+                            <strong>${agent.name}</strong><br>
+                            ${agent.email}<br>
+                            <button onclick="deleteAgent(${index})" style="background: #ff4444; color: white; border: none; padding: 5px 10px; margin-top: 5px; cursor: pointer;">Delete</button>
                         </div>
                     `;
                 });
@@ -547,196 +423,143 @@
         }
         
         function addAgent(name, email, password, phone) {
-            const newAgent = {
-                name: name,
-                email: email,
-                password: password,
-                phone: phone,
-                createdAt: new Date().toISOString()
-            };
-            agents.push(newAgent);
+            agents.push({ name, email, password, phone, date: new Date().toISOString() });
             localStorage.setItem('agents', JSON.stringify(agents));
             loadAgents();
-            logActivity(`Added new agent: ${name}`);
-            alert('Agent added successfully!');
+            document.getElementById('agentMessage').className = 'message success';
+            document.getElementById('agentMessage').innerHTML = 'Agent added successfully!';
+            setTimeout(() => {
+                document.getElementById('agentMessage').className = 'message';
+                document.getElementById('agentMessage').innerHTML = '';
+            }, 2000);
         }
         
         function deleteAgent(index) {
-            if (confirm('Are you sure you want to delete this agent?')) {
-                const deletedAgent = agents[index];
+            if (confirm('Delete this agent?')) {
                 agents.splice(index, 1);
                 localStorage.setItem('agents', JSON.stringify(agents));
                 loadAgents();
-                logActivity(`Deleted agent: ${deletedAgent.name}`);
-                alert('Agent deleted successfully!');
             }
         }
         
-        if (document.getElementById('agentForm')) {
-            document.getElementById('agentForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                const name = document.getElementById('agentName').value;
-                const email = document.getElementById('agentEmail').value;
-                const password = document.getElementById('agentPassword').value;
-                const phone = document.getElementById('agentPhone').value;
-                
-                if (name && email && password) {
-                    addAgent(name, email, password, phone);
-                    this.reset();
-                    closeModal('agentsModal');
-                } else {
-                    alert('Please fill in all required fields.');
-                }
-            });
-        }
+        document.getElementById('agentForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('agentName').value;
+            const email = document.getElementById('agentEmail').value;
+            const password = document.getElementById('agentPassword').value;
+            const phone = document.getElementById('agentPhone').value;
+            
+            if (name && email && password) {
+                addAgent(name, email, password, phone);
+                this.reset();
+            } else {
+                alert('Please fill all required fields');
+            }
+        });
         
+        // Reports
         function generateReport() {
             const reportType = document.getElementById('reportType').value;
-            const dateRange = document.getElementById('dateRange').value;
             const resultDiv = document.getElementById('reportResult');
-            
-            const reportData = {
-                'sales': { name: 'Sales Report', icon: '💰' },
-                'performance': { name: 'Agent Performance', icon: '📈' },
-                'payments': { name: 'Payment Report', icon: '💳' },
-                'tickets': { name: 'Support Tickets Report', icon: '🎫' }
-            };
-            
             resultDiv.innerHTML = `
-                <div style="padding: 20px; background: #f0f0f0; border-radius: 5px;">
-                    <h3>${reportData[reportType].icon} ${reportData[reportType].name}</h3>
-                    <p><strong>Date Range:</strong> ${dateRange}</p>
-                    <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-                    <hr>
-                    <p><strong>Total Records:</strong> ${Math.floor(Math.random() * 1000)}</p>
-                    <p><strong>Total Value:</strong> $${Math.floor(Math.random() * 50000)}</p>
-                    <p><strong>Status:</strong> ✅ Report ready for download</p>
+                <div style="background: #f0f0f0; padding: 15px; border-radius: 5px; margin-top: 10px;">
+                    <strong>${reportType.toUpperCase()} Report</strong><br>
+                    Generated: ${new Date().toLocaleString()}<br>
+                    Total Records: ${Math.floor(Math.random() * 100)}<br>
+                    Status: Ready
                 </div>
             `;
-            logActivity(`Generated ${reportType} report`);
         }
         
+        // Settings
         function loadSettings() {
             const settings = JSON.parse(localStorage.getItem('systemSettings')) || {
                 systemName: 'Business Management System',
-                adminEmail: 'admin@example.com',
-                sessionTimeout: 30,
-                enable2FA: 'no'
+                adminEmail: 'admin@example.com'
             };
-            
-            if (document.getElementById('systemName')) {
-                document.getElementById('systemName').value = settings.systemName;
-                document.getElementById('adminEmail').value = settings.adminEmail;
-                document.getElementById('sessionTimeout').value = settings.sessionTimeout;
-                document.getElementById('enable2FA').value = settings.enable2FA;
-            }
+            document.getElementById('systemName').value = settings.systemName;
+            document.getElementById('adminEmail').value = settings.adminEmail;
         }
         
-        if (document.getElementById('settingsForm')) {
-            document.getElementById('settingsForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                const settings = {
-                    systemName: document.getElementById('systemName').value,
-                    adminEmail: document.getElementById('adminEmail').value,
-                    sessionTimeout: document.getElementById('sessionTimeout').value,
-                    enable2FA: document.getElementById('enable2FA').value
-                };
-                localStorage.setItem('systemSettings', JSON.stringify(settings));
-                logActivity('Updated system settings');
-                alert('Settings saved successfully!');
-                closeModal('settingsModal');
-            });
+        function saveSettings() {
+            const settings = {
+                systemName: document.getElementById('systemName').value,
+                adminEmail: document.getElementById('adminEmail').value
+            };
+            localStorage.setItem('systemSettings', JSON.stringify(settings));
+            document.getElementById('settingsMessage').className = 'message success';
+            document.getElementById('settingsMessage').innerHTML = 'Settings saved!';
+            setTimeout(() => {
+                document.getElementById('settingsMessage').className = 'message';
+                document.getElementById('settingsMessage').innerHTML = '';
+            }, 2000);
         }
         
+        // Payments
         function searchPayments() {
             const searchTerm = document.getElementById('searchPayment').value;
             const resultsDiv = document.getElementById('paymentResults');
-            
-            const mockPayments = [
-                { id: 'TRX001', customer: 'John Doe', amount: '$500', status: 'Completed', date: '2026-04-20' },
-                { id: 'TRX002', customer: 'Jane Smith', amount: '$750', status: 'Pending', date: '2026-04-19' },
-                { id: 'TRX003', customer: 'Bob Johnson', amount: '$300', status: 'Completed', date: '2026-04-18' }
+            const payments = [
+                { id: 'TRX001', customer: 'John Doe', amount: '$500', status: 'Completed' },
+                { id: 'TRX002', customer: 'Jane Smith', amount: '$750', status: 'Pending' },
+                { id: 'TRX003', customer: 'Bob Johnson', amount: '$300', status: 'Completed' }
             ];
             
-            let filtered = mockPayments;
+            let filtered = payments;
             if (searchTerm) {
-                filtered = mockPayments.filter(p => 
-                    p.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                    p.customer.toLowerCase().includes(searchTerm.toLowerCase())
-                );
+                filtered = payments.filter(p => p.id.includes(searchTerm) || p.customer.toLowerCase().includes(searchTerm.toLowerCase()));
             }
             
             if (filtered.length > 0) {
                 resultsDiv.innerHTML = filtered.map(p => `
-                    <div class="agent-item">
-                        <div>
-                            <strong>${p.id}</strong> - ${p.customer}<br>
-                            Amount: ${p.amount} | Status: ${p.status} | Date: ${p.date}
-                        </div>
+                    <div style="padding: 10px; border-bottom: 1px solid #ddd;">
+                        <strong>${p.id}</strong> - ${p.customer}<br>
+                        Amount: ${p.amount} | Status: ${p.status}
                     </div>
                 `).join('');
             } else {
-                resultsDiv.innerHTML = '<p style="text-align: center; padding: 20px;">No payments found.</p>';
+                resultsDiv.innerHTML = '<p>No payments found.</p>';
             }
-            logActivity(`Searched payments for: ${searchTerm || 'all'}`);
         }
         
+        // Tickets
         function loadTickets() {
-            const tickets = JSON.parse(localStorage.getItem('supportTickets')) || [
-                { id: 'TKT001', customer: 'Alice Brown', subject: 'Login Issue', status: 'Open', priority: 'High' },
-                { id: 'TKT002', customer: 'Charlie Wilson', subject: 'Payment Failed', status: 'In Progress', priority: 'Urgent' },
-                { id: 'TKT003', customer: 'Diana Prince', subject: 'Feature Request', status: 'Closed', priority: 'Low' }
+            const tickets = [
+                { id: 'TKT001', customer: 'Alice Brown', subject: 'Login Issue', status: 'Open' },
+                { id: 'TKT002', customer: 'Charlie Wilson', subject: 'Payment Failed', status: 'In Progress' },
+                { id: 'TKT003', customer: 'Diana Prince', subject: 'Feature Request', status: 'Closed' }
             ];
             
-            const ticketsList = document.getElementById('ticketsList');
-            if (ticketsList) {
-                ticketsList.innerHTML = tickets.map(ticket => `
-                    <div class="agent-item">
-                        <div>
-                            <strong>${ticket.id}</strong> - ${ticket.subject}<br>
-                            Customer: ${ticket.customer} | Priority: ${ticket.priority} | Status: ${ticket.status}
-                        </div>
-                        <button class="update-status" onclick="updateTicketStatus('${ticket.id}')">Update</button>
-                    </div>
-                `).join('');
-            }
+            const container = document.getElementById('ticketsList');
+            container.innerHTML = tickets.map(ticket => `
+                <div style="padding: 10px; border-bottom: 1px solid #ddd;">
+                    <strong>${ticket.id}</strong> - ${ticket.subject}<br>
+                    Customer: ${ticket.customer} | Status: ${ticket.status}
+                </div>
+            `).join('');
             updateStats();
         }
         
-        function updateTicketStatus(ticketId) {
-            const newStatus = prompt('Enter new status (Open/In Progress/Closed):');
-            if (newStatus && ['Open', 'In Progress', 'Closed'].includes(newStatus)) {
-                logActivity(`Updated ticket ${ticketId} status to ${newStatus}`);
-                alert(`Ticket ${ticketId} updated to ${newStatus}`);
-                loadTickets();
-            } else if (newStatus) {
-                alert('Invalid status. Please use: Open, In Progress, or Closed');
-            }
-        }
-        
+        // Logs
         function loadLogs() {
             const logs = JSON.parse(localStorage.getItem('activityLogs')) || [];
-            const logsList = document.getElementById('logsList');
+            const container = document.getElementById('logsList');
             
-            if (logsList) {
-                if (logs.length === 0) {
-                    logsList.innerHTML = '<p style="text-align: center; padding: 20px;">No activity logs yet.</p>';
-                } else {
-                    logsList.innerHTML = logs.reverse().slice(0, 20).map(log => `
-                        <div class="agent-item">
-                            <div>
-                                <strong>${log.timestamp}</strong><br>
-                                ${log.activity}
-                            </div>
-                        </div>
-                    `).join('');
-                }
+            if (logs.length === 0) {
+                container.innerHTML = '<p>No activity logs yet.</p>';
+            } else {
+                container.innerHTML = logs.slice(-10).reverse().map(log => `
+                    <div style="padding: 10px; border-bottom: 1px solid #ddd;">
+                        <strong>${log.timestamp}</strong><br>
+                        ${log.activity}
+                    </div>
+                `).join('');
             }
         }
         
         function logActivity(activity) {
             const userData = JSON.parse(localStorage.getItem('currentUser'));
-            const userName = userData ? userData.name : 'Unknown User';
+            const userName = userData ? userData.name : 'Admin';
             const logs = JSON.parse(localStorage.getItem('activityLogs')) || [];
             logs.push({
                 timestamp: new Date().toLocaleString(),
@@ -745,35 +568,27 @@
             localStorage.setItem('activityLogs', logs);
         }
         
+        // Update Stats
         function updateStats() {
-            const totalAgentsSpan = document.getElementById('totalAgents');
-            const activeTicketsSpan = document.getElementById('activeTickets');
-            const totalReportsSpan = document.getElementById('totalReports');
-            
-            const tickets = JSON.parse(localStorage.getItem('supportTickets')) || [];
-            const activeTickets = tickets.filter(t => t.status === 'Open' || t.status === 'In Progress').length;
-            
-            if (totalAgentsSpan) totalAgentsSpan.textContent = agents.length;
-            if (activeTicketsSpan) activeTicketsSpan.textContent = activeTickets;
-            if (totalReportsSpan) totalReportsSpan.textContent = Math.floor(Math.random() * 50) + 10;
+            document.getElementById('totalAgents').textContent = agents.length;
+            document.getElementById('activeTickets').textContent = '3';
+            document.getElementById('totalReports').textContent = '12';
         }
         
-        // Updated logout function
+        // Logout
         function logout() {
-            const userData = JSON.parse(localStorage.getItem('currentUser'));
-            if (confirm(`Are you sure you want to logout ${userData?.name || 'Admin'}?`)) {
-                logActivity(`Logged out`);
+            if (confirm('Logout?')) {
                 localStorage.removeItem('adminLoggedIn');
                 localStorage.removeItem('currentUser');
                 window.location.href = 'admin-login.html';
             }
         }
         
-        // Initialize page
+        // Initialize
         checkAuth();
-        loadAgents();
-        loadTickets();
+        loadSettings();
         updateStats();
+        logActivity('Viewed Admin Hub');
     </script>
 </body>
 </html>
