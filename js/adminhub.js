@@ -12,8 +12,12 @@ const ahTeamColors = {
 
 // Internal tab switcher
 window.switchAdminHubTab = function(tabId) {
-    // Permission Check
-    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    let currentAdmin = {};
+    try {
+        currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    } catch (e) {
+        console.error("Error parsing currentAdmin from sessionStorage", e);
+    }
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper || window.ahIsSuperAdmin;
     const isMomo = (currentAdmin.name === 'Momo') || (String(currentAdmin.email || '').toLowerCase() === 'momo') || window.ahIsMomo;
     
@@ -21,7 +25,7 @@ window.switchAdminHubTab = function(tabId) {
     if ((tabId === 'admintools' || tabId === 'stats') && !isSuper && !isMomo) {
         console.warn(`Unauthorized access to ${tabId} blocked.`);
         // Optional: Notify user or redirect to overview
-        if (ahCurrentSubTab === tabId) window.switchAdminHubTab('overview');
+        if (ahCurrentSubTab === tabId || !ahCurrentSubTab) window.switchAdminHubTab('overview');
         return;
     }
 
@@ -240,7 +244,7 @@ function renderWeeklyTeamRankings() {
         { name: 'Providence', code: 'PR', xfers: 482, color: 'purple-500', trend: '+12%' },
         { name: 'Berbice', code: 'BB', xfers: 395, color: 'blue-500', trend: '-2%' },
         { name: 'Remote', code: 'RM', xfers: 215, color: 'cyan-400', trend: '+140%' }
-    ].sort((a,b) => b[xfers] - a[xfers]);
+    ].sort((a,b) => b.xfers - a.xfers);
 
     const max = teams[0].xfers;
 
@@ -386,9 +390,14 @@ function renderRebuttalIntel(usage) {
 
 // Initialize Overview Data
 window.ahInitOverview = function() {
-    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    let currentAdmin = {};
+    try {
+        currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    } catch (e) {
+        console.error("Error parsing currentAdmin in ahInitOverview", e);
+    }
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
-    const isMomo = currentAdmin.name === 'Momo';
+    const isMomo = currentAdmin.name === 'Momo' || String(currentAdmin.email || '').toLowerCase() === 'momo';
     
     // Store globally so switchAdminHubTab can access them
     window.ahIsSuperAdmin = isSuper;
@@ -816,8 +825,10 @@ window.ahEditGoal = function() {
 };
 
 // ── COACHING LOGIC ──
-window.ahOpenCoachingInline = function() {
-    const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    let cAdmin = {};
+    try {
+        cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    } catch (e) {}
     document.getElementById('coach-admin-name').value = cAdmin.name || cAdmin.email || 'Admin';
     document.getElementById('ah-coaching-form').reset();
     document.getElementById('ah-coaching-inline').classList.remove('hidden');
@@ -925,7 +936,10 @@ function renderCoachingList(sessions) {
 
 // ── MONITORING LOGIC ──
 window.ahOpenMonitoringInline = function() {
-    const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    let cAdmin = {};
+    try {
+        cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    } catch (e) {}
     document.getElementById('mon-admin-name').value = cAdmin.name || cAdmin.email || 'Admin';
     document.getElementById('ah-monitoring-form').reset();
     document.getElementById('ah-monitoring-inline').classList.remove('hidden');
@@ -1050,7 +1064,10 @@ window.switchAhToolsSubTab = function(sub) {
     const activeTab = document.getElementById('aht-tab-' + sub);
 
     // Role check for 'users' sub-tab
-    const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    let cAdmin = {};
+    try {
+        cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    } catch (e) {}
     const isSuper = cAdmin.role === 'super_admin' || cAdmin.isSuper;
     if (sub === 'users' && !isSuper) {
         switchAhToolsSubTab('resources');
@@ -1069,7 +1086,10 @@ window.switchAhToolsSubTab = function(sub) {
 };
 
 function ahAdminToolsInit() {
-    const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    let cAdmin = {};
+    try {
+        cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    } catch (e) {}
     const isSuper = cAdmin.role === 'super_admin' || cAdmin.isSuper;
     
     // Auto-cleanup legacy data once on init
