@@ -12,73 +12,42 @@ const ahTeamColors = {
 
 /// Internal tab switcher with state protection
 window.switchAdminHubTab = function(tabId) {
-    console.log(`[AdminHub] Switching to sub-tab: ${tabId}`);
+    console.log(`[AdminHub] Attempting switch to: ${tabId}`);
     
-    let currentAdmin = {};
-    try {
-        currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    } catch (e) {
-        console.warn("Session data corrupted, using default permissions.");
-    }
-    
-    // Permission Resolution
-    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper || window.ahIsSuperAdmin;
-    const isMomo = (currentAdmin.name === 'Momo') || (String(currentAdmin.email || '').toLowerCase() === 'momo') || window.ahIsMomo;
-    
-    // Access Control
-    if ((tabId === 'admintools' || tabId === 'stats') && !isSuper && !isMomo) {
-        console.warn(`[AdminHub] Access denied for restricted tab: ${tabId}`);
-        if (!ahCurrentSubTab || ahCurrentSubTab === tabId) {
-            window.switchAdminHubTab('overview');
-        }
-        return;
-    }
-
-    ahCurrentSubTab = tabId;
-
-    // 1. Update Sidebar UI
-    const navButtons = document.querySelectorAll('.ah-nav-btn, .ah-nav-btn-special');
-    navButtons.forEach(btn => {
-        btn.classList.remove('active');
-        // Match by both simple ID and exact tab name
-        if (btn.id === `ah-tab-${tabId}`) {
-            btn.classList.add('active');
-        }
+    // 1. Update Sidebar
+    const buttons = document.querySelectorAll('.ah-nav-btn');
+    buttons.forEach(btn => {
+        if (btn.id === `ah-tab-${tabId}`) btn.classList.add('active');
+        else btn.classList.remove('active');
     });
 
-    // 2. Toggle Visibility
+    // 2. Toggle Sections
     const sections = document.querySelectorAll('.ah-section');
-    let found = false;
-    sections.forEach(sect => {
-        if (sect.id === `ah-sect-${tabId}`) {
-            sect.classList.remove('hidden');
-            found = true;
-        } else {
-            sect.classList.add('hidden');
-        }
-    });
+    let targetSection = document.getElementById(`ah-sect-${tabId}`);
     
-    if (!found) {
-        console.error(`[AdminHub] Section not found: ah-sect-${tabId}`);
-        // Fallback to overview if section missing
+    if (targetSection) {
+        sections.forEach(s => s.classList.add('hidden'));
+        targetSection.classList.remove('hidden');
+        console.log(`[AdminHub] Section ah-sect-${tabId} is now visible.`);
+    } else {
+        console.error(`[AdminHub] Target section ah-sect-${tabId} NOT FOUND.`);
+        // Fallback
         if (tabId !== 'overview') window.switchAdminHubTab('overview');
         return;
     }
 
-    // 3. Initialize Sub-module
+    // 3. Initialize Content
     try {
-        switch(tabId) {
-            case 'overview': if(typeof window.ahInitOverview === 'function') window.ahInitOverview(); break;
-            case 'profiles': if(typeof window.initAgentProfiles === 'function') window.initAgentProfiles(); break;
-            case 'attendance': if(typeof renderDailyAttendance === 'function') renderDailyAttendance(); break;
-            case 'performance': if(typeof initWeeklyPerformance === 'function') initWeeklyPerformance(); break;
-            case 'stats': if(typeof initAgentStats === 'function') initAgentStats(); break;
-            case 'zero': if(typeof ahInitZeroPerf === 'function') ahInitZeroPerf(); break;
-            case 'rebuttals': if(typeof window.initRebuttalIntel === 'function') window.initRebuttalIntel(); break;
-            case 'playbook': if(typeof ahInitPlaybook === 'function') ahInitPlaybook(); break;
-        }
-    } catch (err) {
-        console.error(`[AdminHub] Failed to initialize sub-module: ${tabId}`, err);
+        if (tabId === 'playbook') ahInitPlaybook();
+        else if (tabId === 'overview' && typeof window.ahInitOverview === 'function') window.ahInitOverview();
+        else if (tabId === 'profiles' && typeof window.initAgentProfiles === 'function') window.initAgentProfiles();
+        else if (tabId === 'attendance' && typeof renderDailyAttendance === 'function') renderDailyAttendance();
+        else if (tabId === 'performance' && typeof initWeeklyPerformance === 'function') initWeeklyPerformance();
+        else if (tabId === 'stats' && typeof initAgentStats === 'function') initAgentStats();
+        else if (tabId === 'zero' && typeof ahInitZeroPerf === 'function') ahInitZeroPerf();
+        else if (tabId === 'rebuttals' && typeof window.initRebuttalIntel === 'function') window.initRebuttalIntel();
+    } catch (e) {
+        console.error(`[AdminHub] Init failed for ${tabId}:`, e);
     }
 };
 
@@ -86,16 +55,29 @@ function ahInitPlaybook() {
     const container = document.getElementById('ah-playbook-content');
     if (!container) return;
     
-    // Load content if it hasn't been loaded yet
+    // Load content if it hasn't been loaded yet or if it only has a loader
     if (container.querySelector('.animate-spin') || container.innerHTML.trim() === '') {
+        console.log('[AdminHub] Fetching Master Playbook...');
         fetch('tabs/playbook.html')
             .then(res => res.text())
             .then(html => {
                 container.innerHTML = html;
+                
+                // CRITICAL: Manually execute scripts in the loaded HTML
+                const scripts = container.querySelectorAll('script');
+                scripts.forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    Array.from(oldScript.attributes).forEach(attr => {
+                        newScript.setAttribute(attr.name, attr.value);
+                    });
+                    newScript.text = oldScript.text;
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+                console.log('[AdminHub] Playbook content loaded and scripts executed.');
             })
             .catch(err => {
-                console.error("Failed to load playbook for admin hub", err);
-                container.innerHTML = '<div class="py-20 text-center text-red-500 font-bold uppercase tracking-widest">❌ Failed to load Master Playbook</div>';
+                console.error("[AdminHub] Failed to load playbook:", err);
+                container.innerHTML = '<div class="py-20 text-center text-red-500 font-black uppercase tracking-widest">❌ Failed to load Master Playbook</div>';
             });
     }
 }
