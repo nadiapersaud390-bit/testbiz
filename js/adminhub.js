@@ -1,10 +1,14 @@
 /**
  * js/adminhub.js
- * Core logic for the Admin Panel Hub system - FULLY OPTIMIZED
+ * Core logic for the Admin Panel Hub system - FULLY OPTIMIZED with Weekly Performance Dropdown
  */
 
 let ahCurrentSubTab = 'overview';
 let ahZeroPerfInitialized = false; // Lazy load flag
+let ahSelectedWeek = 'current'; // Track selected week for performance view
+let ahAvailableWeeks = []; // Store available weeks for dropdown
+let ahAllAgentsWeeklyData = []; // Store all agents weekly performance
+
 const ahTeamColors = {
     BB: 'blue-500',
     PR: 'purple-500',
@@ -88,27 +92,24 @@ window.switchAdminHubTab = function(tabId) {
     if (tabId === 'performance') initWeeklyPerformance();
     if (tabId === 'admintools') ahAdminToolsInit();
     
-    // ✅ Only initialize Zero Performance when the tab is actually clicked
+    // Only initialize Zero Performance when the tab is actually clicked
     if (tabId === 'zero' && !ahZeroPerfInitialized) {
         ahInitZeroPerfLazy();
         ahZeroPerfInitialized = true;
     }
 };
 
-// ✅ Lazy-loaded version of Zero Performance (only runs when clicked)
+// Lazy-loaded version of Zero Performance (only runs when clicked)
 function ahInitZeroPerfLazy() {
     console.log('[AdminHub] Loading Zero Performance tab...');
     const dailyList = document.getElementById('ah-zero-daily-list');
     const weeklyList = document.getElementById('ah-zero-weekly-list');
     if (!dailyList || !weeklyList) return;
 
-    // Show loading state
     dailyList.innerHTML = '<div class="py-10 text-center text-cyan-400 font-bold uppercase text-[9px] tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i> Loading daily data...</div>';
     weeklyList.innerHTML = '<div class="py-10 text-center text-cyan-400 font-bold uppercase text-[9px] tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i> Loading weekly data...</div>';
 
-    // Use setTimeout to avoid blocking UI thread
     setTimeout(() => {
-        // Use the full roster from window.allAgentProfiles (all 48 agents)
         const roster = window.allAgentProfiles || [];
         const liveAgents = window.agents || [];
         const reportsList = window.allAgentReports || [];
@@ -184,11 +185,9 @@ function ahInitZeroPerfLazy() {
         function getDailyCount(p) {
             const pId = String(p.userId || '').trim();
             const pName = String(p.fullName || '').trim().toUpperCase();
-            // Check live agents first (from dashboard)
             const live = liveAgents.find(a => String(a.ytelId).trim() === pId || (a.name && a.name.toUpperCase() === pName));
             if (live) return Number(live.dailyLeads) || 0;
 
-            // Check today's report
             const todayReport = reportsList.find(r => r.reportDate === todayStr());
             if (todayReport) {
                 const row = todayReport.data.find(d => String(d.agentId).trim() === pId || (d.agentName && d.agentName.toUpperCase() === pName));
@@ -197,7 +196,6 @@ function ahInitZeroPerfLazy() {
             return 0;
         }
 
-        // DAILY - Use the FULL ROSTER to find agents with 0 leads
         if (roster.length === 0) {
             dailyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agents in roster yet</div>';
         } else {
@@ -209,7 +207,6 @@ function ahInitZeroPerfLazy() {
             }
         }
 
-        // WEEKLY
         const mon = weekStart();
         const weekReports = reportsList.filter(r => {
             const d = parseReportDate(r.reportDate);
@@ -237,44 +234,204 @@ function ahInitZeroPerfLazy() {
     }, 50);
 }
 
+// ========== UPDATED WEEKLY PERFORMANCE WITH DROPDOWN AND ALL AGENTS TABLE ==========
 function initWeeklyPerformance() {
-    const rangeEl = document.getElementById('ah-weekly-range');
-    if (rangeEl) {
-        const now = new Date();
-        const start = new Date(now);
-        const day = now.getDay();
-        const diff = (day === 0 ? -6 : 1) - day; 
-        start.setDate(now.getDate() + diff);
-        start.setHours(0,0,0,0);
-        
-        const end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        end.setHours(23,59,59,999);
-        
-        rangeEl.innerText = `${start.toLocaleDateString('en-US', {month:'short', day:'numeric'})} - ${end.toLocaleDateString('en-US', {month:'short', day:'numeric'})}, ${start.getFullYear()}`;
-    }
-
-    renderWeeklyTeamRankings();
-    renderWeeklyTopAgents();
+    // Build available weeks from reports
+    buildAvailableWeeks();
+    
+    // Populate dropdown
+    populateWeekDropdown();
+    
+    // Load current week data by default
+    loadWeeklyDataForWeek('current');
 }
 
-function renderWeeklyTeamRankings() {
+function buildAvailableWeeks() {
+    const reports = window.allAgentReports || [];
+    if (!reports.length) {
+        ahAvailableWeeks = [];
+        return;
+    }
+    
+    // Get unique weeks from reports
+    const weekMap = new Map();
+    
+    reports.forEach(report => {
+        const reportDate = new Date(report.uploadedAt);
+        // Get the Monday of that week
+        const day = reportDate.getDay();
+        const diff = (day === 0 ? -6 : 1) - day;
+        const monday = new Date(reportDate);
+        monday.setDate(reportDate.getDate() + diff);
+        monday.setHours(0, 0, 0, 0);
+        
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        sunday.setHours(23, 59, 59, 999);
+        
+        const weekKey = monday.toISOString().split('T')[0];
+        const weekLabel = `${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        
+        if (!weekMap.has(weekKey)) {
+            weekMap.set(weekKey, { key: weekKey, label: weekLabel, monday: monday, sunday: sunday });
+        }
+    });
+    
+    // Convert to array and sort by date descending (newest first)
+    ahAvailableWeeks = Array.from(weekMap.values())
+        .sort((a, b) => b.monday - a.monday);
+}
+
+function populateWeekDropdown() {
+    const dropdown = document.getElementById('ah-week-select');
+    if (!dropdown) return;
+    
+    // Get current week label
+    const now = new Date();
+    const currentDay = now.getDay();
+    const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
+    const currentMonday = new Date(now);
+    currentMonday.setDate(now.getDate() - daysToMonday);
+    currentMonday.setHours(0, 0, 0, 0);
+    const currentSunday = new Date(currentMonday);
+    currentSunday.setDate(currentMonday.getDate() + 6);
+    const currentWeekLabel = `${currentMonday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${currentSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    
+    let options = `<option value="current" selected>📅 Current Week (${currentWeekLabel})</option>`;
+    
+    ahAvailableWeeks.forEach(week => {
+        options += `<option value="${week.key}">📊 ${week.label}</option>`;
+    });
+    
+    dropdown.innerHTML = options;
+    
+    // Add event listener if not already added
+    if (!dropdown._hasListener) {
+        dropdown.addEventListener('change', (e) => {
+            ahSelectedWeek = e.target.value;
+            loadWeeklyDataForWeek(ahSelectedWeek);
+        });
+        dropdown._hasListener = true;
+    }
+}
+
+async function loadWeeklyDataForWeek(weekKey) {
+    const reports = window.allAgentReports || [];
+    const roster = window.allAgentProfiles || [];
+    
+    let weekStart, weekEnd;
+    let weekLabel = '';
+    
+    if (weekKey === 'current') {
+        // Current week
+        const now = new Date();
+        const currentDay = now.getDay();
+        const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
+        weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - daysToMonday);
+        weekStart.setHours(0, 0, 0, 0);
+        weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        weekEnd.setHours(23, 59, 59, 999);
+        weekLabel = `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    } else {
+        // Selected historical week
+        const weekInfo = ahAvailableWeeks.find(w => w.key === weekKey);
+        if (weekInfo) {
+            weekStart = weekInfo.monday;
+            weekEnd = weekInfo.sunday;
+            weekLabel = weekInfo.label;
+        } else {
+            console.warn('Week not found:', weekKey);
+            return;
+        }
+    }
+    
+    // Update range display
+    const rangeEl = document.getElementById('ah-weekly-range');
+    if (rangeEl) {
+        rangeEl.innerText = weekLabel;
+    }
+    
+    // Filter reports for this week
+    const weekReports = reports.filter(r => {
+        const uploadDate = new Date(r.uploadedAt);
+        return uploadDate >= weekStart && uploadDate <= weekEnd;
+    });
+    
+    // Calculate team totals from all reports in this week
+    const teamTotals = { PR: 0, BB: 0, RM: 0 };
+    const agentWeeklyMap = new Map(); // Store weekly totals per agent
+    
+    weekReports.forEach(report => {
+        (report.data || []).forEach(row => {
+            const agentName = row.agentName || row.name;
+            const rawName = row.rawName || agentName;
+            const team = normalizeTeam(row.team, rawName);
+            const isXfer = (row.duration || 0) >= 120;
+            const leadCount = isXfer ? 1 : (row.dailyLeads || 0);
+            
+            if (leadCount > 0) {
+                teamTotals[team] = (teamTotals[team] || 0) + leadCount;
+                
+                const agentKey = agentName;
+                if (!agentWeeklyMap.has(agentKey)) {
+                    agentWeeklyMap.set(agentKey, {
+                        name: agentName,
+                        team: team,
+                        transfers: 0,
+                        rawName: rawName
+                    });
+                }
+                agentWeeklyMap.get(agentKey).transfers += leadCount;
+            }
+        });
+    });
+    
+    // Also include agents from roster with 0 transfers
+    roster.forEach(agent => {
+        const agentName = agent.fullName || agent.name;
+        if (!agentWeeklyMap.has(agentName)) {
+            agentWeeklyMap.set(agentName, {
+                name: agentName,
+                team: agent.team || normalizeTeam('', agentName),
+                transfers: 0,
+                rawName: agentName
+            });
+        }
+    });
+    
+    // Convert to array and sort by transfers (highest first)
+    ahAllAgentsWeeklyData = Array.from(agentWeeklyMap.values())
+        .sort((a, b) => b.transfers - a.transfers);
+    
+    // Render team rankings
+    renderWeeklyTeamRankings(teamTotals);
+    
+    // Render top 5 agents
+    renderWeeklyTopAgents(ahAllAgentsWeeklyData.slice(0, 5));
+    
+    // Render all agents table
+    renderAllAgentsWeeklyTable(ahAllAgentsWeeklyData);
+}
+
+function renderWeeklyTeamRankings(teamTotals) {
     const list = document.getElementById('ah-weekly-team-list');
     if (!list) return;
-
+    
     const teams = [
-        { name: 'Providence', code: 'PR', xfers: 482, color: 'purple-500', trend: '+12%' },
-        { name: 'Berbice', code: 'BB', xfers: 395, color: 'blue-500', trend: '-2%' },
-        { name: 'Remote', code: 'RM', xfers: 215, color: 'cyan-400', trend: '+140%' }
-    ].sort((a,b) => b.xfers - a.xfers);
-
-    const max = teams[0].xfers;
-
+        { name: 'Providence', code: 'PR', xfers: teamTotals.PR || 0, color: 'purple-500' },
+        { name: 'Berbice', code: 'BB', xfers: teamTotals.BB || 0, color: 'blue-500' },
+        { name: 'Remote', code: 'RM', xfers: teamTotals.RM || 0, color: 'cyan-400' }
+    ].sort((a, b) => b.xfers - a.xfers);
+    
+    const max = teams[0].xfers || 1;
+    
     list.innerHTML = teams.map((t, i) => `
-        <div class="relative">
+        <div class="relative mb-4">
             <div class="flex justify-between items-center mb-2">
                 <div class="flex items-center gap-3">
-                    <span class="text-xl font-black text-slate-700">0${i+1}</span>
+                    <span class="text-xl font-black text-slate-700">${i+1}</span>
                     <div>
                         <div class="text-[12px] font-black text-white uppercase tracking-tight">${t.name}</div>
                         <div class="text-[8px] text-${t.color} font-bold uppercase tracking-widest">${t.code} TEAM</div>
@@ -282,47 +439,117 @@ function renderWeeklyTeamRankings() {
                 </div>
                 <div class="text-right">
                     <div class="text-lg font-black text-white italic">${t.xfers} <span class="text-[9px] text-slate-500 not-italic">Xfers</span></div>
-                    <div class="text-[8px] font-black ${t.trend.startsWith('+') ? 'text-green-500' : 'text-red-500'} uppercase">${t.trend} vs Last Week</div>
                 </div>
             </div>
             <div class="h-3 bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/5">
-                <div class="h-full bg-${t.color} rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(0,0,0,0.5)]" style="width: ${(t.xfers/max)*100}%"></div>
+                <div class="h-full bg-${t.color} rounded-full transition-all duration-1000" style="width: ${(t.xfers/max)*100}%"></div>
             </div>
         </div>
     `).join('');
 }
 
-function renderWeeklyTopAgents() {
+function renderWeeklyTopAgents(topAgents) {
     const list = document.getElementById('ah-weekly-agent-list');
     if (!list) return;
-
-    const topAgents = (window.agents || [])
-        .map(a => ({ ...a, weekly: (Number(a.dailyLeads) || 0) * 4.5 + Math.floor(Math.random()*20) }))
-        .sort((a,b) => b.weekly - a.weekly)
-        .slice(0, 5);
-
+    
     if (topAgents.length === 0) {
         list.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agent data available</div>';
         return;
     }
-
+    
     list.innerHTML = topAgents.map((a, i) => {
-        const team = normalizeTeam(a.team, a.name);
-        const color = ahTeamColors[team] || 'slate-500';
+        const color = ahTeamColors[a.team] || 'slate-500';
         return `
             <div class="flex items-center gap-4 bg-white/5 border border-white/5 p-3 rounded-2xl hover:bg-white/10 transition group">
                 <div class="w-8 h-8 rounded-xl bg-black/40 flex items-center justify-center font-black text-[10px] text-slate-500 group-hover:text-white transition">${i+1}</div>
                 <div class="flex-1 overflow-hidden">
                     <div class="text-[11px] font-black text-white uppercase truncate">${a.name}</div>
-                    <div class="text-[7px] text-${color} font-bold uppercase tracking-widest">${team}</div>
+                    <div class="text-[7px] text-${color} font-bold uppercase tracking-widest">${a.team}</div>
                 </div>
                 <div class="text-right">
-                    <div class="text-[12px] font-black text-white italic">${Math.floor(a.weekly)}</div>
-                    <div class="text-[7px] text-slate-600 font-bold uppercase tracking-tighter">TOTAL</div>
+                    <div class="text-[12px] font-black text-white italic">${a.transfers}</div>
+                    <div class="text-[7px] text-slate-600 font-bold uppercase tracking-tighter">XFERS</div>
                 </div>
             </div>
         `;
     }).join('');
+}
+
+function renderAllAgentsWeeklyTable(allAgents) {
+    const container = document.getElementById('ah-weekly-agents-table-container');
+    if (!container) return;
+    
+    if (allAgents.length === 0) {
+        container.innerHTML = '<div class="py-10 text-center text-slate-500">No agent data available for this week</div>';
+        return;
+    }
+    
+    // Split into teams for organized display
+    const prAgents = allAgents.filter(a => a.team === 'PR').sort((a, b) => b.transfers - a.transfers);
+    const bbAgents = allAgents.filter(a => a.team === 'BB').sort((a, b) => b.transfers - a.transfers);
+    const rmAgents = allAgents.filter(a => a.team === 'RM').sort((a, b) => b.transfers - a.transfers);
+    const otherAgents = allAgents.filter(a => !['PR', 'BB', 'RM'].includes(a.team)).sort((a, b) => b.transfers - a.transfers);
+    
+    let html = `
+        <div class="space-y-6">
+            ${renderTeamTable('🦁 Berbice (BB)', bbAgents, 'blue-500')}
+            ${renderTeamTable('🐆 Providence (PR)', prAgents, 'purple-500')}
+            ${renderTeamTable('🌐 Remote (RM)', rmAgents, 'cyan-400')}
+            ${otherAgents.length > 0 ? renderTeamTable('📌 Other Teams', otherAgents, 'slate-500') : ''}
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function renderTeamTable(title, agents, colorClass) {
+    if (agents.length === 0) return '';
+    
+    return `
+        <div class="glass rounded-2xl border border-white/5 overflow-hidden">
+            <div class="bg-${colorClass}/10 px-4 py-3 border-b border-white/5">
+                <h4 class="text-sm font-black text-${colorClass} uppercase tracking-widest">${title}</h4>
+                <p class="text-[9px] text-slate-500">${agents.length} agents • ${agents.reduce((sum, a) => sum + a.transfers, 0)} total transfers</p>
+            </div>
+            <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
+                <table class="w-full text-left">
+                    <thead class="sticky top-0 bg-black/80">
+                        <tr class="text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
+                            <th class="p-3">Rank</th>
+                            <th class="p-3">Agent Name</th>
+                            <th class="p-3 text-center">Team</th>
+                            <th class="p-3 text-right">Weekly Xfers</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/5">
+                        ${agents.map((agent, idx) => `
+                            <tr class="hover:bg-white/5 transition group text-[11px]">
+                                <td class="p-3 text-slate-500 font-black">${idx + 1}</td>
+                                <td class="p-3 font-bold text-white uppercase">${escapeHtml(agent.name)}</td>
+                                <td class="p-3 text-center">
+                                    <span class="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-${colorClass}/10 text-${colorClass} border border-${colorClass}/20">${agent.team}</span>
+                                </td>
+                                <td class="p-3 text-right">
+                                    <span class="text-lg font-black text-${colorClass} italic">${agent.transfers}</span>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+// Helper function to escape HTML
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
 }
 
 window.logRebuttalUsage = async function(id, title) {
@@ -433,7 +660,6 @@ window.ahInitOverview = function() {
         else superBtn.classList.add('hidden');
     }
     
-    // Transform 'Tracker' button to 'Zero Performance' for regular admins
     if (!permissions.isSuper) {
         const zeroBtn = document.getElementById('ah-tab-zero');
         if (zeroBtn) {
@@ -452,7 +678,6 @@ window.ahInitOverview = function() {
         }
     }
 
-    // Simple clock update (lightweight)
     const updateClock = () => {
         const d = document.getElementById('ah-live-clock');
         if (d) {
@@ -498,6 +723,13 @@ window.ahInitOverview = function() {
             
             window.ahAllReports = reports;
             window.allAgentReports = reports;
+            
+            // Refresh weekly performance if tab is active
+            if (ahCurrentSubTab === 'performance') {
+                buildAvailableWeeks();
+                populateWeekDropdown();
+                loadWeeklyDataForWeek(ahSelectedWeek);
+            }
         });
     }
 }
@@ -1345,7 +1577,6 @@ window.ahSyncRosterFromSheet = async function() {
             console.log(`[AdminHub] Successfully pulled ${roster.length} agents from Sheet.`);
             window.allAgentProfiles = roster;
             
-            // Also store in localStorage for persistence
             localStorage.setItem('biz_master_roster', JSON.stringify(roster));
             
             if (window.ahCurrentSubTab === 'overview' || !window.ahCurrentSubTab) {
@@ -1360,6 +1591,11 @@ window.ahSyncRosterFromSheet = async function() {
                 if (dailyList && weeklyList && dailyList.innerHTML !== '') {
                     ahInitZeroPerfLazy();
                 }
+            }
+            if (window.ahCurrentSubTab === 'performance') {
+                buildAvailableWeeks();
+                populateWeekDropdown();
+                loadWeeklyDataForWeek(ahSelectedWeek);
             }
         }
     } catch (e) {
