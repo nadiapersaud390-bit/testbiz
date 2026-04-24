@@ -37,21 +37,21 @@
     <div class="prbb-card p-3 md:p-8 rounded-3xl text-center stat-card">
         <div class="text-[9px] md:text-sm font-black text-purple-400 uppercase mb-2 leading-tight">PR / BB / RM</div>
         <div class="flex items-stretch justify-center gap-2">
-            <div class="flex-1 flex flex-col items-center cursor-pointer hover:scale-110 transition-transform" onclick="showTeamDrilldown('PR')">
+            <div class="flex-1 flex flex-col items-center">
                 <div class="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">Prov</div>
                 <div id="pr-count" class="text-xl md:text-4xl font-black leading-none" style="color:#a78bfa">0</div>
             </div>
 
             <div class="prbb-divider"></div>
 
-            <div class="flex-1 flex flex-col items-center cursor-pointer hover:scale-110 transition-transform" onclick="showTeamDrilldown('BB')">
+            <div class="flex-1 flex flex-col items-center">
                 <div class="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">Berb</div>
                 <div id="bb-count" class="text-xl md:text-4xl font-black leading-none" style="color:#c084fc">0</div>
             </div>
 
             <div class="prbb-divider"></div>
 
-            <div class="flex-1 flex flex-col items-center cursor-pointer hover:scale-110 transition-transform" onclick="showTeamDrilldown('RM')">
+            <div class="flex-1 flex flex-col items-center">
                 <div class="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">Remote</div>
                 <div id="rm-count" class="text-xl md:text-4xl font-black leading-none" style="color:#38bdf8">0</div>
             </div>
@@ -65,19 +65,3 @@
 </div>
 
 <div id="leaderboard" class="leaderboard-grid space-y-3 md:space-y-0 px-2"></div>
-
-<!-- Team Drilldown Modal -->
-<div id="team-drill-modal" class="modal-overlay hidden" style="z-index: 10000; position: fixed; inset: 0; background: rgba(2,6,23,0.85); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 16px;">
-    <div class="glass p-6 rounded-[2rem] w-full max-w-sm border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
-        <div class="flex justify-between items-start mb-6">
-            <div>
-                <div id="team-drill-tag" class="text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded border border-white/10 inline-block mb-1">Team</div>
-                <div id="team-drill-title" class="header-font text-2xl font-black text-white italic uppercase tracking-tighter">Team Breakdown</div>
-            </div>
-            <button onclick="document.getElementById('team-drill-modal').style.display='none'; document.getElementById('team-drill-modal').classList.add('hidden')" class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:bg-white/10 transition-all text-xs">✕</button>
-        </div>
-        <div id="team-drill-list" class="space-y-2 overflow-y-auto pr-2 custom-scrollbar">
-            <!-- Agents will be injected here -->
-        </div>
-    </div>
-</div>

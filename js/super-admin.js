@@ -5,8 +5,28 @@ const SUPER_ADMIN_KEY = 'biz_super_admin_v1';
 const ADMINS_KEY = 'biz_admins_list_v1';
 const ACTIVITY_LOG_KEY = 'biz_activity_logs_v1';
 
-// window.writeAdminActivityLog is now handled by js/firebase.js for cloud syncing.
-// This prevents local storage from overwriting global audit logs.
+window.writeAdminActivityLog = function(action, details, specificAdmin = null) {
+    let admin = specificAdmin || JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    if (!admin || (!admin.email && !admin.name)) return;
+    
+    let logs = [];
+    try {
+        logs = JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY) || '[]');
+    } catch(e) {}
+    
+    logs.unshift({
+        id: Date.now(),
+        timestamp: new Date().toISOString(),
+        email: admin.email || 'unknown',
+        name: admin.name || admin.email || 'unknown',
+        role: admin.role || 'unknown',
+        action: action,
+        details: details
+    });
+    
+    if (logs.length > 500) logs = logs.slice(0, 500); // keep max 500 logs
+    localStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(logs));
+};
 
 // ============================================
 // DEFAULT SUPER ADMIN - CHANGE THESE VALUES!
@@ -21,13 +41,8 @@ const DEFAULT_SUPER_ADMIN = {
 // Auto-create default super admin if none exists
 function initializeDefaultSuperAdmin() {
     const existingSuper = localStorage.getItem(SUPER_ADMIN_KEY);
-    let parsedSuper = null;
-    try {
-        parsedSuper = existingSuper ? JSON.parse(existingSuper) : null;
-    } catch (e) {
-        console.warn('⚠️ Corrupted super admin data, resetting...');
-    }
-    if (!existingSuper || !parsedSuper || parsedSuper.email === "0000") {
+    const parsedSuper = existingSuper ? JSON.parse(existingSuper) : null;
+    if (!existingSuper || parsedSuper.email === "0000") {
         console.log('📌 Creating default super admin...');
         const superAdmin = {
             email: DEFAULT_SUPER_ADMIN.email,
@@ -113,9 +128,7 @@ function superAdminLogin(email, password) {
             sessionStorage.setItem('adminLoggedIn', 'true');
             sessionStorage.setItem('bizAdminUnlocked', '1');
             sessionStorage.setItem('bizUserRole', 'admin');
-            if (typeof window.writeAdminActivityLog === 'function') {
-                window.writeAdminActivityLog('login', 'Super Admin logged in', {email: admin.email, name: admin.name, role: 'super_admin'});
-            }
+            window.writeAdminActivityLog('login', 'Super Admin logged in', {email: admin.email, name: admin.name, role: 'super_admin'});
             return { success: true, role: 'super_admin' };
         }
     }
@@ -135,15 +148,11 @@ function superAdminLogin(email, password) {
         sessionStorage.setItem('adminLoggedIn', 'true');
         sessionStorage.setItem('bizAdminUnlocked', '1');
         sessionStorage.setItem('bizUserRole', 'admin');
-        if (typeof window.writeAdminActivityLog === 'function') {
-            window.writeAdminActivityLog('login', 'Admin logged in', {email: admin.email, name: admin.name, role: admin.role || 'admin'});
-        }
+        window.writeAdminActivityLog('login', 'Admin logged in', {email: admin.email, name: admin.name, role: admin.role || 'admin'});
         return { success: true, role: admin.role || 'admin' };
     }
     
-    if (typeof window.writeAdminActivityLog === 'function') {
-        window.writeAdminActivityLog('login_failed', 'Failed admin login attempt: ' + email, {email: email, name: 'Unknown', role: 'unknown'});
-    }
+    window.writeAdminActivityLog('login_failed', 'Failed admin login attempt: ' + email, {email: email, name: 'Unknown', role: 'unknown'});
     return { success: false, error: 'Invalid credentials' };
 }
 
@@ -188,9 +197,7 @@ function addNewAdmin(email, password, name, role = 'admin') {
     
     localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
     if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-    if (typeof window.writeAdminActivityLog === 'function') {
-        window.writeAdminActivityLog('user_management', 'Added new admin: ' + email);
-    }
+    window.writeAdminActivityLog('user_management', 'Added new admin: ' + email);
     return { success: true, message: 'Admin added successfully' };
 }
 
@@ -209,9 +216,7 @@ function removeAdmin(email) {
     localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
     if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
     
-    if (typeof window.writeAdminActivityLog === 'function') {
-        window.writeAdminActivityLog('user_management', 'Removed admin: ' + email);
-    }
+    window.writeAdminActivityLog('user_management', 'Removed admin: ' + email);
     return { success: true, message: 'Admin removed successfully' };
 }
 
@@ -229,9 +234,7 @@ function updateAdminRole(email, newRole) {
     admins[email].role = newRole;
     localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
     if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-    if (typeof window.writeAdminActivityLog === 'function') {
-        window.writeAdminActivityLog('user_management', `Updated role for ${email} to ${newRole}`);
-    }
+    window.writeAdminActivityLog('user_management', `Updated role for ${email} to ${newRole}`);
     return { success: true, message: 'Role updated successfully' };
 }
 
@@ -275,9 +278,7 @@ function superResetAdminPassword(email, newPassword) {
     admins[email].password = btoa(newPassword);
     localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
     if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-    if (typeof window.writeAdminActivityLog === 'function') {
-        window.writeAdminActivityLog('user_management', `Super Admin reset password for: ${email}`);
-    }
+    window.writeAdminActivityLog('user_management', `Super Admin reset password for: ${email}`);
     return { success: true, message: 'Password reset successfully' };
 }
 
@@ -286,9 +287,7 @@ function isLoggedIn() {
 }
 
 function logout() {
-    if (typeof window.writeAdminActivityLog === 'function') {
-        window.writeAdminActivityLog('logout', 'Admin logged out');
-    }
+    window.writeAdminActivityLog('logout', 'Admin logged out');
     sessionStorage.removeItem('currentAdmin');
     sessionStorage.removeItem('adminLoggedIn');
     sessionStorage.removeItem('bizAdminUnlocked');

@@ -10,97 +10,48 @@ const ahTeamColors = {
     RM: 'cyan-400'
 };
 
-/// Internal tab switcher with state protection
+// Internal tab switcher
 window.switchAdminHubTab = function(tabId) {
-    console.log(`[AdminHub] Attempting switch to: ${tabId}`);
+    // Permission Check for Admin Tools
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    const isMomo = String(currentAdmin.email || '').toLowerCase() === 'momo';
     
-    // State Tracking
+    if (tabId === 'admintools' && !isSuper) {
+        console.warn('Unauthorized access to Admin Tools blocked.');
+        return;
+    }
+    if (tabId === 'stats' && !isSuper) {
+        console.warn('Unauthorized access to Agent Stats blocked.');
+        return;
+    }
+
     ahCurrentSubTab = tabId;
-    window.ahCurrentSubTab = tabId; // Ensure global visibility
-
-    let currentAdmin = {};
-    try {
-        currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    } catch (e) {
-        console.warn("Session data corrupted, using default permissions.");
-    }
     
-    // Permission Resolution
-    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper || window.ahIsSuperAdmin;
-    const isMomo = (currentAdmin.name === 'Momo') || (String(currentAdmin.email || '').toLowerCase() === 'momo') || window.ahIsMomo;
-    
-    // Access Control
-    if ((tabId === 'admintools' || tabId === 'stats') && !isSuper && !isMomo) {
-        console.warn(`[AdminHub] Access denied for restricted tab: ${tabId}`);
-        window.switchAdminHubTab('overview');
-        return;
-    }
-
-    // 1. Update Sidebar
-    const buttons = document.querySelectorAll('.ah-nav-btn');
-    buttons.forEach(btn => {
+    // Update Nav Buttons
+    document.querySelectorAll('.ah-nav-btn, .ah-nav-btn-special').forEach(btn => {
+        btn.classList.remove('active');
         if (btn.id === `ah-tab-${tabId}`) btn.classList.add('active');
-        else btn.classList.remove('active');
     });
-
-    // 2. Toggle Sections
-    const sections = document.querySelectorAll('.ah-section');
-    let targetSection = document.getElementById(`ah-sect-${tabId}`);
     
-    if (targetSection) {
-        sections.forEach(s => s.classList.add('hidden'));
-        targetSection.classList.remove('hidden');
-    } else {
-        console.error(`[AdminHub] Target section ah-sect-${tabId} NOT FOUND.`);
-        if (tabId !== 'overview') window.switchAdminHubTab('overview');
-        return;
-    }
-
-    // 3. Initialize Content
-    try {
-        if (tabId === 'playbook') ahInitPlaybook();
-        else if (tabId === 'overview' && typeof window.ahInitOverview === 'function') window.ahInitOverview();
-        else if (tabId === 'profiles' && typeof window.initAgentProfiles === 'function') window.initAgentProfiles();
-        else if (tabId === 'attendance' && typeof renderDailyAttendance === 'function') renderDailyAttendance();
-        else if (tabId === 'performance' && typeof initWeeklyPerformance === 'function') initWeeklyPerformance();
-        else if (tabId === 'stats' && typeof initAgentStats === 'function') initAgentStats();
-        else if (tabId === 'zero' && typeof ahInitZeroPerf === 'function') ahInitZeroPerf();
-        else if (tabId === 'rebuttals' && typeof window.initRebuttalIntel === 'function') window.initRebuttalIntel();
-    } catch (e) {
-        console.error(`[AdminHub] Init failed for ${tabId}:`, e);
-    }
+    // Update Sections
+    document.querySelectorAll('.ah-section').forEach(sect => {
+        sect.classList.add('hidden');
+    });
+    const target = document.getElementById(`ah-sect-${tabId}`);
+    if (target) target.classList.remove('hidden');
+    
+    // Lazy Load/Init Sub-modules
+    // Lazy Load/Init Sub-modules
+    if (tabId === 'profiles' && typeof window.initAgentProfiles === 'function') window.initAgentProfiles();
+    if (tabId === 'stats' && typeof window.renderAgentStatsHistory === 'function') window.renderAgentStatsHistory();
+    if (tabId === 'coaching' && typeof window.coachingInit === 'function') window.coachingInit();
+    if (tabId === 'monitoring' && typeof window.monitoringInit === 'function') window.monitoringInit();
+    if (tabId === 'rebuttals') initRebuttalIntel();
+    if (tabId === 'performance') initWeeklyPerformance();
+    if (tabId === 'admintools') ahAdminToolsInit();
+    if (tabId === 'zero') ahInitZeroPerf();
 };
-
-function ahInitPlaybook() {
-    const container = document.getElementById('ah-playbook-content');
-    if (!container) return;
-    
-    // Load content if it hasn't been loaded yet or if it only has a loader
-    if (container.querySelector('.animate-spin') || container.innerHTML.trim() === '') {
-        console.log('[AdminHub] Fetching Master Playbook...');
-        fetch('tabs/playbook.html')
-            .then(res => res.text())
-            .then(html => {
-                container.innerHTML = html;
-                
-                // CRITICAL: Manually execute scripts in the loaded HTML
-                const scripts = container.querySelectorAll('script');
-                scripts.forEach(oldScript => {
-                    const newScript = document.createElement('script');
-                    Array.from(oldScript.attributes).forEach(attr => {
-                        newScript.setAttribute(attr.name, attr.value);
-                    });
-                    newScript.text = oldScript.text;
-                    oldScript.parentNode.replaceChild(newScript, oldScript);
-                });
-                console.log('[AdminHub] Playbook content loaded and scripts executed.');
-            })
-            .catch(err => {
-                console.error("[AdminHub] Failed to load playbook:", err);
-                container.innerHTML = '<div class="py-20 text-center text-red-500 font-black uppercase tracking-widest">❌ Failed to load Master Playbook</div>';
-            });
-    }
-}
 
 function ahInitZeroPerf() {
     const dailyList = document.getElementById('ah-zero-daily-list');
@@ -283,7 +234,7 @@ function renderWeeklyTeamRankings() {
         { name: 'Providence', code: 'PR', xfers: 482, color: 'purple-500', trend: '+12%' },
         { name: 'Berbice', code: 'BB', xfers: 395, color: 'blue-500', trend: '-2%' },
         { name: 'Remote', code: 'RM', xfers: 215, color: 'cyan-400', trend: '+140%' }
-    ].sort((a,b) => b.xfers - a.xfers);
+    ].sort((a,b) => b[xfers] - a[xfers]);
 
     const max = teams[0].xfers;
 
@@ -429,28 +380,38 @@ function renderRebuttalIntel(usage) {
 
 // Initialize Overview Data
 window.ahInitOverview = function() {
-    let currentAdmin = {};
-    try {
-        currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    } catch (e) {
-        console.error("Error parsing currentAdmin in ahInitOverview", e);
-    }
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
-    const isMomo = currentAdmin.name === 'Momo' || String(currentAdmin.email || '').toLowerCase() === 'momo';
-    
-    // Store globally so switchAdminHubTab can access them
-    window.ahIsSuperAdmin = isSuper;
-    window.ahIsMomo = isMomo;
     
     const toolsBtn = document.getElementById('ah-tab-admintools');
     const statsBtn = document.getElementById('ah-tab-stats');
     
-    // Role-based sidebar cleanup
-    if (!isSuper && !isMomo) {
-        // Standard Admins (like 0000) - Hide restricted tools
+    if (!isSuper) {
+        // Standard Admins (like 0000) 
         if (toolsBtn) toolsBtn.classList.add('hidden');
         if (statsBtn) statsBtn.classList.add('hidden');
         
+        // Hide Trivia and Super
+        const triviaBtn = document.getElementById('ah-tab-trivia');
+        const superBtn  = document.getElementById('ah-tab-super');
+        if (triviaBtn) triviaBtn.classList.add('hidden');
+        if (superBtn)  superBtn.classList.add('hidden');
+
+        // Transform 'Tracker' back to 'Zero Performance' and make it full width
+        const zeroBtn = document.getElementById('ah-tab-zero');
+        if (zeroBtn) {
+            zeroBtn.classList.remove('flex', 'flex-col', 'items-center', 'justify-center', 'py-4');
+            zeroBtn.classList.add('ah-nav-btn', 'w-full');
+            // Remove the grid wrapper's grid class to allow full width
+            const gridWrapper = zeroBtn.parentElement;
+            if (gridWrapper) {
+                gridWrapper.classList.remove('grid', 'grid-cols-2');
+                gridWrapper.classList.add('flex', 'flex-col');
+            }
+            zeroBtn.innerHTML = '<i class="fas fa-ghost mr-2"></i> Zero Performance';
+        }
+
+        // Double check: if they are somehow ON a restricted tab, kick them back to overview
         if (['admintools','stats','trivia','super'].includes(ahCurrentSubTab)) {
             window.switchAdminHubTab('overview');
         }
@@ -864,10 +825,8 @@ window.ahEditGoal = function() {
 };
 
 // ── COACHING LOGIC ──
-    let cAdmin = {};
-    try {
-        cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    } catch (e) {}
+window.ahOpenCoachingInline = function() {
+    const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     document.getElementById('coach-admin-name').value = cAdmin.name || cAdmin.email || 'Admin';
     document.getElementById('ah-coaching-form').reset();
     document.getElementById('ah-coaching-inline').classList.remove('hidden');
@@ -975,10 +934,7 @@ function renderCoachingList(sessions) {
 
 // ── MONITORING LOGIC ──
 window.ahOpenMonitoringInline = function() {
-    let cAdmin = {};
-    try {
-        cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    } catch (e) {}
+    const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     document.getElementById('mon-admin-name').value = cAdmin.name || cAdmin.email || 'Admin';
     document.getElementById('ah-monitoring-form').reset();
     document.getElementById('ah-monitoring-inline').classList.remove('hidden');
@@ -1103,10 +1059,7 @@ window.switchAhToolsSubTab = function(sub) {
     const activeTab = document.getElementById('aht-tab-' + sub);
 
     // Role check for 'users' sub-tab
-    let cAdmin = {};
-    try {
-        cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    } catch (e) {}
+    const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = cAdmin.role === 'super_admin' || cAdmin.isSuper;
     if (sub === 'users' && !isSuper) {
         switchAhToolsSubTab('resources');
@@ -1125,10 +1078,7 @@ window.switchAhToolsSubTab = function(sub) {
 };
 
 function ahAdminToolsInit() {
-    let cAdmin = {};
-    try {
-        cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    } catch (e) {}
+    const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = cAdmin.role === 'super_admin' || cAdmin.isSuper;
     
     // Auto-cleanup legacy data once on init
@@ -1279,8 +1229,13 @@ window.ahDeleteSession = async function(coll, id) {
     await window.deleteSession(coll, id);
 };
 
-// Tab initialization is now handled in index.html switchTab wrapper
-// to ensure the Hub is active immediately upon switching.
+// Ensure init runs when tab switches
+window.switchTab = (function(orig) {
+    return function(tab) {
+        if (tab === 'adminpanel') setTimeout(ahAdminToolsInit, 100);
+        return orig.apply(this, arguments);
+    };
+})(window.switchTab || function(){});
 
 window.ahToolsLoadPerformance = function() {
     const tbody = document.getElementById('ah-performance-table-body');

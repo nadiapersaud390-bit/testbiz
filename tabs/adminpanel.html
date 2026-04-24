@@ -1,76 +1,84 @@
-<div class="flex w-full h-[90vh] bg-[#020617] rounded-3xl border border-white/5 overflow-hidden shadow-2xl">
-    <!-- Sidebar -->
-    <aside class="w-48 flex-shrink-0 border-r border-white/5 bg-[#020617]/50 flex flex-col">
-        <div class="p-6">
-            <div class="flex items-center gap-2 mb-1">
-                <span class="text-xs font-black tracking-tighter text-white">ADMIN</span>
-                <span class="px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20 text-[7px] font-black text-cyan-400 uppercase">Hub</span>
-            </div>
-            <div class="text-[7px] font-bold text-slate-600 uppercase tracking-widest leading-none">v1.0 Multi-Team System</div>
+<div class="flex flex-col md:flex-row min-h-[600px] bg-black/20 rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl backdrop-blur-3xl">
+    <!-- Sidebar Navigation -->
+    <div class="w-full md:w-64 bg-white/5 border-b md:border-b-0 md:border-r border-white/10 p-6 flex flex-col gap-2">
+        <div class="mb-6 px-2">
+            <h2 class="text-xl font-black text-white italic tracking-tighter uppercase">Admin <span class="text-cyan-400">Hub</span></h2>
+            <p class="text-[8px] text-slate-500 font-bold uppercase tracking-widest mt-1">v1.0 Multi-Team System</p>
         </div>
 
-        <nav class="flex-1 overflow-y-auto px-2 space-y-6 custom-scrollbar pb-10">
+        <nav class="flex flex-col gap-4">
             <!-- Group 1: OPERATIONS (3) -->
             <div class="flex flex-col gap-1">
                 <div class="px-3 mb-1 text-[7px] font-black text-slate-500 uppercase tracking-[0.2em]">Operations</div>
-                <button onclick="window.switchAdminHubTab('overview')" id="ah-tab-overview" class="ah-nav-btn active">
+                <button onclick="switchAdminHubTab('overview')" id="ah-tab-overview" class="ah-nav-btn active">
                     <i class="fas fa-chart-pie"></i> Daily Overview
                 </button>
-                <button onclick="window.switchAdminHubTab('profiles')" id="ah-tab-profiles" class="ah-nav-btn">
+                <button onclick="switchAdminHubTab('profiles')" id="ah-tab-profiles" class="ah-nav-btn">
                     <i class="fas fa-user-shield"></i> Agent Profiles
                 </button>
-                <button onclick="window.switchAdminHubTab('attendance')" id="ah-tab-attendance" class="ah-nav-btn">
+                <button onclick="switchAdminHubTab('attendance')" id="ah-tab-attendance" class="ah-nav-btn">
                     <i class="fas fa-calendar-check"></i> Attendance
                 </button>
             </div>
 
-            <!-- Group 2: EXECUTION (3) -->
+            <!-- Group 2: PERFORMANCE (3) -->
             <div class="flex flex-col gap-1">
                 <div class="px-3 mb-1 text-[7px] font-black text-slate-500 uppercase tracking-[0.2em]">Execution</div>
-                <button onclick="window.switchAdminHubTab('stats')" id="ah-tab-stats" class="ah-nav-btn">
-                    <i class="fas fa-chart-bar"></i> Agent Stats
+                <button onclick="switchAdminHubTab('stats')" id="ah-tab-stats" class="ah-nav-btn">
+                    <i class="fas fa-bolt"></i> Agent Stats
                 </button>
-                <button onclick="window.switchAdminHubTab('coaching')" id="ah-tab-coaching" class="ah-nav-btn">
-                    <i class="fas fa-graduation-cap"></i> Coaching
+                <button onclick="switchAdminHubTab('coaching')" id="ah-tab-coaching" class="ah-nav-btn">
+                    <i class="fas fa-user-graduate"></i> Coaching
                 </button>
-                <button onclick="window.switchAdminHubTab('monitoring')" id="ah-tab-monitoring" class="ah-nav-btn">
+                <button onclick="switchAdminHubTab('monitoring')" id="ah-tab-monitoring" class="ah-nav-btn">
                     <i class="fas fa-headphones"></i> Monitoring
                 </button>
             </div>
 
-            <!-- Group 3: INTELLIGENCE (3) -->
+            <!-- Group 3: ANALYTICS (2) -->
             <div class="flex flex-col gap-1">
                 <div class="px-3 mb-1 text-[7px] font-black text-slate-500 uppercase tracking-[0.2em]">Intelligence</div>
-                <button onclick="window.switchAdminHubTab('playbook')" id="ah-tab-playbook" class="ah-nav-btn">
-                    <i class="fas fa-book-open"></i> Playbook
-                </button>
-                <button onclick="window.switchAdminHubTab('rebuttals')" id="ah-tab-rebuttals" class="ah-nav-btn">
+                <button onclick="switchAdminHubTab('rebuttals')" id="ah-tab-rebuttals" class="ah-nav-btn">
                     <i class="fas fa-brain"></i> Rebuttal Intel
                 </button>
-                <button onclick="window.switchAdminHubTab('performance')" id="ah-tab-performance" class="ah-nav-btn">
+                <button onclick="switchAdminHubTab('performance')" id="ah-tab-performance" class="ah-nav-btn">
                     <i class="fas fa-trophy"></i> Weekly Perf.
                 </button>
             </div>
 
-            <!-- Group 4: MANAGEMENT (1) -->
+            <!-- Group 4: MANAGEMENT (2x2 Grid) -->
             <div class="flex flex-col gap-1">
                 <div class="px-3 mb-1 text-[7px] font-black text-slate-500 uppercase tracking-[0.2em]">Management</div>
-                <button onclick="window.switchAdminHubTab('zero')" id="ah-tab-zero" class="ah-nav-btn">
-                    <i class="fas fa-user-slash"></i> Zero Performance
-                </button>
+                <div class="grid grid-cols-2 gap-2 px-2">
+                    <button onclick="switchAdminHubTab('trivia')" id="ah-tab-trivia" class="ah-nav-btn flex flex-col items-center justify-center py-4 text-center">
+                        <i class="fas fa-bullseye mb-1"></i>
+                        <span class="text-[8px]">Trivia</span>
+                    </button>
+                    <button onclick="switchAdminHubTab('zero')" id="ah-tab-zero" class="ah-nav-btn flex flex-col items-center justify-center py-4 text-center">
+                        <i class="fas fa-clipboard-list mb-1"></i>
+                        <span class="text-[8px]">Tracker</span>
+                    </button>
+                    <button onclick="switchAdminHubTab('admintools')" id="ah-tab-admintools" class="ah-nav-btn flex flex-col items-center justify-center py-4 text-center">
+                        <i class="fas fa-shield-alt mb-1"></i>
+                        <span class="text-[8px]">Admin</span>
+                    </button>
+                    <button onclick="switchAdminHubTab('super')" id="ah-tab-super" class="ah-nav-btn flex flex-col items-center justify-center py-4 text-center">
+                        <i class="fas fa-crown mb-1"></i>
+                        <span class="text-[8px]">Super</span>
+                    </button>
+                </div>
             </div>
         </nav>
 
-        <div class="p-4 border-t border-white/5">
-            <button onclick="window.switchAdminHubTab('broadcast')" id="ah-tab-broadcast" class="ah-nav-btn">
-                <i class="fas fa-bullhorn"></i>
-                <span>Broadcast</span>
+        <div class="mt-auto pt-6 border-t border-white/5">
+            <button onclick="switchAdminHubTab('broadcast')" id="ah-tab-broadcast" class="ah-nav-btn-special">
+                <i class="fas fa-bullhorn"></i> Broadcast
             </button>
         </div>
-    </aside>
+    </div>
 
     <!-- Content Area -->
-    <main class="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#020617]/20" id="admin-hub-content">
+    <div class="flex-1 p-6 md:p-10 overflow-y-auto max-h-[80vh] custom-scrollbar" id="admin-hub-content">
         <!-- OVERVIEW SECTION -->
         <div id="ah-sect-overview" class="ah-section">
             <div class="flex justify-between items-center mb-8">
@@ -619,23 +627,7 @@
         </div>
     </div>
 
-
-        <!-- PLAYBOOK SECTION -->
-        <div id="ah-sect-playbook" class="ah-section hidden">
-            <div class="flex justify-between items-center mb-8">
-                <div>
-                    <h3 class="text-2xl font-black text-white uppercase tracking-tight">📖 Master Playbook</h3>
-                    <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Guidelines, Logistics & Quality Standards</p>
-                </div>
-            </div>
-            <div id="ah-playbook-content">
-                <div class="py-20 text-center">
-                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500 mb-4"></div>
-                    <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Loading Playbook...</p>
-                </div>
-            </div>
-        </div>
-
+    <div id="ah-sect-stats" class="ah-section hidden"> <div class="p-20 text-center text-slate-500 font-black uppercase tracking-widest">Agent Stats Loading...</div> </div>
         <!-- REBUTTAL INTEL SECTION -->
         <div id="ah-sect-rebuttals" class="ah-section hidden">
             <div class="flex justify-between items-center mb-8">
@@ -890,7 +882,7 @@
         <div id="ah-sect-zero" class="ah-section hidden">
             <div class="flex justify-between items-center mb-8">
                 <div>
-                    <h3 class="text-2xl font-black text-white uppercase tracking-tight"><i class="fas fa-user-slash mr-2 text-red-500"></i> Zero Performance</h3>
+                    <h3 class="text-2xl font-black text-white uppercase tracking-tight">👻 Zero Performance</h3>
                     <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Agents with 0 transfers (Daily & Weekly)</p>
                 </div>
             </div>
@@ -974,7 +966,7 @@
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 </div>
 
 <style>
