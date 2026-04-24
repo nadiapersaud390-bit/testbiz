@@ -1,234 +1,933 @@
-<div class="p-4 max-w-6xl mx-auto flex flex-col md:flex-row gap-6">
-    <!-- Sidebar: Controls & History -->
-    <div class="w-full md:w-1/3 flex flex-col gap-6">
+/**
+ * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
+ * AUTO-PUSH: Most recent file automatically updates the Daily dashboard
+ * FIXED: New lead detection, proper CSV order, retention display
+ */
+
+let allReports = [];
+let currentReportData = null;
+let asSortCol = 'agentName';
+let asSortAsc = true;
+let asSubscribed = false; // Flag to prevent multiple listeners
+
+// Track last auto-pushed report to prevent duplicates
+let lastAutoPushedReportId = null;
+let lastReportCount = 0;
+
+// Track previously viewed report data for new lead detection
+let previousReportData = null;
+
+// Track new leads found in current report compared to previous
+let newLeadsList = [];
+
+// Initialization function called from index.html (or tab load)
+window.renderAgentStatsHistory = function() {
+    // Check permissions - only Super Admin can access Agent Stats
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    
+    if (!isSuper) {
+        console.log('Agent Stats: Access denied - Super Admin only');
+        const container = document.getElementById('ah-sect-stats');
+        if (container) {
+            container.innerHTML = '<div class="p-20 text-center"><i class="fas fa-lock text-5xl text-red-500 mb-4"></i><p class="text-slate-400 font-bold uppercase tracking-widest">Access Denied</p><p class="text-slate-500 text-sm mt-2">Agent Stats is only available for Super Admin.</p></div>';
+        }
+        return;
+    }
+    
+    if (asSubscribed) {
+        if (currentReportData) {
+            viewReport(currentReportData.id);
+        } else if (allReports.length > 0) {
+            const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+            if (sortedForDisplay.length > 0) {
+                viewReport(sortedForDisplay[0].id);
+            }
+        }
+    } else if (typeof window.listenForAgentReports === 'function') {
+        window.listenForAgentReports(data => {
+            console.log('Agent Stats: Received data update', data?.length);
+            
+            const previousCount = allReports.length;
+            allReports = data || [];
+            window.allAgentReports = allReports;
+            
+            const isNewReport = previousCount > 0 && allReports.length > previousCount;
+            const newReportId = isNewReport && allReports[0] ? allReports[0].id : null;
+            
+            // Clean up expired ones
+            const now = new Date();
+            let needsCleanup = false;
+            
+            allReports.forEach(r => {
+                const expires = new Date(r.expiresAt);
+                if (now > expires) {
+                    if (typeof window.deleteAgentReportFromFirebase === 'function') {
+                        window.deleteAgentReportFromFirebase(r.id);
+                        needsCleanup = true;
+                    }
+                }
+            });
+            
+            if (needsCleanup) return;
+            
+            renderHistoryList(isNewReport, newReportId);
+            
+            // Auto-open the MOST RECENT report
+            if (!currentReportData && allReports.length > 0) {
+                const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+                if (sortedForDisplay.length > 0) {
+                    viewReport(sortedForDisplay[0].id);
+                }
+            } else if (currentReportData) {
+                const stillExists = allReports.find(r => r.id === currentReportData.id);
+                if (stillExists) {
+                    viewReport(stillExists.id);
+                } else if (allReports.length > 0) {
+                    const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+                    if (sortedForDisplay.length > 0) {
+                        viewReport(sortedForDisplay[0].id);
+                    }
+                }
+            }
+            
+            // AUTO-PUSH: Automatically push the latest report to the Daily dashboard
+            if (allReports.length > 0) {
+                const latestReport = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))[0];
+                
+                if (lastAutoPushedReportId !== latestReport.id) {
+                    console.log('Auto-pushing latest report to Daily tab:', latestReport.reportDate);
+                    autoPushReportToDashboard(latestReport);
+                    lastAutoPushedReportId = latestReport.id;
+                }
+            }
+        });
+        asSubscribed = true;
+    }
+    
+    setupDropZone();
+    
+    const searchInput = document.getElementById('as-search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            if (currentReportData) renderActiveReportTable();
+        });
+    }
+};
+
+// AUTO-PUSH FUNCTION: Auto-push report to Live Dashboard
+async function autoPushReportToDashboard(report) {
+    if (!report || !report.data) {
+        console.warn('Auto-push skipped: No report data');
+        return;
+    }
+    
+    const today = new Date();
+    const todayStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const reportDateStr = report.reportDate;
+    
+    if (!reportDateStr || (!reportDateStr.includes(todayStr.split(' ')[0]) && !reportDateStr.includes(todayStr))) {
+        console.log('Auto-push skipped: Report is not from today -', reportDateStr);
+        return;
+    }
+    
+    const aggMap = {};
+    report.data.forEach(d => {
+        const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
+        const id = d.agentId || d.ytelId || d.agentName;
+        const rawKey = d.rawName || d.agentName;
+        if(!aggMap[nameKey]) aggMap[nameKey] = { 
+            name: d.agentName, 
+            rawName: rawKey, 
+            transfers: 0, 
+            ytelId: id 
+        };
+        if(d.duration >= 120) aggMap[nameKey].transfers++;
+    });
+    const aggregatedList = Object.values(aggMap);
+    
+    const pushState = {
+        dateLabel: report.reportDate,
+        pushedAt: new Date().toISOString(),
+        pushedBy: report.author || 'Auto-Push System',
+        sourceReportId: report.id,
+        agents: aggregatedList.map(d => ({
+            name: d.name,
+            ytelId: d.ytelId,
+            team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName) : 'PR',
+            dailyLeads: d.transfers
+        }))
+    };
+    
+    if (typeof window.saveLiveDashboardState === 'function') {
+        await window.saveLiveDashboardState(pushState);
+        console.log('✅ Auto-pushed report to Daily dashboard:', report.reportDate);
         
-        <!-- Header -->
-        <div class="bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border-2 border-cyan-500/30 rounded-2xl p-5 text-center shadow-[0_0_20px_rgba(6,182,212,0.15)] relative overflow-hidden group">
-            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent -translate-x-full group-hover:block transition-transform duration-1000 group-hover:translate-x-full"></div>
-            <div class="flex items-center justify-center gap-3 mb-2 relative z-10">
-                <span class="text-4xl text-cyan-400">📊</span>
-                <span class="text-2xl font-black bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent uppercase tracking-tight">Agent Stats</span>
-            </div>
-            <p class="text-cyan-400/80 text-[10px] font-bold uppercase tracking-widest relative z-10">Core Performance Analytics Hub</p>
-        </div>
-
-        <!-- Uploader -->
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/[0.07] transition duration-300">
-            <h3 class="text-white font-black uppercase text-sm mb-4 tracking-wider flex items-center justify-between">
-                <span>Upload CSV</span>
-                <i class="fas fa-cloud-upload-alt text-cyan-500"></i>
-            </h3>
-            
-            <!-- Retention Presets -->
-            <div class="grid grid-cols-4 gap-2 mb-3">
-                <button onclick="asSetRetention(7)" id="as-ret-7" class="as-ret-btn">7 Days</button>
-                <button onclick="asSetRetention(30)" id="as-ret-30" class="as-ret-btn active-ret">30 Days</button>
-                <button onclick="asSetRetention(60)" id="as-ret-60" class="as-ret-btn">60 Days</button>
-                <button onclick="asSetRetention(90)" id="as-ret-90" class="as-ret-btn">90 Days</button>
-            </div>
-            <div class="flex items-center gap-2 mb-3">
-                <input type="number" id="as-ret-custom" placeholder="Custom days..." onchange="asSetCustomRetention()" class="flex-1 bg-black/40 border border-white/10 rounded-xl p-2 text-white text-[10px] font-bold uppercase tracking-widest focus:border-cyan-500 outline-none transition">
-                <span class="text-[8px] text-slate-500">days</span>
-            </div>
-            
-            <!-- Auto-delete info -->
-            <div class="flex justify-between items-center text-[8px] text-slate-500 uppercase tracking-widest mb-3 px-1">
-                <span>Auto-deletes on:</span>
-                <span id="as-expiry-display" class="text-cyan-400 font-bold">—</span>
-            </div>
-
-            <div id="as-drop-zone" class="border-2 border-dashed border-cyan-500/30 rounded-xl p-6 text-center hover:border-cyan-400 hover:bg-cyan-500/5 transition cursor-pointer flex flex-col items-center justify-center">
-                <input type="file" id="as-file-input" accept=".csv" class="hidden">
-                <i class="fas fa-file-csv text-3xl text-cyan-500/50 mb-2"></i>
-                <div class="text-xs text-slate-300 font-bold">Click or Drag Dialer CSV here</div>
-                <div class="text-[9px] text-slate-500 mt-1">Xfer Report / Daily Overview</div>
-            </div>
-
-            <!-- Upload Config Panel (shown after file selected) -->
-            <div id="as-upload-panel" class="hidden mt-4 space-y-3">
-                <div class="flex items-center gap-2">
-                    <input type="checkbox" id="as-date-override-check" class="accent-cyan-500" onchange="asToggleDateOverride(this.checked)">
-                    <label class="text-[8px] text-slate-400 uppercase tracking-widest">Override auto-detected date</label>
-                </div>
-                <input type="text" id="as-report-date-input" readonly class="w-full bg-black/40 border border-white/10 rounded-xl p-2 text-white text-[10px] font-bold tracking-widest outline-none focus:border-cyan-500 transition" placeholder="MM/DD/YYYY">
-                <button onclick="asConfirmUpload()" class="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-black text-xs uppercase tracking-widest py-3 rounded-xl shadow-xl shadow-emerald-900/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-                    <i class="fas fa-check-circle"></i> Upload &amp; Save Report
-                </button>
-            </div>
-
-            <div id="as-upload-status" class="mt-4 text-[10px] text-center font-bold"></div>
-        </div>
-
-        <!-- History -->
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 flex-1 min-h-[300px] flex flex-col">
-            <h3 class="text-white font-black uppercase text-sm mb-4 tracking-wider flex items-center justify-between">
-                <span>Report History</span>
-                <i class="fas fa-history text-slate-400"></i>
-            </h3>
-            <div id="as-history-list" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                <div class="text-center text-slate-500 text-xs py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Loading cloud history...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content: Data View -->
-    <div class="w-full md:w-2/3 flex flex-col gap-6">
+        if (typeof window.updateDashboard === 'function') {
+            setTimeout(() => window.updateDashboard(), 500);
+        }
         
-        <!-- Controls & Meta -->
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-                <h2 id="as-report-title" class="text-xl font-black text-white italic tracking-tight">No Report Selected</h2>
-                <div id="as-report-meta" class="flex items-center gap-3 mt-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                    <span id="as-report-date"><i class="far fa-calendar-alt mr-1"></i> --</span>
-                    <span id="as-report-author"><i class="far fa-user mr-1"></i> --</span>
-                </div>
-            </div>
+        if (typeof window.agents !== 'undefined' && Array.isArray(window.agents)) {
+            aggregatedList.forEach(pushed => {
+                const existingAgent = window.agents.find(a => 
+                    a.name === pushed.name || 
+                    (pushed.ytelId && a.ytelId === pushed.ytelId)
+                );
+                if (existingAgent) {
+                    existingAgent.dailyLeads = pushed.transfers;
+                } else {
+                    window.agents.push({
+                        name: pushed.name,
+                        ytelId: pushed.ytelId,
+                        team: pushed.team,
+                        dailyLeads: pushed.transfers,
+                        weeklyLeads: 0
+                    });
+                }
+            });
             
-            <div class="flex gap-2 w-full sm:w-auto">
-                <button id="as-push-btn" class="hidden bg-green-500/10 border border-green-500/30 text-green-400 px-3 py-2 rounded-xl hover:bg-green-500/20 transition text-xs font-bold whitespace-nowrap" title="Push to Live Leaderboard">
-                    🚀 Push to Daily Full Board
-                </button>
-                <div class="relative flex-1 sm:w-48">
-                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                    <input type="text" id="as-search-input" placeholder="Search Agents..." class="w-full bg-black/40 border border-white/10 rounded-xl py-2 pl-8 pr-3 text-white text-xs focus:border-cyan-500 outline-none transition">
+            if (typeof window.render === 'function') window.render();
+            if (typeof window.checkLeadAlerts === 'function') window.checkLeadAlerts(window.agents);
+        }
+        
+        if (typeof window.writeAdminActivityLog === 'function') {
+            window.writeAdminActivityLog('auto_push', `Auto-pushed Report to Live Dashboard: ${report.reportDate}`);
+        }
+    }
+}
+
+function setupDropZone() {
+    const dropZone = document.getElementById('as-drop-zone');
+    const fileInput = document.getElementById('as-file-input');
+    
+    if (!dropZone || !fileInput) return;
+    
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-cyan-400', 'bg-cyan-500/10');
+    });
+    
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-cyan-400', 'bg-cyan-500/10');
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-cyan-400', 'bg-cyan-500/10');
+        if (e.dataTransfer.files.length) {
+            handleFileUpload(e.dataTransfer.files[0]);
+        }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) {
+            handleFileUpload(e.target.files[0]);
+        }
+    });
+}
+
+let _asStagedFile = null;
+let _asStagedParsed = null;
+let _asStagedDateStr = null;
+let _asStagedParsedDate = null;
+let _asRetentionDays = 30;
+
+window.asSetRetention = function(days) {
+    if (!days || isNaN(days) || days < 1) return;
+    _asRetentionDays = days;
+    [7, 30, 60, 90].forEach(d => {
+        const btn = document.getElementById(`as-ret-${d}`);
+        if (btn) btn.classList.remove('active-ret');
+        if (btn && d === days) btn.classList.add('active-ret');
+    });
+    const customInput = document.getElementById('as-ret-custom');
+    if (customInput && days !== 7 && days !== 30 && days !== 60 && days !== 90) {
+        customInput.value = days;
+    }
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + days);
+    const expiryEl = document.getElementById('as-expiry-display');
+    if (expiryEl) expiryEl.innerText = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+window.asSetCustomRetention = function() {
+    const customInput = document.getElementById('as-ret-custom');
+    if (customInput) {
+        let days = parseInt(customInput.value);
+        if (isNaN(days) || days < 1) days = 30;
+        if (days > 365) days = 365;
+        _asRetentionDays = days;
+        [7, 30, 60, 90].forEach(d => {
+            const btn = document.getElementById(`as-ret-${d}`);
+            if (btn) btn.classList.remove('active-ret');
+        });
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + days);
+        const expiryEl = document.getElementById('as-expiry-display');
+        if (expiryEl) expiryEl.innerText = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+};
+
+window.asToggleDateOverride = function(checked) {
+    const input = document.getElementById('as-report-date-input');
+    if (!input) return;
+    input.readOnly = !checked;
+    input.style.borderColor = checked ? 'rgba(6,182,212,0.5)' : '';
+    input.style.cursor = checked ? 'text' : 'default';
+};
+
+window.asConfirmUpload = async function() {
+    if (!_asStagedParsed || !_asStagedFile) {
+        updateStatsStatus('❌ No file staged. Please re-select your CSV.', true);
+        return;
+    }
+    
+    const dateInput = document.getElementById('as-report-date-input');
+    const isOverride = document.getElementById('as-date-override-check')?.checked;
+    let finalDateStr = _asStagedDateStr;
+    if (isOverride && dateInput && dateInput.value.trim()) {
+        finalDateStr = dateInput.value.trim();
+    }
+    
+    updateStatsStatus('<i class="fas fa-spinner fa-spin mr-2"></i> Saving to Firebase...', false);
+    
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const adminName = currentAdmin.name || currentAdmin.email || 'Admin';
+    
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + _asRetentionDays);
+    
+    const dayName = typeof getGuyanaDayName === 'function' ? getGuyanaDayName(_asStagedParsedDate) : 'MON';
+    
+    const reportObj = {
+        filename: _asStagedFile.name,
+        reportDate: finalDateStr,
+        dayOfWeek: dayName,
+        uploadedAt: new Date().toISOString(),
+        expiresAt: expiryDate.toISOString(),
+        author: adminName,
+        data: _asStagedParsed
+    };
+    
+    // Delete existing report for same date
+    const existingReport = allReports.find(r => r.reportDate === finalDateStr);
+    if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
+        await window.deleteAgentReportFromFirebase(existingReport.id);
+        console.log(`Deleted existing report for ${finalDateStr}`);
+    }
+    
+    if (typeof window.saveAgentReportToFirebase === 'function') {
+        const res = await window.saveAgentReportToFirebase(reportObj);
+        if (res && res.success) {
+            updateStatsStatus('✅ Report saved successfully! Auto-pushing to Dashboard...', false);
+            if (typeof window.writeAdminActivityLog === 'function') {
+                window.writeAdminActivityLog('upload_stats', `Uploaded Agent Stats Report: ${_asStagedFile.name}`);
+            }
+            
+            document.getElementById('as-upload-panel').classList.add('hidden');
+            _asStagedFile = null;
+            _asStagedParsed = null;
+            
+            setTimeout(() => updateStatsStatus('', false), 3000);
+        } else {
+            const errMsg = (res && res.error && res.error.message) ? res.error.message : 'Unknown error';
+            updateStatsStatus(`❌ Failed: ${errMsg}`, true);
+        }
+    } else {
+        updateStatsStatus('❌ Firebase not connected. Please reload.', true);
+    }
+};
+
+async function handleFileUpload(file) {
+    if (!file.name.endsWith('.csv')) {
+        updateStatsStatus('❌ Please upload a CSV file', true);
+        return;
+    }
+    
+    updateStatsStatus('<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing CSV...', false);
+    
+    let fileDateStr = null;
+    const _mdyM = file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})/);
+    const _ymdM = file.name.match(/(\d{4})[-_](\d{2})[-_](\d{2})/);
+    let parsedReportDate = new Date();
+    
+    if (_mdyM) {
+        parsedReportDate = new Date(_mdyM[3] + '-' + _mdyM[1] + '-' + _mdyM[2] + 'T12:00:00');
+        if (!isNaN(parsedReportDate)) fileDateStr = typeof getFormattedDate === 'function' ? getFormattedDate(parsedReportDate) : parsedReportDate.toLocaleDateString();
+    } else if (_ymdM) {
+        parsedReportDate = new Date(_ymdM[1] + '-' + _ymdM[2] + '-' + _ymdM[3] + 'T12:00:00');
+        if (!isNaN(parsedReportDate)) fileDateStr = typeof getFormattedDate === 'function' ? getFormattedDate(parsedReportDate) : parsedReportDate.toLocaleDateString();
+    }
+    if (!fileDateStr) fileDateStr = file.name.replace(/\.csv$/i, '');
+    
+    const text = await file.text();
+    let lines = text.split('\n');
+    let headerIdx = -1;
+    for(let i=0; i<lines.length; i++) {
+        const lower = lines[i].toLowerCase();
+        if(lower.includes('agent id') && lower.includes('agent name')) {
+            headerIdx = i;
+            break;
+        }
+        if(lower.includes('agent name')) {
+            headerIdx = i;
+            break;
+        }
+    }
+    
+    if(headerIdx === -1) {
+        updateStatsStatus('❌ CSV Missing "Agent Name" or "Agent Id" Header', true);
+        return;
+    }
+    
+    const validCSV = lines.slice(headerIdx).join('\n');
+    
+    Papa.parse(validCSV, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async function(results) {
+            try {
+                const parsedData = processCSVRows(results.data);
+                
+                if (parsedData.length === 0) {
+                    const headers = results.meta && results.meta.fields ? results.meta.fields.join(' | ') : 'none';
+                    updateStatsStatus(`❌ Failed. Cols: ${headers}`, true);
+                    return;
+                }
+                
+                _asStagedFile = file;
+                _asStagedParsed = parsedData;
+                _asStagedDateStr = fileDateStr;
+                _asStagedParsedDate = parsedReportDate;
+                _asRetentionDays = 30;
+                
+                const dateInput = document.getElementById('as-report-date-input');
+                if (dateInput) dateInput.value = fileDateStr;
+                
+                asSetRetention(30);
+                
+                const panel = document.getElementById('as-upload-panel');
+                if (panel) panel.classList.remove('hidden');
+                
+                updateStatsStatus(`✅ Ready: ${parsedData.length} rows — ${new Set(parsedData.map(d=>d.agentName)).size} agents detected`, false);
+                
+            } catch(err) {
+                updateStatsStatus('❌ Error processing CSV: ' + err.message, true);
+            }
+        },
+        error: function(err) {
+            updateStatsStatus('❌ Error parsing CSV: ' + err.message, true);
+        }
+    });
+}
+
+// 🔥 FIXED: Process CSV rows - preserve original order (newest first from file)
+function processCSVRows(rows) {
+    if(!rows || rows.length === 0) return [];
+    
+    const keys = Object.keys(rows[0]);
+    
+    // 1. Identify ID Column
+    let idCol = keys.find(k => {
+        const l = k.toLowerCase();
+        return l === 'agent id' || l === 'user id' || l === 'ext' || l === 'id' || l === 'extension';
+    }) || keys.find(k => k.toLowerCase().includes('id')) || keys[0];
+    
+    // 2. Identify Name Column
+    let nameCol = keys.find(k => {
+        const l = k.toLowerCase();
+        if (k === idCol) return false;
+        return l === 'agent name' || l === 'full name' || l === 'name' || (l.includes('agent') && !l.includes('id'));
+    }) || keys.find(k => k !== idCol && k.toLowerCase().includes('name')) || keys.find(k => k !== idCol) || keys[1];
+    
+    // 3. Identify Status Column
+    let statusCol = keys.find(k => {
+        const l = k.toLowerCase();
+        return (l.includes('status') || l.includes('state')) && k !== idCol && k !== nameCol;
+    }) || keys.find(k => k !== idCol && k !== nameCol) || keys[2];
+    
+    // 4. Identify Duration Column
+    let durationColName = keys.find(k => {
+        const l = k.toLowerCase();
+        return (l.includes('duration') || l.includes('time') || l.includes('length')) && k !== idCol && k !== nameCol && k !== statusCol;
+    }) || keys.find(k => k !== idCol && k !== nameCol && k !== statusCol) || keys[3];
+    
+    // 5. Identify Xfer Date Column for sorting (preserve order but ensure consistency)
+    let dateCol = keys.find(k => {
+        const l = k.toLowerCase();
+        return l.includes('xfer date') || l === 'xfer date';
+    });
+
+    const parsedArray = [];
+    
+    rows.forEach(row => {
+        const id = String(row[idCol] || '').trim();
+        const rawName = String(row[nameCol] || 'Unknown').toUpperCase().trim();
+        const cleanName = typeof stripPrefix === 'function' ? stripPrefix(rawName).toUpperCase() : rawName;
+        
+        if (cleanName === 'UNKNOWN' || cleanName === '') return;
+        
+        // Skip placeholders/training accounts (PH prefix)
+        if (rawName.startsWith('PH ') && rawName.length < 10) return;
+        
+        const status = String(row[statusCol] || '').trim();
+        
+        let duration = 0;
+        if(row[durationColName]) {
+            const durRaw = String(row[durationColName]).trim();
+            if(durRaw.includes(':')) {
+                const parts = durRaw.split(':').map(Number);
+                if(parts.length === 2) duration = parts[0]*60 + parts[1];
+                else if(parts.length === 3) duration = parts[0]*3600 + parts[1]*60 + parts[2];
+            } else {
+                duration = parseInt(durRaw, 10) || 0;
+            }
+        }
+        
+        // Parse timestamp for sorting (newest first)
+        let timestamp = null;
+        if (dateCol && row[dateCol]) {
+            timestamp = new Date(row[dateCol]);
+        } else {
+            // Use current time as fallback
+            timestamp = new Date();
+        }
+        
+        parsedArray.push({
+            agentId: String(id).trim(),
+            agentName: cleanName,
+            rawName: rawName,
+            status: status.toUpperCase(),
+            duration: duration,
+            timestamp: timestamp,
+            rawDate: dateCol ? row[dateCol] : null
+        });
+    });
+    
+    // 🔥 Sort by timestamp (NEWEST FIRST - most recent transfers at top)
+    parsedArray.sort((a, b) => {
+        if (a.timestamp && b.timestamp) {
+            return b.timestamp - a.timestamp;
+        }
+        return 0;
+    });
+    
+    console.log(`Processed ${parsedArray.length} rows, sorted by timestamp (newest first)`);
+    return parsedArray;
+}
+
+function updateStatsStatus(msg, isError) {
+    const el = document.getElementById('as-upload-status');
+    if(el) {
+        el.innerHTML = msg;
+        el.className = 'mt-4 text-[10px] text-center font-bold ' + (isError ? 'text-red-400' : 'text-cyan-400');
+    }
+}
+
+// Render history list with latest at TOP
+function renderHistoryList(isNewReport = false, newReportId = null) {
+    const listHtmls = document.querySelectorAll('#as-history-list');
+    if (listHtmls.length === 0) return;
+    
+    if (allReports.length === 0) {
+        listHtmls.forEach(listHtml => {
+            listHtml.innerHTML = '<div class="text-center text-slate-500 text-xs py-8">No historical reports inside database.</div>';
+        });
+        return;
+    }
+    
+    // Sort DESCENDING by upload time (newest first at TOP)
+    const sorted = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+    
+    const htmlOutput = sorted.map((r, i) => {
+        const isLatest = i === 0;
+        const isNew = isNewReport && newReportId === r.id;
+        const fileDate = r.reportDate || r.filename || 'Unknown Date';
+        const uploadDate = new Date(r.uploadedAt).toLocaleDateString('en-US');
+        const uploadDateTime = new Date(r.uploadedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const isActive = currentReportData && currentReportData.id === r.id;
+        
+        // Calculate days remaining until auto-delete
+        let daysRemaining = '';
+        if (r.expiresAt) {
+            const expiryDate = new Date(r.expiresAt);
+            const now = new Date();
+            const diffDays = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
+            if (diffDays > 0) {
+                daysRemaining = `<span class="text-[8px] ${diffDays <= 3 ? 'text-red-400' : 'text-slate-500'}">(${diffDays} days left)</span>`;
+            } else if (diffDays === 0) {
+                daysRemaining = '<span class="text-[8px] text-orange-400">(expires today)</span>';
+            } else {
+                daysRemaining = '<span class="text-[8px] text-red-400">(expired)</span>';
+            }
+        }
+        
+        const highlightClass = isNew ? 'report-item-new' : '';
+        
+        return `
+            <div onclick="window.viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl flex justify-between items-center cursor-pointer ${isActive ? 'active' : ''} ${highlightClass}" style="cursor:pointer; ${isNew ? 'animation: highlightPulse 0.5s ease-in-out 3;' : ''}">
+                <div>
+                    <div class="text-xs font-bold text-white flex items-center gap-2 flex-wrap">
+                        <i class="far fa-file-alt text-cyan-500"></i> ${fileDate}
+                        ${isLatest ? '<span class="bg-cyan-500/20 text-cyan-400 text-[8px] px-1.5 py-0.5 rounded font-black tracking-widest uppercase">Latest</span>' : ''}
+                        ${isNew ? '<span class="bg-green-500/20 text-green-400 text-[8px] px-1.5 py-0.5 rounded font-black tracking-widest uppercase animate-pulse">✨ NEW</span>' : ''}
+                        ${daysRemaining}
+                    </div>
+                    <div class="text-[8px] text-slate-500 mt-1 ml-5" title="${r.filename}">${r.filename ? r.filename.substring(0, 30) + (r.filename.length > 30 ? '...' : '') : ''}</div>
                 </div>
-                <button id="as-delete-btn" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 p-2 rounded-xl hover:bg-red-500/20 transition" title="Delete Report">
-                    <i class="fas fa-trash"></i>
-                </button>
+                <div class="text-[8px] text-slate-400 text-right">
+                    <div><i class="far fa-user"></i> ${r.author || 'Admin'}</div>
+                    <div class="mt-0.5 text-slate-600"><i class="far fa-clock"></i> ${uploadDateTime}</div>
+                </div>
             </div>
-        </div>
-
-        <!-- Global Stats Row -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-zinc-900 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-                <div class="text-2xl font-black text-white" id="as-stat-agents">0</div>
-                <div class="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Total Agents</div>
-            </div>
-            <div class="bg-zinc-900 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-                <div class="text-2xl font-black text-white" id="as-stat-calls">0</div>
-                <div class="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Total Connections</div>
-            </div>
-            <div class="bg-cyan-950 border border-cyan-500/30 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-                <div class="text-2xl font-black text-cyan-400" id="as-stat-transfers">0</div>
-                <div class="text-[9px] text-cyan-500/70 uppercase font-black tracking-widest mt-1">Transfers (≥120s)</div>
-            </div>
-            <div class="bg-zinc-900 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-                <div class="text-2xl font-black text-white" id="as-stat-rate">0%</div>
-                <div class="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Avg Transfer Rate</div>
-            </div>
-        </div>
-
-        <!-- Table Container -->
-        <div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden flex-1 flex flex-col">
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-white/5 border-b border-white/10 text-[10px] uppercase tracking-widest font-black text-slate-400 sticky top-0">
-                            <th class="p-3 cursor-pointer hover:text-white transition" onclick="sortAgentStats('agentId')">ID <i class="fas fa-sort ml-1 opacity-50"></i></th>
-                            <th class="p-3 cursor-pointer hover:text-white transition" onclick="sortAgentStats('agentName')">Agent Name <i class="fas fa-sort ml-1 opacity-50"></i></th>
-                            <th class="p-3 cursor-pointer hover:text-white transition text-center" onclick="sortAgentStats('status')">Lead Status <i class="fas fa-sort ml-1 opacity-50"></i></th>
-                            <th class="p-3 cursor-pointer hover:text-white transition text-center" onclick="sortAgentStats('duration')">Duration (s) <i class="fas fa-sort ml-1 opacity-50"></i></th>
-                            <th class="p-3 cursor-pointer hover:text-white transition text-right" onclick="sortAgentStats('duration')">Result <i class="fas fa-sort ml-1 opacity-50"></i></th>
-                        </tr>
-                    </thead>
-                    <tbody id="as-table-body" class="text-sm divide-y divide-white/5">
-                        <tr>
-                            <td colspan="5" class="p-8 text-center text-slate-500 text-xs italic">Select a report from history or upload a new CSV.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-    </div>
-</div>
-
-<style>
-/* Scoped CSS for Agent Stats */
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(6,182,212,0.5); }
-
-.report-item { 
-    transition: all 0.2s ease; 
-    cursor: pointer; 
-    border-left: 3px solid transparent;
-    border-radius: 12px;
-    margin-bottom: 8px;
-}
-.report-item:hover { 
-    background: rgba(255,255,255,0.08) !important; 
-    transform: translateX(4px);
-}
-.report-item.active { 
-    background: rgba(6,182,212,0.15) !important; 
-    border-left-color: #06b6d4;
-}
-.report-item-new {
-    background: rgba(6,182,212,0.1) !important;
-    border-left: 3px solid #06b6d4;
-    animation: highlightPulse 0.5s ease-in-out 3;
+        `;
+    }).join('');
+    
+    listHtmls.forEach(listHtml => {
+        listHtml.innerHTML = htmlOutput;
+        
+        if (isNewReport && listHtml.parentElement) {
+            setTimeout(() => {
+                listHtml.parentElement.scrollTop = 0;
+            }, 100);
+        }
+    });
+    
+    if (!document.getElementById('stats-highlight-style')) {
+        const style = document.createElement('style');
+        style.id = 'stats-highlight-style';
+        style.textContent = `
+            @keyframes highlightPulse {
+                0% { background: rgba(6, 182, 212, 0); border-left: 3px solid transparent; }
+                30% { background: rgba(6, 182, 212, 0.3); border-left: 3px solid #06b6d4; }
+                70% { background: rgba(6, 182, 212, 0.15); border-left: 3px solid #06b6d4; }
+                100% { background: rgba(6, 182, 212, 0); border-left: 3px solid transparent; }
+            }
+            @keyframes rowHighlight {
+                0% { background: rgba(34, 197, 94, 0); transform: scale(1); }
+                30% { background: rgba(34, 197, 94, 0.3); transform: scale(1.02); }
+                70% { background: rgba(34, 197, 94, 0.15); transform: scale(1.01); }
+                100% { background: rgba(34, 197, 94, 0); transform: scale(1); }
+            }
+            .report-item-new {
+                background: rgba(6, 182, 212, 0.1) !important;
+                border-left: 3px solid #06b6d4;
+                animation: highlightPulse 0.5s ease-in-out 3;
+            }
+            .report-item {
+                transition: all 0.2s ease;
+                border-left: 3px solid transparent;
+            }
+            .report-item:hover {
+                background: rgba(255, 255, 255, 0.08) !important;
+                transform: translateX(4px);
+            }
+            .report-item.active {
+                background: rgba(6, 182, 212, 0.15) !important;
+                border-left-color: #06b6d4;
+            }
+            .new-lead-row {
+                animation: rowHighlight 0.8s ease-in-out 2;
+                background: rgba(34, 197, 94, 0.15);
+                border-left: 3px solid #22c55e;
+            }
+            .as-ret-btn.active-ret {
+                background: rgba(6, 182, 212, 0.2);
+                border-color: #06b6d4;
+                color: #22d3ee;
+            }
+        `;
+        document.head.appendChild(style);
+    }
 }
 
-.as-ret-btn {
-    padding: 6px 8px;
-    border-radius: 10px;
-    font-size: 9px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    border: 1px solid rgba(255,255,255,0.08);
-    background: rgba(255,255,255,0.04);
-    color: #64748b;
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.as-ret-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
-.as-ret-btn.active-ret {
-    background: rgba(6,182,212,0.2);
-    border-color: #06b6d4;
-    color: #22d3ee;
+window.viewReport = function(id) {
+    const report = allReports.find(r => r.id === id);
+    if (!report) return;
+    
+    // Store previous report data for new lead detection (use the previously viewed report, not all reports)
+    if (currentReportData && currentReportData.data) {
+        previousReportData = currentReportData;
+    }
+    
+    currentReportData = report;
+    
+    // 🔥 FIXED: Find new leads by comparing with the PREVIOUS report (not all reports)
+    newLeadsList = [];
+    
+    if (previousReportData && previousReportData.data) {
+        // Create a map of previous report's XFERs by agent name
+        const previousXfers = new Map();
+        previousReportData.data.forEach(row => {
+            if (row.duration >= 120) {
+                const key = `${row.agentName}`.toUpperCase().trim();
+                previousXfers.set(key, true);
+            }
+        });
+        
+        // Find new XFERs in current report that weren't in previous
+        report.data.forEach(row => {
+            const isXfer = row.duration >= 120;
+            const agentKey = `${row.agentName}`.toUpperCase().trim();
+            
+            if (isXfer && !previousXfers.has(agentKey)) {
+                newLeadsList.push(row);
+            }
+        });
+    } else {
+        // First report - mark all XFERs as new
+        report.data.forEach(row => {
+            if (row.duration >= 120) {
+                newLeadsList.push(row);
+            }
+        });
+    }
+    
+    console.log(`Found ${newLeadsList.length} new leads in this report (comparing to previous report)`);
+    
+    renderHistoryList();
+    
+    // Update meta info with upload date and expiry
+    const uploadDateTime = new Date(report.uploadedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    document.querySelectorAll('#as-report-title').forEach(el => el.innerText = '📊 Report: ' + report.reportDate);
+    document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> Uploaded: ${uploadDateTime}`);
+    document.querySelectorAll('#as-report-author').forEach(el => el.innerHTML = `<i class="far fa-user mr-1"></i> ${report.author}`);
+    
+    // Add expiry info to meta
+    let expiryHtml = '';
+    if (report.expiresAt) {
+        const expiryDate = new Date(report.expiresAt);
+        const now = new Date();
+        const diffDays = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) {
+            expiryHtml = `<span class="ml-3 ${diffDays <= 3 ? 'text-red-400' : 'text-slate-500'}"><i class="far fa-hourglass-half mr-1"></i>Auto-deletes in ${diffDays} day${diffDays !== 1 ? 's' : ''}</span>`;
+        } else if (diffDays === 0) {
+            expiryHtml = '<span class="ml-3 text-orange-400"><i class="far fa-hourglass-half mr-1"></i>Expires today</span>';
+        } else {
+            expiryHtml = '<span class="ml-3 text-red-400"><i class="fas fa-exclamation-triangle mr-1"></i>Expired</span>';
+        }
+    }
+    document.querySelectorAll('#as-report-meta').forEach(el => {
+        const existingHtml = el.innerHTML;
+        if (!existingHtml.includes('Auto-deletes')) {
+            el.innerHTML = existingHtml + expiryHtml;
+        }
+    });
+    
+    // Wire up delete button (Super Admin only)
+    const delBtns = document.querySelectorAll('#as-delete-btn');
+    delBtns.forEach(delBtn => {
+        const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        if (cAdmin.role === 'super_admin' || cAdmin.isSuper) {
+            delBtn.classList.remove('hidden');
+            delBtn.onclick = () => {
+                if(confirm('Permanently delete this report globally?')) {
+                    if (typeof window.deleteAgentReportFromFirebase === 'function') {
+                        window.deleteAgentReportFromFirebase(id);
+                        currentReportData = null;
+                        if (typeof window.writeAdminActivityLog === 'function') {
+                            window.writeAdminActivityLog('delete_stats', `Deleted Agent Report: ${report.reportDate}`);
+                        }
+                    }
+                }
+            };
+        } else {
+            delBtn.classList.add('hidden');
+        }
+    });
+    
+    // Wire up Push Button (Super Admin only)
+    const pushBtns = document.querySelectorAll('#as-push-btn');
+    pushBtns.forEach(pushBtn => {
+        const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        if (cAdmin.role === 'super_admin' || cAdmin.isSuper) {
+            pushBtn.classList.remove('hidden');
+            pushBtn.onclick = async () => {
+                if(confirm(`WARNING: This will overwrite the "TODAY" Live Leaderboard with this report (${report.reportDate}). Continue?`)) {
+                    
+                    const aggMap = {};
+                    report.data.forEach(d => {
+                        const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
+                        const id = d.agentId || d.ytelId || d.agentName;
+                        const rawKey = d.rawName || d.agentName;
+                        if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0, ytelId: id };
+                        if(d.duration >= 120) aggMap[nameKey].transfers++;
+                    });
+                    const aggregatedList = Object.values(aggMap);
+                    
+                    const pushState = {
+                        dateLabel: report.reportDate,
+                        pushedAt: new Date().toISOString(),
+                        pushedBy: report.author || 'Manual Push',
+                        sourceReportId: report.id,
+                        agents: aggregatedList.map(d => ({
+                            name: d.name,
+                            ytelId: d.ytelId,
+                            team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName) : 'PR',
+                            dailyLeads: d.transfers
+                        }))
+                    };
+                    
+                    if (typeof window.saveLiveDashboardState === 'function') {
+                        await window.saveLiveDashboardState(pushState);
+                        pushBtns.forEach(btn => btn.innerHTML = '✅ Pushed!');
+                        setTimeout(() => pushBtns.forEach(btn => btn.innerHTML = '🚀 Push to Daily Full Board'), 2000);
+                        
+                        if (typeof window.writeAdminActivityLog === 'function') {
+                            window.writeAdminActivityLog('push_dashboard', `Manually Pushed Report to Live Dashboard: ${report.reportDate}`);
+                        }
+                    }
+                }
+            };
+        } else {
+            pushBtn.classList.add('hidden');
+        }
+    });
+    
+    renderActiveReportTable();
+};
+
+window.sortAgentStats = function(col) {
+    if (asSortCol === col) {
+        asSortAsc = !asSortAsc;
+    } else {
+        asSortCol = col;
+        asSortAsc = (col === 'agentName' || col === 'agentId');
+    }
+    renderActiveReportTable();
+};
+
+// Render table with new leads highlighted at TOP
+function renderActiveReportTable() {
+    if (!currentReportData) return;
+    
+    const rawRows = currentReportData.data;
+    
+    const totalXfers = rawRows.filter(d => (d.duration || 0) >= 120).length;
+    const totalCalls = rawRows.length;
+    const agentCount = new Set(rawRows.map(d => d.agentId)).size;
+    
+    document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
+    document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = totalCalls);
+    document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
+    document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = agentCount > 0 ? ((totalXfers / agentCount)*100).toFixed(1) + '%' : '0%');
+    
+    let displayRows = [...rawRows];
+    
+    let searchVal = '';
+    const searchInput = document.getElementById('as-search-input');
+    if (searchInput) searchVal = searchInput.value.toLowerCase().trim();
+    if (searchVal) {
+        displayRows = displayRows.filter(d => d.agentName.toLowerCase().includes(searchVal) || d.agentId.toLowerCase().includes(searchVal));
+    }
+    
+    // Mark which rows are new leads
+    const newLeadIds = new Set();
+    newLeadsList.forEach(lead => {
+        const key = `${lead.agentId}_${lead.agentName}`;
+        newLeadIds.add(key);
+    });
+    
+    // Sort: new leads first, then by timestamp (newest first), then XFERs first
+    displayRows.sort((a, b) => {
+        const aIsNew = newLeadIds.has(`${a.agentId}_${a.agentName}`);
+        const bIsNew = newLeadIds.has(`${b.agentId}_${b.agentName}`);
+        
+        // New leads come FIRST
+        if (aIsNew && !bIsNew) return -1;
+        if (!aIsNew && bIsNew) return 1;
+        
+        // Then sort by timestamp (newest first)
+        if (a.timestamp && b.timestamp) {
+            return b.timestamp - a.timestamp;
+        }
+        
+        // Then XFERs first
+        const aIsXfer = a.duration >= 120;
+        const bIsXfer = b.duration >= 120;
+        if (aIsXfer && !bIsXfer) return -1;
+        if (!aIsXfer && bIsXfer) return 1;
+        
+        // Then by duration (higher first)
+        if (a.duration !== b.duration) {
+            return b.duration - a.duration;
+        }
+        
+        // Then alphabetically
+        return a.agentName.localeCompare(b.agentName);
+    });
+    
+    const tbodies = document.querySelectorAll('#as-table-body');
+    if (displayRows.length === 0) {
+        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500 text-xs italic">No matching leads found.<\/td><\/tr>`);
+        return;
+    }
+
+    const chunkSize = 50;
+    let currentIndex = 0;
+    tbodies.forEach(tbody => tbody.innerHTML = '');
+
+    function renderNextChunk() {
+        const nextBatch = displayRows.slice(currentIndex, currentIndex + chunkSize);
+        const html = nextBatch.map(d => {
+            const isXfer = (d.duration || 0) >= 120;
+            const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
+            const typeLabel = isXfer ? 'XFER' : 'CONN';
+            
+            const key = `${d.agentId}_${d.agentName}`;
+            const isNewLead = newLeadIds.has(key);
+            const highlightClass = isNewLead ? 'new-lead-row' : '';
+            const newLeadIndicator = isNewLead ? '<span class="ml-2 text-[10px] bg-green-500/30 text-green-400 px-1.5 py-0.5 rounded-full animate-pulse">⭐ NEW</span>' : '';
+            
+            // Format time display
+            let timeDisplay = '';
+            if (d.rawDate) {
+                timeDisplay = `<div class="text-[8px] text-slate-500">${d.rawDate}</div>`;
+            }
+            
+            return `
+                <tr class="border-b border-white/5 hover:bg-white/5 transition group text-[11px] ${highlightClass}">
+                    <td class="p-3 text-slate-500 font-mono">${escapeHtml(d.agentId)}<\/td>
+                    <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">
+                        ${escapeHtml(d.rawName || d.agentName)}
+                        ${newLeadIndicator}
+                        ${timeDisplay}
+                    <\/td>
+                    <td class="p-3 text-center text-slate-400 truncate max-w-[100px]" title="${escapeHtml(d.status)}">${escapeHtml(d.status)}<\/td>
+                    <td class="p-3 text-center text-slate-300 font-mono">${d.duration}s<\/td>
+                    <td class="p-3 text-right ${typeColor}">${typeLabel}<\/td>
+                 \u007d\u007d
+            `;
+        }).join('');
+
+        tbodies.forEach(tbody => tbody.insertAdjacentHTML('beforeend', html));
+        currentIndex += chunkSize;
+
+        if (currentIndex < displayRows.length) {
+            requestAnimationFrame(renderNextChunk);
+        } else {
+            // Scroll to top to show new leads
+            if (newLeadsList.length > 0) {
+                setTimeout(() => {
+                    const tableContainer = document.querySelector('.glass.rounded-3xl.overflow-hidden');
+                    if (tableContainer) tableContainer.scrollTop = 0;
+                }, 100);
+            }
+        }
+    }
+
+    renderNextChunk();
 }
 
-.new-lead-row {
-    animation: rowHighlight 0.8s ease-in-out 2;
-    background: rgba(34,197,94,0.1);
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
 }
-
-@keyframes highlightPulse {
-    0% { background: rgba(6,182,212,0); border-left: 3px solid transparent; }
-    30% { background: rgba(6,182,212,0.3); border-left: 3px solid #06b6d4; }
-    70% { background: rgba(6,182,212,0.15); border-left: 3px solid #06b6d4; }
-    100% { background: rgba(6,182,212,0); border-left: 3px solid transparent; }
-}
-
-@keyframes rowHighlight {
-    0% { background: rgba(34,197,94,0); }
-    50% { background: rgba(34,197,94,0.3); }
-    100% { background: rgba(34,197,94,0); }
-}
-
-/* Sticky header for table */
-thead tr {
-    position: sticky;
-    top: 0;
-    background: rgba(15, 23, 42, 0.95);
-    backdrop-filter: blur(8px);
-    z-index: 10;
-}
-
-/* Response table rows */
-#as-table-body tr {
-    transition: background 0.2s ease;
-}
-#as-table-body tr:hover {
-    background: rgba(255,255,255,0.05);
-}
-
-/* Table container scroll */
-.overflow-x-auto {
-    max-height: 500px;
-    overflow-y: auto;
-}
-</style>
