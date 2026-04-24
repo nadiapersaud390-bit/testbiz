@@ -1,6 +1,7 @@
 /**
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
  * AUTO-PUSH: Most recent file automatically updates the Daily dashboard
+ * NEW: Highlight effect for newly added reports
  */
 
 let allReports = [];
@@ -11,6 +12,7 @@ let asSubscribed = false; // Flag to prevent multiple listeners
 
 // Track last auto-pushed report to prevent duplicates
 let lastAutoPushedReportId = null;
+let lastReportCount = 0; // Track count to detect new reports
 
 // Initialization function called from index.html (or tab load)
 window.renderAgentStatsHistory = function() {
@@ -24,6 +26,11 @@ window.renderAgentStatsHistory = function() {
     } else if (typeof window.listenForAgentReports === 'function') {
         window.listenForAgentReports(data => {
             console.log('Agent Stats: Received data update', data?.length);
+            
+            // Detect if this is a NEW report being added
+            const isNewReport = allReports.length > 0 && data && data.length > allReports.length;
+            const newReportId = isNewReport && data[0] ? data[0].id : null;
+            
             allReports = data || [];
             window.allAgentReports = allReports; // Expose globally for Zero Performance tab
             
@@ -43,7 +50,7 @@ window.renderAgentStatsHistory = function() {
             
             if (needsCleanup) return; // The listener will fire again after deletions
             
-            renderHistoryList();
+            renderHistoryList(isNewReport, newReportId);
             
             // If we don't have a currently viewed report, pick the latest.
             // If we DO have one, refresh it to show data in the potentially re-loaded tab HTML.
@@ -490,7 +497,8 @@ function updateStatsStatus(msg, isError) {
     }
 }
 
-function renderHistoryList() {
+// 🔥 UPDATED: Render history list with highlight effect for new reports
+function renderHistoryList(isNewReport = false, newReportId = null) {
     const listHtmls = document.querySelectorAll('#as-history-list');
     if (listHtmls.length === 0) return;
     
@@ -501,26 +509,33 @@ function renderHistoryList() {
         return;
     }
     
+    // Sort descending by upload time (most recent first)
     const sorted = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
     
     const htmlOutput = sorted.map((r, i) => {
         const isLatest = i === 0;
+        const isNew = isNewReport && newReportId === r.id;
         const fileDate = r.reportDate || r.filename || 'Unknown Date';
         const uploadDate = new Date(r.uploadedAt).toLocaleDateString('en-GB');
+        const uploadTime = new Date(r.uploadedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         const isActive = currentReportData && currentReportData.id === r.id;
         
+        // Add highlight class for new reports
+        const highlightClass = isNew ? 'report-item-new' : '';
+        
         return `
-            <div onclick="window.viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl flex justify-between items-center cursor-pointer ${isActive ? 'active' : ''}" style="cursor:pointer;">
+            <div onclick="window.viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl flex justify-between items-center cursor-pointer ${isActive ? 'active' : ''} ${highlightClass}" style="cursor:pointer; ${isNew ? 'animation: highlightPulse 0.5s ease-in-out 3;' : ''}">
                 <div>
                     <div class="text-xs font-bold text-white flex items-center gap-2">
                         <i class="far fa-file-alt text-cyan-500"></i> ${fileDate}
                         ${isLatest ? '<span class="bg-cyan-500/20 text-cyan-400 text-[8px] px-1.5 py-0.5 rounded font-black tracking-widest uppercase">Latest</span>' : ''}
+                        ${isNew ? '<span class="bg-green-500/20 text-green-400 text-[8px] px-1.5 py-0.5 rounded font-black tracking-widest uppercase animate-pulse">✨ NEW</span>' : ''}
                     </div>
                     <div class="text-[9px] text-slate-500 mt-0.5 ml-5 truncate w-32" title="${r.filename}">${r.filename || ''}</div>
                 </div>
                 <div class="text-[9px] text-slate-400 text-right">
                     <div><i class="far fa-user"></i> ${r.author || 'Admin'}</div>
-                    <div class="mt-0.5 text-slate-600">Uploaded: ${uploadDate}</div>
+                    <div class="mt-0.5 text-slate-600"><i class="far fa-clock"></i> ${uploadDate} ${uploadTime}</div>
                 </div>
             </div>
         `;
@@ -528,7 +543,50 @@ function renderHistoryList() {
     
     listHtmls.forEach(listHtml => {
         listHtml.innerHTML = htmlOutput;
+        
+        // Auto-scroll to top when new report is added
+        if (isNewReport && listHtml.parentElement) {
+            listHtml.parentElement.scrollTop = 0;
+            
+            // Also scroll the main container
+            const container = document.getElementById('admin-hub-content');
+            if (container) {
+                container.scrollTop = 0;
+            }
+        }
     });
+    
+    // Add CSS animation if not already present
+    if (!document.getElementById('stats-highlight-style')) {
+        const style = document.createElement('style');
+        style.id = 'stats-highlight-style';
+        style.textContent = `
+            @keyframes highlightPulse {
+                0% { background: rgba(6, 182, 212, 0); border-left: 3px solid transparent; }
+                30% { background: rgba(6, 182, 212, 0.3); border-left: 3px solid #06b6d4; }
+                70% { background: rgba(6, 182, 212, 0.15); border-left: 3px solid #06b6d4; }
+                100% { background: rgba(6, 182, 212, 0); border-left: 3px solid transparent; }
+            }
+            .report-item-new {
+                background: rgba(6, 182, 212, 0.1) !important;
+                border-left: 3px solid #06b6d4;
+                animation: highlightPulse 0.5s ease-in-out 3;
+            }
+            .report-item {
+                transition: all 0.2s ease;
+                border-left: 3px solid transparent;
+            }
+            .report-item:hover {
+                background: rgba(255, 255, 255, 0.08) !important;
+                transform: translateX(4px);
+            }
+            .report-item.active {
+                background: rgba(6, 182, 212, 0.15) !important;
+                border-left-color: #06b6d4;
+            }
+        `;
+        document.head.appendChild(style);
+    }
 }
 
 window.viewReport = function(id) {
@@ -538,8 +596,8 @@ window.viewReport = function(id) {
     currentReportData = report;
     renderHistoryList();
     
-    document.querySelectorAll('#as-report-title').forEach(el => el.innerText = 'Report: ' + report.reportDate);
-    document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> Uploaded ${new Date(report.uploadedAt).toLocaleDateString()}`);
+    document.querySelectorAll('#as-report-title').forEach(el => el.innerText = '📊 Report: ' + report.reportDate);
+    document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> Uploaded ${new Date(report.uploadedAt).toLocaleDateString()} at ${new Date(report.uploadedAt).toLocaleTimeString()}`);
     document.querySelectorAll('#as-report-author').forEach(el => el.innerHTML = `<i class="far fa-user mr-1"></i> ${report.author}`);
     
     // Wire up delete button
@@ -666,7 +724,7 @@ function renderActiveReportTable() {
     
     const tbodies = document.querySelectorAll('#as-table-body');
     if (displayRows.length === 0) {
-        tbodies.forEach(tbody => tbody.innerHTML = `<td><td colspan="5" class="p-8 text-center text-slate-500 text-xs italic">No matching leads found.<\/td><\/tr>`);
+        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500 text-xs italic">No matching leads found.<\/td><\/tr>`);
         return;
     }
 
