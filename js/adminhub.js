@@ -12,17 +12,26 @@ const ahTeamColors = {
 
 // Internal tab switcher
 window.switchAdminHubTab = function(tabId) {
-    // Permission Check for Admin Tools
+    // Permission Check for restricted tabs
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
     const isMomo = String(currentAdmin.email || '').toLowerCase() === 'momo';
     
+    // BLOCK restricted tabs for non-super admins
     if (tabId === 'admintools' && !isSuper) {
         console.warn('Unauthorized access to Admin Tools blocked.');
         return;
     }
     if (tabId === 'stats' && !isSuper) {
         console.warn('Unauthorized access to Agent Stats blocked.');
+        return;
+    }
+    if (tabId === 'trivia' && !isSuper) {
+        console.warn('Unauthorized access to Trivia blocked.');
+        return;
+    }
+    if (tabId === 'super' && !isSuper) {
+        console.warn('Unauthorized access to Super Admin blocked.');
         return;
     }
 
@@ -42,7 +51,6 @@ window.switchAdminHubTab = function(tabId) {
     if (target) target.classList.remove('hidden');
     
     // Lazy Load/Init Sub-modules
-    // Lazy Load/Init Sub-modules
     if (tabId === 'profiles' && typeof window.initAgentProfiles === 'function') window.initAgentProfiles();
     if (tabId === 'stats' && typeof window.renderAgentStatsHistory === 'function') window.renderAgentStatsHistory();
     if (tabId === 'coaching' && typeof window.coachingInit === 'function') window.coachingInit();
@@ -58,11 +66,9 @@ function ahInitZeroPerf() {
     const weeklyList = document.getElementById('ah-zero-weekly-list');
     if (!dailyList || !weeklyList) return;
 
-    // Prefer active daily agents, but fallback to the full roster if needed
     const profiles = (window.agents && window.agents.length > 0) ? window.agents : (window.allAgentProfiles || []);
     const reports  = window.allAgentReports  || [];
 
-    // Helper to find an agent's count in a map using multiple possible keys (ID, Name, etc)
     function getCount(p, countMap) {
         const id1 = String(p.ytelId || '').trim();
         const id2 = String(p.userId || '').trim();
@@ -74,7 +80,6 @@ function ahInitZeroPerf() {
         return 0;
     }
 
-    // ── Date helpers ──────────────────────────────────────────────────────────
     function todayStr() {
         const n = new Date();
         return `${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}/${n.getFullYear()}`;
@@ -96,8 +101,6 @@ function ahInitZeroPerf() {
         return mon;
     }
 
-    // ── Compute transfer counts from report rows ───────────────────────────────
-    // Returns { userId -> xferCount }
     function countXfers(rows) {
         const map = {};
         (rows || []).forEach(row => {
@@ -109,7 +112,6 @@ function ahInitZeroPerf() {
         return map;
     }
 
-    // ── Shared row renderer ────────────────────────────────────────────────────
     function renderRow(p, xfers, hasUpload, isWeekly) {
         const team       = p.team || 'PR';
         const hasXfer    = xfers > 0;
@@ -135,21 +137,17 @@ function ahInitZeroPerf() {
             </div>`;
     }
 
-    // Use the full roster as the definitive source
     const roster = window.allAgentProfiles || [];
     const liveAgents = window.agents || [];
-    const reports = window.allAgentReports || [];
+    const reportsList = window.allAgentReports || [];
 
-    // Helper to find an agent's count in a map or array
     function getDailyCount(p) {
-        // Try live data first
         const pId = String(p.userId || '').trim();
         const pName = String(p.fullName || '').trim().toUpperCase();
         const live = liveAgents.find(a => String(a.ytelId).trim() === pId || (a.name && a.name.toUpperCase() === pName));
         if (live) return Number(live.dailyLeads) || 0;
 
-        // Try today's report second
-        const todayReport = reports.find(r => r.reportDate === todayStr());
+        const todayReport = reportsList.find(r => r.reportDate === todayStr());
         if (todayReport) {
             const row = todayReport.data.find(d => String(d.agentId).trim() === pId || (d.agentName && d.agentName.toUpperCase() === pName));
             return row ? (Number(row.dailyLeads) || 0) : 0;
@@ -157,7 +155,6 @@ function ahInitZeroPerf() {
         return 0;
     }
 
-    // ── 1. DAILY: Show anyone in roster with 0 leads ───────────────────────────
     if (roster.length === 0) {
         dailyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agents in roster yet</div>';
     } else {
@@ -169,9 +166,8 @@ function ahInitZeroPerf() {
         }
     }
 
-    // ── 2. WEEKLY: aggregate all uploads from Mon → today ────────────────────
     const mon = weekStart();
-    const weekReports = reports.filter(r => {
+    const weekReports = reportsList.filter(r => {
         const d = parseReportDate(r.reportDate);
         return d && d >= mon;
     });
@@ -179,7 +175,6 @@ function ahInitZeroPerf() {
     if (weekReports.length === 0) {
         weeklyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">Awaiting this week\'s report upload...</div>';
     } else {
-        // Merge all days' counts
         const weeklyCounts = {};
         weekReports.forEach(r => {
             const day = countXfers(r.data);
@@ -192,34 +187,28 @@ function ahInitZeroPerf() {
         if (zeros.length === 0) {
             weeklyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers this week!</div>';
         } else {
-            weeklyList.innerHTML = zeros.map(p =>
-                renderRow(p, 0, true, true)
-            ).join('');
+            weeklyList.innerHTML = zeros.map(p => renderRow(p, 0, true, true)).join('');
         }
     }
 }
 
-// ── WEEKLY PERFORMANCE LOGIC ──
 function initWeeklyPerformance() {
-    // Set current week range
     const rangeEl = document.getElementById('ah-weekly-range');
     if (rangeEl) {
         const now = new Date();
         const start = new Date(now);
-        // Set to previous Monday
         const day = now.getDay();
         const diff = (day === 0 ? -6 : 1) - day; 
         start.setDate(now.getDate() + diff);
         start.setHours(0,0,0,0);
         
         const end = new Date(start);
-        end.setDate(start.getDate() + 6); // Sunday
+        end.setDate(start.getDate() + 6);
         end.setHours(23,59,59,999);
         
         rangeEl.innerText = `${start.toLocaleDateString('en-US', {month:'short', day:'numeric'})} - ${end.toLocaleDateString('en-US', {month:'short', day:'numeric'})}, ${start.getFullYear()}`;
     }
 
-    // Load Data
     renderWeeklyTeamRankings();
     renderWeeklyTopAgents();
 }
@@ -228,13 +217,11 @@ function renderWeeklyTeamRankings() {
     const list = document.getElementById('ah-weekly-team-list');
     if (!list) return;
 
-    // Simulated Weekly Totals (In production, these come from Firestore daily aggregations)
-    // We can calculate them from window.agents daily stats as a baseline
     const teams = [
         { name: 'Providence', code: 'PR', xfers: 482, color: 'purple-500', trend: '+12%' },
         { name: 'Berbice', code: 'BB', xfers: 395, color: 'blue-500', trend: '-2%' },
         { name: 'Remote', code: 'RM', xfers: 215, color: 'cyan-400', trend: '+140%' }
-    ].sort((a,b) => b[xfers] - a[xfers]);
+    ].sort((a,b) => b.xfers - a.xfers);
 
     const max = teams[0].xfers;
 
@@ -264,9 +251,8 @@ function renderWeeklyTopAgents() {
     const list = document.getElementById('ah-weekly-agent-list');
     if (!list) return;
 
-    // Use current agents array but simulate weekly scale
     const topAgents = (window.agents || [])
-        .map(a => ({ ...a, weekly: (Number(a.dailyLeads) || 0) * 4.5 + Math.floor(Math.random()*20) })) // Simulated weekly
+        .map(a => ({ ...a, weekly: (Number(a.dailyLeads) || 0) * 4.5 + Math.floor(Math.random()*20) }))
         .sort((a,b) => b.weekly - a.weekly)
         .slice(0, 5);
 
@@ -294,7 +280,6 @@ function renderWeeklyTopAgents() {
     }).join('');
 }
 
-// ── REBUTTAL INTEL LOGIC ──
 window.logRebuttalUsage = async function(id, title) {
     const cUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
     const data = {
@@ -324,7 +309,6 @@ function renderRebuttalIntel(usage) {
     const signals = document.getElementById('ah-coaching-signals');
     if (!chart || !table) return;
 
-    // Aggregate counts
     const counts = {};
     usage.forEach(u => {
         counts[u.rebuttalTitle] = (counts[u.rebuttalTitle] || 0) + 1;
@@ -334,7 +318,6 @@ function renderRebuttalIntel(usage) {
     const top5 = sorted.slice(0, 5);
     const max = top5[0] ? top5[0][1] : 1;
 
-    // Render Chart
     chart.innerHTML = top5.map(([title, val]) => `
         <div class="space-y-2">
             <div class="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -347,7 +330,6 @@ function renderRebuttalIntel(usage) {
         </div>
     `).join('') || '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[10px] tracking-widest">No clicks recorded yet today</div>';
 
-    // Render Table
     table.innerHTML = sorted.map(([title, val]) => `
         <tr class="hover:bg-white/5 transition">
             <td class="p-4 text-[12px] font-black text-white uppercase tracking-tight">${title}</td>
@@ -357,9 +339,7 @@ function renderRebuttalIntel(usage) {
         </tr>
     `).join('');
 
-    // Logic for Coaching Signals
     if (usage.length > 5) {
-        // Find agents with high hits
         const agentHits = {};
         usage.forEach(u => {
             agentHits[u.agentName] = (agentHits[u.agentName] || 0) + 1;
@@ -378,31 +358,42 @@ function renderRebuttalIntel(usage) {
     }
 }
 
-// Initialize Overview Data
+// Initialize Overview Data - FIXED PERMISSIONS
 window.ahInitOverview = function() {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    const isMomo = String(currentAdmin.email || '').toLowerCase() === 'momo';
     
+    console.log('ahInitOverview - User:', currentAdmin.email, 'isSuper:', isSuper);
+    
+    // Get all restricted buttons
     const toolsBtn = document.getElementById('ah-tab-admintools');
     const statsBtn = document.getElementById('ah-tab-stats');
+    const triviaBtn = document.getElementById('ah-tab-trivia');
+    const superBtn = document.getElementById('ah-tab-super');
     
+    // For ALL admins (including momo and 0000) - show only these:
+    // - overview (always visible)
+    // - profiles
+    // - attendance
+    // - coaching
+    // - monitoring
+    // - rebuttals
+    // - performance
+    // - zero (renamed from tracker)
+    
+    // HIDE restricted tabs for NON-super admins
     if (!isSuper) {
-        // Standard Admins (like 0000) 
-        if (toolsBtn) toolsBtn.classList.add('hidden');
-        if (statsBtn) statsBtn.classList.add('hidden');
+        if (toolsBtn) toolsBtn.classList.add('hidden');  // Admin Tools - HIDE
+        if (statsBtn) statsBtn.classList.add('hidden');  // Agent Stats - HIDE
+        if (triviaBtn) triviaBtn.classList.add('hidden'); // Trivia - HIDE
+        if (superBtn) superBtn.classList.add('hidden');   // Super Admin - HIDE
         
-        // Hide Trivia and Super
-        const triviaBtn = document.getElementById('ah-tab-trivia');
-        const superBtn  = document.getElementById('ah-tab-super');
-        if (triviaBtn) triviaBtn.classList.add('hidden');
-        if (superBtn)  superBtn.classList.add('hidden');
-
-        // Transform 'Tracker' back to 'Zero Performance' and make it full width
+        // Transform 'Tracker' button to 'Zero Performance' for regular admins
         const zeroBtn = document.getElementById('ah-tab-zero');
         if (zeroBtn) {
             zeroBtn.classList.remove('flex', 'flex-col', 'items-center', 'justify-center', 'py-4');
             zeroBtn.classList.add('ah-nav-btn', 'w-full');
-            // Remove the grid wrapper's grid class to allow full width
             const gridWrapper = zeroBtn.parentElement;
             if (gridWrapper) {
                 gridWrapper.classList.remove('grid', 'grid-cols-2');
@@ -410,11 +401,17 @@ window.ahInitOverview = function() {
             }
             zeroBtn.innerHTML = '<i class="fas fa-ghost mr-2"></i> Zero Performance';
         }
-
-        // Double check: if they are somehow ON a restricted tab, kick them back to overview
-        if (['admintools','stats','trivia','super'].includes(ahCurrentSubTab)) {
+        
+        // If current tab is restricted, redirect to overview
+        if (['admintools', 'stats', 'trivia', 'super'].includes(ahCurrentSubTab)) {
             window.switchAdminHubTab('overview');
         }
+    } else {
+        // SUPER ADMIN - show all tabs
+        if (toolsBtn) toolsBtn.classList.remove('hidden');
+        if (statsBtn) statsBtn.classList.remove('hidden');
+        if (triviaBtn) triviaBtn.classList.remove('hidden');
+        if (superBtn) superBtn.classList.remove('hidden');
     }
 
     // Clock
@@ -453,10 +450,8 @@ window.ahInitOverview = function() {
             const select = document.getElementById('ah-att-report-select');
             if (!select) return;
             
-            // Keep the 'Live' option
             select.innerHTML = '<option value="live" class="bg-slate-900">Live Today</option>';
             
-            // Sort by date desc
             const sorted = [...reports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
             sorted.forEach(r => {
                 const opt = document.createElement('option');
@@ -467,7 +462,7 @@ window.ahInitOverview = function() {
             });
             
             window.ahAllReports = reports;
-            window.allAgentReports = reports; // Keep in sync for Zero Performance tab
+            window.allAgentReports = reports;
         });
     }
 }
@@ -486,7 +481,6 @@ window.switchAttView = function(view) {
     document.querySelectorAll('.att-view-content').forEach(v => v.classList.add('hidden'));
     document.getElementById(`att-view-${view}`).classList.remove('hidden');
     
-    // Update Btn Styles
     ['daily', 'weekly', 'monthly'].forEach(v => {
         const b = document.getElementById(`att-v-${v}`);
         if(b) {
@@ -602,7 +596,6 @@ async function ahLoadWeeklyMatrix(team) {
     try {
         const resp = await fetch(`${API_URL}?action=getWeekly&team=${team}`);
         const data = await resp.json();
-        // Integration for matrix rendering coming in next step
         container.innerHTML = `<div class="py-10 text-green-400 font-bold uppercase text-[10px] tracking-widest">✅ Data Received for ${team} (${data.length} records)</div>`;
     } catch (e) {
         container.innerHTML = `<div class="py-10 text-red-400 font-bold uppercase text-[10px] tracking-widest">❌ Sheet Sync Failed</div>`;
@@ -612,14 +605,12 @@ async function ahLoadWeeklyMatrix(team) {
 let ahLastUpdate = 0;
 function handleLiveStateUpdate(state) {
     if (!state || !state.agents) return;
-    window.agents = state.agents; // Data sync stays instant
+    window.agents = state.agents;
     
-    // Throttle the heavy UI rendering (max once per second)
     const now = Date.now();
     if (now - ahLastUpdate < 1000) return; 
     ahLastUpdate = now;
     
-    // Update Datalists for modals
     const coachList = document.getElementById('coach-rep-list');
     const monList = document.getElementById('mon-rep-list');
     if (coachList && monList) {
@@ -634,8 +625,7 @@ function handleLiveStateUpdate(state) {
     let prXfers = 0;
     let rmXfers = 0;
     
-    // Calculate Team Totals
-    agents.forEach(a => {
+    window.agents.forEach(a => {
         const x = Number(a.dailyLeads) || 0;
         totalXfers += x;
         const team = normalizeTeam(a.team, a.name);
@@ -644,10 +634,9 @@ function handleLiveStateUpdate(state) {
         else if (team === 'RM') rmXfers += x;
     });
     
-    // Update Overview UI
     const totalEl = document.getElementById('ah-total-transfers');
     if (totalEl) {
-        const goal = 300; // Hardcoded default for now
+        const goal = 300;
         totalEl.innerHTML = `${totalXfers} <span class="text-lg text-slate-600">/ ${goal}</span>`;
         const percent = Math.min(100, (totalXfers / goal) * 100);
         document.getElementById('ah-goal-progress').style.width = `${percent}%`;
@@ -657,12 +646,10 @@ function handleLiveStateUpdate(state) {
     if (document.getElementById('ah-pr-count')) document.getElementById('ah-pr-count').innerHTML = `${prXfers} <span class="text-xs text-slate-500">Transfers</span>`;
     if (document.getElementById('ah-rm-count')) document.getElementById('ah-rm-count').innerHTML = `${rmXfers} <span class="text-xs text-slate-500">Transfers</span>`;
     
-    // Populate Online & Offline Grids
     const onlineGrid = document.getElementById('ah-online-grid');
     const offlineGrid = document.getElementById('ah-offline-grid');
     
     if (onlineGrid && offlineGrid) {
-        // 1. Prepare Roster Map for fast lookup
         const roster = window.allAgentProfiles || [];
         const rosterTotalEl = document.getElementById('ah-roster-total');
         if (rosterTotalEl) rosterTotalEl.textContent = roster.length;
@@ -670,14 +657,12 @@ function handleLiveStateUpdate(state) {
         const presence = window.ahOnlinePresences || {};
         const liveAgents = window.agents || [];
         
-        // 2. Build the full list starting with the roster
         const rosterIds = new Set();
         const fullAgentList = roster.map(p => {
             const pId = String(p.userId || '').trim();
             const pName = String(p.fullName || '').trim().toUpperCase();
             rosterIds.add(pId);
 
-            // Find live data matching this roster entry
             const live = liveAgents.find(a => {
                 const aId = String(a.ytelId || '').trim();
                 const aName = String(a.name || '').trim().toUpperCase();
@@ -694,7 +679,6 @@ function handleLiveStateUpdate(state) {
             };
         });
 
-        // 3. ADD agents who are online but NOT in the roster (Safety Catch)
         liveAgents.forEach(a => {
             const aId = String(a.ytelId || '').trim();
             if (!rosterIds.has(aId)) {
@@ -748,17 +732,34 @@ function handleLiveStateUpdate(state) {
         }).join('');
     }
 
-    // Update Broadcast Audience (Only those online)
     if (document.getElementById('ah-broadcast-audience')) {
-        const onlineCount = agents.filter(a => (window.ahOnlinePresences || {})[a.ytelId]).length;
+        const onlineCount = window.agents.filter(a => (window.ahOnlinePresences || {})[a.ytelId]).length;
         document.getElementById('ah-broadcast-audience').innerText = onlineCount;
     }
 }
 
-// Global hook for dashboard loading
+// Global hook for dashboard loading - FIXED to check admin role properly
 document.addEventListener('DOMContentLoaded', () => {
-    // If adminpanel tab is already open, init it
-    if (currentTab === 'adminpanel') ahInitOverview();
+    const userRole = sessionStorage.getItem('bizUserRole');
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const isAdmin = userRole === 'admin';
+    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    
+    console.log('AdminHub loaded - Role:', userRole, 'isSuper:', isSuper);
+    
+    // Only initialize if user is an admin
+    if (isAdmin) {
+        // Check if adminpanel tab is active or should be shown
+        const adminTabVisible = document.getElementById('tab-adminpanel') && 
+                                !document.getElementById('tab-adminpanel').classList.contains('hidden');
+        
+        // If admin panel tab exists and is visible, initialize
+        if (adminTabVisible || currentTab === 'adminpanel') {
+            setTimeout(() => {
+                ahInitOverview();
+            }, 100);
+        }
+    }
 });
 
 window.ahShowTeamBreakdown = function(team) {
@@ -769,7 +770,6 @@ window.ahShowTeamBreakdown = function(team) {
     
     if (!detailSect || !window.agents) return;
 
-    // Toggle logic: If clicking the SAME team that is already visible, hide it.
     if (!detailSect.classList.contains('hidden') && detailSect.dataset.currentTeam === team) {
         detailSect.classList.add('hidden');
         return;
@@ -800,11 +800,11 @@ window.ahShowTeamBreakdown = function(team) {
                     <span class="w-1 h-1 rounded-full bg-green-500"></span>
                     Online
                 </span>
-            </td>
+             </td>
             <td class="py-3 text-right">
                 <div class="font-black text-white italic">${a.dailyLeads || 0}</div>
-            </td>
-        </tr>
+             </td>
+         </tr>
     `).join('') || '<tr><td colspan="3" class="py-10 text-center text-slate-600 font-bold uppercase tracking-widest text-[9px]">No agents found</td></tr>';
 
     detailSect.classList.remove('hidden');
@@ -819,12 +819,11 @@ window.ahCloseTeamDetail = function() {
 window.ahEditGoal = function() {
     const newGoal = prompt("Enter new Daily Transfer Goal:", "300");
     if (newGoal) {
-        // Implementation for persistence coming soon
         alert("Goal updated locally to " + newGoal);
     }
 };
 
-// ── COACHING LOGIC ──
+// COACHING LOGIC
 window.ahOpenCoachingInline = function() {
     const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     document.getElementById('coach-admin-name').value = cAdmin.name || cAdmin.email || 'Admin';
@@ -932,7 +931,7 @@ function renderCoachingList(sessions) {
     }).join('');
 }
 
-// ── MONITORING LOGIC ──
+// MONITORING LOGIC
 window.ahOpenMonitoringInline = function() {
     const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     document.getElementById('mon-admin-name').value = cAdmin.name || cAdmin.email || 'Admin';
@@ -1040,7 +1039,7 @@ function renderMonitoringList(sessions) {
     }).join('');
 }
 
-// ── ADMIN TOOLS LOGIC ──
+// ADMIN TOOLS LOGIC
 let ahtCurrentSubTab = 'resources';
 
 window.switchAhToolsSubTab = function(sub) {
@@ -1058,7 +1057,6 @@ window.switchAhToolsSubTab = function(sub) {
     const activeSect = document.getElementById('aht-sect-' + sub);
     const activeTab = document.getElementById('aht-tab-' + sub);
 
-    // Role check for 'users' sub-tab
     const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = cAdmin.role === 'super_admin' || cAdmin.isSuper;
     if (sub === 'users' && !isSuper) {
@@ -1072,7 +1070,14 @@ window.switchAhToolsSubTab = function(sub) {
         activeTab.classList.add('bg-cyan-500', 'text-white', 'shadow-lg', 'shadow-cyan-900/40');
     }
 
-    if (sub === 'logs') listenForActivityLogs(renderAhLogs);
+    if (sub === 'logs') {
+        if (typeof window.listenToActivityLogs === 'function') {
+            window.listenToActivityLogs(renderAhLogs);
+        } else {
+            const logs = JSON.parse(localStorage.getItem('biz_activity_logs_v1') || '[]');
+            renderAhLogs(logs);
+        }
+    }
     if (sub === 'users') ahToolsLoadUsers();
     if (sub === 'performance') ahToolsLoadPerformance();
 };
@@ -1081,7 +1086,6 @@ function ahAdminToolsInit() {
     const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = cAdmin.role === 'super_admin' || cAdmin.isSuper;
     
-    // Auto-cleanup legacy data once on init
     if (typeof window.ahPruneOldReports === 'function') {
         window.ahPruneOldReports();
     }
@@ -1093,21 +1097,6 @@ function ahAdminToolsInit() {
     }
     
     switchAhToolsSubTab('resources');
-}
-
-function ahToolsLoadLogs() {
-    const container = document.getElementById('ah-activity-logs');
-    if (!container) return;
-
-    if (typeof window.listenToActivityLogs === 'function') {
-        window.listenToActivityLogs((logs) => {
-            renderAhLogs(logs);
-        });
-    } else {
-        // Fallback to localStorage if Firebase listener isn't ready
-        const logs = JSON.parse(localStorage.getItem('biz_activity_logs_v1') || '[]');
-        renderAhLogs(logs);
-    }
 }
 
 function renderAhLogs(logs) {
@@ -1125,13 +1114,18 @@ function renderAhLogs(logs) {
         const timeStr = date.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
         const dateStr = date.toLocaleDateString('en-US', { month:'short', day:'numeric' });
         
+        let actionClass = 'text-slate-400';
+        if (log.action === 'login') actionClass = 'text-green-400';
+        if (log.action === 'logout') actionClass = 'text-yellow-400';
+        if (log.action === 'login_failed') actionClass = 'text-red-400';
+        
         return `
             <div class="p-4 hover:bg-white/5 transition flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 last:border-0 group">
                 <div class="flex items-center gap-4">
                     <div class="text-[9px] font-black text-slate-500 w-12 text-right flex-shrink-0">${timeStr}<br>${dateStr}</div>
                     <div>
-                        <div class="text-[11px] font-black text-white uppercase group-hover:text-cyan-400 transition-colors">${log.name}</div>
-                        <div class="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">${(log.action || '').replace(/_/g, ' ')}</div>
+                        <div class="text-[11px] font-black text-white uppercase group-hover:text-cyan-400 transition-colors">${log.name || log.email || 'Unknown'}</div>
+                        <div class="text-[9px] ${actionClass} font-bold uppercase tracking-widest mt-0.5">${(log.action || '').replace(/_/g, ' ')}</div>
                     </div>
                 </div>
                 <div class="text-[10px] text-slate-300 bg-black/40 px-3 py-2 rounded-xl border border-white/5 max-w-md whitespace-normal leading-relaxed">${log.details || ''}</div>
@@ -1150,7 +1144,7 @@ window.ahShowLogDetail = function(id) {
     const date = new Date(log.timestamp);
     
     document.getElementById('ah-log-modal-id').textContent = `Log ID: ${id.length > 10 ? id.substring(0,8) + '...' : id}`;
-    document.getElementById('ah-log-modal-name').textContent = log.name;
+    document.getElementById('ah-log-modal-name').textContent = log.name || log.email || 'Unknown';
     document.getElementById('ah-log-modal-role').textContent = log.role || 'Admin';
     document.getElementById('ah-log-modal-time').textContent = date.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
     document.getElementById('ah-log-modal-date').textContent = date.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
@@ -1187,7 +1181,7 @@ function ahToolsLoadUsers() {
             <div>
                 <div class="text-[11px] font-black text-white uppercase">${admin.name}</div>
                 <div class="text-[9px] text-slate-500 font-bold">${admin.email}</div>
-                <div class="mt-2 text-[7px] font-black uppercase tracking-widest ${admin.role === 'super_admin' ? 'text-yellow-500' : 'text-cyan-400'}">${admin.role.replace('_', ' ')}</div>
+                <div class="mt-2 text-[7px] font-black uppercase tracking-widest ${admin.role === 'super_admin' ? 'text-yellow-500' : 'text-cyan-400'}">${admin.role ? admin.role.replace('_', ' ') : 'admin'}</div>
             </div>
             <button onclick="ahRemoveAdmin('${admin.email}')" class="text-red-500/20 group-hover:text-red-500 transition p-2"><i class="fas fa-user-minus"></i></button>
         </div>
@@ -1251,7 +1245,6 @@ window.ahToolsLoadPerformance = function() {
             }
             if(empty) empty.classList.add('hidden');
 
-            // 1. Determine "Current Week" (Monday start)
             const now = new Date();
             const day = now.getDay(); 
             const diff = now.getDate() - day + (day === 0 ? -6 : 1); 
@@ -1265,13 +1258,11 @@ window.ahToolsLoadPerformance = function() {
             const rangeEl = document.getElementById('ah-perf-range');
             if(rangeEl) rangeEl.textContent = `Tracking: ${monday.toLocaleDateString()} — ${sunday.toLocaleDateString()}`;
 
-            // 2. Filter reports for this week
             const thisWeekReports = reports.filter(r => {
                 const rd = new Date(r.uploadedAt);
                 return rd >= monday && rd <= sunday;
             });
 
-            // 3. Aggregate by agent and weekday
             const matrix = {}; 
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -1282,13 +1273,11 @@ window.ahToolsLoadPerformance = function() {
                     if (!matrix[name]) {
                         matrix[name] = { team: a.team || '—', Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, total: 0 };
                     }
-                    // Aggregate counts for that day
                     matrix[name][reportDay] = (matrix[name][reportDay] || 0) + (a.dailyLeads || 0);
                     matrix[name].total += (a.dailyLeads || 0);
                 });
             });
 
-            // 4. Render
             const sorted = Object.keys(matrix).sort((a,b) => matrix[b].total - matrix[a].total);
             tbody.innerHTML = sorted.map(name => {
                 const m = matrix[name];
@@ -1309,7 +1298,7 @@ window.ahToolsLoadPerformance = function() {
                         <td class="py-4 px-2 text-right">
                             <span class="text-sm font-black text-cyan-400 italic">${m.total}</span>
                         </td>
-                    </tr>
+                     </tr>
                 `;
             }).join('');
         });
@@ -1326,8 +1315,6 @@ window.ahSyncRosterFromSheet = async function() {
             console.log(`[AdminHub] Successfully pulled ${roster.length} agents from Sheet.`);
             window.allAgentProfiles = roster;
             
-
-            // Refresh currently visible tabs immediately
             if (window.ahCurrentSubTab === 'overview' || !window.ahCurrentSubTab) {
                 handleLiveStateUpdate({ agents: window.agents || [] });
             }
