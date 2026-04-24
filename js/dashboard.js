@@ -7,6 +7,17 @@
 let isDashboardSubscribed = false;
 let fullRoster = []; // Store the full agent roster
 
+// Full week days array (Monday to Saturday)
+const FULL_WEEK_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const DAY_NAMES = {
+    'MON': 'Monday',
+    'TUE': 'Tuesday',
+    'WED': 'Wednesday',
+    'THU': 'Thursday',
+    'FRI': 'Friday',
+    'SAT': 'Saturday'
+};
+
 // Function to load the full agent roster
 async function loadFullRoster() {
     try {
@@ -163,46 +174,91 @@ function updateDashboard() {
             renderDaySubTabs();
         });
         
-        // Auto-Link Historical CSV Reports to the Daily Tabs!
+        // 🔥 FIXED: Auto-Link Historical CSV Reports to the Daily Tabs (Monday to Saturday)
         if (typeof window.listenForAgentReports === 'function') {
             window.listenForAgentReports(data => {
                 if(!data) return;
                 
-                const now = new Date();
-                const day = now.getDay();
-                const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-                const monday = new Date(now.setDate(diff));
-                monday.setHours(0,0,0,0);
-
-                const thisWeek = data.filter(r => new Date(r.uploadedAt) >= monday);
+                console.log('Processing historical reports for day tabs...');
                 
-                const weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+                // Get the start of the current week (Monday)
+                const now = new Date();
+                const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
+                const monday = new Date(now);
+                monday.setDate(now.getDate() - daysToMonday);
+                monday.setHours(0, 0, 0, 0);
+                
+                console.log(`Week starting Monday: ${monday.toLocaleDateString()}`);
+                
+                // Filter reports from this week
+                const thisWeekReports = data.filter(r => {
+                    const uploadDate = new Date(r.uploadedAt);
+                    return uploadDate >= monday;
+                });
+                
+                // Map to store the best report for each day
                 const weekMap = {};
                 
-                thisWeek.forEach(r => {
-                    const dayKey = r.dayOfWeek || (typeof getGuyanaDayName === 'function' ? getGuyanaDayName(new Date(r.uploadedAt)) : 'MON');
-                    if (weekdays.includes(dayKey)) {
+                // Initialize all days
+                FULL_WEEK_DAYS.forEach(day => {
+                    weekMap[day] = null;
+                });
+                
+                // Process each report and assign to the correct day
+                thisWeekReports.forEach(r => {
+                    // Get the actual day of the week from the report's upload date
+                    const reportDate = new Date(r.uploadedAt);
+                    const reportDayIndex = reportDate.getDay(); // 0 = Sunday, 1 = Monday
+                    let dayKey = '';
+                    
+                    // Convert to our day keys (MON-SAT)
+                    if (reportDayIndex === 1) dayKey = 'MON';
+                    else if (reportDayIndex === 2) dayKey = 'TUE';
+                    else if (reportDayIndex === 3) dayKey = 'WED';
+                    else if (reportDayIndex === 4) dayKey = 'THU';
+                    else if (reportDayIndex === 5) dayKey = 'FRI';
+                    else if (reportDayIndex === 6) dayKey = 'SAT';
+                    
+                    // Also check if the report's dayOfWeek property is set
+                    const reportDayOfWeek = r.dayOfWeek;
+                    if (FULL_WEEK_DAYS.includes(reportDayOfWeek) && !weekMap[reportDayOfWeek]) {
+                        dayKey = reportDayOfWeek;
+                    }
+                    
+                    if (dayKey && FULL_WEEK_DAYS.includes(dayKey)) {
+                        // Keep the most recent report for each day
                         if (!weekMap[dayKey] || new Date(r.uploadedAt) > new Date(weekMap[dayKey].uploadedAt)) {
-                           weekMap[dayKey] = r;
+                            weekMap[dayKey] = r;
                         }
                     }
                 });
-
-                dayHistory = weekdays.map(day => {
+                
+                // Build dayHistory array
+                dayHistory = FULL_WEEK_DAYS.map(day => {
                     const r = weekMap[day];
-                    if (!r) return { day: day, empty: true, dayName: day };
+                    if (!r) {
+                        return { 
+                            day: day, 
+                            empty: true, 
+                            dayName: day,
+                            fullDate: null,
+                            agents: [] 
+                        };
+                    }
                     
+                    console.log(`Processing ${day} report: ${r.reportDate}`);
+                    
+                    // Aggregate agent data for this day
                     const agg = {};
                     (r.data || []).forEach(d => {
                         const id = d.agentId || d.ytelId || d.name;
                         const name = d.agentName || d.name;
                         const rawName = d.rawName || name;
                         
-                        const aggKey = (id || 'ID') + '_' + (name || 'NAME');
-                        
-                        if(id) {
-                            if(!agg[aggKey]) {
-                                agg[aggKey] = { 
+                        if (id) {
+                            if (!agg[id]) {
+                                agg[id] = { 
                                     name: name, 
                                     leads: 0, 
                                     rawName: rawName,
@@ -210,9 +266,14 @@ function updateDashboard() {
                                 };
                             }
                             
-                            let l = d.dailyLeads || 0;
-                            if(d.duration !== undefined && d.duration >= 120) l = 1;
-                            agg[id].leads += l;
+                            // Calculate leads from duration (>=120s = transfer)
+                            let leadCount = d.dailyLeads || 0;
+                            if (d.duration !== undefined && d.duration >= 120) {
+                                leadCount = 1;
+                            } else if (d.duration !== undefined && d.duration < 120) {
+                                leadCount = 0;
+                            }
+                            agg[id].leads += leadCount;
                         }
                     });
                     
@@ -220,6 +281,7 @@ function updateDashboard() {
                         day: day,
                         dayName: day,
                         fullDate: r.reportDate,
+                        fullDateObj: new Date(r.uploadedAt),
                         agents: Object.values(agg).map(a => ({
                             name: a.name,
                             leads: a.leads,
@@ -229,8 +291,15 @@ function updateDashboard() {
                         }))
                     };
                 });
+                
+                console.log('Day history built:', dayHistory.map(d => ({ day: d.day, hasData: !d.empty, agentCount: d.agents.length })));
+                
                 renderDaySubTabs();
-                if(currentDayView !== 'today') render(); 
+                
+                // If currently viewing a historical day, re-render
+                if (currentDayView !== 'today') {
+                    render();
+                }
             });
         }
         
@@ -285,25 +354,32 @@ function render() {
     const isWeekly = currentTab === 'weekly';
     const isHistory = currentTab === 'daily' && currentDayView !== 'today';
     const target = isWeekly ? 800 : 150;
+    
+    // Get today's display name
+    const today = new Date();
+    const todayDayName = today.toLocaleDateString('en-US', { weekday: 'long' });
+    const todayShortName = todayDayName.substring(0, 3).toUpperCase();
+    
     const todayName = agents.length > 0 ? (agents[0].todayName || 'Today') : 'Today';
 
     // UI Goal Labels
     const banner = document.getElementById('history-banner');
     if (isHistory) {
         const snap = dayHistory.find(d => d.day === currentDayView);
-        const dayLong = snap ? (snap.dayName === 'MON' ? 'Monday' : 
-                               snap.dayName === 'TUE' ? 'Tuesday' : 
-                               snap.dayName === 'WED' ? 'Wednesday' : 
-                               snap.dayName === 'THU' ? 'Thursday' : 
-                               snap.dayName === 'FRI' ? 'Friday' : 
-                               snap.dayName === 'SAT' ? 'Saturday' : 
-                               snap.dayName === 'SUN' ? 'Sunday' : snap.dayName) : 'Historical';
-        
-        document.getElementById('goal-label').innerText = dayLong.toUpperCase() + ' FINAL';
-        document.getElementById('day-indicator').innerText = (dayLong.substring(0,3).toUpperCase()) + ' — COMPLETED';
-        if (banner) {
-            document.getElementById('history-banner-text').innerHTML = `<i class="fas fa-history mr-2"></i> VIEWING ${dayLong.toUpperCase()} — FINAL RESULTS`;
-            banner.classList.remove('hidden');
+        if (snap && !snap.empty) {
+            const dayLong = DAY_NAMES[snap.dayName] || snap.dayName;
+            const dateDisplay = snap.fullDate ? ` (${snap.fullDate})` : '';
+            
+            document.getElementById('goal-label').innerText = dayLong.toUpperCase() + ' FINAL' + dateDisplay;
+            document.getElementById('day-indicator').innerText = (dayLong.substring(0,3).toUpperCase()) + ' — COMPLETED';
+            if (banner) {
+                document.getElementById('history-banner-text').innerHTML = `<i class="fas fa-history mr-2"></i> VIEWING ${dayLong.toUpperCase()}${dateDisplay} — FINAL RESULTS`;
+                banner.classList.remove('hidden');
+            }
+        } else {
+            if (banner) banner.classList.add('hidden');
+            document.getElementById('goal-label').innerText = isWeekly ? 'Weekly Team Goal' : todayName.toUpperCase() + ' DAILY GOAL';
+            document.getElementById('day-indicator').innerText = isWeekly ? 'Weekly Sprint' : todayName.toUpperCase() + ' PERFORMANCE';
         }
     } else {
         if(banner) banner.classList.add('hidden');
@@ -325,25 +401,34 @@ function render() {
 
     if (isHistory) {
         const snap = dayHistory.find(d => d.day === currentDayView);
-        if (snap) {
+        if (snap && snap.agents && snap.agents.length > 0) {
             fullList = [...snap.agents]
-                .filter(a => !(a.name && String(a.name).toUpperCase().startsWith('PH ')))
-                .sort((a, b) => b.leads - a.leads);
+                .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH '))
+                .sort((a, b) => (b.leads || 0) - (a.leads || 0));
+            
             fullList = fullList.map(a => {
                 const cleanName = typeof stripPrefix === 'function' ? stripPrefix(a.name).toUpperCase() : a.name;
                 const rawName = a.rawName || a.name;
                 return {
                     ...a,
-                    name: cleanName,
+                    name: cleanName || a.name,
                     rawName: rawName,
+                    leads: a.leads || 0,
                     team: normalizeTeam(a.team, rawName)
                 };
             });
+            
             fullList.forEach(a => {
-                if (a.team === 'PR') prTotal += a.leads;
-                else if (a.team === 'BB') bbTotal += a.leads;
-                else if (a.team === 'RM') rmTotal += a.leads;
+                const leads = a.leads || 0;
+                if (a.team === 'PR') prTotal += leads;
+                else if (a.team === 'BB') bbTotal += leads;
+                else if (a.team === 'RM') rmTotal += leads;
+                totalLeads += leads;
+                if (leads >= 12) masters++;
+                activeReps++;
             });
+        } else {
+            fullList = [];
         }
     } else {
         // Use agents array (which now contains ALL roster agents with lead counts)
@@ -362,58 +447,57 @@ function render() {
             if (a.team === 'PR') prTotal += a.leads;
             else if (a.team === 'BB') bbTotal += a.leads;
             else if (a.team === 'RM') rmTotal += a.leads;
+            totalLeads += a.leads;
+            if (a.leads >= 12) masters++;
+            activeReps++;
         });
     }
 
-    // 4. Global Stat Calculations
-    fullList.forEach(agent => {
-        totalLeads += agent.leads;
-        if (agent.leads >= 12) masters++;
-        activeReps++; // Count every agent in the FULL roster
-    });
-
-    // 5. All users see the full leaderboard
+    // 4. All users see the full leaderboard
     const displayData = fullList.map((a, i) => ({ ...a, rank: i + 1 }));
 
-    // 6. Rendering
+    // 5. Rendering
     const leaderboardEl = document.getElementById('leaderboard');
     if (!leaderboardEl) return;
     
-    leaderboardEl.innerHTML = displayData.map((agent) => {
-        const lvl = getLevel(agent.leads);
-        const rank = agent.rank;
-        // Check if this agent is the logged-in user (by name OR ytelId)
-        const isMe = (myName && agent.name && agent.name.trim().toUpperCase() === myName) ||
-                     (myYtelId && agent.ytelId === myYtelId);
+    if (fullList.length === 0 && isHistory) {
+        leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500"><i class="fas fa-calendar-day text-4xl mb-3 block"></i> No data available for this day. Upload a report first.</div>';
+    } else {
+        leaderboardEl.innerHTML = displayData.map((agent) => {
+            const lvl = getLevel(agent.leads);
+            const rank = agent.rank;
+            const isMe = (myName && agent.name && agent.name.trim().toUpperCase() === myName) ||
+                         (myYtelId && agent.ytelId === myYtelId);
 
-        const teamMeta = getTeamMeta(agent.team);
-        const badge = `<span style="font-size:8px;background:rgba(${teamMeta.rgb},0.15);border:1px solid rgba(${teamMeta.rgb},0.3);border-radius:4px;padding:1px 5px;color:${teamMeta.color};font-weight:900;margin-left:6px;">${teamMeta.label}</span>`;
+            const teamMeta = getTeamMeta(agent.team);
+            const badge = `<span style="font-size:8px;background:rgba(${teamMeta.rgb},0.15);border:1px solid rgba(${teamMeta.rgb},0.3);border-radius:4px;padding:1px 5px;color:${teamMeta.color};font-weight:900;margin-left:6px;">${teamMeta.label}</span>`;
 
-        const myHighlight = isMe
-            ? 'outline: 2px solid rgba(250,204,21,0.6); outline-offset: -2px;'
-            : '';
+            const myHighlight = isMe
+                ? 'outline: 2px solid rgba(250,204,21,0.6); outline-offset: -2px;'
+                : '';
 
-        return `
-            <div class="glass p-5 rounded-2xl flex justify-between items-center transition-all hover:bg-white/5 ${lvl.cls} mb-3 md:mb-0 md:m-2" style="${myHighlight}">
-                <div class="flex items-center gap-4">
-                    <span class="text-xl font-black italic ${rank <= 3 ? 'text-white' : 'text-slate-700'}">
-                        ${String(rank).padStart(2, '0')}
-                    </span>
-                    <div>
-                        <div class="font-black text-sm md:text-lg text-white uppercase flex items-center flex-wrap gap-1">
-                            ${agent.name}${badge}${isMe ? '<span style="font-size:8px;background:rgba(250,204,21,0.15);border:1px solid rgba(250,204,21,0.35);border-radius:4px;padding:1px 6px;color:#facc15;font-weight:900;margin-left:4px;">YOU</span>' : ''}
-                        </div>
-                        <div class="text-[9px] font-black uppercase tracking-widest ${lvl.color}">
-                            ${lvl.title} STATUS
+            return `
+                <div class="glass p-5 rounded-2xl flex justify-between items-center transition-all hover:bg-white/5 ${lvl.cls} mb-3 md:mb-0 md:m-2" style="${myHighlight}">
+                    <div class="flex items-center gap-4">
+                        <span class="text-xl font-black italic ${rank <= 3 ? 'text-white' : 'text-slate-700'}">
+                            ${String(rank).padStart(2, '0')}
+                        </span>
+                        <div>
+                            <div class="font-black text-sm md:text-lg text-white uppercase flex items-center flex-wrap gap-1">
+                                ${agent.name}${badge}${isMe ? '<span style="font-size:8px;background:rgba(250,204,21,0.15);border:1px solid rgba(250,204,21,0.35);border-radius:4px;padding:1px 6px;color:#facc15;font-weight:900;margin-left:4px;">YOU</span>' : ''}
+                            </div>
+                            <div class="text-[9px] font-black uppercase tracking-widest ${lvl.color}">
+                                ${lvl.title} STATUS
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="text-right">
-                    <div class="text-2xl md:text-3xl font-black text-white leading-none">${agent.leads}</div>
-                    <div class="text-[8px] text-slate-500 uppercase font-black mt-1">Transfers</div>
-                </div>
-            </div>`;
-    }).join('');
+                    <div class="text-right">
+                        <div class="text-2xl md:text-3xl font-black text-white leading-none">${agent.leads}</div>
+                        <div class="text-[8px] text-slate-500 uppercase font-black mt-1">Transfers</div>
+                    </div>
+                </div>`;
+        }).join('');
+    }
 
     // Update Bottom Stats Bar
     const floorTotalEl = document.getElementById('floor-total');
@@ -452,32 +536,90 @@ function getLevel(l) {
 }
 
 /**
- * Navigation & Tab UI
+ * Navigation & Tab UI - FIXED to show all days Monday to Saturday
  */
 function renderDaySubTabs() {
     const wrapper = document.getElementById('day-sub-tabs-wrapper');
     const container = document.getElementById('day-sub-tabs-container');
 
-    if (currentTab !== 'daily' || !dayHistory.length) {
+    if (currentTab !== 'daily') {
         if (wrapper) wrapper.classList.add('hidden');
         return;
     }
-
-    let html = `<button onclick="switchDayView('today')" class="day-sub-tab is-today ${currentDayView === 'today' ? 'active' : ''}">Today</button>`;
-
-    dayHistory.forEach(d => {
-        const hasHistory = !d.empty;
-        const isActive = currentDayView === d.day;
+    
+    // Always show the days container
+    if (wrapper) wrapper.classList.remove('hidden');
+    if (!container) return;
+    
+    // Build tabs: Today + Monday through Saturday
+    let html = `<button onclick="switchDayView('today')" class="day-sub-tab is-today ${currentDayView === 'today' ? 'active' : ''}">📅 Today</button>`;
+    
+    // Add Monday through Saturday tabs
+    FULL_WEEK_DAYS.forEach(day => {
+        const dayData = dayHistory.find(d => d && d.day === day);
+        const hasData = dayData && !dayData.empty && dayData.agents && dayData.agents.length > 0;
+        const isActive = currentDayView === day;
+        const dayDisplayName = DAY_NAMES[day] || day;
+        
         html += `
-            <button onclick="switchDayView('${d.day}')" 
+            <button onclick="switchDayView('${day}')" 
                     class="day-sub-tab is-history ${isActive ? 'active' : ''}" 
-                    ${!hasHistory ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}>
-                ${d.dayName}${hasHistory ? '<span class="history-dot"></span>' : ''}
+                    ${!hasData ? 'style="opacity:0.5;"' : ''}>
+                ${dayDisplayName}
+                ${hasData ? '<span class="history-dot" style="background:#22c55e;"></span>' : '<span class="history-dot" style="background:#475569;"></span>'}
             </button>`;
     });
-
+    
     container.innerHTML = html;
-    wrapper.classList.remove('hidden');
+    
+    // Add CSS for the day tabs if not already present
+    if (!document.getElementById('day-tabs-style')) {
+        const style = document.createElement('style');
+        style.id = 'day-tabs-style';
+        style.textContent = `
+            .day-sub-tab {
+                padding: 6px 14px;
+                border-radius: 20px;
+                font-size: 11px;
+                font-weight: 900;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                background: rgba(255,255,255,0.04);
+                border: 1px solid rgba(255,255,255,0.1);
+                color: #64748b;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            .day-sub-tab:hover {
+                background: rgba(255,255,255,0.08);
+                color: #94a3b8;
+            }
+            .day-sub-tab.is-today {
+                background: rgba(59,130,246,0.1);
+                border-color: rgba(59,130,246,0.3);
+                color: #60a5fa;
+            }
+            .day-sub-tab.is-today.active {
+                background: rgba(59,130,246,0.2);
+                border-color: #3b82f6;
+                color: #93c5fd;
+            }
+            .day-sub-tab.is-history.active {
+                background: rgba(234,179,8,0.15);
+                border-color: #eab308;
+                color: #facc15;
+            }
+            .history-dot {
+                display: inline-block;
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                margin-left: 6px;
+                vertical-align: middle;
+            }
+        `;
+        document.head.appendChild(style);
+    }
 }
 
 function switchDayView(key) {
