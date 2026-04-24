@@ -2,11 +2,68 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>BIZ Level Up Dashboard | Live Performance</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* Responsive button grid improvements */
+        .tab-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 8px;
+            padding: 0 8px;
+            max-width: 42rem;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        /* Make buttons responsive on zoom */
+        .tab-grid button {
+            width: 100%;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* Responsive text sizing */
+        @media (max-width: 480px) {
+            .tab-grid button {
+                font-size: 8px !important;
+                padding: 10px 4px !important;
+            }
+            .tab-grid button i {
+                font-size: 10px !important;
+            }
+        }
+        
+        @media (min-width: 481px) and (max-width: 768px) {
+            .tab-grid button {
+                font-size: 9px !important;
+                padding: 12px 6px !important;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .tab-grid button {
+                font-size: 11px !important;
+                padding: 14px 8px !important;
+            }
+        }
+        
+        /* Full width button for Super Admin row */
+        .tab-grid-full {
+            grid-column: 1 / -1;
+        }
+        
+        /* Hide elements gracefully */
+        .hidden-tab {
+            display: none !important;
+        }
+    </style>
 </head>
 <body class="p-4 pb-20">
 
@@ -37,6 +94,55 @@ function dismissLeadAlert() {
     if (banner) banner.style.display = 'none';
     document.body.style.paddingTop = '0px';
 }
+
+// Function to show/hide tabs based on user role
+function setupRoleBasedTabs() {
+    const userRole = sessionStorage.getItem('bizUserRole');
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    const isRegularAdmin = userRole === 'admin' && !isSuper;
+    
+    // Get all tab buttons
+    const tabs = {
+        daily: document.getElementById('tab-daily'),
+        lookup: document.getElementById('tab-lookup'),
+        playbook: document.getElementById('tab-playbook'),
+        rebuttals: document.getElementById('tab-rebuttals'),
+        prank: document.getElementById('tab-prank'),
+        weekly: document.getElementById('tab-weekly'),
+        trivia: document.getElementById('tab-trivia'),
+        tracker: document.getElementById('tab-tracker'),
+        adminpanel: document.getElementById('tab-adminpanel'),
+        superadminpanel: document.getElementById('tab-superadminpanel')
+    };
+    
+    // For Regular Admin (momo, 0000) - show Admin Tools but NOT Super Admin
+    if (isRegularAdmin) {
+        if (tabs.adminpanel) tabs.adminpanel.classList.remove('hidden');
+        if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
+    }
+    // For Super Admin (rose) - show both Admin Tools AND Super Admin
+    else if (isSuper) {
+        if (tabs.adminpanel) tabs.adminpanel.classList.remove('hidden');
+        if (tabs.superadminpanel) tabs.superadminpanel.classList.remove('hidden');
+    }
+    // For non-admin users - hide admin tabs
+    else {
+        if (tabs.adminpanel) tabs.adminpanel.classList.add('hidden');
+        if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
+    }
+    
+    // Ensure all buttons have proper styling
+    Object.values(tabs).forEach(tab => {
+        if (tab && !tab.classList.contains('hidden')) {
+            tab.classList.add('glass', 'py-3', 'rounded-xl', 'font-black', 'uppercase', 'tracking-widest', 'transition-all');
+            tab.classList.remove('hidden-tab');
+        }
+    });
+}
+
+// Call setup when DOM loads
+document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
 </script>
 
 <button
@@ -153,17 +259,30 @@ function dismissLeadAlert() {
         </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:0 8px;max-width:42rem;margin-left:auto;margin-right:auto;">
-        <button onclick="switchTab('daily')" id="tab-daily" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all tab-active">Daily</button>
-        <button onclick="switchTab('lookup')" id="tab-lookup" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-search text-[9px] mr-1 opacity-60"></i>Lookup</button>
-        <button onclick="switchTab('playbook')" id="tab-playbook" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500">Playbook</button>
-        <button onclick="switchTab('rebuttals')" id="tab-rebuttals" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#14b8a6;border-color:rgba(20,184,166,0.3);">💬 Rebuttals</button>
-        <button onclick="switchTab('prank')" id="tab-prank" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#a855f7;">🚨 Prank</button>
-        <button onclick="requestWeekly()" id="tab-weekly" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-lock text-[9px] mr-1 opacity-60"></i>Weekly</button>
-        <button onclick="switchTab('trivia')" id="tab-trivia" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);">🎯 Trivia Blitz</button>
-        <button onclick="switchTab('tracker')" id="tab-tracker" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#818cf8;border-color:rgba(129,140,248,0.3);">📋 Tracker</button>
-        <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#ef4444;border-color:rgba(239,68,68,0.35);grid-column:1/-1;">🛡️ Admin Tools</button>
-        <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#eab308;border-color:rgba(234,179,8,0.35);grid-column:1/-1;margin-top:-4px;">👑 Super Admin</button>
+    <!-- ROW 1: Daily | Lookup | Playbook -->
+    <div class="tab-grid">
+        <button onclick="switchTab('daily')" id="tab-daily" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all tab-active">Daily</button>
+        <button onclick="switchTab('lookup')" id="tab-lookup" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-search text-[9px] mr-1 opacity-60"></i>Lookup</button>
+        <button onclick="switchTab('playbook')" id="tab-playbook" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500">Playbook</button>
+    </div>
+
+    <!-- ROW 2: Rebuttals | Prank | Weekly -->
+    <div class="tab-grid">
+        <button onclick="switchTab('rebuttals')" id="tab-rebuttals" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500" style="color:#14b8a6;border-color:rgba(20,184,166,0.3);">💬 Rebuttals</button>
+        <button onclick="switchTab('prank')" id="tab-prank" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500" style="color:#a855f7;">🚨 Prank</button>
+        <button onclick="requestWeekly()" id="tab-weekly" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-lock text-[9px] mr-1 opacity-60"></i>Weekly</button>
+    </div>
+
+    <!-- ROW 3: Trivia | My Tracker | Admin Tools -->
+    <div class="tab-grid">
+        <button onclick="switchTab('trivia')" id="tab-trivia" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);">🎯 Trivia Blitz</button>
+        <button onclick="switchTab('tracker')" id="tab-tracker" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500" style="color:#818cf8;border-color:rgba(129,140,248,0.3);">📋 My Tracker</button>
+        <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500" style="color:#ef4444;border-color:rgba(239,68,68,0.35);">🛡️ Admin Tools</button>
+    </div>
+
+    <!-- ROW 4: Super Admin (only visible to Super Admin) -->
+    <div class="tab-grid">
+        <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500 tab-grid-full" style="color:#eab308;border-color:rgba(234,179,8,0.35);">👑 Super Admin</button>
     </div>
 
     <div id="day-sub-tabs-wrapper" class="hidden px-2 mb-5 max-w-2xl mx-auto">
@@ -219,7 +338,6 @@ async function loadTab(tabId) {
         const html = await res.text();
         el.innerHTML = html;
 
-        // Manually execute scripts in the newly loaded HTML
         const scripts = el.querySelectorAll('script');
         scripts.forEach(oldScript => {
             const newScript = document.createElement('script');
@@ -265,28 +383,52 @@ window.switchTab = async function(tab) {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    const adminTab = document.getElementById('tab-adminpanel');
-    const profilesTab = document.getElementById('tab-agentprofiles');
-    const superAdminTab = document.getElementById('tab-superadminpanel');
     const userRole = sessionStorage.getItem('bizUserRole');
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    const isRegularAdmin = userRole === 'admin' && !isSuper;
     
-    // Check if super admin by reading the parsed currentAdmin object
-    let isSuper = false;
-    try {
-        const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-        if (cAdmin.role === 'super_admin' || cAdmin.isSuper) isSuper = true;
-    } catch(e) {}
+    console.log('DOM Loaded - User:', currentAdmin.email, 'Role:', userRole, 'isSuper:', isSuper);
     
-    // Show admin tabs ONLY for admin users
-    if (userRole === 'admin') {
-        if (adminTab) adminTab.classList.remove('hidden');
-        // tab-agentprofiles is now nested inside Admin Hub
-        if (isSuper && superAdminTab) {
-            superAdminTab.classList.remove('hidden');
+    // Get tab elements
+    const adminTab = document.getElementById('tab-adminpanel');
+    const superAdminTab = document.getElementById('tab-superadminpanel');
+    
+    // For Regular Admin (momo, 0000) - show Admin Tools only
+    if (isRegularAdmin) {
+        if (adminTab) {
+            adminTab.classList.remove('hidden');
+            console.log('Regular Admin - Showing Admin Tools');
+        }
+        if (superAdminTab) {
+            superAdminTab.classList.add('hidden');
+            console.log('Regular Admin - Hiding Super Admin');
         }
     }
+    // For Super Admin (rose) - show both
+    else if (isSuper) {
+        if (adminTab) {
+            adminTab.classList.remove('hidden');
+            console.log('Super Admin - Showing Admin Tools');
+        }
+        if (superAdminTab) {
+            superAdminTab.classList.remove('hidden');
+            console.log('Super Admin - Showing Super Admin');
+        }
+    }
+    // For non-admin users - hide both
+    else {
+        if (adminTab) adminTab.classList.add('hidden');
+        if (superAdminTab) superAdminTab.classList.add('hidden');
+    }
 
+    // Load the leaderboard tab
     loadTab('leaderboard-view');
+});
+
+// Re-run role-based setup when storage changes (in case of login state change)
+window.addEventListener('storage', () => {
+    setupRoleBasedTabs();
 });
 </script>
 
