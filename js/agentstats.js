@@ -1,7 +1,7 @@
 /**
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
  * AUTO-PUSH: Most recent file automatically updates the Daily dashboard
- * NEW: Highlight effect for newly added reports
+ * NEW: Reports sorted with latest at BOTTOM, retention options, permission controls
  */
 
 let allReports = [];
@@ -14,14 +14,34 @@ let asSubscribed = false; // Flag to prevent multiple listeners
 let lastAutoPushedReportId = null;
 let lastReportCount = 0; // Track count to detect new reports
 
+// Track previously viewed report IDs to highlight new leads
+let previousReportLeadCounts = new Map();
+
 // Initialization function called from index.html (or tab load)
 window.renderAgentStatsHistory = function() {
+    // Check permissions - only Super Admin can access Agent Stats
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    
+    if (!isSuper) {
+        console.log('Agent Stats: Access denied - Super Admin only');
+        const container = document.getElementById('ah-sect-stats');
+        if (container) {
+            container.innerHTML = '<div class="p-20 text-center"><i class="fas fa-lock text-5xl text-red-500 mb-4"></i><p class="text-slate-400 font-bold uppercase tracking-widest">Access Denied</p><p class="text-slate-500 text-sm mt-2">Agent Stats is only available for Super Admin.</p></div>';
+        }
+        return;
+    }
+    
     if (asSubscribed) {
         // Just refresh the existing view if we're already subscribed
         if (currentReportData) {
             viewReport(currentReportData.id);
         } else if (allReports.length > 0) {
-            viewReport(allReports[0].id);
+            // Auto-open the latest report (first in array after sorting oldest first)
+            const sortedForDisplay = [...allReports].sort((a,b) => new Date(a.uploadedAt) - new Date(b.uploadedAt));
+            if (sortedForDisplay.length > 0) {
+                viewReport(sortedForDisplay[0].id);
+            }
         }
     } else if (typeof window.listenForAgentReports === 'function') {
         window.listenForAgentReports(data => {
@@ -29,7 +49,7 @@ window.renderAgentStatsHistory = function() {
             
             // Detect if this is a NEW report being added
             const isNewReport = allReports.length > 0 && data && data.length > allReports.length;
-            const newReportId = isNewReport && data[0] ? data[0].id : null;
+            const newReportId = isNewReport && data[data.length - 1] ? data[data.length - 1].id : null;
             
             allReports = data || [];
             window.allAgentReports = allReports; // Expose globally for Zero Performance tab
@@ -52,23 +72,28 @@ window.renderAgentStatsHistory = function() {
             
             renderHistoryList(isNewReport, newReportId);
             
-            // If we don't have a currently viewed report, pick the latest.
-            // If we DO have one, refresh it to show data in the potentially re-loaded tab HTML.
+            // Auto-open the latest report (oldest first in list)
             if (!currentReportData && allReports.length > 0) {
-                viewReport(allReports[0].id);
+                const sortedForDisplay = [...allReports].sort((a,b) => new Date(a.uploadedAt) - new Date(b.uploadedAt));
+                if (sortedForDisplay.length > 0) {
+                    viewReport(sortedForDisplay[0].id);
+                }
             } else if (currentReportData) {
                 // Check if the current report still exists in the list
                 const stillExists = allReports.find(r => r.id === currentReportData.id);
                 if (stillExists) {
                     viewReport(stillExists.id);
                 } else if (allReports.length > 0) {
-                    viewReport(allReports[0].id);
+                    const sortedForDisplay = [...allReports].sort((a,b) => new Date(a.uploadedAt) - new Date(b.uploadedAt));
+                    if (sortedForDisplay.length > 0) {
+                        viewReport(sortedForDisplay[0].id);
+                    }
                 }
             }
             
             // 🔥 AUTO-PUSH: Automatically push the latest report to the Daily dashboard
             if (allReports.length > 0) {
-                const latestReport = allReports[0]; // Most recent upload
+                const latestReport = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))[0];
                 
                 // Only auto-push if it's a new report (not already pushed)
                 if (lastAutoPushedReportId !== latestReport.id) {
@@ -91,7 +116,7 @@ window.renderAgentStatsHistory = function() {
     }
 };
 
-// 🔥 NEW FUNCTION: Auto-push report to Live Dashboard
+// 🔥 AUTO-PUSH FUNCTION: Auto-push report to Live Dashboard
 async function autoPushReportToDashboard(report) {
     if (!report || !report.data) {
         console.warn('Auto-push skipped: No report data');
@@ -129,7 +154,7 @@ async function autoPushReportToDashboard(report) {
         dateLabel: report.reportDate,
         pushedAt: new Date().toISOString(),
         pushedBy: report.author || 'Auto-Push System',
-        sourceReportId: report.id, // Track which report was used
+        sourceReportId: report.id,
         agents: aggregatedList.map(d => ({
             name: d.name,
             ytelId: d.ytelId,
@@ -142,14 +167,11 @@ async function autoPushReportToDashboard(report) {
         await window.saveLiveDashboardState(pushState);
         console.log('✅ Auto-pushed report to Daily dashboard:', report.reportDate);
         
-        // Force dashboard refresh
         if (typeof window.updateDashboard === 'function') {
             setTimeout(() => window.updateDashboard(), 500);
         }
         
-        // Also try to inject directly into agents array for immediate update
         if (typeof window.agents !== 'undefined' && Array.isArray(window.agents)) {
-            // Update existing agents with new lead counts
             aggregatedList.forEach(pushed => {
                 const existingAgent = window.agents.find(a => 
                     a.name === pushed.name || 
@@ -158,7 +180,6 @@ async function autoPushReportToDashboard(report) {
                 if (existingAgent) {
                     existingAgent.dailyLeads = pushed.transfers;
                 } else {
-                    // Add new agent if not exists
                     window.agents.push({
                         name: pushed.name,
                         ytelId: pushed.ytelId,
@@ -169,24 +190,8 @@ async function autoPushReportToDashboard(report) {
                 }
             });
             
-            // Re-render dashboard if render function exists
-            if (typeof window.render === 'function') {
-                window.render();
-            }
-            if (typeof window.checkLeadAlerts === 'function') {
-                window.checkLeadAlerts(window.agents);
-            }
-        }
-        
-        // Show status message
-        const statusEl = document.getElementById('as-upload-status');
-        if (statusEl && statusEl.innerHTML.includes('saved successfully')) {
-            statusEl.innerHTML = '<span class="text-green-400">✅ Report saved & auto-pushed to Daily Dashboard!</span>';
-            setTimeout(() => {
-                if (statusEl && statusEl.innerHTML.includes('auto-pushed')) {
-                    statusEl.innerHTML = '';
-                }
-            }, 4000);
+            if (typeof window.render === 'function') window.render();
+            if (typeof window.checkLeadAlerts === 'function') window.checkLeadAlerts(window.agents);
         }
         
         if (typeof window.writeAdminActivityLog === 'function') {
@@ -241,13 +246,40 @@ window.asSetRetention = function(days) {
     // Update button styles
     [30, 60, 90].forEach(d => {
         const btn = document.getElementById(`as-ret-${d}`);
-        if (btn) btn.className = d === days ? 'as-ret-btn active-ret' : 'as-ret-btn';
+        if (btn) btn.classList.remove('active-ret');
+        if (btn && d === days) btn.classList.add('active-ret');
     });
+    // Update custom input value if provided as number
+    const customInput = document.getElementById('as-ret-custom');
+    if (customInput && days !== 30 && days !== 60 && days !== 90) {
+        customInput.value = days;
+    }
     // Update expiry display
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + days);
     const expiryEl = document.getElementById('as-expiry-display');
     if (expiryEl) expiryEl.innerText = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+// Handle custom retention input
+window.asSetCustomRetention = function() {
+    const customInput = document.getElementById('as-ret-custom');
+    if (customInput) {
+        let days = parseInt(customInput.value);
+        if (isNaN(days) || days < 1) days = 30;
+        if (days > 365) days = 365;
+        _asRetentionDays = days;
+        // Remove active class from preset buttons
+        [30, 60, 90].forEach(d => {
+            const btn = document.getElementById(`as-ret-${d}`);
+            if (btn) btn.classList.remove('active-ret');
+        });
+        // Update expiry display
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + days);
+        const expiryEl = document.getElementById('as-expiry-display');
+        if (expiryEl) expiryEl.innerText = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
 };
 
 window.asToggleDateOverride = function(checked) {
@@ -309,24 +341,6 @@ window.asConfirmUpload = async function() {
             // Hide panel, reset
             document.getElementById('as-upload-panel').classList.add('hidden');
             _asStagedFile = null; _asStagedParsed = null;
-            
-            // The auto-push will happen when the listener picks up the new report
-            // Force a quick refresh to trigger auto-push
-            setTimeout(() => {
-                if (typeof window.listenForAgentReports === 'function') {
-                    // Trigger a manual check
-                    window.listenForAgentReports((data) => {
-                        allReports = data || [];
-                        if (allReports.length > 0) {
-                            const latestReport = allReports[0];
-                            if (lastAutoPushedReportId !== latestReport.id) {
-                                autoPushReportToDashboard(latestReport);
-                                lastAutoPushedReportId = latestReport.id;
-                            }
-                        }
-                    });
-                }
-            }, 500);
             
             setTimeout(() => updateStatsStatus('', false), 3000);
         } else {
@@ -497,7 +511,7 @@ function updateStatsStatus(msg, isError) {
     }
 }
 
-// 🔥 UPDATED: Render history list with highlight effect for new reports
+// 🔥 UPDATED: Render history list with latest at BOTTOM
 function renderHistoryList(isNewReport = false, newReportId = null) {
     const listHtmls = document.querySelectorAll('#as-history-list');
     if (listHtmls.length === 0) return;
@@ -509,18 +523,17 @@ function renderHistoryList(isNewReport = false, newReportId = null) {
         return;
     }
     
-    // Sort descending by upload time (most recent first)
-    const sorted = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+    // Sort ASCENDING by upload time (oldest first, newest at BOTTOM)
+    const sorted = [...allReports].sort((a,b) => new Date(a.uploadedAt) - new Date(b.uploadedAt));
     
     const htmlOutput = sorted.map((r, i) => {
-        const isLatest = i === 0;
+        const isLatest = i === sorted.length - 1; // Last item is newest
         const isNew = isNewReport && newReportId === r.id;
         const fileDate = r.reportDate || r.filename || 'Unknown Date';
         const uploadDate = new Date(r.uploadedAt).toLocaleDateString('en-GB');
         const uploadTime = new Date(r.uploadedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         const isActive = currentReportData && currentReportData.id === r.id;
         
-        // Add highlight class for new reports
         const highlightClass = isNew ? 'report-item-new' : '';
         
         return `
@@ -544,19 +557,15 @@ function renderHistoryList(isNewReport = false, newReportId = null) {
     listHtmls.forEach(listHtml => {
         listHtml.innerHTML = htmlOutput;
         
-        // Auto-scroll to top when new report is added
+        // Auto-scroll to BOTTOM when new report is added (to see the latest)
         if (isNewReport && listHtml.parentElement) {
-            listHtml.parentElement.scrollTop = 0;
-            
-            // Also scroll the main container
-            const container = document.getElementById('admin-hub-content');
-            if (container) {
-                container.scrollTop = 0;
-            }
+            setTimeout(() => {
+                listHtml.parentElement.scrollTop = listHtml.parentElement.scrollHeight;
+            }, 100);
         }
     });
     
-    // Add CSS animation if not already present
+    // Add CSS animations if not already present
     if (!document.getElementById('stats-highlight-style')) {
         const style = document.createElement('style');
         style.id = 'stats-highlight-style';
@@ -566,6 +575,11 @@ function renderHistoryList(isNewReport = false, newReportId = null) {
                 30% { background: rgba(6, 182, 212, 0.3); border-left: 3px solid #06b6d4; }
                 70% { background: rgba(6, 182, 212, 0.15); border-left: 3px solid #06b6d4; }
                 100% { background: rgba(6, 182, 212, 0); border-left: 3px solid transparent; }
+            }
+            @keyframes rowHighlight {
+                0% { background: rgba(34, 197, 94, 0); }
+                50% { background: rgba(34, 197, 94, 0.3); }
+                100% { background: rgba(34, 197, 94, 0); }
             }
             .report-item-new {
                 background: rgba(6, 182, 212, 0.1) !important;
@@ -584,6 +598,15 @@ function renderHistoryList(isNewReport = false, newReportId = null) {
                 background: rgba(6, 182, 212, 0.15) !important;
                 border-left-color: #06b6d4;
             }
+            .new-lead-row {
+                animation: rowHighlight 1s ease-in-out 2;
+                background: rgba(34, 197, 94, 0.1);
+            }
+            .as-ret-btn.active-ret {
+                background: rgba(6, 182, 212, 0.2);
+                border-color: #06b6d4;
+                color: #22d3ee;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -593,6 +616,18 @@ window.viewReport = function(id) {
     const report = allReports.find(r => r.id === id);
     if (!report) return;
     
+    // Store previous lead counts for comparison
+    if (currentReportData && currentReportData.data) {
+        previousReportLeadCounts.clear();
+        currentReportData.data.forEach(row => {
+            const key = `${row.agentId}_${row.agentName}`;
+            previousReportLeadCounts.set(key, {
+                duration: row.duration,
+                status: row.status
+            });
+        });
+    }
+    
     currentReportData = report;
     renderHistoryList();
     
@@ -600,7 +635,7 @@ window.viewReport = function(id) {
     document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> Uploaded ${new Date(report.uploadedAt).toLocaleDateString()} at ${new Date(report.uploadedAt).toLocaleTimeString()}`);
     document.querySelectorAll('#as-report-author').forEach(el => el.innerHTML = `<i class="far fa-user mr-1"></i> ${report.author}`);
     
-    // Wire up delete button
+    // Wire up delete button (Super Admin only)
     const delBtns = document.querySelectorAll('#as-delete-btn');
     delBtns.forEach(delBtn => {
         const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
@@ -622,47 +657,52 @@ window.viewReport = function(id) {
         }
     });
     
-    // Wire up Push Button (manual override - still available)
+    // Wire up Push Button (Super Admin only)
     const pushBtns = document.querySelectorAll('#as-push-btn');
     pushBtns.forEach(pushBtn => {
-        pushBtn.classList.remove('hidden');
-        pushBtn.onclick = async () => {
-            if(confirm(`WARNING: This will overwrite the "TODAY" Live Leaderboard with this report (${report.reportDate}).\n\nNote: The most recent upload is auto-pushed. Use this only to override with an older report.\n\nContinue?`)) {
-                
-                const aggMap = {};
-                report.data.forEach(d => {
-                    const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
-                    const id = d.agentId || d.ytelId || d.agentName;
-                    const rawKey = d.rawName || d.agentName;
-                    if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0, ytelId: id };
-                    if(d.duration >= 120) aggMap[nameKey].transfers++;
-                });
-                const aggregatedList = Object.values(aggMap);
-                
-                const pushState = {
-                    dateLabel: report.reportDate,
-                    pushedAt: new Date().toISOString(),
-                    pushedBy: report.author || 'Manual Push',
-                    sourceReportId: report.id,
-                    agents: aggregatedList.map(d => ({
-                        name: d.name,
-                        ytelId: d.ytelId,
-                        team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName) : 'PR',
-                        dailyLeads: d.transfers
-                    }))
-                };
-                
-                if (typeof window.saveLiveDashboardState === 'function') {
-                    await window.saveLiveDashboardState(pushState);
-                    pushBtns.forEach(btn => btn.innerHTML = '✅ Pushed!');
-                    setTimeout(() => pushBtns.forEach(btn => btn.innerHTML = '🚀 Push to Daily Full Board'), 2000);
+        const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        if (cAdmin.role === 'super_admin' || cAdmin.isSuper) {
+            pushBtn.classList.remove('hidden');
+            pushBtn.onclick = async () => {
+                if(confirm(`WARNING: This will overwrite the "TODAY" Live Leaderboard with this report (${report.reportDate}).\n\nNote: The most recent upload is auto-pushed. Use this only to override with an older report.\n\nContinue?`)) {
                     
-                    if (typeof window.writeAdminActivityLog === 'function') {
-                        window.writeAdminActivityLog('push_dashboard', `Manually Pushed Report to Live Dashboard: ${report.reportDate}`);
+                    const aggMap = {};
+                    report.data.forEach(d => {
+                        const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
+                        const id = d.agentId || d.ytelId || d.agentName;
+                        const rawKey = d.rawName || d.agentName;
+                        if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0, ytelId: id };
+                        if(d.duration >= 120) aggMap[nameKey].transfers++;
+                    });
+                    const aggregatedList = Object.values(aggMap);
+                    
+                    const pushState = {
+                        dateLabel: report.reportDate,
+                        pushedAt: new Date().toISOString(),
+                        pushedBy: report.author || 'Manual Push',
+                        sourceReportId: report.id,
+                        agents: aggregatedList.map(d => ({
+                            name: d.name,
+                            ytelId: d.ytelId,
+                            team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName) : 'PR',
+                            dailyLeads: d.transfers
+                        }))
+                    };
+                    
+                    if (typeof window.saveLiveDashboardState === 'function') {
+                        await window.saveLiveDashboardState(pushState);
+                        pushBtns.forEach(btn => btn.innerHTML = '✅ Pushed!');
+                        setTimeout(() => pushBtns.forEach(btn => btn.innerHTML = '🚀 Push to Daily Full Board'), 2000);
+                        
+                        if (typeof window.writeAdminActivityLog === 'function') {
+                            window.writeAdminActivityLog('push_dashboard', `Manually Pushed Report to Live Dashboard: ${report.reportDate}`);
+                        }
                     }
                 }
-            }
-        };
+            };
+        } else {
+            pushBtn.classList.add('hidden');
+        }
     });
     
     renderActiveReportTable();
@@ -678,6 +718,7 @@ window.sortAgentStats = function(col) {
     renderActiveReportTable();
 };
 
+// 🔥 UPDATED: Render table with highlight for new leads
 function renderActiveReportTable() {
     if (!currentReportData) return;
     
@@ -739,14 +780,34 @@ function renderActiveReportTable() {
             const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
             const typeLabel = isXfer ? 'XFER' : 'CONN';
             
+            // Check if this is a new lead (compared to previous report)
+            const key = `${d.agentId}_${d.agentName}`;
+            const previousData = previousReportLeadCounts.get(key);
+            let isNewLead = false;
+            
+            if (previousData) {
+                // If this is a new transfer that wasn't in previous report
+                if (isXfer && previousData.duration < 120) {
+                    isNewLead = true;
+                }
+                // If this agent wasn't in previous report at all
+            } else if (isXfer) {
+                isNewLead = true;
+            }
+            
+            const highlightClass = isNewLead ? 'new-lead-row' : '';
+            
             return `
-                <tr class="border-b border-white/5 hover:bg-white/5 transition group text-[11px]">
-                    <td class="p-3 text-slate-500 font-mono">${d.agentId}</td>
-                    <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${d.rawName || d.agentName}</td>
-                    <td class="p-3 text-center text-slate-400 truncate max-w-[100px]" title="${d.status}">${d.status}</td>
+                <tr class="border-b border-white/5 hover:bg-white/5 transition group text-[11px] ${highlightClass}">
+                    <td class="p-3 text-slate-500 font-mono">${escapeHtml(d.agentId)}</td>
+                    <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">${escapeHtml(d.rawName || d.agentName)}</td>
+                    <td class="p-3 text-center text-slate-400 truncate max-w-[100px]" title="${escapeHtml(d.status)}">${escapeHtml(d.status)}</td>
                     <td class="p-3 text-center text-slate-300 font-mono">${d.duration}s</td>
-                    <td class="p-3 text-right ${typeColor}">${typeLabel}</td>
-                </tr>
+                    <td class="p-3 text-right ${typeColor}">
+                        ${typeLabel}
+                        ${isNewLead ? '<span class="ml-2 text-[8px] bg-green-500/20 text-green-400 px-1 py-0.5 rounded">NEW</span>' : ''}
+                    </td>
+                </table>
             `;
         }).join('');
 
@@ -759,4 +820,15 @@ function renderActiveReportTable() {
     }
 
     renderNextChunk();
+}
+
+// Helper function to escape HTML
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
 }
