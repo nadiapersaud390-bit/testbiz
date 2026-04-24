@@ -1,7 +1,7 @@
 /**
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
  * AUTO-PUSH: Most recent file automatically updates the Daily dashboard
- * NEW: Most recent report auto-opens, new leads highlighted at TOP
+ * FIXED: CSV rows sorted with newest at TOP, proper same-day overwrite
  */
 
 let allReports = [];
@@ -40,11 +40,10 @@ window.renderAgentStatsHistory = function() {
         if (currentReportData) {
             viewReport(currentReportData.id);
         } else if (allReports.length > 0) {
-            // Auto-open the MOST RECENT report (last in array = newest)
-            const sortedForDisplay = [...allReports].sort((a,b) => new Date(a.uploadedAt) - new Date(b.uploadedAt));
+            // Auto-open the MOST RECENT report (newest upload)
+            const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
             if (sortedForDisplay.length > 0) {
-                const mostRecent = sortedForDisplay[sortedForDisplay.length - 1];
-                viewReport(mostRecent.id);
+                viewReport(sortedForDisplay[0].id);
             }
         }
     } else if (typeof window.listenForAgentReports === 'function') {
@@ -52,11 +51,12 @@ window.renderAgentStatsHistory = function() {
             console.log('Agent Stats: Received data update', data?.length);
             
             // Detect if this is a NEW report being added
-            const isNewReport = allReports.length > 0 && data && data.length > allReports.length;
-            const newReportId = isNewReport && data[data.length - 1] ? data[data.length - 1].id : null;
-            
+            const previousCount = allReports.length;
             allReports = data || [];
-            window.allAgentReports = allReports; // Expose globally for Zero Performance tab
+            window.allAgentReports = allReports;
+            
+            const isNewReport = previousCount > 0 && allReports.length > previousCount;
+            const newReportId = isNewReport && allReports[0] ? allReports[0].id : null;
             
             // Clean up expired ones
             const now = new Date();
@@ -72,27 +72,24 @@ window.renderAgentStatsHistory = function() {
                 }
             });
             
-            if (needsCleanup) return; // The listener will fire again after deletions
+            if (needsCleanup) return;
             
             renderHistoryList(isNewReport, newReportId);
             
-            // Auto-open the MOST RECENT report (last in sorted array = newest)
+            // Auto-open the MOST RECENT report (newest upload first)
             if (!currentReportData && allReports.length > 0) {
-                const sortedForDisplay = [...allReports].sort((a,b) => new Date(a.uploadedAt) - new Date(b.uploadedAt));
+                const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
                 if (sortedForDisplay.length > 0) {
-                    const mostRecent = sortedForDisplay[sortedForDisplay.length - 1];
-                    viewReport(mostRecent.id);
+                    viewReport(sortedForDisplay[0].id);
                 }
             } else if (currentReportData) {
-                // Check if the current report still exists in the list
                 const stillExists = allReports.find(r => r.id === currentReportData.id);
                 if (stillExists) {
                     viewReport(stillExists.id);
                 } else if (allReports.length > 0) {
-                    const sortedForDisplay = [...allReports].sort((a,b) => new Date(a.uploadedAt) - new Date(b.uploadedAt));
+                    const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
                     if (sortedForDisplay.length > 0) {
-                        const mostRecent = sortedForDisplay[sortedForDisplay.length - 1];
-                        viewReport(mostRecent.id);
+                        viewReport(sortedForDisplay[0].id);
                     }
                 }
             }
@@ -101,7 +98,6 @@ window.renderAgentStatsHistory = function() {
             if (allReports.length > 0) {
                 const latestReport = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))[0];
                 
-                // Only auto-push if it's a new report (not already pushed)
                 if (lastAutoPushedReportId !== latestReport.id) {
                     console.log('Auto-pushing latest report to Daily tab:', latestReport.reportDate);
                     autoPushReportToDashboard(latestReport);
@@ -129,18 +125,15 @@ async function autoPushReportToDashboard(report) {
         return;
     }
     
-    // Check if this report is from TODAY (only auto-push today's data)
     const today = new Date();
     const todayStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const reportDateStr = report.reportDate;
     
-    // Only auto-push if the report is from today
     if (!reportDateStr || (!reportDateStr.includes(todayStr.split(' ')[0]) && !reportDateStr.includes(todayStr))) {
         console.log('Auto-push skipped: Report is not from today -', reportDateStr);
         return;
     }
     
-    // Aggregate by agent NAME
     const aggMap = {};
     report.data.forEach(d => {
         const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
@@ -249,25 +242,21 @@ let _asRetentionDays = 30;
 window.asSetRetention = function(days) {
     if (!days || isNaN(days) || days < 1) return;
     _asRetentionDays = days;
-    // Update button styles
-    [30, 60, 90].forEach(d => {
+    [7, 30, 60, 90].forEach(d => {
         const btn = document.getElementById(`as-ret-${d}`);
         if (btn) btn.classList.remove('active-ret');
         if (btn && d === days) btn.classList.add('active-ret');
     });
-    // Update custom input value if provided as number
     const customInput = document.getElementById('as-ret-custom');
-    if (customInput && days !== 30 && days !== 60 && days !== 90) {
+    if (customInput && days !== 7 && days !== 30 && days !== 60 && days !== 90) {
         customInput.value = days;
     }
-    // Update expiry display
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + days);
     const expiryEl = document.getElementById('as-expiry-display');
     if (expiryEl) expiryEl.innerText = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-// Handle custom retention input
 window.asSetCustomRetention = function() {
     const customInput = document.getElementById('as-ret-custom');
     if (customInput) {
@@ -275,12 +264,10 @@ window.asSetCustomRetention = function() {
         if (isNaN(days) || days < 1) days = 30;
         if (days > 365) days = 365;
         _asRetentionDays = days;
-        // Remove active class from preset buttons
-        [30, 60, 90].forEach(d => {
+        [7, 30, 60, 90].forEach(d => {
             const btn = document.getElementById(`as-ret-${d}`);
             if (btn) btn.classList.remove('active-ret');
         });
-        // Update expiry display
         const expiryDate = new Date();
         expiryDate.setDate(expiryDate.getDate() + days);
         const expiryEl = document.getElementById('as-expiry-display');
@@ -302,7 +289,6 @@ window.asConfirmUpload = async function() {
         return;
     }
     
-    // Read possibly-overridden date
     const dateInput = document.getElementById('as-report-date-input');
     const isOverride = document.getElementById('as-date-override-check')?.checked;
     let finalDateStr = _asStagedDateStr;
@@ -330,10 +316,11 @@ window.asConfirmUpload = async function() {
         data: _asStagedParsed
     };
     
-    // Overwrite existing report for same date
+    // 🔥 FIX: Delete existing report for same date BEFORE saving new one
     const existingReport = allReports.find(r => r.reportDate === finalDateStr);
     if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
         await window.deleteAgentReportFromFirebase(existingReport.id);
+        console.log(`Deleted existing report for ${finalDateStr}`);
     }
     
     if (typeof window.saveAgentReportToFirebase === 'function') {
@@ -344,9 +331,9 @@ window.asConfirmUpload = async function() {
                 window.writeAdminActivityLog('upload_stats', `Uploaded Agent Stats Report: ${_asStagedFile.name}`);
             }
             
-            // Hide panel, reset
             document.getElementById('as-upload-panel').classList.add('hidden');
-            _asStagedFile = null; _asStagedParsed = null;
+            _asStagedFile = null;
+            _asStagedParsed = null;
             
             setTimeout(() => updateStatsStatus('', false), 3000);
         } else {
@@ -380,14 +367,18 @@ async function handleFileUpload(file) {
     }
     if (!fileDateStr) fileDateStr = file.name.replace(/\.csv$/i, '');
     
-    // Pre-process: find actual header row
     const text = await file.text();
     let lines = text.split('\n');
     let headerIdx = -1;
     for(let i=0; i<lines.length; i++) {
         const lower = lines[i].toLowerCase();
-        if(lower.includes('agent id') || lower.includes('agent name')) {
-            headerIdx = i; break;
+        if(lower.includes('agent id') && lower.includes('agent name')) {
+            headerIdx = i;
+            break;
+        }
+        if(lower.includes('agent name')) {
+            headerIdx = i;
+            break;
         }
     }
     
@@ -411,21 +402,17 @@ async function handleFileUpload(file) {
                     return;
                 }
                 
-                // Stage for confirmation
                 _asStagedFile = file;
                 _asStagedParsed = parsedData;
                 _asStagedDateStr = fileDateStr;
                 _asStagedParsedDate = parsedReportDate;
                 _asRetentionDays = 30;
                 
-                // Populate panel
                 const dateInput = document.getElementById('as-report-date-input');
                 if (dateInput) dateInput.value = fileDateStr;
                 
-                // Reset retention to 30 days
                 asSetRetention(30);
                 
-                // Show panel
                 const panel = document.getElementById('as-upload-panel');
                 if (panel) panel.classList.remove('hidden');
                 
@@ -441,6 +428,7 @@ async function handleFileUpload(file) {
     });
 }
 
+// 🔥 FIXED: Process CSV rows and sort by timestamp (newest at TOP)
 function processCSVRows(rows) {
     if(!rows || rows.length === 0) return [];
     
@@ -470,6 +458,12 @@ function processCSVRows(rows) {
         const l = k.toLowerCase();
         return (l.includes('duration') || l.includes('time') || l.includes('length')) && k !== idCol && k !== nameCol && k !== statusCol;
     }) || keys.find(k => k !== idCol && k !== nameCol && k !== statusCol) || keys[3];
+    
+    // 5. Identify Date Column (for sorting newest first)
+    let dateCol = keys.find(k => {
+        const l = k.toLowerCase();
+        return l.includes('xfer date') || l.includes('date') || l.includes('timestamp');
+    });
 
     const parsedArray = [];
     
@@ -497,13 +491,31 @@ function processCSVRows(rows) {
             }
         }
         
+        // Parse timestamp for sorting
+        let timestamp = null;
+        if (dateCol && row[dateCol]) {
+            timestamp = new Date(row[dateCol]);
+        }
+        
         parsedArray.push({
             agentId: String(id).trim(),
             agentName: cleanName,
             rawName: rawName,
             status: status.toUpperCase(),
-            duration: duration
+            duration: duration,
+            timestamp: timestamp,
+            rawDate: dateCol ? row[dateCol] : null
         });
+    });
+    
+    // 🔥 FIX: Sort by timestamp (newest first) - this puts most recent at TOP
+    parsedArray.sort((a, b) => {
+        if (a.timestamp && b.timestamp) {
+            return b.timestamp - a.timestamp;
+        }
+        if (a.timestamp && !b.timestamp) return -1;
+        if (!a.timestamp && b.timestamp) return 1;
+        return 0;
     });
     
     return parsedArray;
@@ -517,7 +529,7 @@ function updateStatsStatus(msg, isError) {
     }
 }
 
-// Render history list with latest at BOTTOM
+// Render history list with latest at TOP (newest first)
 function renderHistoryList(isNewReport = false, newReportId = null) {
     const listHtmls = document.querySelectorAll('#as-history-list');
     if (listHtmls.length === 0) return;
@@ -529,11 +541,11 @@ function renderHistoryList(isNewReport = false, newReportId = null) {
         return;
     }
     
-    // Sort ASCENDING by upload time (oldest first, newest at BOTTOM)
-    const sorted = [...allReports].sort((a,b) => new Date(a.uploadedAt) - new Date(b.uploadedAt));
+    // Sort DESCENDING by upload time (newest first at TOP)
+    const sorted = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
     
     const htmlOutput = sorted.map((r, i) => {
-        const isLatest = i === sorted.length - 1; // Last item is newest
+        const isLatest = i === 0; // First item is newest
         const isNew = isNewReport && newReportId === r.id;
         const fileDate = r.reportDate || r.filename || 'Unknown Date';
         const uploadDate = new Date(r.uploadedAt).toLocaleDateString('en-GB');
@@ -563,10 +575,10 @@ function renderHistoryList(isNewReport = false, newReportId = null) {
     listHtmls.forEach(listHtml => {
         listHtml.innerHTML = htmlOutput;
         
-        // Auto-scroll to BOTTOM when new report is added (to see the latest)
+        // Auto-scroll to TOP when new report is added
         if (isNewReport && listHtml.parentElement) {
             setTimeout(() => {
-                listHtml.parentElement.scrollTop = listHtml.parentElement.scrollHeight;
+                listHtml.parentElement.scrollTop = 0;
             }, 100);
         }
     });
@@ -587,11 +599,6 @@ function renderHistoryList(isNewReport = false, newReportId = null) {
                 30% { background: rgba(34, 197, 94, 0.3); transform: scale(1.02); }
                 70% { background: rgba(34, 197, 94, 0.15); transform: scale(1.01); }
                 100% { background: rgba(34, 197, 94, 0); transform: scale(1); }
-            }
-            @keyframes newLeadGlow {
-                0% { box-shadow: 0 0 0px rgba(34, 197, 94, 0); }
-                50% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.5); }
-                100% { box-shadow: 0 0 0px rgba(34, 197, 94, 0); }
             }
             .report-item-new {
                 background: rgba(6, 182, 212, 0.1) !important;
@@ -655,16 +662,13 @@ window.viewReport = function(id) {
             
             if (isXfer) {
                 if (!previous) {
-                    // New agent with a transfer
                     newLeadsList.push(row);
                 } else if (previous.duration < 120 && row.duration >= 120) {
-                    // Existing agent got their first transfer
                     newLeadsList.push(row);
                 }
             }
         });
     } else {
-        // First report - mark all XFERs as new
         report.data.forEach(row => {
             if (row.duration >= 120) {
                 newLeadsList.push(row);
@@ -679,17 +683,6 @@ window.viewReport = function(id) {
     document.querySelectorAll('#as-report-title').forEach(el => el.innerText = '📊 Report: ' + report.reportDate);
     document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> Uploaded ${new Date(report.uploadedAt).toLocaleDateString()} at ${new Date(report.uploadedAt).toLocaleTimeString()}`);
     document.querySelectorAll('#as-report-author').forEach(el => el.innerHTML = `<i class="far fa-user mr-1"></i> ${report.author}`);
-    
-    // Show new leads count badge if there are new leads
-    const newLeadsBadge = document.getElementById('as-new-leads-badge');
-    if (newLeadsBadge) {
-        if (newLeadsList.length > 0) {
-            newLeadsBadge.innerHTML = `<span class="ml-3 bg-green-500/20 text-green-400 text-[10px] px-2 py-0.5 rounded-full">✨ ${newLeadsList.length} New Lead${newLeadsList.length !== 1 ? 's' : ''}</span>`;
-            newLeadsBadge.classList.remove('hidden');
-        } else {
-            newLeadsBadge.classList.add('hidden');
-        }
-    }
     
     // Wire up delete button (Super Admin only)
     const delBtns = document.querySelectorAll('#as-delete-btn');
@@ -720,7 +713,7 @@ window.viewReport = function(id) {
         if (cAdmin.role === 'super_admin' || cAdmin.isSuper) {
             pushBtn.classList.remove('hidden');
             pushBtn.onclick = async () => {
-                if(confirm(`WARNING: This will overwrite the "TODAY" Live Leaderboard with this report (${report.reportDate}).\n\nNote: The most recent upload is auto-pushed. Use this only to override with an older report.\n\nContinue?`)) {
+                if(confirm(`WARNING: This will overwrite the "TODAY" Live Leaderboard with this report (${report.reportDate}). Continue?`)) {
                     
                     const aggMap = {};
                     report.data.forEach(d => {
@@ -789,7 +782,6 @@ function renderActiveReportTable() {
     document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
     document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = agentCount > 0 ? ((totalXfers / agentCount)*100).toFixed(1) + '%' : '0%');
     
-    // Sort: New leads FIRST, then sort by duration (highest to lowest), then alphabetically
     let displayRows = [...rawRows];
     
     let searchVal = '';
@@ -799,35 +791,35 @@ function renderActiveReportTable() {
         displayRows = displayRows.filter(d => d.agentName.toLowerCase().includes(searchVal) || d.agentId.toLowerCase().includes(searchVal));
     }
     
-    // Mark which rows are new leads
     const newLeadIds = new Set();
     newLeadsList.forEach(lead => {
         const key = `${lead.agentId}_${lead.agentName}`;
         newLeadIds.add(key);
     });
     
-    // Custom sort: new leads first, then by duration (XFER first), then by name
+    // Sort: new leads first, then by timestamp (newest first), then by name
     displayRows.sort((a, b) => {
         const aIsNew = newLeadIds.has(`${a.agentId}_${a.agentName}`);
         const bIsNew = newLeadIds.has(`${b.agentId}_${b.agentName}`);
         
-        // New leads come first
         if (aIsNew && !bIsNew) return -1;
         if (!aIsNew && bIsNew) return 1;
         
-        // Both new or both not new - sort by duration (XFER first, higher duration first)
+        // Sort by timestamp if available (newest first)
+        if (a.timestamp && b.timestamp) {
+            return b.timestamp - a.timestamp;
+        }
+        
         const aIsXfer = a.duration >= 120;
         const bIsXfer = b.duration >= 120;
         
         if (aIsXfer && !bIsXfer) return -1;
         if (!aIsXfer && bIsXfer) return 1;
         
-        // Sort by duration (higher first)
         if (a.duration !== b.duration) {
             return b.duration - a.duration;
         }
         
-        // Then alphabetically by name
         return a.agentName.localeCompare(b.agentName);
     });
     
@@ -848,25 +840,22 @@ function renderActiveReportTable() {
             const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
             const typeLabel = isXfer ? 'XFER' : 'CONN';
             
-            // Check if this is a new lead
             const key = `${d.agentId}_${d.agentName}`;
             const isNewLead = newLeadIds.has(key);
             const highlightClass = isNewLead ? 'new-lead-row' : '';
-            
-            // Add a star emoji and indicator for new leads
             const newLeadIndicator = isNewLead ? '<span class="ml-2 text-[10px] bg-green-500/30 text-green-400 px-1.5 py-0.5 rounded-full animate-pulse">⭐ NEW</span>' : '';
             
             return `
                 <tr class="border-b border-white/5 hover:bg-white/5 transition group text-[11px] ${highlightClass}">
-                    <td class="p-3 text-slate-500 font-mono">${escapeHtml(d.agentId)}</td>
+                    <td class="p-3 text-slate-500 font-mono">${escapeHtml(d.agentId)}<\/td>
                     <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">
                         ${escapeHtml(d.rawName || d.agentName)}
                         ${newLeadIndicator}
-                    </td>
-                    <td class="p-3 text-center text-slate-400 truncate max-w-[100px]" title="${escapeHtml(d.status)}">${escapeHtml(d.status)}</td>
-                    <td class="p-3 text-center text-slate-300 font-mono">${d.duration}s</td>
-                    <td class="p-3 text-right ${typeColor}">${typeLabel}</td>
-                </tr>
+                    <\/td>
+                    <td class="p-3 text-center text-slate-400 truncate max-w-[100px]" title="${escapeHtml(d.status)}">${escapeHtml(d.status)}<\/td>
+                    <td class="p-3 text-center text-slate-300 font-mono">${d.duration}s<\/td>
+                    <td class="p-3 text-right ${typeColor}">${typeLabel}<\/td>
+                 \u007d\u007d
             `;
         }).join('');
 
@@ -876,13 +865,10 @@ function renderActiveReportTable() {
         if (currentIndex < displayRows.length) {
             requestAnimationFrame(renderNextChunk);
         } else {
-            // After rendering, scroll to show new leads at the top
             if (newLeadsList.length > 0) {
                 setTimeout(() => {
                     const tableContainer = document.querySelector('.glass.rounded-3xl.overflow-hidden');
-                    if (tableContainer) {
-                        tableContainer.scrollTop = 0;
-                    }
+                    if (tableContainer) tableContainer.scrollTop = 0;
                 }, 100);
             }
         }
@@ -891,7 +877,6 @@ function renderActiveReportTable() {
     renderNextChunk();
 }
 
-// Helper function to escape HTML
 function escapeHtml(str) {
     if (!str) return '';
     return String(str).replace(/[&<>]/g, function(m) {
