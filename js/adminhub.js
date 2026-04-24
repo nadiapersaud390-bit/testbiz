@@ -1,9 +1,10 @@
 /**
  * js/adminhub.js
- * Core logic for the Admin Panel Hub system.
+ * Core logic for the Admin Panel Hub system - OPTIMIZED for performance
  */
 
 let ahCurrentSubTab = 'overview';
+let ahZeroPerfInitialized = false; // Lazy load flag
 const ahTeamColors = {
     BB: 'blue-500',
     PR: 'purple-500',
@@ -14,7 +15,6 @@ const ahTeamColors = {
 function getAdminPermissions(adminEmail) {
     const email = String(adminEmail || '').toLowerCase();
     
-    // Super Admin (rose) - full access
     if (email === 'rose') {
         return {
             isSuper: true,
@@ -25,18 +25,16 @@ function getAdminPermissions(adminEmail) {
         };
     }
     
-    // Regular Admin (momo) - can see Agent Stats
     if (email === 'momo') {
         return {
             isSuper: false,
-            canSeeStats: true,      // momo CAN see Agent Stats
+            canSeeStats: true,
             canSeeAdminTools: false,
             canSeeTrivia: false,
             canSeeSuper: false
         };
     }
     
-    // Other regular admins (0000, etc.) - basic only
     return {
         isSuper: false,
         canSeeStats: false,
@@ -51,7 +49,6 @@ window.switchAdminHubTab = function(tabId) {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const permissions = getAdminPermissions(currentAdmin.email);
     
-    // Permission checks
     if (tabId === 'admintools' && !permissions.canSeeAdminTools) {
         console.warn('Unauthorized access to Admin Tools blocked.');
         return;
@@ -71,20 +68,18 @@ window.switchAdminHubTab = function(tabId) {
 
     ahCurrentSubTab = tabId;
     
-    // Update Nav Buttons
     document.querySelectorAll('.ah-nav-btn, .ah-nav-btn-special').forEach(btn => {
         btn.classList.remove('active');
         if (btn.id === `ah-tab-${tabId}`) btn.classList.add('active');
     });
     
-    // Update Sections
     document.querySelectorAll('.ah-section').forEach(sect => {
         sect.classList.add('hidden');
     });
     const target = document.getElementById(`ah-sect-${tabId}`);
     if (target) target.classList.remove('hidden');
     
-    // Lazy Load/Init Sub-modules
+    // Lazy load expensive modules only when clicked
     if (tabId === 'profiles' && typeof window.initAgentProfiles === 'function') window.initAgentProfiles();
     if (tabId === 'stats' && typeof window.renderAgentStatsHistory === 'function') window.renderAgentStatsHistory();
     if (tabId === 'coaching' && typeof window.coachingInit === 'function') window.coachingInit();
@@ -92,138 +87,154 @@ window.switchAdminHubTab = function(tabId) {
     if (tabId === 'rebuttals') initRebuttalIntel();
     if (tabId === 'performance') initWeeklyPerformance();
     if (tabId === 'admintools') ahAdminToolsInit();
-    if (tabId === 'zero') ahInitZeroPerf();
+    
+    // ✅ FIX: Only initialize Zero Performance when the tab is actually clicked
+    if (tabId === 'zero' && !ahZeroPerfInitialized) {
+        ahInitZeroPerfLazy();
+        ahZeroPerfInitialized = true;
+    }
 };
 
-function ahInitZeroPerf() {
+// ✅ NEW: Lazy-loaded version of Zero Performance (only runs when clicked)
+function ahInitZeroPerfLazy() {
+    console.log('[AdminHub] Loading Zero Performance tab...');
     const dailyList = document.getElementById('ah-zero-daily-list');
     const weeklyList = document.getElementById('ah-zero-weekly-list');
     if (!dailyList || !weeklyList) return;
 
-    const profiles = (window.agents && window.agents.length > 0) ? window.agents : (window.allAgentProfiles || []);
-    const reports  = window.allAgentReports  || [];
+    // Show loading state
+    dailyList.innerHTML = '<div class="py-10 text-center text-cyan-400 font-bold uppercase text-[9px] tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i> Loading daily data...</div>';
+    weeklyList.innerHTML = '<div class="py-10 text-center text-cyan-400 font-bold uppercase text-[9px] tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i> Loading weekly data...</div>';
 
-    function getCount(p, countMap) {
-        const id1 = String(p.ytelId || '').trim();
-        const id2 = String(p.userId || '').trim();
-        const name = (p.name || p.fullName || '').trim().toUpperCase();
-        
-        if (id1 && countMap[id1] !== undefined) return countMap[id1];
-        if (id2 && countMap[id2] !== undefined) return countMap[id2];
-        if (name && countMap[name]) return countMap[name];
-        return 0;
-    }
+    // Use setTimeout to avoid blocking UI thread
+    setTimeout(() => {
+        const profiles = (window.agents && window.agents.length > 0) ? window.agents : (window.allAgentProfiles || []);
+        const reports = window.allAgentReports || [];
 
-    function todayStr() {
-        const n = new Date();
-        return `${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}/${n.getFullYear()}`;
-    }
-
-    function parseReportDate(str) {
-        if (!str) return null;
-        const p = str.split('/');
-        if (p.length !== 3) return null;
-        return new Date(`${p[2]}-${p[0]}-${p[1]}T12:00:00`);
-    }
-
-    function weekStart() {
-        const n = new Date();
-        const diff = (n.getDay() === 0 ? -6 : 1) - n.getDay();
-        const mon = new Date(n);
-        mon.setDate(n.getDate() + diff);
-        mon.setHours(0, 0, 0, 0);
-        return mon;
-    }
-
-    function countXfers(rows) {
-        const map = {};
-        (rows || []).forEach(row => {
-            const uid = String(row.agentId || '').trim();
-            if (!uid) return;
-            if (!map[uid]) map[uid] = 0;
-            if ((row.duration || 0) >= 120) map[uid]++;
-        });
-        return map;
-    }
-
-    function renderRow(p, xfers, hasUpload, isWeekly) {
-        const team       = p.team || 'PR';
-        const hasXfer    = xfers > 0;
-        const dotColor   = hasXfer ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-slate-700';
-        const xferColor  = hasXfer ? 'text-cyan-400' : (isWeekly ? 'text-orange-400' : 'text-red-400');
-        let xferLabel;
-        if (!hasUpload)      xferLabel = '—';
-        else if (hasXfer)    xferLabel = `${xfers} XFER${xfers !== 1 ? 'S' : ''}`;
-        else                 xferLabel = isWeekly ? '0 WEEKLY XFERS' : '0 XFERS';
-
-        return `
-            <div class="bg-white/5 border border-white/5 rounded-2xl p-4 flex justify-between items-center group hover:bg-white/10 transition">
-                <div class="flex items-center gap-3">
-                    <div class="w-2 h-2 rounded-full ${dotColor}"></div>
-                    <div>
-                        <div class="text-[12px] font-black text-white uppercase tracking-tight">${(p.name || p.fullName || 'Unknown').toUpperCase()}</div>
-                        <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${p.ytelId || p.userId || '----'} | ${team}</div>
-                    </div>
-                </div>
-                <div class="text-right">
-                    <div class="text-[10px] font-black ${xferColor} uppercase italic">${xferLabel}</div>
-                </div>
-            </div>`;
-    }
-
-    const roster = window.allAgentProfiles || [];
-    const liveAgents = window.agents || [];
-    const reportsList = window.allAgentReports || [];
-
-    function getDailyCount(p) {
-        const pId = String(p.userId || '').trim();
-        const pName = String(p.fullName || '').trim().toUpperCase();
-        const live = liveAgents.find(a => String(a.ytelId).trim() === pId || (a.name && a.name.toUpperCase() === pName));
-        if (live) return Number(live.dailyLeads) || 0;
-
-        const todayReport = reportsList.find(r => r.reportDate === todayStr());
-        if (todayReport) {
-            const row = todayReport.data.find(d => String(d.agentId).trim() === pId || (d.agentName && d.agentName.toUpperCase() === pName));
-            return row ? (Number(row.dailyLeads) || 0) : 0;
+        function getCount(p, countMap) {
+            const id1 = String(p.ytelId || '').trim();
+            const id2 = String(p.userId || '').trim();
+            const name = (p.name || p.fullName || '').trim().toUpperCase();
+            
+            if (id1 && countMap[id1] !== undefined) return countMap[id1];
+            if (id2 && countMap[id2] !== undefined) return countMap[id2];
+            if (name && countMap[name]) return countMap[name];
+            return 0;
         }
-        return 0;
-    }
 
-    if (roster.length === 0) {
-        dailyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agents in roster yet</div>';
-    } else {
-        const zeros = roster.filter(p => getDailyCount(p) === 0);
-        if (zeros.length === 0) {
-            dailyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers today!</div>';
-        } else {
-            dailyList.innerHTML = zeros.map(p => renderRow(p, 0, true, false)).join('');
+        function todayStr() {
+            const n = new Date();
+            return `${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}/${n.getFullYear()}`;
         }
-    }
 
-    const mon = weekStart();
-    const weekReports = reportsList.filter(r => {
-        const d = parseReportDate(r.reportDate);
-        return d && d >= mon;
-    });
+        function parseReportDate(str) {
+            if (!str) return null;
+            const p = str.split('/');
+            if (p.length !== 3) return null;
+            return new Date(`${p[2]}-${p[0]}-${p[1]}T12:00:00`);
+        }
 
-    if (weekReports.length === 0) {
-        weeklyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">Awaiting this week\'s report upload...</div>';
-    } else {
-        const weeklyCounts = {};
-        weekReports.forEach(r => {
-            const day = countXfers(r.data);
-            Object.entries(day).forEach(([uid, n]) => {
-                weeklyCounts[uid] = (weeklyCounts[uid] || 0) + n;
+        function weekStart() {
+            const n = new Date();
+            const diff = (n.getDay() === 0 ? -6 : 1) - n.getDay();
+            const mon = new Date(n);
+            mon.setDate(n.getDate() + diff);
+            mon.setHours(0, 0, 0, 0);
+            return mon;
+        }
+
+        function countXfers(rows) {
+            const map = {};
+            (rows || []).forEach(row => {
+                const uid = String(row.agentId || '').trim();
+                if (!uid) return;
+                if (!map[uid]) map[uid] = 0;
+                if ((row.duration || 0) >= 120) map[uid]++;
             });
+            return map;
+        }
+
+        function renderRow(p, xfers, hasUpload, isWeekly) {
+            const team = p.team || 'PR';
+            const hasXfer = xfers > 0;
+            const dotColor = hasXfer ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-slate-700';
+            const xferColor = hasXfer ? 'text-cyan-400' : (isWeekly ? 'text-orange-400' : 'text-red-400');
+            let xferLabel;
+            if (!hasUpload) xferLabel = '—';
+            else if (hasXfer) xferLabel = `${xfers} XFER${xfers !== 1 ? 'S' : ''}`;
+            else xferLabel = isWeekly ? '0 WEEKLY XFERS' : '0 XFERS';
+
+            return `
+                <div class="bg-white/5 border border-white/5 rounded-2xl p-4 flex justify-between items-center group hover:bg-white/10 transition">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full ${dotColor}"></div>
+                        <div>
+                            <div class="text-[12px] font-black text-white uppercase tracking-tight">${(p.name || p.fullName || 'Unknown').toUpperCase()}</div>
+                            <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${p.ytelId || p.userId || '----'} | ${team}</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] font-black ${xferColor} uppercase italic">${xferLabel}</div>
+                    </div>
+                </div>`;
+        }
+
+        const roster = window.allAgentProfiles || [];
+        const liveAgents = window.agents || [];
+        const reportsList = window.allAgentReports || [];
+
+        function getDailyCount(p) {
+            const pId = String(p.userId || '').trim();
+            const pName = String(p.fullName || '').trim().toUpperCase();
+            const live = liveAgents.find(a => String(a.ytelId).trim() === pId || (a.name && a.name.toUpperCase() === pName));
+            if (live) return Number(live.dailyLeads) || 0;
+
+            const todayReport = reportsList.find(r => r.reportDate === todayStr());
+            if (todayReport) {
+                const row = todayReport.data.find(d => String(d.agentId).trim() === pId || (d.agentName && d.agentName.toUpperCase() === pName));
+                return row ? (Number(row.dailyLeads) || 0) : 0;
+            }
+            return 0;
+        }
+
+        // DAILY
+        if (roster.length === 0) {
+            dailyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agents in roster yet</div>';
+        } else {
+            const zeros = roster.filter(p => getDailyCount(p) === 0);
+            if (zeros.length === 0) {
+                dailyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers today!</div>';
+            } else {
+                dailyList.innerHTML = zeros.map(p => renderRow(p, 0, true, false)).join('');
+            }
+        }
+
+        // WEEKLY
+        const mon = weekStart();
+        const weekReports = reportsList.filter(r => {
+            const d = parseReportDate(r.reportDate);
+            return d && d >= mon;
         });
 
-        const zeros = profiles.filter(p => getCount(p, weeklyCounts) === 0);
-        if (zeros.length === 0) {
-            weeklyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers this week!</div>';
+        if (weekReports.length === 0) {
+            weeklyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">Awaiting this week\'s report upload...</div>';
         } else {
-            weeklyList.innerHTML = zeros.map(p => renderRow(p, 0, true, true)).join('');
+            const weeklyCounts = {};
+            weekReports.forEach(r => {
+                const day = countXfers(r.data);
+                Object.entries(day).forEach(([uid, n]) => {
+                    weeklyCounts[uid] = (weeklyCounts[uid] || 0) + n;
+                });
+            });
+
+            const zeros = profiles.filter(p => getCount(p, weeklyCounts) === 0);
+            if (zeros.length === 0) {
+                weeklyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers this week!</div>';
+            } else {
+                weeklyList.innerHTML = zeros.map(p => renderRow(p, 0, true, true)).join('');
+            }
         }
-    }
+    }, 50); // Small delay to let UI breathe
 }
 
 function initWeeklyPerformance() {
@@ -392,39 +403,31 @@ function renderRebuttalIntel(usage) {
     }
 }
 
-// Initialize Overview Data - FIXED PERMISSIONS for momo to see Stats
+// Initialize Overview Data - OPTIMIZED
 window.ahInitOverview = function() {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const permissions = getAdminPermissions(currentAdmin.email);
     
-    console.log('ahInitOverview - User:', currentAdmin.email, 'Permissions:', permissions);
-    
-    // Get all restricted buttons
     const toolsBtn = document.getElementById('ah-tab-admintools');
     const statsBtn = document.getElementById('ah-tab-stats');
     const triviaBtn = document.getElementById('ah-tab-trivia');
     const superBtn = document.getElementById('ah-tab-super');
     
-    // Show/Hide based on permissions
-    // Admin Tools - only for Super Admin
     if (toolsBtn) {
         if (permissions.canSeeAdminTools) toolsBtn.classList.remove('hidden');
         else toolsBtn.classList.add('hidden');
     }
     
-    // Agent Stats - for Super Admin AND momo
     if (statsBtn) {
         if (permissions.canSeeStats) statsBtn.classList.remove('hidden');
         else statsBtn.classList.add('hidden');
     }
     
-    // Trivia - only for Super Admin
     if (triviaBtn) {
         if (permissions.canSeeTrivia) triviaBtn.classList.remove('hidden');
         else triviaBtn.classList.add('hidden');
     }
     
-    // Super Admin Panel - only for Super Admin
     if (superBtn) {
         if (permissions.canSeeSuper) superBtn.classList.remove('hidden');
         else superBtn.classList.add('hidden');
@@ -444,35 +447,32 @@ window.ahInitOverview = function() {
             zeroBtn.innerHTML = '<i class="fas fa-ghost mr-2"></i> Zero Performance';
         }
         
-        // If current tab is restricted, redirect to overview
         if (['admintools', 'trivia', 'super'].includes(ahCurrentSubTab)) {
             window.switchAdminHubTab('overview');
         }
     }
 
-    // Clock
-    setInterval(() => {
+    // Simple clock update (lightweight)
+    const updateClock = () => {
         const d = document.getElementById('ah-live-clock');
         if (d) {
             const now = new Date();
             d.innerText = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         }
-    }, 1000);
+    };
+    updateClock();
+    setInterval(updateClock, 1000);
 
-    // 1. Sync Roster from Google Sheet first
     ahSyncRosterFromSheet();
 
-    // 2. Pre-load Agent Profiles from Firebase as a secondary backup
     if (typeof window.initAgentProfiles === 'function') {
         window.initAgentProfiles();
     }
 
-    // Sync from global 'agents' and 'roster' (from dashboard.js)
     if (typeof window.listenForLiveDashboardState === 'function') {
         window.listenForLiveDashboardState(handleLiveStateUpdate);
     }
     
-    // Dashboard Presence Sync
     if (typeof window.ahListenForPresence === 'function') {
         window.ahListenForPresence(presence => {
             window.ahOnlinePresences = presence;
@@ -480,7 +480,6 @@ window.ahInitOverview = function() {
         });
     }
 
-    // Historical Attendance Sync
     if (typeof window.listenForAgentReports === 'function') {
         window.listenForAgentReports(reports => {
             const select = document.getElementById('ah-att-report-select');
@@ -579,7 +578,7 @@ function renderDailyAttendance() {
     }
     
     if (sourceData.length === 0) {
-        list.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500 font-bold uppercase tracking-widest">No attendance records found. Please select a date or upload a report.</td></tr>';
+        list.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500 font-bold uppercase tracking-widest">No attendance records found. Please select a date or upload a report.复制</td>';
         return;
     }
 
@@ -590,7 +589,7 @@ function renderDailyAttendance() {
     });
     
     if (filtered.length === 0) {
-        list.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500 font-bold uppercase tracking-widest">No attendance records found for this team</td></tr>';
+        list.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500 font-bold uppercase tracking-widest">No attendance records found for this team</td></td>';
         return;
     }
     
@@ -780,8 +779,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isAdmin = userRole === 'admin';
     
-    console.log('AdminHub loaded - User:', currentAdmin.email, 'Role:', userRole);
-    
     if (isAdmin) {
         const adminTabVisible = document.getElementById('tab-adminpanel') && 
                                 !document.getElementById('tab-adminpanel').classList.contains('hidden');
@@ -836,7 +833,7 @@ window.ahShowTeamBreakdown = function(team) {
             <td class="py-3 text-right">
                 <div class="font-black text-white italic">${a.dailyLeads || 0}</div>
              </td>
-         </tr>
+         </table>
     `).join('') || '<tr><td colspan="3" class="py-10 text-center text-slate-600 font-bold uppercase tracking-widest text-[9px]">No agents found</td></tr>';
 
     detailSect.classList.remove('hidden');
@@ -1354,8 +1351,13 @@ window.ahSyncRosterFromSheet = async function() {
             if (window.ahCurrentSubTab === 'attendance') {
                 renderDailyAttendance();
             }
-            if (window.ahCurrentSubTab === 'zero') {
-                ahInitZeroPerf();
+            if (window.ahCurrentSubTab === 'zero' && ahZeroPerfInitialized) {
+                // Only refresh if the tab is already loaded
+                const dailyList = document.getElementById('ah-zero-daily-list');
+                const weeklyList = document.getElementById('ah-zero-weekly-list');
+                if (dailyList && weeklyList && dailyList.innerHTML !== '') {
+                    ahInitZeroPerfLazy();
+                }
             }
         }
     } catch (e) {
