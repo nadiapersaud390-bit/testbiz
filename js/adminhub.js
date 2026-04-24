@@ -10,27 +10,61 @@ const ahTeamColors = {
     RM: 'cyan-400'
 };
 
+// Helper function to check permissions based on admin email
+function getAdminPermissions(adminEmail) {
+    const email = String(adminEmail || '').toLowerCase();
+    
+    // Super Admin (rose) - full access
+    if (email === 'rose') {
+        return {
+            isSuper: true,
+            canSeeStats: true,
+            canSeeAdminTools: true,
+            canSeeTrivia: true,
+            canSeeSuper: true
+        };
+    }
+    
+    // Regular Admin (momo) - can see Agent Stats
+    if (email === 'momo') {
+        return {
+            isSuper: false,
+            canSeeStats: true,      // momo CAN see Agent Stats
+            canSeeAdminTools: false,
+            canSeeTrivia: false,
+            canSeeSuper: false
+        };
+    }
+    
+    // Other regular admins (0000, etc.) - basic only
+    return {
+        isSuper: false,
+        canSeeStats: false,
+        canSeeAdminTools: false,
+        canSeeTrivia: false,
+        canSeeSuper: false
+    };
+}
+
 // Internal tab switcher
 window.switchAdminHubTab = function(tabId) {
-    // Permission Check for restricted tabs
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
-    const isMomo = String(currentAdmin.email || '').toLowerCase() === 'momo';
+    const permissions = getAdminPermissions(currentAdmin.email);
     
-    // BLOCK restricted tabs for non-super admins
-    if (tabId === 'admintools' && !isSuper) {
+    // Permission checks
+    if (tabId === 'admintools' && !permissions.canSeeAdminTools) {
         console.warn('Unauthorized access to Admin Tools blocked.');
         return;
     }
-    if (tabId === 'stats' && !isSuper) {
+    if (tabId === 'stats' && !permissions.canSeeStats) {
         console.warn('Unauthorized access to Agent Stats blocked.');
         return;
     }
-    if (tabId === 'trivia' && !isSuper) {
+    if (tabId === 'trivia' && !permissions.canSeeTrivia) {
         console.warn('Unauthorized access to Trivia blocked.');
         return;
     }
-    if (tabId === 'super' && !isSuper) {
+    if (tabId === 'super' && !permissions.canSeeSuper) {
         console.warn('Unauthorized access to Super Admin blocked.');
         return;
     }
@@ -358,13 +392,12 @@ function renderRebuttalIntel(usage) {
     }
 }
 
-// Initialize Overview Data - FIXED PERMISSIONS
+// Initialize Overview Data - FIXED PERMISSIONS for momo to see Stats
 window.ahInitOverview = function() {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
-    const isMomo = String(currentAdmin.email || '').toLowerCase() === 'momo';
+    const permissions = getAdminPermissions(currentAdmin.email);
     
-    console.log('ahInitOverview - User:', currentAdmin.email, 'isSuper:', isSuper);
+    console.log('ahInitOverview - User:', currentAdmin.email, 'Permissions:', permissions);
     
     // Get all restricted buttons
     const toolsBtn = document.getElementById('ah-tab-admintools');
@@ -372,24 +405,33 @@ window.ahInitOverview = function() {
     const triviaBtn = document.getElementById('ah-tab-trivia');
     const superBtn = document.getElementById('ah-tab-super');
     
-    // For ALL admins (including momo and 0000) - show only these:
-    // - overview (always visible)
-    // - profiles
-    // - attendance
-    // - coaching
-    // - monitoring
-    // - rebuttals
-    // - performance
-    // - zero (renamed from tracker)
+    // Show/Hide based on permissions
+    // Admin Tools - only for Super Admin
+    if (toolsBtn) {
+        if (permissions.canSeeAdminTools) toolsBtn.classList.remove('hidden');
+        else toolsBtn.classList.add('hidden');
+    }
     
-    // HIDE restricted tabs for NON-super admins
-    if (!isSuper) {
-        if (toolsBtn) toolsBtn.classList.add('hidden');  // Admin Tools - HIDE
-        if (statsBtn) statsBtn.classList.add('hidden');  // Agent Stats - HIDE
-        if (triviaBtn) triviaBtn.classList.add('hidden'); // Trivia - HIDE
-        if (superBtn) superBtn.classList.add('hidden');   // Super Admin - HIDE
-        
-        // Transform 'Tracker' button to 'Zero Performance' for regular admins
+    // Agent Stats - for Super Admin AND momo
+    if (statsBtn) {
+        if (permissions.canSeeStats) statsBtn.classList.remove('hidden');
+        else statsBtn.classList.add('hidden');
+    }
+    
+    // Trivia - only for Super Admin
+    if (triviaBtn) {
+        if (permissions.canSeeTrivia) triviaBtn.classList.remove('hidden');
+        else triviaBtn.classList.add('hidden');
+    }
+    
+    // Super Admin Panel - only for Super Admin
+    if (superBtn) {
+        if (permissions.canSeeSuper) superBtn.classList.remove('hidden');
+        else superBtn.classList.add('hidden');
+    }
+    
+    // Transform 'Tracker' button to 'Zero Performance' for regular admins
+    if (!permissions.isSuper) {
         const zeroBtn = document.getElementById('ah-tab-zero');
         if (zeroBtn) {
             zeroBtn.classList.remove('flex', 'flex-col', 'items-center', 'justify-center', 'py-4');
@@ -403,15 +445,9 @@ window.ahInitOverview = function() {
         }
         
         // If current tab is restricted, redirect to overview
-        if (['admintools', 'stats', 'trivia', 'super'].includes(ahCurrentSubTab)) {
+        if (['admintools', 'trivia', 'super'].includes(ahCurrentSubTab)) {
             window.switchAdminHubTab('overview');
         }
-    } else {
-        // SUPER ADMIN - show all tabs
-        if (toolsBtn) toolsBtn.classList.remove('hidden');
-        if (statsBtn) statsBtn.classList.remove('hidden');
-        if (triviaBtn) triviaBtn.classList.remove('hidden');
-        if (superBtn) superBtn.classList.remove('hidden');
     }
 
     // Clock
@@ -738,22 +774,18 @@ function handleLiveStateUpdate(state) {
     }
 }
 
-// Global hook for dashboard loading - FIXED to check admin role properly
+// Global hook for dashboard loading
 document.addEventListener('DOMContentLoaded', () => {
     const userRole = sessionStorage.getItem('bizUserRole');
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isAdmin = userRole === 'admin';
-    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
     
-    console.log('AdminHub loaded - Role:', userRole, 'isSuper:', isSuper);
+    console.log('AdminHub loaded - User:', currentAdmin.email, 'Role:', userRole);
     
-    // Only initialize if user is an admin
     if (isAdmin) {
-        // Check if adminpanel tab is active or should be shown
         const adminTabVisible = document.getElementById('tab-adminpanel') && 
                                 !document.getElementById('tab-adminpanel').classList.contains('hidden');
         
-        // If admin panel tab exists and is visible, initialize
         if (adminTabVisible || currentTab === 'adminpanel') {
             setTimeout(() => {
                 ahInitOverview();
@@ -1058,8 +1090,9 @@ window.switchAhToolsSubTab = function(sub) {
     const activeTab = document.getElementById('aht-tab-' + sub);
 
     const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    const isSuper = cAdmin.role === 'super_admin' || cAdmin.isSuper;
-    if (sub === 'users' && !isSuper) {
+    const permissions = getAdminPermissions(cAdmin.email);
+    
+    if (sub === 'users' && !permissions.canSeeSuper) {
         switchAhToolsSubTab('resources');
         return;
     }
@@ -1084,7 +1117,7 @@ window.switchAhToolsSubTab = function(sub) {
 
 function ahAdminToolsInit() {
     const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    const isSuper = cAdmin.role === 'super_admin' || cAdmin.isSuper;
+    const permissions = getAdminPermissions(cAdmin.email);
     
     if (typeof window.ahPruneOldReports === 'function') {
         window.ahPruneOldReports();
@@ -1092,7 +1125,7 @@ function ahAdminToolsInit() {
 
     const userTabBtn = document.getElementById('aht-tab-users');
     if (userTabBtn) {
-        if (isSuper) userTabBtn.classList.remove('hidden');
+        if (permissions.canSeeSuper) userTabBtn.classList.remove('hidden');
         else userTabBtn.classList.add('hidden');
     }
     
