@@ -189,7 +189,7 @@
                     </div>
                     <div class="max-h-[300px] overflow-y-auto">
                         <table class="w-full text-left">
-                            <thead><tr class="text-[9px] font-black text-slate-500 border-b border-white/5"><th class="pb-2">Agent</th><th class="pb-2">Status</th><th class="pb-2 text-right">Transfers</th></tr></thead>
+                            <thead><tr class="text-[9px] font-black text-slate-500 border-b border-white/5"><th class="pb-2">Agent</th><th class="pb-2">Status</th><th class="pb-2 text-right">Transfers</th><tr></thead>
                             <tbody id="ah-team-modal-list" class="text-[11px]"></tbody>
                         </table>
                     </div>
@@ -335,14 +335,58 @@
             <div class="mt-6 glass p-6 rounded-2xl overflow-x-auto"><table class="w-full"><tbody id="ah-rebuttal-table-body"></tbody></table></div>
         </div>
 
-        <!-- ========== WEEKLY PERFORMANCE ========== -->
+        <!-- ========== WEEKLY PERFORMANCE WITH DROPDOWN & ALL AGENTS ========== -->
         <div id="ah-sect-performance" class="ah-section hidden">
-            <h3 class="text-xl font-black text-white uppercase mb-6">🏆 Weekly Performance</h3>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div class="glass p-6 rounded-2xl"><h4 class="text-sm font-black mb-4">Team Rankings</h4><div id="ah-weekly-team-list"></div></div>
-                <div class="glass p-6 rounded-2xl"><h4 class="text-sm font-black mb-4">Top 5 Agents</h4><div id="ah-weekly-agent-list"></div></div>
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+                <h3 class="text-xl font-black text-white uppercase">🏆 Weekly Performance</h3>
+                <div class="flex items-center gap-3">
+                    <!-- Week Selector Dropdown -->
+                    <div class="bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                        <select id="ah-week-select" class="bg-transparent text-white text-[11px] font-black uppercase tracking-widest outline-none cursor-pointer">
+                            <option value="current" selected>📅 Current Week</option>
+                        </select>
+                    </div>
+                    <button onclick="refreshWeeklyPerformance()" class="bg-cyan-600/20 border border-cyan-500/30 px-3 py-2 rounded-xl text-cyan-400 text-[10px] font-black hover:bg-cyan-600/30 transition">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
             </div>
-            <div class="glass p-6 rounded-2xl"><div id="ah-weekly-matrix-container"></div></div>
+            
+            <!-- Week Range Display -->
+            <div class="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-2xl p-4 mb-6 text-center">
+                <span class="text-[10px] text-slate-400 font-black uppercase tracking-widest">Selected Week</span>
+                <div class="text-sm font-black text-cyan-400 uppercase tracking-wider" id="ah-weekly-range">Loading...</div>
+            </div>
+            
+            <!-- Team Rankings & Top 5 Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <div class="glass p-6 rounded-2xl border border-white/5">
+                    <h4 class="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <i class="fas fa-trophy text-yellow-400"></i> Team Rankings
+                    </h4>
+                    <div id="ah-weekly-team-list" class="space-y-4">
+                        <div class="animate-pulse text-slate-500">Loading team data...</div>
+                    </div>
+                </div>
+                <div class="glass p-6 rounded-2xl border border-white/5">
+                    <h4 class="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <i class="fas fa-crown text-yellow-500"></i> Top 5 Agents
+                    </h4>
+                    <div id="ah-weekly-agent-list" class="space-y-3">
+                        <div class="animate-pulse text-slate-500">Loading top agents...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ALL AGENTS WEEKLY PERFORMANCE TABLE -->
+            <div class="glass p-6 rounded-2xl border border-white/5 mt-6">
+                <h4 class="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <i class="fas fa-list-ol text-cyan-400"></i> All Agents - Weekly Performance
+                </h4>
+                <div id="ah-weekly-agents-table-container" class="overflow-x-auto">
+                    <div class="animate-pulse text-center py-10 text-slate-500">Loading agent data...</div>
+                </div>
+            </div>
         </div>
 
         <!-- ========== ZERO PERFORMANCE ========== -->
