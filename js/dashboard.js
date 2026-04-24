@@ -2,7 +2,7 @@
  * Dashboard Logic
  * All logged-in users see the full leaderboard with ALL agents from roster.
  * The logged-in agent's own row is highlighted automatically.
- * UPDATED: Only show completed days (Monday-Friday) that have actually passed
+ * UPDATED: Only show completed days (Monday-Friday) with short names (Mon, Tue, Wed, Thu, Fri)
  */
 
 let isDashboardSubscribed = false;
@@ -11,6 +11,13 @@ let fullRoster = []; // Store the full agent roster
 // Full week days array (Monday to Friday only - Saturday excluded from history)
 const FULL_WEEK_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
 const DAY_NAMES = {
+    'MON': 'Mon',
+    'TUE': 'Tue',
+    'WED': 'Wed',
+    'THU': 'Thu',
+    'FRI': 'Fri'
+};
+const FULL_DAY_NAMES = {
     'MON': 'Monday',
     'TUE': 'Tuesday',
     'WED': 'Wednesday',
@@ -29,7 +36,7 @@ function getCurrentGuyanaDay() {
 // Function to check if a given day is completed (has passed)
 function isDayCompleted(dayKey) {
     const currentDayIndex = getCurrentGuyanaDay();
-    const dayMap = { 'MON': 1, 'TUE': 2, 'WED': 3, 'THU': 4, 'FRI': 5, 'SAT': 6 };
+    const dayMap = { 'MON': 1, 'TUE': 2, 'WED': 3, 'THU': 4, 'FRI': 5 };
     const targetDayIndex = dayMap[dayKey];
     
     if (!targetDayIndex) return false;
@@ -37,15 +44,13 @@ function isDayCompleted(dayKey) {
     const now = new Date();
     const guyanaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
     const currentHour = guyanaTime.getHours();
-    const currentMinute = guyanaTime.getMinutes();
     
-    // If it's a future day in the week (e.g., Tuesday when it's Monday)
+    // If it's a future day in the week
     if (targetDayIndex > currentDayIndex) {
         return false;
     }
     
-    // If it's today, check if the day is over (after 11:59 PM)
-    // For practical purposes, consider the day complete after 8:00 PM
+    // If it's today, check if the day is over (after 8:00 PM)
     if (targetDayIndex === currentDayIndex) {
         // Day is considered complete after 8:00 PM (20:00) Guyana time
         if (currentHour >= 20) {
@@ -56,23 +61,6 @@ function isDayCompleted(dayKey) {
     
     // If it's a past day
     return true;
-}
-
-// Function to get the date for a specific day of the current week
-function getDateForDay(dayKey) {
-    const now = new Date();
-    const guyanaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
-    const currentDayIndex = guyanaTime.getDay();
-    const dayMap = { 'MON': 1, 'TUE': 2, 'WED': 3, 'THU': 4, 'FRI': 5, 'SAT': 6 };
-    const targetDayIndex = dayMap[dayKey];
-    
-    if (!targetDayIndex) return null;
-    
-    const diff = targetDayIndex - currentDayIndex;
-    const targetDate = new Date(guyanaTime);
-    targetDate.setDate(guyanaTime.getDate() + diff);
-    
-    return targetDate;
 }
 
 // Function to load the full agent roster
@@ -141,7 +129,7 @@ function updateDashboard() {
 
             // Create a map of lead counts from the live state
             const leadMap = new Map();
-            if (isToday && state.agents) {
+            if (state.agents) {
                 state.agents.forEach(a => {
                     const nameKey = (a.name || '').toUpperCase().trim();
                     leadMap.set(nameKey, a.dailyLeads || 0);
@@ -160,17 +148,12 @@ function updateDashboard() {
                     // Get lead count from live state (default to 0)
                     let dailyLeads = leadMap.get(agentNameUpper) || leadMap.get(ytelId) || 0;
                     
-                    // Also check if this agent is logged in (has presence)
-                    const isLoggedIn = leadMap.has(agentNameUpper) || leadMap.has(ytelId);
-                    
                     return {
                         name: agentName,
                         ytelId: ytelId,
                         team: rosterAgent.team || normalizeTeam('', agentName),
                         dailyLeads: dailyLeads,
-                        weeklyLeads: 0,
-                        isLoggedIn: isLoggedIn,
-                        loginTime: isLoggedIn ? (new Date()).toLocaleTimeString() : null
+                        weeklyLeads: 0
                     };
                 });
                 
@@ -193,7 +176,7 @@ function updateDashboard() {
                 if (ts) ts.innerText = `Roster: ${agents.length} agents | Synced: ${new Date().toLocaleTimeString()}`;
             } else {
                 // Fallback to old method if roster not loaded yet
-                if (isToday && state.agents) {
+                if (state.agents) {
                     agents = (state.agents || []).map(a => {
                         let realName = a.name;
                         if (window.biz_master_roster && /^\d+$/.test(a.name)) {
@@ -227,11 +210,11 @@ function updateDashboard() {
             }
             
             checkLeadAlerts(agents);
-            if (currentDayView === 'today') render();
+            render();
             renderDaySubTabs();
         });
         
-        // 🔥 FIXED: Auto-Link Historical CSV Reports to the Daily Tabs (Monday to Friday only)
+        // Auto-Link Historical CSV Reports to the Daily Tabs
         if (typeof window.listenForAgentReports === 'function') {
             window.listenForAgentReports(data => {
                 if(!data) return;
@@ -241,7 +224,7 @@ function updateDashboard() {
                 // Get the start of the current week (Monday)
                 const now = new Date();
                 const guyanaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
-                const currentDay = guyanaTime.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                const currentDay = guyanaTime.getDay();
                 const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
                 const monday = new Date(guyanaTime);
                 monday.setDate(guyanaTime.getDate() - daysToMonday);
@@ -258,33 +241,29 @@ function updateDashboard() {
                 // Map to store the best report for each day
                 const weekMap = {};
                 
-                // Initialize only Monday-Friday
+                // Initialize Monday-Friday
                 FULL_WEEK_DAYS.forEach(day => {
                     weekMap[day] = null;
                 });
                 
                 // Process each report and assign to the correct day
                 thisWeekReports.forEach(r => {
-                    // Get the actual day of the week from the report's upload date
                     const reportDate = new Date(r.uploadedAt);
                     const reportDayIndex = reportDate.getDay();
                     let dayKey = '';
                     
-                    // Convert to our day keys (MON-FRI only)
                     if (reportDayIndex === 1) dayKey = 'MON';
                     else if (reportDayIndex === 2) dayKey = 'TUE';
                     else if (reportDayIndex === 3) dayKey = 'WED';
                     else if (reportDayIndex === 4) dayKey = 'THU';
                     else if (reportDayIndex === 5) dayKey = 'FRI';
                     
-                    // Also check if the report's dayOfWeek property is set
                     const reportDayOfWeek = r.dayOfWeek;
                     if (FULL_WEEK_DAYS.includes(reportDayOfWeek) && !weekMap[reportDayOfWeek]) {
                         dayKey = reportDayOfWeek;
                     }
                     
                     if (dayKey && FULL_WEEK_DAYS.includes(dayKey)) {
-                        // Keep the most recent report for each day
                         if (!weekMap[dayKey] || new Date(r.uploadedAt) > new Date(weekMap[dayKey].uploadedAt)) {
                             weekMap[dayKey] = r;
                         }
@@ -300,7 +279,8 @@ function updateDashboard() {
                         return { 
                             day: day, 
                             empty: true, 
-                            dayName: day,
+                            dayName: DAY_NAMES[day],
+                            fullDayName: FULL_DAY_NAMES[day],
                             fullDate: null,
                             completed: false,
                             agents: [] 
@@ -309,7 +289,6 @@ function updateDashboard() {
                     
                     console.log(`Processing ${day} report: ${r.reportDate} (completed: ${isCompleted})`);
                     
-                    // Aggregate agent data for this day
                     const agg = {};
                     (r.data || []).forEach(d => {
                         const id = d.agentId || d.ytelId || d.name;
@@ -326,7 +305,6 @@ function updateDashboard() {
                                 };
                             }
                             
-                            // Calculate leads from duration (>=120s = transfer)
                             let leadCount = d.dailyLeads || 0;
                             if (d.duration !== undefined && d.duration >= 120) {
                                 leadCount = 1;
@@ -339,7 +317,8 @@ function updateDashboard() {
                     
                     return {
                         day: day,
-                        dayName: day,
+                        dayName: DAY_NAMES[day],
+                        fullDayName: FULL_DAY_NAMES[day],
                         fullDate: r.reportDate,
                         fullDateObj: new Date(r.uploadedAt),
                         completed: isCompleted,
@@ -353,7 +332,7 @@ function updateDashboard() {
                     };
                 });
                 
-                console.log('Day history built (completed days only):', dayHistory.map(d => ({ day: d.day, completed: d.completed, hasData: !d.empty, agentCount: d.agents.length })));
+                console.log('Day history built:', dayHistory.map(d => ({ day: d.dayName, completed: d.completed, hasData: !d.empty, agentCount: d.agents.length })));
                 
                 renderDaySubTabs();
                 
@@ -377,7 +356,7 @@ setInterval(() => {
 updateDashboard();
 
 function render() {
-    // 1. Session Info (used for highlighting own row only)
+    // Session Info
     const agentProfileRaw = sessionStorage.getItem('currentAgentProfile');
     let userProfile = null;
     try { userProfile = JSON.parse(agentProfileRaw); } catch(e) {}
@@ -411,14 +390,10 @@ function render() {
 
     lView.classList.remove('hidden');
 
-    // 2. Setup Variables
+    // Setup Variables
     const isWeekly = currentTab === 'weekly';
     const isHistory = currentTab === 'daily' && currentDayView !== 'today';
     const target = isWeekly ? 800 : 150;
-    
-    // Get today's display name
-    const today = new Date();
-    const todayDayName = today.toLocaleDateString('en-US', { weekday: 'long' });
     
     const todayName = agents.length > 0 ? (agents[0].todayName || 'Today') : 'Today';
 
@@ -427,11 +402,11 @@ function render() {
     if (isHistory) {
         const snap = dayHistory.find(d => d.day === currentDayView);
         if (snap && !snap.empty && snap.completed) {
-            const dayLong = DAY_NAMES[snap.dayName] || snap.dayName;
+            const dayLong = snap.fullDayName || snap.dayName;
             const dateDisplay = snap.fullDate ? ` (${snap.fullDate})` : '';
             
             document.getElementById('goal-label').innerText = dayLong.toUpperCase() + ' FINAL' + dateDisplay;
-            document.getElementById('day-indicator').innerText = (dayLong.substring(0,3).toUpperCase()) + ' — COMPLETED';
+            document.getElementById('day-indicator').innerText = snap.dayName.toUpperCase() + ' — COMPLETED';
             if (banner) {
                 document.getElementById('history-banner-text').innerHTML = `<i class="fas fa-history mr-2"></i> VIEWING ${dayLong.toUpperCase()}${dateDisplay} — FINAL RESULTS`;
                 banner.classList.remove('hidden');
@@ -455,7 +430,7 @@ function render() {
         targetDisplay.style.display = isAdmin ? '' : 'none';
     }
 
-    // 3. Process Data - Show ALL agents from the agents array (which now contains full roster)
+    // Process Data
     let fullList = [];
     let prTotal = 0, bbTotal = 0, rmTotal = 0, totalLeads = 0, masters = 0, activeReps = 0;
 
@@ -487,11 +462,9 @@ function render() {
                 if (leads >= 12) masters++;
                 activeReps++;
             });
-        } else {
-            fullList = [];
         }
     } else {
-        // Use agents array (which now contains ALL roster agents with lead counts)
+        // Use current agents array
         fullList = agents
             .filter(a => !(a.name && String(a.name).toUpperCase().startsWith('PH ')))
             .map(a => ({
@@ -513,10 +486,10 @@ function render() {
         });
     }
 
-    // 4. All users see the full leaderboard
+    // All users see the full leaderboard
     const displayData = fullList.map((a, i) => ({ ...a, rank: i + 1 }));
 
-    // 5. Rendering
+    // Rendering
     const leaderboardEl = document.getElementById('leaderboard');
     if (!leaderboardEl) return;
     
@@ -544,7 +517,7 @@ function render() {
                         </span>
                         <div>
                             <div class="font-black text-sm md:text-lg text-white uppercase flex items-center flex-wrap gap-1">
-                                ${agent.name}${badge}${isMe ? '<span style="font-size:8px;background:rgba(250,204,21,0.15);border:1px solid rgba(250,204,21,0.35);border-radius:4px;padding:1px 6px;color:#facc15;font-weight:900;margin-left:4px;">YOU</span>' : ''}
+                                ${escapeHtml(agent.name)}${badge}${isMe ? '<span style="font-size:8px;background:rgba(250,204,21,0.15);border:1px solid rgba(250,204,21,0.35);border-radius:4px;padding:1px 6px;color:#facc15;font-weight:900;margin-left:4px;">YOU</span>' : ''}
                             </div>
                             <div class="text-[9px] font-black uppercase tracking-widest ${lvl.color}">
                                 ${lvl.title} STATUS
@@ -578,15 +551,11 @@ function render() {
     if (bbCountEl) bbCountEl.innerText = bbTotal;
     if (rmCountEl) rmCountEl.innerText = rmTotal;
 
-    // Progress Bar
     const pct = Math.min((totalLeads / target) * 100, 100);
     if (progressBarEl) progressBarEl.style.width = pct + '%';
     if (goalPercentEl) goalPercentEl.innerText = Math.floor(pct) + '%';
 }
 
-/**
- * Tier Thresholds
- */
 function getLevel(l) {
     if (l >= 17) return { title: 'CONQUEROR', cls: 'conqueror-tier', color: 'text-red-500' };
     if (l >= 12) return { title: 'MASTER', cls: 'gold-tier', color: 'text-yellow-500' };
@@ -595,9 +564,7 @@ function getLevel(l) {
     return { title: 'ROOKIE', cls: 'slate-tier', color: 'text-slate-500' };
 }
 
-/**
- * Navigation & Tab UI - ONLY SHOW COMPLETED DAYS
- */
+// Navigation & Tab UI - ONLY SHOW COMPLETED DAYS WITH SHORT NAMES
 function renderDaySubTabs() {
     const wrapper = document.getElementById('day-sub-tabs-wrapper');
     const container = document.getElementById('day-sub-tabs-container');
@@ -607,28 +574,27 @@ function renderDaySubTabs() {
         return;
     }
     
-    // Always show the days container
     if (wrapper) wrapper.classList.remove('hidden');
     if (!container) return;
     
-    // Build tabs: Today + ONLY completed Monday-Friday
+    // Build tabs: Today + ONLY completed Monday-Friday with short names
     let html = `<button onclick="switchDayView('today')" class="day-sub-tab is-today ${currentDayView === 'today' ? 'active' : ''}">📅 Today</button>`;
     
-    // Add ONLY completed days (Monday through Friday that have passed)
+    // Add ONLY completed days with short names (Mon, Tue, Wed, Thu, Fri)
     FULL_WEEK_DAYS.forEach(day => {
         const dayData = dayHistory.find(d => d && d.day === day);
         const hasData = dayData && !dayData.empty && dayData.agents && dayData.agents.length > 0;
         const isCompleted = isDayCompleted(day);
         const isActive = currentDayView === day;
-        const dayDisplayName = DAY_NAMES[day] || day;
+        const shortName = DAY_NAMES[day] || day;
         
-        // ONLY show the tab if the day is COMPLETED (has passed)
+        // ONLY show the tab if the day is COMPLETED
         if (isCompleted) {
             html += `
                 <button onclick="switchDayView('${day}')" 
                         class="day-sub-tab is-history ${isActive ? 'active' : ''}" 
                         ${!hasData ? 'style="opacity:0.5;"' : ''}>
-                    ${dayDisplayName}
+                    ${shortName}
                     ${hasData ? '<span class="history-dot" style="background:#22c55e;"></span>' : '<span class="history-dot" style="background:#475569;"></span>'}
                 </button>`;
         }
@@ -802,4 +768,14 @@ function checkPassword() {
 
 function cancelPassword() {
     document.getElementById('pw-modal').classList.add('hidden');
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
 }
