@@ -1,6 +1,6 @@
 /**
  * js/adminhub.js
- * Core logic for the Admin Panel Hub system - OPTIMIZED for performance
+ * Core logic for the Admin Panel Hub system - FULLY OPTIMIZED
  */
 
 let ahCurrentSubTab = 'overview';
@@ -88,14 +88,14 @@ window.switchAdminHubTab = function(tabId) {
     if (tabId === 'performance') initWeeklyPerformance();
     if (tabId === 'admintools') ahAdminToolsInit();
     
-    // ✅ FIX: Only initialize Zero Performance when the tab is actually clicked
+    // ✅ Only initialize Zero Performance when the tab is actually clicked
     if (tabId === 'zero' && !ahZeroPerfInitialized) {
         ahInitZeroPerfLazy();
         ahZeroPerfInitialized = true;
     }
 };
 
-// ✅ NEW: Lazy-loaded version of Zero Performance (only runs when clicked)
+// ✅ Lazy-loaded version of Zero Performance (only runs when clicked)
 function ahInitZeroPerfLazy() {
     console.log('[AdminHub] Loading Zero Performance tab...');
     const dailyList = document.getElementById('ah-zero-daily-list');
@@ -108,8 +108,10 @@ function ahInitZeroPerfLazy() {
 
     // Use setTimeout to avoid blocking UI thread
     setTimeout(() => {
-        const profiles = (window.agents && window.agents.length > 0) ? window.agents : (window.allAgentProfiles || []);
-        const reports = window.allAgentReports || [];
+        // Use the full roster from window.allAgentProfiles (all 48 agents)
+        const roster = window.allAgentProfiles || [];
+        const liveAgents = window.agents || [];
+        const reportsList = window.allAgentReports || [];
 
         function getCount(p, countMap) {
             const id1 = String(p.ytelId || '').trim();
@@ -179,16 +181,14 @@ function ahInitZeroPerfLazy() {
                 </div>`;
         }
 
-        const roster = window.allAgentProfiles || [];
-        const liveAgents = window.agents || [];
-        const reportsList = window.allAgentReports || [];
-
         function getDailyCount(p) {
             const pId = String(p.userId || '').trim();
             const pName = String(p.fullName || '').trim().toUpperCase();
+            // Check live agents first (from dashboard)
             const live = liveAgents.find(a => String(a.ytelId).trim() === pId || (a.name && a.name.toUpperCase() === pName));
             if (live) return Number(live.dailyLeads) || 0;
 
+            // Check today's report
             const todayReport = reportsList.find(r => r.reportDate === todayStr());
             if (todayReport) {
                 const row = todayReport.data.find(d => String(d.agentId).trim() === pId || (d.agentName && d.agentName.toUpperCase() === pName));
@@ -197,7 +197,7 @@ function ahInitZeroPerfLazy() {
             return 0;
         }
 
-        // DAILY
+        // DAILY - Use the FULL ROSTER to find agents with 0 leads
         if (roster.length === 0) {
             dailyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agents in roster yet</div>';
         } else {
@@ -227,14 +227,14 @@ function ahInitZeroPerfLazy() {
                 });
             });
 
-            const zeros = profiles.filter(p => getCount(p, weeklyCounts) === 0);
+            const zeros = roster.filter(p => getCount(p, weeklyCounts) === 0);
             if (zeros.length === 0) {
                 weeklyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers this week!</div>';
             } else {
                 weeklyList.innerHTML = zeros.map(p => renderRow(p, 0, true, true)).join('');
             }
         }
-    }, 50); // Small delay to let UI breathe
+    }, 50);
 }
 
 function initWeeklyPerformance() {
@@ -589,7 +589,7 @@ function renderDailyAttendance() {
     });
     
     if (filtered.length === 0) {
-        list.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500 font-bold uppercase tracking-widest">No attendance records found for this team</td></td>';
+        list.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500 font-bold uppercase tracking-widest">No attendance records found for this team</td></tr>';
         return;
     }
     
@@ -833,7 +833,7 @@ window.ahShowTeamBreakdown = function(team) {
             <td class="py-3 text-right">
                 <div class="font-black text-white italic">${a.dailyLeads || 0}</div>
              </td>
-         </table>
+         </tr>
     `).join('') || '<tr><td colspan="3" class="py-10 text-center text-slate-600 font-bold uppercase tracking-widest text-[9px]">No agents found</td></tr>';
 
     detailSect.classList.remove('hidden');
@@ -1345,6 +1345,9 @@ window.ahSyncRosterFromSheet = async function() {
             console.log(`[AdminHub] Successfully pulled ${roster.length} agents from Sheet.`);
             window.allAgentProfiles = roster;
             
+            // Also store in localStorage for persistence
+            localStorage.setItem('biz_master_roster', JSON.stringify(roster));
+            
             if (window.ahCurrentSubTab === 'overview' || !window.ahCurrentSubTab) {
                 handleLiveStateUpdate({ agents: window.agents || [] });
             }
@@ -1352,7 +1355,6 @@ window.ahSyncRosterFromSheet = async function() {
                 renderDailyAttendance();
             }
             if (window.ahCurrentSubTab === 'zero' && ahZeroPerfInitialized) {
-                // Only refresh if the tab is already loaded
                 const dailyList = document.getElementById('ah-zero-daily-list');
                 const weeklyList = document.getElementById('ah-zero-weekly-list');
                 if (dailyList && weeklyList && dailyList.innerHTML !== '') {
