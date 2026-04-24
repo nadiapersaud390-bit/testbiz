@@ -1,5 +1,6 @@
 /**
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
+ * AUTO-PUSH: Most recent file automatically updates the Daily dashboard
  */
 
 let allReports = [];
@@ -7,6 +8,9 @@ let currentReportData = null;
 let asSortCol = 'agentName';
 let asSortAsc = true;
 let asSubscribed = false; // Flag to prevent multiple listeners
+
+// Track last auto-pushed report to prevent duplicates
+let lastAutoPushedReportId = null;
 
 // Initialization function called from index.html (or tab load)
 window.renderAgentStatsHistory = function() {
@@ -55,9 +59,16 @@ window.renderAgentStatsHistory = function() {
                 }
             }
             
-            // Overwrite dashboard goals with latest report
+            // 🔥 AUTO-PUSH: Automatically push the latest report to the Daily dashboard
             if (allReports.length > 0) {
-                syncLatestReportToLeaderboard(allReports[0]);
+                const latestReport = allReports[0]; // Most recent upload
+                
+                // Only auto-push if it's a new report (not already pushed)
+                if (lastAutoPushedReportId !== latestReport.id) {
+                    console.log('Auto-pushing latest report to Daily tab:', latestReport.reportDate);
+                    autoPushReportToDashboard(latestReport);
+                    lastAutoPushedReportId = latestReport.id;
+                }
             }
         });
         asSubscribed = true;
@@ -72,6 +83,110 @@ window.renderAgentStatsHistory = function() {
         });
     }
 };
+
+// 🔥 NEW FUNCTION: Auto-push report to Live Dashboard
+async function autoPushReportToDashboard(report) {
+    if (!report || !report.data) {
+        console.warn('Auto-push skipped: No report data');
+        return;
+    }
+    
+    // Check if this report is from TODAY (only auto-push today's data)
+    const today = new Date();
+    const todayStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const reportDateStr = report.reportDate;
+    
+    // Only auto-push if the report is from today
+    if (!reportDateStr || (!reportDateStr.includes(todayStr.split(' ')[0]) && !reportDateStr.includes(todayStr))) {
+        console.log('Auto-push skipped: Report is not from today -', reportDateStr);
+        return;
+    }
+    
+    // Aggregate by agent NAME
+    const aggMap = {};
+    report.data.forEach(d => {
+        const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
+        const id = d.agentId || d.ytelId || d.agentName;
+        const rawKey = d.rawName || d.agentName;
+        if(!aggMap[nameKey]) aggMap[nameKey] = { 
+            name: d.agentName, 
+            rawName: rawKey, 
+            transfers: 0, 
+            ytelId: id 
+        };
+        if(d.duration >= 120) aggMap[nameKey].transfers++;
+    });
+    const aggregatedList = Object.values(aggMap);
+    
+    const pushState = {
+        dateLabel: report.reportDate,
+        pushedAt: new Date().toISOString(),
+        pushedBy: report.author || 'Auto-Push System',
+        sourceReportId: report.id, // Track which report was used
+        agents: aggregatedList.map(d => ({
+            name: d.name,
+            ytelId: d.ytelId,
+            team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName) : 'PR',
+            dailyLeads: d.transfers
+        }))
+    };
+    
+    if (typeof window.saveLiveDashboardState === 'function') {
+        await window.saveLiveDashboardState(pushState);
+        console.log('✅ Auto-pushed report to Daily dashboard:', report.reportDate);
+        
+        // Force dashboard refresh
+        if (typeof window.updateDashboard === 'function') {
+            setTimeout(() => window.updateDashboard(), 500);
+        }
+        
+        // Also try to inject directly into agents array for immediate update
+        if (typeof window.agents !== 'undefined' && Array.isArray(window.agents)) {
+            // Update existing agents with new lead counts
+            aggregatedList.forEach(pushed => {
+                const existingAgent = window.agents.find(a => 
+                    a.name === pushed.name || 
+                    (pushed.ytelId && a.ytelId === pushed.ytelId)
+                );
+                if (existingAgent) {
+                    existingAgent.dailyLeads = pushed.transfers;
+                } else {
+                    // Add new agent if not exists
+                    window.agents.push({
+                        name: pushed.name,
+                        ytelId: pushed.ytelId,
+                        team: pushed.team,
+                        dailyLeads: pushed.transfers,
+                        weeklyLeads: 0
+                    });
+                }
+            });
+            
+            // Re-render dashboard if render function exists
+            if (typeof window.render === 'function') {
+                window.render();
+            }
+            if (typeof window.checkLeadAlerts === 'function') {
+                window.checkLeadAlerts(window.agents);
+            }
+        }
+        
+        // Show status message
+        const statusEl = document.getElementById('as-upload-status');
+        if (statusEl && statusEl.innerHTML.includes('saved successfully')) {
+            statusEl.innerHTML = '<span class="text-green-400">✅ Report saved & auto-pushed to Daily Dashboard!</span>';
+            setTimeout(() => {
+                if (statusEl && statusEl.innerHTML.includes('auto-pushed')) {
+                    statusEl.innerHTML = '';
+                }
+            }, 4000);
+        }
+        
+        if (typeof window.writeAdminActivityLog === 'function') {
+            window.writeAdminActivityLog('auto_push', `Auto-pushed Report to Live Dashboard: ${report.reportDate}`);
+        }
+    }
+}
 
 function setupDropZone() {
     const dropZone = document.getElementById('as-drop-zone');
@@ -179,7 +294,7 @@ window.asConfirmUpload = async function() {
     if (typeof window.saveAgentReportToFirebase === 'function') {
         const res = await window.saveAgentReportToFirebase(reportObj);
         if (res && res.success) {
-            updateStatsStatus('✅ Report saved successfully!', false);
+            updateStatsStatus('✅ Report saved successfully! Auto-pushing to Dashboard...', false);
             if (typeof window.writeAdminActivityLog === 'function') {
                 window.writeAdminActivityLog('upload_stats', `Uploaded Agent Stats Report: ${_asStagedFile.name}`);
             }
@@ -188,15 +303,24 @@ window.asConfirmUpload = async function() {
             document.getElementById('as-upload-panel').classList.add('hidden');
             _asStagedFile = null; _asStagedParsed = null;
             
-            // Automatically view the report just uploaded
-            const newId = res.id;
-            if (newId) {
-                // Wait briefly for the listener to catch the new data in allReports
-                setTimeout(() => {
-                    if (typeof window.viewReport === 'function') window.viewReport(newId);
-                }, 500);
-            }
-
+            // The auto-push will happen when the listener picks up the new report
+            // Force a quick refresh to trigger auto-push
+            setTimeout(() => {
+                if (typeof window.listenForAgentReports === 'function') {
+                    // Trigger a manual check
+                    window.listenForAgentReports((data) => {
+                        allReports = data || [];
+                        if (allReports.length > 0) {
+                            const latestReport = allReports[0];
+                            if (lastAutoPushedReportId !== latestReport.id) {
+                                autoPushReportToDashboard(latestReport);
+                                lastAutoPushedReportId = latestReport.id;
+                            }
+                        }
+                    });
+                }
+            }, 500);
+            
             setTimeout(() => updateStatsStatus('', false), 3000);
         } else {
             const errMsg = (res && res.error && res.error.message) ? res.error.message : 'Unknown error';
@@ -293,9 +417,6 @@ async function handleFileUpload(file) {
 function processCSVRows(rows) {
     if(!rows || rows.length === 0) return [];
     
-    // Process columns based on user's exact specification:
-    // Agent Id, Agent Name, Current Status, Duration
-    
     const keys = Object.keys(rows[0]);
     
     // 1. Identify ID Column
@@ -304,10 +425,10 @@ function processCSVRows(rows) {
         return l === 'agent id' || l === 'user id' || l === 'ext' || l === 'id' || l === 'extension';
     }) || keys.find(k => k.toLowerCase().includes('id')) || keys[0];
     
-    // 2. Identify Name Column (Must NOT be the ID column)
+    // 2. Identify Name Column
     let nameCol = keys.find(k => {
         const l = k.toLowerCase();
-        if (k === idCol) return false; // Skip if already picked as ID
+        if (k === idCol) return false;
         return l === 'agent name' || l === 'full name' || l === 'name' || (l.includes('agent') && !l.includes('id'));
     }) || keys.find(k => k !== idCol && k.toLowerCase().includes('name')) || keys.find(k => k !== idCol) || keys[1];
     
@@ -332,7 +453,7 @@ function processCSVRows(rows) {
         
         if (cleanName === 'UNKNOWN' || cleanName === '') return;
         
-        // Skip placeholders/training accounts: raw name must start with 'PH ' (uppercase, space after)
+        // Skip placeholders/training accounts
         if (rawName.startsWith('PH ')) return;
         
         const status = String(row[statusCol] || '').trim();
@@ -342,8 +463,8 @@ function processCSVRows(rows) {
             const durRaw = String(row[durationColName]).trim();
             if(durRaw.includes(':')) {
                 const parts = durRaw.split(':').map(Number);
-                if(parts.length === 2) duration = parts[0]*60 + parts[1]; // mm:ss
-                else if(parts.length === 3) duration = parts[0]*3600 + parts[1]*60 + parts[2]; // hh:mm:ss
+                if(parts.length === 2) duration = parts[0]*60 + parts[1];
+                else if(parts.length === 3) duration = parts[0]*3600 + parts[1]*60 + parts[2];
             } else {
                 duration = parseInt(durRaw, 10) || 0;
             }
@@ -380,14 +501,11 @@ function renderHistoryList() {
         return;
     }
     
-    // Sort descending by upload time
     const sorted = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
     
     const htmlOutput = sorted.map((r, i) => {
         const isLatest = i === 0;
-        // Show file date (reportDate extracted from filename) as primary label
         const fileDate = r.reportDate || r.filename || 'Unknown Date';
-        // Upload date shown as secondary info
         const uploadDate = new Date(r.uploadedAt).toLocaleDateString('en-GB');
         const isActive = currentReportData && currentReportData.id === r.id;
         
@@ -418,7 +536,7 @@ window.viewReport = function(id) {
     if (!report) return;
     
     currentReportData = report;
-    renderHistoryList(); // updates active highlight
+    renderHistoryList();
     
     document.querySelectorAll('#as-report-title').forEach(el => el.innerText = 'Report: ' + report.reportDate);
     document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> Uploaded ${new Date(report.uploadedAt).toLocaleDateString()}`);
@@ -446,14 +564,13 @@ window.viewReport = function(id) {
         }
     });
     
-    // Wire up Push Button
+    // Wire up Push Button (manual override - still available)
     const pushBtns = document.querySelectorAll('#as-push-btn');
     pushBtns.forEach(pushBtn => {
         pushBtn.classList.remove('hidden');
         pushBtn.onclick = async () => {
-            if(confirm(`WARNING: This will overwrite the "TODAY" Live Leaderboard with this report (${report.reportDate}).\n\nNote: If this is an old report (like from yesterday), you DO NOT need to push it! It automatically goes to the correct Mon-Fri tab just by uploading it.\n\nAre you sure you want to broadcast this to the LIVE "TODAY" board?`)) {
+            if(confirm(`WARNING: This will overwrite the "TODAY" Live Leaderboard with this report (${report.reportDate}).\n\nNote: The most recent upload is auto-pushed. Use this only to override with an older report.\n\nContinue?`)) {
                 
-                // Aggregate by agent NAME (not just ID) to preserve all unique people
                 const aggMap = {};
                 report.data.forEach(d => {
                     const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
@@ -467,7 +584,8 @@ window.viewReport = function(id) {
                 const pushState = {
                     dateLabel: report.reportDate,
                     pushedAt: new Date().toISOString(),
-                    pushedBy: report.author,
+                    pushedBy: report.author || 'Manual Push',
+                    sourceReportId: report.id,
                     agents: aggregatedList.map(d => ({
                         name: d.name,
                         ytelId: d.ytelId,
@@ -482,7 +600,7 @@ window.viewReport = function(id) {
                     setTimeout(() => pushBtns.forEach(btn => btn.innerHTML = '🚀 Push to Daily Full Board'), 2000);
                     
                     if (typeof window.writeAdminActivityLog === 'function') {
-                        window.writeAdminActivityLog('push_dashboard', `Pushed Report to Live Dashboard: ${report.reportDate}`);
+                        window.writeAdminActivityLog('push_dashboard', `Manually Pushed Report to Live Dashboard: ${report.reportDate}`);
                     }
                 }
             }
@@ -497,7 +615,7 @@ window.sortAgentStats = function(col) {
         asSortAsc = !asSortAsc;
     } else {
         asSortCol = col;
-        asSortAsc = (col === 'agentName' || col === 'agentId'); // default asc for strings, desc for numbers
+        asSortAsc = (col === 'agentName' || col === 'agentId');
     }
     renderActiveReportTable();
 };
@@ -507,7 +625,6 @@ function renderActiveReportTable() {
     
     const rawRows = currentReportData.data;
     
-    // ── GLOBAL STATS (Calculated from raw rows) ──
     const totalXfers = rawRows.filter(d => (d.duration || 0) >= 120).length;
     const totalCalls = rawRows.length;
     const agentCount = new Set(rawRows.map(d => d.agentId)).size;
@@ -519,7 +636,6 @@ function renderActiveReportTable() {
     
     let displayRows = [...rawRows];
     
-    // ── SEARCH FILTER ──
     let searchVal = '';
     const searchInput = document.getElementById('as-search-input');
     if (searchInput) searchVal = searchInput.value.toLowerCase().trim();
@@ -527,7 +643,6 @@ function renderActiveReportTable() {
         displayRows = displayRows.filter(d => d.agentName.toLowerCase().includes(searchVal) || d.agentId.toLowerCase().includes(searchVal));
     }
     
-    // ── SORT ──
     const sortKey = asSortCol === 'totalDuration' || asSortCol === 'totalCalls' ? 'duration' : asSortCol;
     displayRows.sort((a, b) => {
         let valA = a[sortKey] ?? 0;
@@ -543,23 +658,21 @@ function renderActiveReportTable() {
             if (valA > valB) return asSortAsc ? 1 : -1;
             return 0;
         } else {
-            // For numbers (or mixed types, treat as numbers), default is DESC (high to low)
             const numA = parseFloat(valA) || 0;
             const numB = parseFloat(valB) || 0;
             return asSortAsc ? (numA - numB) : (numB - numA);
         }
     });
     
-    // ── CHUNKED RENDERING ──
     const tbodies = document.querySelectorAll('#as-table-body');
     if (displayRows.length === 0) {
-        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500 text-xs italic">No matching leads found.</td></tr>`);
+        tbodies.forEach(tbody => tbody.innerHTML = `<td><td colspan="5" class="p-8 text-center text-slate-500 text-xs italic">No matching leads found.<\/td><\/tr>`);
         return;
     }
 
     const chunkSize = 50;
     let currentIndex = 0;
-    tbodies.forEach(tbody => tbody.innerHTML = ''); // Clear first
+    tbodies.forEach(tbody => tbody.innerHTML = '');
 
     function renderNextChunk() {
         const nextBatch = displayRows.slice(currentIndex, currentIndex + chunkSize);
@@ -588,29 +701,4 @@ function renderActiveReportTable() {
     }
 
     renderNextChunk();
-}
-
-// Automatically pipeline the LATEST report into the daily leaderboard goals
-function syncLatestReportToLeaderboard(latestReport) {
-    if (!latestReport || !latestReport.data) return;
-    
-    const pushData = { agents: {} };
-    // Need to aggregate since new report data is raw rows
-    const aggMap = {};
-    latestReport.data.forEach(d => {
-        if(!aggMap[d.agentName]) aggMap[d.agentName] = 0;
-        if(d.duration >= 120) aggMap[d.agentName]++;
-    });
-    
-    Object.keys(aggMap).forEach(name => {
-        pushData.agents[name] = { leads: aggMap[name] }; 
-    });
-    
-// Use adminpanel's injection tool locally just for immediate goal bar updates
-    // The REAL global update happens when they click Push!
-    if (typeof apInjectIntoDashboard === 'function') {
-        apInjectIntoDashboard(pushData);
-    } else {
-        console.warn('Leaderboard injection function missing!');
-    }
 }
