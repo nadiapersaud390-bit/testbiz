@@ -1,7 +1,6 @@
 /**
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
- * AUTO-PUSH: Most recent file automatically updates the Daily dashboard
- * PRESERVES original CSV order (newest at top as in file)
+ * PRESERVES EXACT CSV ORDER - newest at top as in file
  */
 
 let allReports = [];
@@ -10,22 +9,15 @@ let asSortCol = 'agentName';
 let asSortAsc = true;
 let asSubscribed = false;
 
-// Track last auto-pushed report to prevent duplicates
 let lastAutoPushedReportId = null;
-
-// Track previously viewed report data for new lead detection
 let previousReportData = null;
-
-// Track new leads found in current report compared to previous
 let newLeadsList = [];
 
-// Initialization function
 window.renderAgentStatsHistory = function() {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
     
     if (!isSuper) {
-        console.log('Agent Stats: Access denied - Super Admin only');
         const container = document.getElementById('ah-sect-stats');
         if (container) {
             container.innerHTML = '<div class="p-20 text-center"><i class="fas fa-lock text-5xl text-red-500 mb-4"></i><p class="text-slate-400 font-bold uppercase tracking-widest">Access Denied</p><p class="text-slate-500 text-sm mt-2">Agent Stats is only available for Super Admin.</p></div>';
@@ -44,16 +36,9 @@ window.renderAgentStatsHistory = function() {
         }
     } else if (typeof window.listenForAgentReports === 'function') {
         window.listenForAgentReports(data => {
-            console.log('Agent Stats: Received data update', data?.length);
-            
-            const previousCount = allReports.length;
             allReports = data || [];
             window.allAgentReports = allReports;
             
-            const isNewReport = previousCount > 0 && allReports.length > previousCount;
-            const newReportId = isNewReport && allReports[0] ? allReports[0].id : null;
-            
-            // Clean up expired ones
             const now = new Date();
             allReports.forEach(r => {
                 const expires = new Date(r.expiresAt);
@@ -64,9 +49,8 @@ window.renderAgentStatsHistory = function() {
                 }
             });
             
-            renderHistoryList(isNewReport, newReportId);
+            renderHistoryList();
             
-            // Auto-open the MOST RECENT report
             if (!currentReportData && allReports.length > 0) {
                 const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
                 if (sortedForDisplay.length > 0) {
@@ -74,9 +58,7 @@ window.renderAgentStatsHistory = function() {
                 }
             } else if (currentReportData) {
                 const stillExists = allReports.find(r => r.id === currentReportData.id);
-                if (stillExists) {
-                    viewReport(stillExists.id);
-                } else if (allReports.length > 0) {
+                if (!stillExists && allReports.length > 0) {
                     const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
                     if (sortedForDisplay.length > 0) {
                         viewReport(sortedForDisplay[0].id);
@@ -84,12 +66,9 @@ window.renderAgentStatsHistory = function() {
                 }
             }
             
-            // AUTO-PUSH
             if (allReports.length > 0) {
                 const latestReport = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))[0];
-                
                 if (lastAutoPushedReportId !== latestReport.id) {
-                    console.log('Auto-pushing latest report to Daily tab:', latestReport.reportDate);
                     autoPushReportToDashboard(latestReport);
                     lastAutoPushedReportId = latestReport.id;
                 }
@@ -108,7 +87,6 @@ window.renderAgentStatsHistory = function() {
     }
 };
 
-// AUTO-PUSH FUNCTION
 async function autoPushReportToDashboard(report) {
     if (!report || !report.data) return;
     
@@ -117,21 +95,14 @@ async function autoPushReportToDashboard(report) {
     const reportDateStr = report.reportDate;
     
     if (!reportDateStr || (!reportDateStr.includes(todayStr.split(' ')[0]) && !reportDateStr.includes(todayStr))) {
-        console.log('Auto-push skipped: Report is not from today -', reportDateStr);
         return;
     }
     
     const aggMap = {};
     report.data.forEach(d => {
         const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
-        const id = d.agentId || d.ytelId || d.agentName;
         const rawKey = d.rawName || d.agentName;
-        if(!aggMap[nameKey]) aggMap[nameKey] = { 
-            name: d.agentName, 
-            rawName: rawKey, 
-            transfers: 0, 
-            ytelId: id 
-        };
+        if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0 };
         if(d.duration >= 120) aggMap[nameKey].transfers++;
     });
     const aggregatedList = Object.values(aggMap);
@@ -143,7 +114,6 @@ async function autoPushReportToDashboard(report) {
         sourceReportId: report.id,
         agents: aggregatedList.map(d => ({
             name: d.name,
-            ytelId: d.ytelId,
             team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName) : 'PR',
             dailyLeads: d.transfers
         }))
@@ -151,37 +121,9 @@ async function autoPushReportToDashboard(report) {
     
     if (typeof window.saveLiveDashboardState === 'function') {
         await window.saveLiveDashboardState(pushState);
-        console.log('✅ Auto-pushed report to Daily dashboard:', report.reportDate);
-        
-        if (typeof window.updateDashboard === 'function') {
-            setTimeout(() => window.updateDashboard(), 500);
-        }
-        
-        if (typeof window.agents !== 'undefined' && Array.isArray(window.agents)) {
-            aggregatedList.forEach(pushed => {
-                const existingAgent = window.agents.find(a => 
-                    a.name === pushed.name || 
-                    (pushed.ytelId && a.ytelId === pushed.ytelId)
-                );
-                if (existingAgent) {
-                    existingAgent.dailyLeads = pushed.transfers;
-                } else {
-                    window.agents.push({
-                        name: pushed.name,
-                        ytelId: pushed.ytelId,
-                        team: pushed.team,
-                        dailyLeads: pushed.transfers,
-                        weeklyLeads: 0
-                    });
-                }
-            });
-            
-            if (typeof window.render === 'function') window.render();
-            if (typeof window.checkLeadAlerts === 'function') window.checkLeadAlerts(window.agents);
-        }
-        
+        if (typeof window.updateDashboard === 'function') setTimeout(() => window.updateDashboard(), 500);
         if (typeof window.writeAdminActivityLog === 'function') {
-            window.writeAdminActivityLog('auto_push', `Auto-pushed Report to Live Dashboard: ${report.reportDate}`);
+            window.writeAdminActivityLog('auto_push', `Auto-pushed Report: ${report.reportDate}`);
         }
     }
 }
@@ -282,10 +224,8 @@ window.asConfirmUpload = async function() {
     
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const adminName = currentAdmin.name || currentAdmin.email || 'Admin';
-    
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + _asRetentionDays);
-    
     const dayName = typeof getGuyanaDayName === 'function' ? getGuyanaDayName(_asStagedParsedDate) : 'MON';
     
     const reportObj = {
@@ -298,32 +238,25 @@ window.asConfirmUpload = async function() {
         data: _asStagedParsed
     };
     
-    // Delete existing report for same date
     const existingReport = allReports.find(r => r.reportDate === finalDateStr);
     if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
         await window.deleteAgentReportFromFirebase(existingReport.id);
-        console.log(`Deleted existing report for ${finalDateStr}`);
     }
     
     if (typeof window.saveAgentReportToFirebase === 'function') {
         const res = await window.saveAgentReportToFirebase(reportObj);
         if (res && res.success) {
-            updateStatsStatus('✅ Report saved successfully! Auto-pushing to Dashboard...', false);
+            updateStatsStatus('✅ Report saved successfully!', false);
             if (typeof window.writeAdminActivityLog === 'function') {
-                window.writeAdminActivityLog('upload_stats', `Uploaded Agent Stats Report: ${_asStagedFile.name}`);
+                window.writeAdminActivityLog('upload_stats', `Uploaded: ${_asStagedFile.name}`);
             }
-            
             document.getElementById('as-upload-panel').classList.add('hidden');
             _asStagedFile = null;
             _asStagedParsed = null;
-            
             setTimeout(() => updateStatsStatus('', false), 3000);
         } else {
-            const errMsg = (res && res.error && res.error.message) ? res.error.message : 'Unknown error';
-            updateStatsStatus(`❌ Failed: ${errMsg}`, true);
+            updateStatsStatus('❌ Failed to save', true);
         }
-    } else {
-        updateStatsStatus('❌ Firebase not connected. Please reload.', true);
     }
 };
 
@@ -333,272 +266,197 @@ async function handleFileUpload(file) {
         return;
     }
     
-    updateStatsStatus('<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing CSV...', false);
+    updateStatsStatus('<i class="fas fa-spinner fa-spin mr-2"></i> Reading file...', false);
     
+    // Extract date from filename
     let fileDateStr = null;
-    const _mdyM = file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})/);
-    const _ymdM = file.name.match(/(\d{4})[-_](\d{2})[-_](\d{2})/);
-    let parsedReportDate = new Date();
-    
-    if (_mdyM) {
-        parsedReportDate = new Date(_mdyM[3] + '-' + _mdyM[1] + '-' + _mdyM[2] + 'T12:00:00');
-        if (!isNaN(parsedReportDate)) fileDateStr = typeof getFormattedDate === 'function' ? getFormattedDate(parsedReportDate) : parsedReportDate.toLocaleDateString();
-    } else if (_ymdM) {
-        parsedReportDate = new Date(_ymdM[1] + '-' + _ymdM[2] + '-' + _ymdM[3] + 'T12:00:00');
-        if (!isNaN(parsedReportDate)) fileDateStr = typeof getFormattedDate === 'function' ? getFormattedDate(parsedReportDate) : parsedReportDate.toLocaleDateString();
+    const dateMatch = file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})/);
+    if (dateMatch) {
+        fileDateStr = `${dateMatch[1]}/${dateMatch[2]}/${dateMatch[3]}`;
     }
     if (!fileDateStr) fileDateStr = file.name.replace(/\.csv$/i, '');
     
     const text = await file.text();
-    let lines = text.split('\n');
+    let lines = text.split(/\r?\n/);
+    
+    // 🔥 FIX: Find the actual header row (skip "Xfer report:" line)
     let headerIdx = -1;
-    for(let i=0; i<lines.length; i++) {
-        const lower = lines[i].toLowerCase();
-        if(lower.includes('agent id') && lower.includes('agent name')) {
+    let dataStartIdx = -1;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].toLowerCase();
+        // Look for the actual data headers
+        if (line.includes('agent id') && line.includes('agent name')) {
             headerIdx = i;
+            dataStartIdx = i + 1;
             break;
         }
-        if(lower.includes('agent name')) {
+        // Also check for just "agent name"
+        if (line.includes('agent name') && !line.includes('xfer report')) {
             headerIdx = i;
+            dataStartIdx = i + 1;
             break;
         }
     }
     
-    if(headerIdx === -1) {
-        updateStatsStatus('❌ CSV Missing "Agent Name" or "Agent Id" Header', true);
+    if (headerIdx === -1) {
+        updateStatsStatus('❌ Could not find "Agent Name" header in CSV', true);
         return;
     }
     
-    const validCSV = lines.slice(headerIdx).join('\n');
+    // Get headers
+    const headers = lines[headerIdx].split(',').map(h => h.replace(/^"|"$/g, '').trim());
     
-    Papa.parse(validCSV, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async function(results) {
-            try {
-                const parsedData = processCSVRows(results.data);
-                
-                if (parsedData.length === 0) {
-                    const headers = results.meta && results.meta.fields ? results.meta.fields.join(' | ') : 'none';
-                    updateStatsStatus(`❌ Failed. Cols: ${headers}`, true);
-                    return;
-                }
-                
-                _asStagedFile = file;
-                _asStagedParsed = parsedData;
-                _asStagedDateStr = fileDateStr;
-                _asStagedParsedDate = parsedReportDate;
-                _asRetentionDays = 30;
-                
-                const dateInput = document.getElementById('as-report-date-input');
-                if (dateInput) dateInput.value = fileDateStr;
-                
-                asSetRetention(30);
-                
-                const panel = document.getElementById('as-upload-panel');
-                if (panel) panel.classList.remove('hidden');
-                
-                updateStatsStatus(`✅ Ready: ${parsedData.length} rows — ${new Set(parsedData.map(d=>d.agentName)).size} agents detected`, false);
-                
-            } catch(err) {
-                updateStatsStatus('❌ Error processing CSV: ' + err.message, true);
-            }
-        },
-        error: function(err) {
-            updateStatsStatus('❌ Error parsing CSV: ' + err.message, true);
-        }
-    });
-}
-
-// 🔥 FIXED: Process CSV rows - PRESERVE ORIGINAL ORDER (newest at top as in file)
-function processCSVRows(rows) {
-    if(!rows || rows.length === 0) return [];
-    
-    const keys = Object.keys(rows[0]);
-    
-    // 1. Identify ID Column
-    let idCol = keys.find(k => {
-        const l = k.toLowerCase();
-        return l === 'agent id' || l === 'user id' || l === 'ext' || l === 'id' || l === 'extension';
-    }) || keys.find(k => k.toLowerCase().includes('id')) || keys[0];
-    
-    // 2. Identify Name Column
-    let nameCol = keys.find(k => {
-        const l = k.toLowerCase();
-        if (k === idCol) return false;
-        return l === 'agent name' || l === 'full name' || l === 'name' || (l.includes('agent') && !l.includes('id'));
-    }) || keys.find(k => k !== idCol && k.toLowerCase().includes('name')) || keys.find(k => k !== idCol) || keys[1];
-    
-    // 3. Identify Status Column
-    let statusCol = keys.find(k => {
-        const l = k.toLowerCase();
-        return (l.includes('status') || l.includes('state')) && k !== idCol && k !== nameCol;
-    }) || keys.find(k => k !== idCol && k !== nameCol) || keys[2];
-    
-    // 4. Identify Duration Column
-    let durationColName = keys.find(k => {
-        const l = k.toLowerCase();
-        return (l.includes('duration') || l.includes('time') || l.includes('length')) && k !== idCol && k !== nameCol && k !== statusCol;
-    }) || keys.find(k => k !== idCol && k !== nameCol && k !== statusCol) || keys[3];
-    
-    const parsedArray = [];
-    
-    rows.forEach(row => {
-        const id = String(row[idCol] || '').trim();
-        const rawName = String(row[nameCol] || 'Unknown').toUpperCase().trim();
-        const cleanName = typeof stripPrefix === 'function' ? stripPrefix(rawName).toUpperCase() : rawName;
+    // Parse data rows
+    const parsedData = [];
+    for (let i = dataStartIdx; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
         
-        if (cleanName === 'UNKNOWN' || cleanName === '') return;
-        
-        // Skip PH training accounts (but keep if they have XFER status)
-        if (rawName.startsWith('PH ') && rawName.length < 10) {
-            // Still process if it's an XFER
-            const status = String(row[statusCol] || '').trim();
-            if (status !== 'XFER') return;
-        }
-        
-        const status = String(row[statusCol] || '').trim();
-        
-        let duration = 0;
-        if(row[durationColName]) {
-            const durRaw = String(row[durationColName]).trim();
-            if(durRaw.includes(':')) {
-                const parts = durRaw.split(':').map(Number);
-                if(parts.length === 2) duration = parts[0]*60 + parts[1];
-                else if(parts.length === 3) duration = parts[0]*3600 + parts[1]*60 + parts[2];
+        // Parse CSV line respecting quotes
+        const values = [];
+        let inQuote = false;
+        let current = '';
+        for (let j = 0; j < line.length; j++) {
+            const char = line[j];
+            if (char === '"') {
+                inQuote = !inQuote;
+            } else if (char === ',' && !inQuote) {
+                values.push(current.replace(/^"|"$/g, '').trim());
+                current = '';
             } else {
-                duration = parseInt(durRaw, 10) || 0;
+                current += char;
             }
         }
+        values.push(current.replace(/^"|"$/g, '').trim());
         
-        parsedArray.push({
-            agentId: String(id).trim(),
-            agentName: cleanName,
-            rawName: rawName,
+        if (values.length < 5) continue;
+        
+        // Map values to headers
+        const row = {};
+        headers.forEach((h, idx) => {
+            row[h] = values[idx] || '';
+        });
+        
+        // Extract fields
+        const agentId = row['Agent Id'] || '';
+        const agentNameRaw = row['Agent Name'] || '';
+        const agentName = agentNameRaw.toUpperCase().replace(/^GY[BP]\s*/i, '').replace(/^GTM\s*/i, '').trim();
+        const status = row['Current Status'] || '';
+        const durationRaw = row['Duration'] || '0';
+        
+        // Skip PH training accounts (unless they have XFER status)
+        if (agentNameRaw.startsWith('PH ') && status !== 'XFER') continue;
+        if (!agentName || agentName === 'UNKNOWN') continue;
+        
+        // Parse duration
+        let duration = 0;
+        if (durationRaw.includes(':')) {
+            const parts = durationRaw.split(':').map(Number);
+            if (parts.length === 2) duration = parts[0] * 60 + parts[1];
+            else if (parts.length === 3) duration = parts[0] * 3600 + parts[1] * 60 + parts[2];
+        } else {
+            duration = parseInt(durationRaw, 10) || 0;
+        }
+        
+        parsedData.push({
+            agentId: agentId,
+            agentName: agentName,
+            rawName: agentNameRaw,
             status: status.toUpperCase(),
             duration: duration
         });
-    });
+    }
     
-    // 🔥 IMPORTANT: Do NOT sort - preserve the original order from CSV (newest first)
-    console.log(`Processed ${parsedArray.length} rows, preserving original CSV order`);
-    return parsedArray;
+    if (parsedData.length === 0) {
+        updateStatsStatus('❌ No valid data rows found in CSV', true);
+        return;
+    }
+    
+    // Stage for confirmation
+    _asStagedFile = file;
+    _asStagedParsed = parsedData;
+    _asStagedDateStr = fileDateStr;
+    _asStagedParsedDate = new Date();
+    _asRetentionDays = 30;
+    
+    const dateInput = document.getElementById('as-report-date-input');
+    if (dateInput) dateInput.value = fileDateStr;
+    
+    asSetRetention(30);
+    
+    const panel = document.getElementById('as-upload-panel');
+    if (panel) panel.classList.remove('hidden');
+    
+    updateStatsStatus(`✅ Ready: ${parsedData.length} rows, ${new Set(parsedData.map(d => d.agentName)).size} agents`, false);
 }
 
 function updateStatsStatus(msg, isError) {
     const el = document.getElementById('as-upload-status');
-    if(el) {
+    if (el) {
         el.innerHTML = msg;
         el.className = 'mt-4 text-[10px] text-center font-bold ' + (isError ? 'text-red-400' : 'text-cyan-400');
     }
 }
 
-// Render history list with latest at TOP
-function renderHistoryList(isNewReport = false, newReportId = null) {
-    const listHtmls = document.querySelectorAll('#as-history-list');
-    if (listHtmls.length === 0) return;
+function renderHistoryList() {
+    const listHtml = document.getElementById('as-history-list');
+    if (!listHtml) return;
     
     if (allReports.length === 0) {
-        listHtmls.forEach(listHtml => {
-            listHtml.innerHTML = '<div class="text-center text-slate-500 text-xs py-8">No historical reports inside database.</div>';
-        });
+        listHtml.innerHTML = '<div class="text-center text-slate-500 text-xs py-8">No reports found.</div>';
         return;
     }
     
-    // Sort by upload time (newest first)
     const sorted = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
     
-    const htmlOutput = sorted.map((r, i) => {
-        const isLatest = i === 0;
-        const isNew = isNewReport && newReportId === r.id;
-        const fileDate = r.reportDate || r.filename || 'Unknown Date';
-        const uploadDateTime = new Date(r.uploadedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    listHtml.innerHTML = sorted.map(r => {
         const isActive = currentReportData && currentReportData.id === r.id;
-        
-        let daysRemaining = '';
-        if (r.expiresAt) {
-            const expiryDate = new Date(r.expiresAt);
-            const now = new Date();
-            const diffDays = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
-            if (diffDays > 0) {
-                daysRemaining = `<span class="text-[8px] ${diffDays <= 3 ? 'text-red-400' : 'text-slate-500'}">(${diffDays} days left)</span>`;
-            } else if (diffDays === 0) {
-                daysRemaining = '<span class="text-[8px] text-orange-400">(expires today)</span>';
-            }
-        }
-        
+        const uploadDateTime = new Date(r.uploadedAt).toLocaleString();
         return `
-            <div onclick="window.viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl flex justify-between items-center cursor-pointer ${isActive ? 'active' : ''}">
-                <div>
-                    <div class="text-xs font-bold text-white flex items-center gap-2 flex-wrap">
-                        <i class="far fa-file-alt text-cyan-500"></i> ${fileDate}
-                        ${isLatest ? '<span class="bg-cyan-500/20 text-cyan-400 text-[8px] px-1.5 py-0.5 rounded font-black">Latest</span>' : ''}
-                        ${daysRemaining}
-                    </div>
-                    <div class="text-[8px] text-slate-500 mt-1" title="${r.filename}">${r.author || 'Admin'}</div>
-                </div>
-                <div class="text-[8px] text-slate-400 text-right">
-                    <div><i class="far fa-clock"></i> ${uploadDateTime}</div>
-                </div>
+            <div onclick="window.viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl cursor-pointer ${isActive ? 'active' : ''}">
+                <div class="text-xs font-bold text-white">📊 ${r.reportDate}</div>
+                <div class="text-[8px] text-slate-500 mt-1">${r.author || 'Admin'} • ${uploadDateTime}</div>
             </div>
         `;
     }).join('');
-    
-    listHtmls.forEach(listHtml => {
-        listHtml.innerHTML = htmlOutput;
-        if (isNewReport && listHtml.parentElement) {
-            setTimeout(() => {
-                listHtml.parentElement.scrollTop = 0;
-            }, 100);
-        }
-    });
 }
 
 window.viewReport = function(id) {
     const report = allReports.find(r => r.id === id);
     if (!report) return;
     
-    // Store previous report data for new lead detection
     if (currentReportData && currentReportData.data) {
         previousReportData = currentReportData;
     }
     
     currentReportData = report;
     
-    // Find new leads by comparing with previous report
+    // Find new leads
     newLeadsList = [];
-    
     if (previousReportData && previousReportData.data) {
-        // Build map of agent names that had XFERs in previous report
         const previousXfers = new Set();
         previousReportData.data.forEach(row => {
             if (row.duration >= 120) {
                 previousXfers.add(row.agentName.toUpperCase().trim());
             }
         });
-        
-        // Find XFERs in current report not in previous
         report.data.forEach(row => {
             if (row.duration >= 120 && !previousXfers.has(row.agentName.toUpperCase().trim())) {
                 newLeadsList.push(row);
             }
         });
     } else {
-        // First report - mark all XFERs as new
         report.data.forEach(row => {
-            if (row.duration >= 120) {
-                newLeadsList.push(row);
-            }
+            if (row.duration >= 120) newLeadsList.push(row);
         });
     }
     
-    console.log(`Found ${newLeadsList.length} new leads`);
-    
     renderHistoryList();
     
-    const uploadDateTime = new Date(report.uploadedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const uploadDateTime = new Date(report.uploadedAt).toLocaleString();
     document.querySelectorAll('#as-report-title').forEach(el => el.innerText = '📊 Report: ' + report.reportDate);
-    document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> Uploaded: ${uploadDateTime}`);
+    document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> ${uploadDateTime}`);
     document.querySelectorAll('#as-report-author').forEach(el => el.innerHTML = `<i class="far fa-user mr-1"></i> ${report.author}`);
     
     // Delete button
@@ -608,7 +466,7 @@ window.viewReport = function(id) {
         if (cAdmin.role === 'super_admin' || cAdmin.isSuper) {
             delBtn.classList.remove('hidden');
             delBtn.onclick = () => {
-                if(confirm('Permanently delete this report globally?')) {
+                if (confirm('Delete this report?')) {
                     if (typeof window.deleteAgentReportFromFirebase === 'function') {
                         window.deleteAgentReportFromFirebase(id);
                         currentReportData = null;
@@ -627,32 +485,27 @@ window.viewReport = function(id) {
         if (cAdmin.role === 'super_admin' || cAdmin.isSuper) {
             pushBtn.classList.remove('hidden');
             pushBtn.onclick = async () => {
-                if(confirm(`Push ${report.reportDate} to Live Dashboard?`)) {
+                if (confirm(`Push ${report.reportDate} to Live Dashboard?`)) {
                     const aggMap = {};
                     report.data.forEach(d => {
-                        const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
-                        const rawKey = d.rawName || d.agentName;
-                        if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0 };
-                        if(d.duration >= 120) aggMap[nameKey].transfers++;
+                        const nameKey = d.agentName.toUpperCase().trim();
+                        if (!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, transfers: 0 };
+                        if (d.duration >= 120) aggMap[nameKey].transfers++;
                     });
-                    const aggregatedList = Object.values(aggMap);
-                    
                     const pushState = {
                         dateLabel: report.reportDate,
                         pushedAt: new Date().toISOString(),
-                        pushedBy: report.author || 'Manual Push',
-                        sourceReportId: report.id,
-                        agents: aggregatedList.map(d => ({
+                        pushedBy: report.author,
+                        agents: Object.values(aggMap).map(d => ({
                             name: d.name,
-                            team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName) : 'PR',
+                            team: 'PR',
                             dailyLeads: d.transfers
                         }))
                     };
-                    
                     if (typeof window.saveLiveDashboardState === 'function') {
                         await window.saveLiveDashboardState(pushState);
                         pushBtn.innerHTML = '✅ Pushed!';
-                        setTimeout(() => pushBtn.innerHTML = '🚀 Push to Daily Full Board', 2000);
+                        setTimeout(() => pushBtn.innerHTML = '🚀 Push to Daily Board', 2000);
                     }
                 }
             };
@@ -664,94 +517,66 @@ window.viewReport = function(id) {
     renderActiveReportTable();
 };
 
-window.sortAgentStats = function(col) {
-    if (asSortCol === col) {
-        asSortAsc = !asSortAsc;
-    } else {
-        asSortCol = col;
-        asSortAsc = (col === 'agentName' || col === 'agentId');
-    }
-    renderActiveReportTable();
-};
-
-// 🔥 FIXED: Render table preserving original order, with new leads highlighted
+// 🔥 CRITICAL: Render table EXACTLY as it appears in the parsed data (preserving order)
 function renderActiveReportTable() {
     if (!currentReportData) return;
     
     const rawRows = currentReportData.data;
     
-    const totalXfers = rawRows.filter(d => (d.duration || 0) >= 120).length;
-    const totalCalls = rawRows.length;
+    const totalXfers = rawRows.filter(d => d.duration >= 120).length;
     const agentCount = new Set(rawRows.map(d => d.agentId)).size;
     
     document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
-    document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = totalCalls);
+    document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = rawRows.length);
     document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
-    document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = agentCount > 0 ? ((totalXfers / agentCount)*100).toFixed(1) + '%' : '0%');
-    
-    let displayRows = [...rawRows];
+    document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = agentCount > 0 ? ((totalXfers / agentCount) * 100).toFixed(1) + '%' : '0%');
     
     // Apply search filter
     let searchVal = '';
     const searchInput = document.getElementById('as-search-input');
     if (searchInput) searchVal = searchInput.value.toLowerCase().trim();
+    
+    let displayRows = rawRows;
     if (searchVal) {
-        displayRows = displayRows.filter(d => d.agentName.toLowerCase().includes(searchVal) || d.agentId.toLowerCase().includes(searchVal));
+        displayRows = rawRows.filter(d => d.agentName.toLowerCase().includes(searchVal) || d.agentId.toLowerCase().includes(searchVal));
     }
     
     // Mark new leads
-    const newLeadIds = new Set();
+    const newLeadSet = new Set();
     newLeadsList.forEach(lead => {
-        newLeadIds.add(lead.agentName.toUpperCase().trim());
+        newLeadSet.add(lead.agentName.toUpperCase().trim());
     });
-    
-    // 🔥 IMPORTANT: Do NOT reorder - preserve original CSV order
-    // New leads are highlighted but stay in their original position
     
     const tbodies = document.querySelectorAll('#as-table-body');
     if (displayRows.length === 0) {
-        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500 text-xs italic">No matching leads found.</td></tr>`);
+        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500">No matches found.</td></tr>`);
         return;
     }
-
-    const chunkSize = 50;
-    let currentIndex = 0;
-    tbodies.forEach(tbody => tbody.innerHTML = '');
-
-    function renderNextChunk() {
-        const nextBatch = displayRows.slice(currentIndex, currentIndex + chunkSize);
-        const html = nextBatch.map(d => {
-            const isXfer = (d.duration || 0) >= 120;
-            const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
-            const typeLabel = isXfer ? 'XFER' : 'CONN';
-            
-            const isNewLead = newLeadIds.has(d.agentName.toUpperCase().trim());
-            const highlightClass = isNewLead ? 'new-lead-row' : '';
-            const newLeadIndicator = isNewLead ? '<span class="ml-2 text-[10px] bg-green-500/30 text-green-400 px-1.5 py-0.5 rounded-full">⭐ NEW</span>' : '';
-            
-            return `
-                <tr class="border-b border-white/5 hover:bg-white/5 transition group text-[11px] ${highlightClass}">
-                    <td class="p-3 text-slate-500 font-mono">${escapeHtml(d.agentId)}</td>
-                    <td class="p-3 font-bold text-white uppercase group-hover:text-cyan-300 transition">
-                        ${escapeHtml(d.rawName || d.agentName)}
-                        ${newLeadIndicator}
-                    </td>
-                    <td class="p-3 text-center text-slate-400">${escapeHtml(d.status)}</td>
-                    <td class="p-3 text-center text-slate-300 font-mono">${d.duration}s</td>
-                    <td class="p-3 text-right ${typeColor}">${typeLabel}</td>
-                </tr>
-            `;
-        }).join('');
-
-        tbodies.forEach(tbody => tbody.insertAdjacentHTML('beforeend', html));
-        currentIndex += chunkSize;
-
-        if (currentIndex < displayRows.length) {
-            requestAnimationFrame(renderNextChunk);
-        }
-    }
-
-    renderNextChunk();
+    
+    // 🔥 Render in the EXACT order they appear in the array (which matches CSV order)
+    const html = displayRows.map(d => {
+        const isXfer = d.duration >= 120;
+        const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
+        const typeLabel = isXfer ? 'XFER' : 'CONN';
+        const isNew = newLeadSet.has(d.agentName.toUpperCase().trim());
+        const highlightClass = isNew ? 'new-lead-row' : '';
+        const newBadge = isNew ? '<span class="ml-2 text-[9px] bg-green-500/30 text-green-400 px-1.5 py-0.5 rounded-full">⭐ NEW</span>' : '';
+        
+        return `
+            <tr class="border-b border-white/5 hover:bg-white/5 transition ${highlightClass}">
+                <td class="p-3 text-slate-500 text-[11px]">${escapeHtml(d.agentId)}<\/td>
+                <td class="p-3 font-bold text-white text-[12px] uppercase">
+                    ${escapeHtml(d.rawName || d.agentName)}
+                    ${newBadge}
+                <\/td>
+                <td class="p-3 text-center text-slate-400 text-[11px]">${escapeHtml(d.status)}<\/td>
+                <td class="p-3 text-center text-slate-300 text-[11px]">${d.duration}s<\/td>
+                <td class="p-3 text-right ${typeColor} text-[11px]">${typeLabel}<\/td>
+             \u007d\u007d
+        `;
+    }).join('');
+    
+    tbodies.forEach(tbody => tbody.innerHTML = html);
 }
 
 function escapeHtml(str) {
