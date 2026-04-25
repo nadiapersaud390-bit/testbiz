@@ -33,17 +33,6 @@ function getCurrentGuyanaDay() {
     return dayIndex;
 }
 
-// Returns true if today is Saturday (6) or Sunday (0) in Guyana time
-function isWeekend() {
-    const d = getCurrentGuyanaDay();
-    return d === 0 || d === 6;
-}
-
-// Returns true if today is Monday (1) in Guyana time
-function isMonday() {
-    return getCurrentGuyanaDay() === 1;
-}
-
 // Function to check if a given day is completed (has passed)
 function isDayCompleted(dayKey) {
     const currentDayIndex = getCurrentGuyanaDay();
@@ -51,36 +40,26 @@ function isDayCompleted(dayKey) {
     const targetDayIndex = dayMap[dayKey];
     
     if (!targetDayIndex) return false;
-
+    
     const now = new Date();
     const guyanaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
     const currentHour = guyanaTime.getHours();
-
-    // On weekends, Friday and all prior days are completed
-    // Monday is NOT completed yet (new week hasn't started)
-    if (isWeekend()) {
-        return targetDayIndex <= 5; // Mon–Fri all completed on weekend
-    }
-
-    // On Monday before data is uploaded, no day is "completed" yet for current week
-    // Historical days from last week should still show in tabs
-    // But TODAY (Monday) is always blank until upload
-    if (isMonday() && targetDayIndex === 1) {
-        return false; // Monday itself not completed until EOD
-    }
-
+    
     // If it's a future day in the week
     if (targetDayIndex > currentDayIndex) {
         return false;
     }
-
+    
     // If it's today, check if the day is over (after 8:00 PM)
     if (targetDayIndex === currentDayIndex) {
         // Day is considered complete after 8:00 PM (20:00) Guyana time
-        return currentHour >= 20;
+        if (currentHour >= 20) {
+            return true;
+        }
+        return false;
     }
-
-    // If it's a past day this week
+    
+    // If it's a past day
     return true;
 }
 
@@ -515,38 +494,7 @@ function render() {
     const isWeekly = currentTab === 'weekly';
     const isHistory = currentTab === 'daily' && currentDayView !== 'today';
     const target = isWeekly ? 800 : 150;
-
-    // ── WEEKEND / MONDAY BLANK ──
-    // On Saturday & Sunday: TODAY tab shows blank — no data until Monday upload.
-    // On Monday before upload: same — blank until CSV is pushed.
-    const _weekend = isWeekend();
-    const _isTodayView = currentTab === 'daily' && currentDayView === 'today';
-    if (_isTodayView && _weekend) {
-        // Show blank weekend state
-        document.getElementById('goal-label').innerText = 'WEEKEND — NO DATA';
-        document.getElementById('day-indicator').innerText = 'NEXT UPDATE: MONDAY';
-        const banner = document.getElementById('history-banner');
-        if (banner) banner.classList.add('hidden');
-        const leaderboardEl = document.getElementById('leaderboard');
-        if (leaderboardEl) leaderboardEl.innerHTML = `
-            <div class="glass p-10 rounded-2xl text-center" style="max-width:500px;margin:0 auto;">
-                <div style="font-size:3rem;margin-bottom:12px;">🏖️</div>
-                <div style="font-size:18px;font-weight:900;color:#facc15;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Weekend Mode</div>
-                <div style="color:#64748b;font-size:13px;font-weight:700;">No live data on weekends.<br>Check back Monday when the new week starts.</div>
-                <div style="margin-top:16px;color:#475569;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;">You can still view completed days using the tabs above.</div>
-            </div>`;
-        // Zero out stats
-        ['floor-total','master-count','active-reps','current-leads-sum','pr-count','bb-count','rm-count'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.innerText = id === 'master-count' ? '00' : id === 'current-leads-sum' ? '0 Leads' : '0';
-        });
-        const pb = document.getElementById('progress-bar');
-        const gp = document.getElementById('goal-percent');
-        if (pb) pb.style.width = '0%';
-        if (gp) gp.innerText = '0%';
-        return;
-    }
-
+    
     const todayName = agents.length > 0 ? (agents[0].todayName || 'Today') : 'Today';
 
     // UI Goal Labels
@@ -655,30 +603,22 @@ function render() {
                          (myYtelId && agent.ytelId === myYtelId);
 
             const teamMeta = getTeamMeta(agent.team);
-            const badge = `<span style="font-size:8px;background:rgba(${teamMeta.rgb},0.15);border:1px solid rgba(${teamMeta.rgb},0.3);border-radius:4px;padding:1px 5px;color:${teamMeta.color};font-weight:900;margin-left:6px;">${teamMeta.label}</span>`;
-
-            const myHighlight = isMe
-                ? 'outline: 2px solid rgba(250,204,21,0.6); outline-offset: -2px;'
-                : '';
-
+            const teamBadge = `<span class="lb-team-badge" style="background:rgba(${teamMeta.rgb},0.15);border:1px solid rgba(${teamMeta.rgb},0.3);color:${teamMeta.color};">${teamMeta.label}</span>`;
+            const youBadge = isMe ? `<span class="lb-you-badge">YOU</span>` : '';
             return `
-                <div class="glass p-5 rounded-2xl flex justify-between items-center transition-all hover:bg-white/5 ${lvl.cls} mb-3 md:mb-0 md:m-2" style="${myHighlight}">
-                    <div class="flex items-center gap-4">
-                        <span class="text-xl font-black italic ${rank <= 3 ? 'text-white' : 'text-slate-700'}">
-                            ${String(rank).padStart(2, '0')}
-                        </span>
-                        <div>
-                            <div class="font-black text-sm md:text-lg text-white uppercase flex items-center flex-wrap gap-1">
-                                ${escapeHtml(agent.name)}${badge}${isMe ? '<span style="font-size:8px;background:rgba(250,204,21,0.15);border:1px solid rgba(250,204,21,0.35);border-radius:4px;padding:1px 6px;color:#facc15;font-weight:900;margin-left:4px;">YOU</span>' : ''}
-                            </div>
-                            <div class="text-[9px] font-black uppercase tracking-widest ${lvl.color}">
-                                ${lvl.title} STATUS
-                            </div>
+                <div class="lb-card ${lvl.tierCls} ${isMe ? 'is-me' : ''}">
+                    <div class="lb-rank">${String(rank).padStart(2,'0')}</div>
+                    <div class="lb-divider"></div>
+                    <div class="lb-info">
+                        <div class="lb-name-row">
+                            <div class="lb-name">${escapeHtml(agent.name)}</div>
+                            ${teamBadge}${youBadge}
                         </div>
+                        <div class="lb-status">${lvl.title} STATUS</div>
                     </div>
-                    <div class="text-right">
-                        <div class="text-2xl md:text-3xl font-black text-white leading-none">${agent.leads}</div>
-                        <div class="text-[8px] text-slate-500 uppercase font-black mt-1">Transfers</div>
+                    <div class="lb-score">
+                        <div class="lb-score-num">${agent.leads}</div>
+                        <div class="lb-score-label">Transfers</div>
                     </div>
                 </div>`;
         }).join('');
@@ -709,11 +649,11 @@ function render() {
 }
 
 function getLevel(l) {
-    if (l >= 17) return { title: 'CONQUEROR', cls: 'conqueror-tier', color: 'text-red-500' };
-    if (l >= 12) return { title: 'MASTER', cls: 'gold-tier', color: 'text-yellow-500' };
-    if (l >= 7) return { title: 'ELITE', cls: 'orange-tier', color: 'text-orange-500' };
-    if (l >= 4) return { title: 'PRO', cls: 'blue-tier', color: 'text-blue-500' };
-    return { title: 'ROOKIE', cls: 'slate-tier', color: 'text-slate-500' };
+    if (l >= 17) return { title: 'CONQUEROR', cls: 'conqueror-tier', tierCls: 'tier-conqueror', color: 'text-red-500' };
+    if (l >= 12) return { title: 'MASTER',    cls: 'gold-tier',      tierCls: 'tier-master',    color: 'text-yellow-500' };
+    if (l >= 7)  return { title: 'ELITE',     cls: 'orange-tier',    tierCls: 'tier-elite',     color: 'text-orange-500' };
+    if (l >= 4)  return { title: 'PRO',       cls: 'blue-tier',      tierCls: 'tier-pro',       color: 'text-blue-500' };
+    return           { title: 'ROOKIE',    cls: 'slate-tier',     tierCls: 'tier-rookie',    color: 'text-slate-500' };
 }
 
 // Navigation & Tab UI - ONLY SHOW COMPLETED DAYS WITH SHORT NAMES
