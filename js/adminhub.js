@@ -19,6 +19,18 @@ const ahTeamColors = {
 function getAdminPermissions(adminEmail) {
     const email = String(adminEmail || '').toLowerCase();
     
+    // Hard deny: blocked IDs (e.g. legacy 0000) get NO admin features regardless of role
+    const blocked = (window._BLOCKED_ADMIN_IDS || ['0000']).map(s => String(s).toLowerCase());
+    if (blocked.includes(email)) {
+        return {
+            isSuper: false,
+            canSeeStats: false,
+            canSeeAdminTools: false,
+            canSeeTrivia: false,
+            canSeeSuper: false
+        };
+    }
+    
     if (email === 'rose') {
         return {
             isSuper: true,
