@@ -14,6 +14,15 @@ let previousReportData = null;
 let newLeadsList = [];
 let _asLastUploadedDateLabel = null;
 
+// Returns true if a CSV agent-name represents a PH (Philippines) training account.
+// Matches: 'PH JOHN', 'PH-ROSE', 'PH.MIKE', 'PH123', bare 'PH'.
+// Does NOT match real names that happen to start with PH like 'PHIL', 'PHOEBE', etc.
+function isPhTrainingName(rawName) {
+    if (!rawName) return false;
+    const t = String(rawName).trim();
+    return /^PH(?![A-Za-z])/i.test(t);
+}
+
 function normalizeReportDateLabel(input) {
     if (!input) return "Unknown Date";
     const raw = String(input).trim();
@@ -70,22 +79,26 @@ window.renderAgentStatsHistory = function() {
             
             renderHistoryList();
             
-            if (!currentReportData && allReports.length > 0) {
+            if (allReports.length > 0) {
                 const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-                let target = sortedForDisplay[0];
+                
+                // 1) If we just uploaded, ALWAYS jump to the freshly uploaded report
                 if (_asLastUploadedDateLabel) {
                     const justUploaded = sortedForDisplay.find(r => normalizeReportDateLabel(r.reportDate) === _asLastUploadedDateLabel);
-                    if (justUploaded) target = justUploaded;
                     _asLastUploadedDateLabel = null;
-                }
-                if (target) viewReport(target.id);
-            } else if (currentReportData) {
-                const stillExists = allReports.find(r => r.id === currentReportData.id);
-                if (!stillExists && allReports.length > 0) {
-                    const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-                    if (sortedForDisplay.length > 0) {
+                    if (justUploaded) {
+                        viewReport(justUploaded.id);
+                    } else {
+                        // Fallback: most recent uploadedAt
                         viewReport(sortedForDisplay[0].id);
                     }
+                } else if (!currentReportData) {
+                    // 2) First load — show most recent
+                    viewReport(sortedForDisplay[0].id);
+                } else {
+                    // 3) Already viewing one — stay unless it was deleted
+                    const stillExists = allReports.find(r => r.id === currentReportData.id);
+                    if (!stillExists) viewReport(sortedForDisplay[0].id);
                 }
             }
             
@@ -113,11 +126,15 @@ window.renderAgentStatsHistory = function() {
 async function autoPushReportToDashboard(report) {
     if (!report || !report.data) return;
     
+    // Normalize today's date to canonical 'Mon DD, YYYY' to compare apples-to-apples
     const today = new Date();
-    const todayStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const reportDateStr = report.reportDate;
+    const todayCanon = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const reportCanon = (normalizeReportDateLabel(report.reportDate) || '').split(' (')[0];
     
-    if (!reportDateStr || (!reportDateStr.includes(todayStr.split(' ')[0]) && !reportDateStr.includes(todayStr))) return;
+    if (!reportCanon || reportCanon !== todayCanon) {
+        console.log('[autoPush] Skipped — report date', reportCanon, 'is not today', todayCanon);
+        return;
+    }
     
     const aggMap = {};
     report.data.forEach(d => {
@@ -388,8 +405,8 @@ async function handleFileUpload(file) {
         const status = row['Current Status'] || '';
         const durationRaw = row['Duration'] || '0';
         
-        // Skip ALL PH training accounts (regardless of status)
-        if (/^PH[\s_-]/i.test(agentNameRaw.trim())) continue;
+        // Skip ALL PH training accounts — match 'PH ' / 'PH-' / 'PH.' / 'PH123' but NOT 'PHIL' etc.
+        if (isPhTrainingName(agentNameRaw)) continue;
         if (!agentName || agentName === 'UNKNOWN') continue;
         
         // Parse duration
@@ -554,7 +571,8 @@ window.viewReport = function(id) {
 function renderActiveReportTable() {
     if (!currentReportData) return;
     
-    const rawRows = currentReportData.data;
+    // Strip any legacy PH rows from old reports saved before the PH filter existed
+    const rawRows = (currentReportData.data || []).filter(d => !isPhTrainingName(d && (d.rawName || d.agentName)));
     
     const totalXfers = rawRows.filter(d => d.duration >= 120).length;
     const agentCount = new Set(rawRows.map(d => d.agentId)).size;
