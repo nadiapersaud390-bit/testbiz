@@ -1310,7 +1310,7 @@ window.switchAhToolsSubTab = function(sub) {
         const tab = document.getElementById('aht-tab-' + s);
         if (sect) sect.classList.add('hidden');
         if (tab) {
-            tab.classList.remove('bg-cyan-500', 'text-white', 'shadow-lg', 'shadow-cyan-900/40');
+            tab.classList.remove('active', 'bg-cyan-500', 'text-white', 'shadow-lg', 'shadow-cyan-900/40');
             tab.classList.add('text-slate-400');
         }
     });
@@ -1329,7 +1329,7 @@ window.switchAhToolsSubTab = function(sub) {
     if (activeSect) activeSect.classList.remove('hidden');
     if (activeTab) {
         activeTab.classList.remove('text-slate-400');
-        activeTab.classList.add('bg-cyan-500', 'text-white', 'shadow-lg', 'shadow-cyan-900/40');
+        activeTab.classList.add('active');
     }
 
     if (sub === 'logs') {
