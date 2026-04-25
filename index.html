@@ -100,7 +100,10 @@ function setupRoleBasedTabs() {
     const userRole = sessionStorage.getItem('bizUserRole');
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
-    const isRegularAdmin = userRole === 'admin' && !isSuper;
+    const restrictedIds = (window._RESTRICTED_ADMIN_IDS || ['0000']).map(s => String(s).toLowerCase());
+    const adminEmailLower = String(currentAdmin.email || '').toLowerCase();
+    const isRestrictedAdmin = userRole === 'admin' && restrictedIds.includes(adminEmailLower);
+    const isRegularAdmin = userRole === 'admin' && !isSuper && !isRestrictedAdmin;
     
     // Get all tab buttons
     const tabs = {
@@ -116,8 +119,14 @@ function setupRoleBasedTabs() {
         superadminpanel: document.getElementById('tab-superadminpanel')
     };
     
-    // For Regular Admin (momo, 0000) - show Admin Tools but NOT Super Admin
-    if (isRegularAdmin) {
+    // For Restricted Admin (e.g. 0000) - hide Admin Tools, Super Admin AND Tracker
+    if (isRestrictedAdmin) {
+        if (tabs.adminpanel) tabs.adminpanel.classList.add('hidden');
+        if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
+        if (tabs.tracker) tabs.tracker.classList.add('hidden');
+    }
+    // For Regular Admin (momo) - show Admin Tools but NOT Super Admin
+    else if (isRegularAdmin) {
         if (tabs.adminpanel) tabs.adminpanel.classList.remove('hidden');
         if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
     }
@@ -386,16 +395,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const userRole = sessionStorage.getItem('bizUserRole');
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
-    const isRegularAdmin = userRole === 'admin' && !isSuper;
+    const restrictedIds = (window._RESTRICTED_ADMIN_IDS || ['0000']).map(s => String(s).toLowerCase());
+    const adminEmailLower = String(currentAdmin.email || '').toLowerCase();
+    const isRestrictedAdmin = userRole === 'admin' && restrictedIds.includes(adminEmailLower);
+    const isRegularAdmin = userRole === 'admin' && !isSuper && !isRestrictedAdmin;
     
-    console.log('DOM Loaded - User:', currentAdmin.email, 'Role:', userRole, 'isSuper:', isSuper);
+    console.log('DOM Loaded - User:', currentAdmin.email, 'Role:', userRole, 'isSuper:', isSuper, 'isRestricted:', isRestrictedAdmin);
     
     // Get tab elements
     const adminTab = document.getElementById('tab-adminpanel');
     const superAdminTab = document.getElementById('tab-superadminpanel');
+    const trackerTab = document.getElementById('tab-tracker');
     
-    // For Regular Admin (momo, 0000) - show Admin Tools only
-    if (isRegularAdmin) {
+    // For Restricted Admin (e.g. 0000) - hide Admin Tools, Super Admin, AND Tracker
+    if (isRestrictedAdmin) {
+        if (adminTab) adminTab.classList.add('hidden');
+        if (superAdminTab) superAdminTab.classList.add('hidden');
+        if (trackerTab) trackerTab.classList.add('hidden');
+        console.log('Restricted Admin - Hiding Admin Tools, Super Admin and Tracker');
+    }
+    // For Regular Admin (momo) - show Admin Tools only
+    else if (isRegularAdmin) {
         if (adminTab) {
             adminTab.classList.remove('hidden');
             console.log('Regular Admin - Showing Admin Tools');
