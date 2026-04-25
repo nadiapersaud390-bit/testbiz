@@ -81,20 +81,18 @@ function seedDefaultAdmins() {
     });
 
     DEFAULT_ADMIN_ACCOUNTS.forEach(d => {
-        // Always overwrite system accounts so Firebase can't strip them
+        // ALWAYS overwrite default accounts (momo, 0000) so Firebase data
+        // can never break their guaranteed credentials.
         const existing = admins[d.id];
-        const isSystemAccount = !existing || existing.addedBy === 'system';
-        if (isSystemAccount) {
-            admins[d.id] = {
-                email: d.id,
-                name: d.name,
-                password: btoa(d.pass),
-                role: 'admin',
-                addedBy: 'system',
-                addedAt: new Date().toISOString()
-            };
-            changed = true;
-        }
+        admins[d.id] = {
+            email: d.id,
+            name: d.name,
+            password: btoa(d.pass),
+            role: 'admin',
+            addedBy: 'system',
+            addedAt: (existing && existing.addedAt) ? existing.addedAt : new Date().toISOString()
+        };
+        changed = true;
     });
 
     if (changed) {
