@@ -63,30 +63,28 @@ function isDayCompleted(dayKey) {
     return true;
 }
 
-// Function to load the full agent roster
-async function loadFullRoster() {
+// Function to load the full agent roster (Google Sheet is source of truth)
+async function loadFullRoster(force) {
+    if (!force && fullRoster.length > 0) return fullRoster;
     try {
-        // Try to get from Google Sheet first
         if (typeof API_URL !== 'undefined') {
             const resp = await fetch(`${API_URL}?action=getRoster`);
             const roster = await resp.json();
             if (Array.isArray(roster) && roster.length > 0) {
                 fullRoster = roster;
                 window.allAgentProfiles = roster;
+                try { localStorage.setItem('biz_master_roster', JSON.stringify(roster)); } catch(e) {}
                 console.log(`Loaded ${fullRoster.length} agents from Google Sheet roster`);
-                return;
+                return fullRoster;
             }
         }
     } catch (e) {
         console.warn('Could not load from Google Sheet, using fallback:', e);
     }
-    
-    // Fallback to localStorage or window.allAgentProfiles
     if (window.allAgentProfiles && window.allAgentProfiles.length > 0) {
         fullRoster = window.allAgentProfiles;
         console.log(`Loaded ${fullRoster.length} agents from allAgentProfiles`);
     } else {
-        // Try to load from localStorage
         const saved = localStorage.getItem('biz_master_roster');
         if (saved) {
             try {
@@ -95,6 +93,32 @@ async function loadFullRoster() {
             } catch(e) {}
         }
     }
+    return fullRoster;
+}
+
+// Build the agent list for the daily tab from the roster, applying lead counts from live state
+function buildAgentsFromRoster(state) {
+    const leadMap = new Map();
+    if (state && Array.isArray(state.agents)) {
+        state.agents.forEach(a => {
+            const nameKey = (a.name || '').toUpperCase().trim();
+            if (nameKey) leadMap.set(nameKey, a.dailyLeads || 0);
+            if (a.ytelId) leadMap.set(String(a.ytelId), a.dailyLeads || 0);
+        });
+    }
+    return fullRoster.map(rosterAgent => {
+        const agentName = rosterAgent.fullName || rosterAgent.name || '';
+        const agentNameUpper = agentName.toUpperCase().trim();
+        const ytelId = rosterAgent.userId || rosterAgent.ytelId || '';
+        const dailyLeads = leadMap.get(agentNameUpper) || leadMap.get(String(ytelId)) || 0;
+        return {
+            name: agentName,
+            ytelId: ytelId,
+            team: rosterAgent.team || normalizeTeam('', agentName),
+            dailyLeads: dailyLeads,
+            weeklyLeads: 0
+        };
+    });
 }
 
 function updateDashboard() {
@@ -104,11 +128,20 @@ function updateDashboard() {
         setTimeout(() => btn.classList.remove('spin-anim'), 1000);
     }
 
-    // Load roster once
+    // Load roster (Google Sheet is the source of truth) before subscribing
+    const subscribe = () => {
+        if (isDashboardSubscribed || typeof window.listenForLiveDashboardState !== 'function') return;
+        _subscribeLiveDashboard();
+    };
     if (fullRoster.length === 0) {
-        loadFullRoster();
+        loadFullRoster().then(subscribe).catch(subscribe);
+    } else {
+        subscribe();
     }
+    return;
+}
 
+function _subscribeLiveDashboard() {
     if (!isDashboardSubscribed && typeof window.listenForLiveDashboardState === 'function') {
         window.listenForLiveDashboardState((state) => {
             if (!state) {
@@ -127,40 +160,20 @@ function updateDashboard() {
                             pushDate.toLocaleDateString('en-GB') === now.toLocaleDateString('en-GB') &&
                             labelMatches;
 
-            // Create a map of lead counts from the live state
-            const leadMap = new Map();
-            if (state.agents) {
-                state.agents.forEach(a => {
-                    const nameKey = (a.name || '').toUpperCase().trim();
-                    leadMap.set(nameKey, a.dailyLeads || 0);
-                    if (a.ytelId) leadMap.set(a.ytelId, a.dailyLeads || 0);
+            // Roster is the source of truth for who appears on the daily tab.
+            // CSV uploads only update the lead counts for matching agents.
+            if (fullRoster.length === 0) {
+                // Try once more to load the roster, then re-render
+                loadFullRoster(true).then(() => {
+                    if (typeof window.updateDashboard === 'function') window.updateDashboard();
                 });
-            }
-            
-            // Build agents array from FULL ROSTER, not just logged-in agents
-            if (fullRoster.length > 0) {
-                // Map roster to agents with lead counts from live state
-                agents = fullRoster.map(rosterAgent => {
-                    const agentName = rosterAgent.fullName || rosterAgent.name || '';
-                    const agentNameUpper = agentName.toUpperCase().trim();
-                    const ytelId = rosterAgent.userId || rosterAgent.ytelId || '';
-                    
-                    // Get lead count from live state (default to 0)
-                    let dailyLeads = leadMap.get(agentNameUpper) || leadMap.get(ytelId) || 0;
-                    
-                    return {
-                        name: agentName,
-                        ytelId: ytelId,
-                        team: rosterAgent.team || normalizeTeam('', agentName),
-                        dailyLeads: dailyLeads,
-                        weeklyLeads: 0
-                    };
-                });
-                
-                // Set today's name from state
+                agents = [];
+                const ts = document.getElementById('timestamp');
+                if (ts) ts.innerText = 'Loading roster from Google Sheet…';
+            } else {
+                agents = buildAgentsFromRoster(state);
                 if (agents.length > 0) {
-                    agents[0].todayName = state.dateLabel || getGuyanaToday();
-                    
+                    agents[0].todayName = (state && state.dateLabel) || getGuyanaToday();
                     let pr = 0, bb = 0, rm = 0;
                     agents.forEach(a => {
                         if (a.team === 'PR') pr += (a.dailyLeads || 0);
@@ -171,42 +184,8 @@ function updateDashboard() {
                     agents[0].bbTotal = bb;
                     agents[0].rmTotal = rm;
                 }
-                
                 const ts = document.getElementById('timestamp');
                 if (ts) ts.innerText = `Roster: ${agents.length} agents | Synced: ${new Date().toLocaleTimeString()}`;
-            } else {
-                // Fallback to old method if roster not loaded yet
-                if (state.agents) {
-                    agents = (state.agents || []).map(a => {
-                        let realName = a.name;
-                        if (window.biz_master_roster && /^\d+$/.test(a.name)) {
-                            const profile = window.biz_master_roster.find(p => String(p.userId) === String(a.name));
-                            if (profile) realName = profile.fullName;
-                        }
-                        return { ...a, name: realName };
-                    });
-                } else {
-                    agents = [];
-                    const ts = document.getElementById('timestamp');
-                    if (ts) ts.innerText = 'System Waiting: No Upload for Today Yet';
-                }
-                
-                agents.forEach(a => {
-                    a.team = normalizeTeam(a.team, a.name);
-                });
-                
-                if (agents.length > 0) {
-                    agents[0].todayName = state.dateLabel || getGuyanaToday();
-                    let pr = 0, bb = 0, rm = 0;
-                    agents.forEach(a => {
-                        if (a.team === 'PR') pr += (a.dailyLeads || 0);
-                        else if (a.team === 'BB') bb += (a.dailyLeads || 0);
-                        else if (a.team === 'RM') rm += (a.dailyLeads || 0);
-                    });
-                    agents[0].prTotal = pr;
-                    agents[0].bbTotal = bb;
-                    agents[0].rmTotal = rm;
-                }
             }
             
             checkLeadAlerts(agents);
