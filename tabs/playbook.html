@@ -2,26 +2,44 @@
 <html>
 <head>
 <style>
-    /* --- Your Styling (Keep as is or replace with this --- */
     .playbook-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
     .live-badge { background: linear-gradient(135deg, #10b981, #059669); display: inline-block; padding: 4px 12px; border-radius: 50px; font-size: 10px; font-weight: 900; letter-spacing: 1px; margin-bottom: 15px; }
+    
+    /* Guidelines Card */
     .guidelines-card { background: rgba(0, 0, 0, 0.4); border-left: 4px solid #ef4444; border-radius: 12px; padding: 20px; margin-bottom: 24px; backdrop-filter: blur(10px); }
-    .industry-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 20px 0; }
-    .industry-card { background: rgba(15, 23, 42, 0.6); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); transition: all 0.2s ease; cursor: pointer; overflow: hidden; }
-    .industry-card:hover { background: rgba(30, 41, 59, 0.8); transform: translateY(-2px); border-color: rgba(59, 130, 246, 0.5); }
-    .industry-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.2); }
+    
+    /* Revenue Dropdown - NEW from your screenshot */
+    .revenue-card { background: rgba(15, 23, 42, 0.6); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 24px; overflow: hidden; }
+    .revenue-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.2); cursor: pointer; }
+    .revenue-header:hover { background: rgba(0, 0, 0, 0.4); }
+    .revenue-title { color: #facc15; font-weight: 900; font-size: 18px; }
+    .revenue-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+    .revenue-arrow { color: #64748b; font-size: 12px; transition: transform 0.2s ease; }
+    .revenue-arrow.open { transform: rotate(180deg); }
+    .revenue-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: rgba(0, 0, 0, 0.3); }
+    .revenue-body.open { max-height: 800px; }
+    
+    /* Industry Grid */
+    .industry-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin: 20px 0; }
+    .industry-card { background: rgba(15, 23, 42, 0.6); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); transition: all 0.2s ease; overflow: hidden; }
+    .industry-card:hover { background: rgba(30, 41, 59, 0.8); border-color: rgba(59, 130, 246, 0.5); }
+    .industry-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.2); cursor: pointer; }
+    .industry-header:hover { background: rgba(0, 0, 0, 0.4); }
     .industry-name { color: #60a5fa; font-weight: 900; font-size: 18px; }
     .industry-action { background: rgba(234, 179, 8, 0.2); display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; color: #facc15; }
     .industry-rule { font-size: 12px; color: #94a3b8; margin-top: 4px; }
-    .industry-expand-icon { color: #64748b; font-size: 12px; transition: transform 0.2s ease; display: inline-block; }
-    .industry-card.expanded .industry-expand-icon { transform: rotate(180deg); }
-    .industry-details { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: rgba(0, 0, 0, 0.3); border-top: 1px solid rgba(255, 255, 255, 0.05); }
-    .industry-card.expanded .industry-details { max-height: 800px; }
+    .industry-arrow { color: #64748b; font-size: 12px; transition: transform 0.2s ease; display: inline-block; }
+    .industry-arrow.open { transform: rotate(180deg); }
+    .industry-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: rgba(0, 0, 0, 0.3); border-top: 1px solid rgba(255, 255, 255, 0.05); }
+    .industry-body.open { max-height: 600px; }
+    
     .details-content { padding: 16px; }
     .details-title { color: #facc15; font-weight: 700; font-size: 13px; margin-bottom: 8px; }
     .details-text { color: #cbd5e1; font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
     .warning-box { background: rgba(239, 68, 68, 0.15); border-left: 3px solid #ef4444; padding: 10px; margin-top: 10px; border-radius: 6px; font-size: 12px; }
     .success-box { background: rgba(16, 185, 129, 0.15); border-left: 3px solid #10b981; padding: 10px; margin-top: 10px; border-radius: 6px; font-size: 12px; }
+    .info-box { background: rgba(59, 130, 246, 0.15); border-left: 3px solid #3b82f6; padding: 10px; margin-top: 10px; border-radius: 6px; font-size: 12px; }
+    
     .micro-tips { background: linear-gradient(135deg, rgba(147, 51, 234, 0.1), rgba(236, 72, 153, 0.1)); border-radius: 16px; padding: 24px; margin-top: 24px; text-align: center; }
     .phrase-bubbles { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 20px 0; }
     .phrase { background: rgba(51, 65, 85, 0.8); padding: 8px 16px; border-radius: 50px; font-size: 13px; font-style: italic; }
@@ -29,6 +47,11 @@
     .time-header { display: flex; justify-content: center; gap: 20px; margin: 20px 0; font-size: 12px; color: #64748b; }
     .badge-green { background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; }
     .badge-red { background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; }
+    .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); margin: 20px 0; }
+    
+    /* Step indicators */
+    .step { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .step-number { background: #3b82f6; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -41,7 +64,7 @@
     </div>
     
     <!-- Title -->
-    <h1 style="text-align: center; font-size: 28px; font-weight: 900; margin-bottom: 16px; background: linear-gradient(135deg, #facc15, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+    <h1 style="text-align: center; font-size: 24px; font-weight: 900; margin-bottom: 8px; background: linear-gradient(135deg, #facc15, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
         BIZ LEVEL UP DASHBOARD
     </h1>
     
@@ -54,121 +77,256 @@
     
     <!-- QUALITY GUIDELINES Section -->
     <div class="guidelines-card">
-        <h2 style="font-size: 20px; font-weight: 900; margin-bottom: 16px; color: #facc15;">QUALITY GUIDELINES</h2>
-        <ol style="list-style-type: decimal; padding-left: 20px;">
-            <li style="margin-bottom: 8px;">Need to be in business for over 1 Year</li>
-            <li style="margin-bottom: 8px;">Primary Owner of the business 100% or at least 50%</li>
-            <li style="margin-bottom: 8px;">No Trucking Companies - Vans OK - No Attorneys / Lawyers - No Detachable Tractor</li>
-            <li style="margin-bottom: 8px;">
-                <strong>LIMIT YOUR REVENUE</strong><br>
-                <span style="font-size: 12px; color: #94a3b8;">Tag to see how to add & what qualifies</span>
-            </li>
+        <h2 style="font-size: 18px; font-weight: 900; margin-bottom: 16px; color: #facc15;">QUALITY GUIDELINES</h2>
+        <ol style="list-style-type: decimal; padding-left: 20px; margin: 0;">
+            <li style="margin-bottom: 10px;">Need to be in business for over 1 Year</li>
+            <li style="margin-bottom: 10px;">Primary Owner of the business 100% or at least 50%</li>
+            <li style="margin-bottom: 10px;">No Trucking Companies · Vans OK · No Attorneys / Lawyers · No Detachable Tractor</li>
         </ol>
-        <div class="warning-note">⚠️ IF QUALIFIERS ARE NOT MET YOU CANNOT TRANSFER!!!</div>
     </div>
     
-    <!-- KNOW BEFORE YOU TRANSFER Section -->
-    <div style="margin-bottom: 24px;">
-        <h2 style="text-align: center; font-size: 22px; font-weight: 900; margin-bottom: 4px;">KNOW BEFORE YOU TRANSFER</h2>
-        <p style="text-align: center; font-size: 12px; color: #64748b; margin-bottom: 20px;">INDUSTRY DRILL-DOWN — Click any card for full details</p>
-        
-        <div class="industry-grid">
-            <!-- TRACTOR --->
-            <div class="industry-card" onclick="toggleIndustry(this)">
-                <div class="industry-header">
-                    <div><div class="industry-name">TRACTOR</div><div class="industry-rule">DEPENDS ON TRACTOR TYPE</div></div>
-                    <div style="display: flex; gap: 8px; align-items: center;"><span class="industry-action">ASK FORT</span><span class="industry-expand-icon">▼</span></div>
-                </div>
-                <div class="industry-details"><div class="details-content">
-                    <div class="details-title">🔑 KEY QUESTION TO ASK</div><div class="details-text">"Is it a detachable tractor?"</div>
-                    <div class="warning-box"><strong>❌ DETACHABLE TRACTOR = TRUCK — CANNOT WORK</strong><br>A detachable tractor is classified as a truck. This falls under the No Trucking rule — end and move on.</div>
-                    <div class="success-box"><strong>✅ NON-DETACHABLE (FARM / EQUIPMENT) — CAN WORK</strong><br>Farm tractors or heavy equipment that are not detachable semis can qualify.</div>
-                    <div class="warning-note" style="margin-top: 12px;">⚠️ IF QUALIFIERS ARE NOT MET YOU CANNOT TRANSFER!!!</div>
-                    <div style="margin-top: 12px;"><span class="badge-green">ASK FIRST</span></div>
-                </div></div>
+    <!-- REVENUE DROPDOWN - NEW from your screenshot -->
+    <div class="revenue-card">
+        <div class="revenue-header" onclick="toggleRevenueDropdown()">
+            <div>
+                <div class="revenue-title">4. LAST YEAR REVENUE</div>
+                <div class="revenue-sub">Tap to see how to ask & what qualifies</div>
             </div>
-            
-            <!-- LOGGING --->
-            <div class="industry-card" onclick="toggleIndustry(this)">
-                <div class="industry-header">
-                    <div><div class="industry-name">LOGGING</div><div class="industry-rule">MUST OPERATE ALL 12 MONTHS — NO EXCEPTIONS</div></div>
-                    <div style="display: flex; gap: 8px; align-items: center;"><span class="industry-action">ASK FORT</span><span class="industry-expand-icon">▼</span></div>
+            <span class="revenue-arrow" id="revenue-arrow">▼</span>
+        </div>
+        <div class="revenue-body" id="revenue-body">
+            <div class="details-content">
+                <div class="details-title">💰 WHAT YOU'RE ASKING FOR</div>
+                <div class="details-text">You need their <strong>2025 gross annual revenue</strong> — that's the total the business brought in before any taxes, deductions, or expenses. Not what they kept. The full top-line number.</div>
+                
+                <div class="details-title" style="margin-top: 16px;">🎯 STEP A</div>
+                <div class="details-text">"Does your business generate at least $1 million a year in revenue?"</div>
+                
+                <div class="success-box">
+                    <strong>✅ YES</strong><br>
+                    "Can you please provide a rough estimate of how much?"<br>
+                    <span class="badge-green" style="margin-top: 8px; display: inline-block;">QUALIFIED — Transfer (Over $1M Line)</span>
                 </div>
-                <div class="industry-details"><div class="details-content">
-                    <div class="details-title">📋 WHY THIS MATTERS</div><div class="details-text">Logging is a seasonal industry. Many operators shut down in winter. To qualify, they must be operating all 12 months of the year.</div>
-                    <div class="details-title" style="margin-top: 12px;">🎯 STEP 1</div><div class="details-text">"Is this a logging or timber business?"</div>
-                    <div class="details-title">🎯 STEP 2 — THE CRITICAL QUESTION</div><div class="details-text">"How many months out of the year is your business actively operating?"</div>
-                    <div class="warning-box"><strong>🔴 UNDER 12 MONTHS — CANNOT WORK</strong><br>Any seasonal shutdown disqualifies them.</div>
-                    <div class="success-box"><strong>🟢 FULL 12 MONTHS — CAN WORK</strong><br>Year-round confirmed — proceed to transfer.</div>
-                </div></div>
-            </div>
-            
-            <!-- CONSTRUCTION --->
-            <div class="industry-card" onclick="toggleIndustry(this)">
-                <div class="industry-header">
-                    <div><div class="industry-name">CONSTRUCTION</div><div class="industry-rule">DEPENDS ON FUND USE</div></div>
-                    <div style="display: flex; gap: 8px; align-items: center;"><span class="industry-action">DEAL COINS</span><span class="industry-expand-icon">▼</span></div>
+                
+                <div class="info-box">
+                    <strong>➡️ NO</strong><br>
+                    No problem — continue to Step B below.<br>
+                    <span style="color: #94a3b8; font-size: 11px;">MOVE TO NEXT QUESTION</span>
                 </div>
-                <div class="industry-details"><div class="details-content">
-                    <div class="details-title">🎯 STEP 1</div><div class="details-text">"Does your construction business deal with trucking?"</div>
-                    <div class="details-title">🎯 STEP 2 — IF YES – TRUCKING INVOLVED</div><div class="details-text">"Is trucking a major part of your business?"</div>
-                    <div class="details-title">🎯 STEP 3 — IF YES – MAJOR PART</div><div class="details-text">"What will you be using the funds for?"</div>
-                    <div class="warning-box"><strong>❌ FUNDS FOR TRUCKS — CANNOT WORK</strong><br>If funds are going toward trucks or trucking equipment — cannot proceed.</div>
-                    <div class="success-box"><strong>✅ FUNDS FOR CREW / PAYROLL / OTHER — CAN WORK</strong><br>If funds are for crew, payroll, materials, or anything besides trucking — transfer.</div>
-                    <div class="success-box"><strong>✅ NO TRUCKING INVOLVED — CAN WORK</strong><br>Construction with no trucking component qualifies. Proceed with transfer.</div>
-                </div></div>
-            </div>
-            
-            <!-- LAWYER / ATTORNEY --->
-            <div class="industry-card" onclick="toggleIndustry(this)">
-                <div class="industry-header">
-                    <div><div class="industry-name">LAWYER / ATTORNEY</div><div class="industry-rule">EVEN IF THEY OWN ANOTHER BUSINESS</div></div>
-                    <div style="display: flex; gap: 8px; align-items: center;"><span class="industry-action">READ THE</span><span class="industry-expand-icon">▼</span></div>
+                
+                <div class="details-title" style="margin-top: 16px;">🎯 STEP B</div>
+                <div class="details-text">"Does your business generate at least $200K in revenue per year?"</div>
+                
+                <div class="success-box">
+                    <strong>✅ YES</strong><br>
+                    "Can you please provide a rough estimate of how much?"<br>
+                    <span class="badge-green" style="margin-top: 8px; display: inline-block;">QUALIFIED — Transfer (Under $1M Line)</span>
                 </div>
-                <div class="industry-details"><div class="details-content">
-                    <div class="details-title">🔑 KEY QUESTION TO ASK</div><div class="details-text">"What is your profession or primary occupation?"</div>
-                    <div class="warning-box"><strong>⚖️ LAWYER OR ATTORNEY — CANNOT WORK. PERIOD.</strong><br>Even if they also own a separate business — automatic disqualifier. Do not transfer under any circumstances.</div>
-                    <div style="margin-top: 12px;"><span class="badge-red">READ THIS</span></div>
-                </div></div>
-            </div>
-            
-            <!-- TRANSPORTATION --->
-            <div class="industry-card" onclick="toggleIndustry(this)">
-                <div class="industry-header">
-                    <div><div class="industry-name">TRANSPORTATION</div><div class="industry-rule">DEPENDS ON TRANSPORT TYPE</div></div>
-                    <div style="display: flex; gap: 8px; align-items: center;"><span class="industry-action">ASK FORT</span><span class="industry-expand-icon">▼</span></div>
+                
+                <div class="warning-box">
+                    <strong>❌ NO</strong><br>
+                    Revenue is below minimum. Does not qualify.<br>
+                    <span class="badge-red" style="margin-top: 8px; display: inline-block;">DNO — END CALL</span>
                 </div>
-                <div class="industry-details"><div class="details-content">
-                    <div class="details-title">🔑 KEY QUESTION TO ASK</div><div class="details-text">"What type of transportation does your business operate?"</div>
-                    <div style="margin: 12px 0;">
-                        <div class="warning-box" style="margin-bottom: 8px;"><strong>❌ DETACHABLE TRACTOR (SEMI / 18-WHEELER)</strong><br>CANNOT WORK — Classified as trucking — falls under the No Trucking rule.</div>
-                        <div class="warning-box" style="margin-bottom: 8px;"><strong>❌ TRUCK</strong><br>CANNOT WORK — Trucking business — does not qualify.</div>
-                        <div class="success-box" style="margin-bottom: 8px;"><strong>✅ VAN</strong><br>CAN WORK — Vans are acceptable. Ask what they use the van for (crew, tools, equipment, supplies). As long as it is not dedicated trucking/cargo delivery, proceed.</div>
-                        <div class="warning-box" style="margin-bottom: 8px;"><strong>❌ FREIGHT CARRIER</strong><br>CANNOT WORK — Freight and cargo carriers are classified under trucking/transport restrictions.</div>
-                        <div class="success-box"><strong>✅ BUS / COACH / SHUTTLE / TAXI / RIDESHARE</strong><br>CAN WORK — Passenger transport is not under the trucking restriction — proceed to qualify.</div>
-                    </div>
-                    <div class="warning-box"><strong>📌 BOTTOM LINE</strong><br>If they operate a detachable tractor, truck, or freight carrier — do not transfer.<br>Vans are OK — ask what they use it for and confirm it is not a dedicated trucking or delivery operation before proceeding.</div>
-                </div></div>
+                
+                <div class="details-title" style="margin-top: 16px;">📝 IF THEY'RE UNSURE OF THEIR ANNUAL NUMBER</div>
+                <div class="details-text">"No problem — roughly how much does the business bring in each month?"<br>
+                Multiply their monthly number by 12 to get an annual estimate.</div>
+                
+                <div class="info-box">
+                    <strong>⚠️ IF THEY SAY "IT SHOULD BE AROUND THE SAME AS LAST YEAR"</strong><br>
+                    If you're still unsure about their numbers, it might be worth asking them to provide more details.
+                </div>
             </div>
         </div>
     </div>
     
+    <div class="warning-note">⚠️ IF QUALIFIERS ARE NOT MET YOU CANNOT TRANSFER!!!</div>
+    
+    <div class="divider"></div>
+    
+    <!-- KNOW BEFORE YOU TRANSFER Section -->
+    <div style="margin-bottom: 24px;">
+        <h2 style="text-align: center; font-size: 18px; font-weight: 900; margin-bottom: 4px;">KNOW BEFORE YOU TRANSFER</h2>
+        <p style="text-align: center; font-size: 11px; color: #64748b; margin-bottom: 20px;">INDUSTRY DRILL-DOWN</p>
+        
+        <div class="industry-grid">
+            <!-- TRACTOR -->
+            <div class="industry-card">
+                <div class="industry-header" onclick="toggleIndustry(this)">
+                    <div>
+                        <div class="industry-name">TRACTOR</div>
+                        <div class="industry-rule">DROPOUT ON TRACTOR TYPE</div>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="industry-action">ASK FORT</span>
+                        <span class="industry-arrow">▼</span>
+                    </div>
+                </div>
+                <div class="industry-body">
+                    <div class="details-content">
+                        <div class="details-title">🔑 KEY QUESTION TO ASK</div>
+                        <div class="details-text">"Is it a detachable tractor?"</div>
+                        <div class="warning-box"><strong>❌ DETACHABLE TRACTOR = TRUCK — CANNOT WORK</strong><br>A detachable tractor is classified as a truck. This falls under the No Trucking rule — end and move on.</div>
+                        <div class="success-box"><strong>✅ NON-DETACHABLE (FARM / EQUIPMENT) — CAN WORK</strong><br>Farm tractors or heavy equipment that are not detachable semis can qualify.</div>
+                        <div style="margin-top: 12px;"><span class="badge-green">ASK FIRST</span></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- LOGGING -->
+            <div class="industry-card">
+                <div class="industry-header" onclick="toggleIndustry(this)">
+                    <div>
+                        <div class="industry-name">LOGGING</div>
+                        <div class="industry-rule">MUST OPERATE ALL 12 MONTHS — NO EXCEPTIONS</div>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="industry-action">ASK FORT</span>
+                        <span class="industry-arrow">▼</span>
+                    </div>
+                </div>
+                <div class="industry-body">
+                    <div class="details-content">
+                        <div class="details-title">📋 WHY THIS MATTERS</div>
+                        <div class="details-text">Logging is a seasonal industry. Many operators shut down in winter. To qualify, they must be operating all 12 months of the year.</div>
+                        <div class="details-title">🎯 STEP 1</div>
+                        <div class="details-text">"Is this a logging or timber business?"</div>
+                        <div class="details-title">🎯 STEP 2 — THE CRITICAL QUESTION</div>
+                        <div class="details-text">"How many months out of the year is your business actively operating?"</div>
+                        <div class="warning-box"><strong>🔴 UNDER 12 MONTHS — CANNOT WORK</strong><br>Any seasonal shutdown disqualifies them.</div>
+                        <div class="success-box"><strong>🟢 FULL 12 MONTHS — CAN WORK</strong><br>Year-round confirmed — proceed to transfer.</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- CONSTRUCTION -->
+            <div class="industry-card">
+                <div class="industry-header" onclick="toggleIndustry(this)">
+                    <div>
+                        <div class="industry-name">CONSTRUCTION</div>
+                        <div class="industry-rule">DROPOUT ON PUNO USE</div>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="industry-action">DEAL COINS</span>
+                        <span class="industry-arrow">▼</span>
+                    </div>
+                </div>
+                <div class="industry-body">
+                    <div class="details-content">
+                        <div class="details-title">🎯 STEP 1</div>
+                        <div class="details-text">"Does your construction business deal with trucking?"</div>
+                        <div class="details-title">🎯 STEP 2 — IF YES – TRUCKING INVOLVED</div>
+                        <div class="details-text">"Is trucking a major part of your business?"</div>
+                        <div class="details-title">🎯 STEP 3 — IF YES – MAJOR PART</div>
+                        <div class="details-text">"What will you be using the funds for?"</div>
+                        <div class="warning-box"><strong>❌ FUNDS FOR TRUCKS — CANNOT WORK</strong><br>If funds are going toward trucks or trucking equipment — cannot proceed.</div>
+                        <div class="success-box"><strong>✅ FUNDS FOR CREW / PAYROLL / OTHER — CAN WORK</strong><br>If funds are for crew, payroll, materials, or anything besides trucking — transfer.</div>
+                        <div class="success-box"><strong>✅ NO TRUCKING INVOLVED — CAN WORK</strong><br>Construction with no trucking component qualifies. Proceed with transfer.</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- LAWYER / ATTORNEY -->
+            <div class="industry-card">
+                <div class="industry-header" onclick="toggleIndustry(this)">
+                    <div>
+                        <div class="industry-name">LAWYER / ATTORNEY</div>
+                        <div class="industry-rule">WANT TO TRY OWN ANOTHER BUSINESS</div>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="industry-action">READ THE</span>
+                        <span class="industry-arrow">▼</span>
+                    </div>
+                </div>
+                <div class="industry-body">
+                    <div class="details-content">
+                        <div class="details-title">🔑 KEY QUESTION TO ASK</div>
+                        <div class="details-text">"What is your profession or primary occupation?"</div>
+                        <div class="warning-box"><strong>⚖️ LAWYER OR ATTORNEY — CANNOT WORK. PERIOD.</strong><br>Even if they also own a separate business — automatic disqualifier. Do not transfer under any circumstances.</div>
+                        <div style="margin-top: 12px;"><span class="badge-red">READ THIS</span></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- TRANSPORTATION -->
+            <div class="industry-card">
+                <div class="industry-header" onclick="toggleIndustry(this)">
+                    <div>
+                        <div class="industry-name">TRANSPORTATION</div>
+                        <div class="industry-rule">DROPOUT ON TRANSPORT TIPS</div>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="industry-action">ASK FORT</span>
+                        <span class="industry-arrow">▼</span>
+                    </div>
+                </div>
+                <div class="industry-body">
+                    <div class="details-content">
+                        <div class="details-title">🔑 KEY QUESTION TO ASK</div>
+                        <div class="details-text">"What type of transportation does your business operate?"</div>
+                        <div class="warning-box"><strong>❌ DETACHABLE TRACTOR (SEMI / 18-WHEELER)</strong><br>CANNOT WORK — Classified as trucking.</div>
+                        <div class="warning-box"><strong>❌ TRUCK</strong><br>CANNOT WORK — Trucking business.</div>
+                        <div class="success-box"><strong>✅ VAN</strong><br>CAN WORK — Vans are acceptable. Ask what they use it for.</div>
+                        <div class="warning-box"><strong>❌ FREIGHT CARRIER</strong><br>CANNOT WORK — Freight/cargo restrictions apply.</div>
+                        <div class="success-box"><strong>✅ BUS / COACH / SHUTTLE / TAXI / RIDESHARE</strong><br>CAN WORK — Passenger transport is acceptable.</div>
+                        <div class="warning-box"><strong>📌 BOTTOM LINE</strong><br>Detachable tractor, truck, or freight carrier = NO TRANSFER. Vans = OK with confirmation.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="divider"></div>
+    
     <!-- MICRO-TRUST TIPS Section -->
     <div class="micro-tips">
-        <h3 style="font-size: 18px; font-weight: 900; margin-bottom: 12px;">MICRO-TRUST TIPS</h3>
-        <p style="font-size: 13px; color: #cbd5e1; margin-bottom: 16px;">After every 2 questions, give a short acknowledgment phrase like:</p>
-        <div class="phrase-bubbles"><span class="phrase">"Perfect, thank you."</span><span class="phrase">"Got it, that helps."</span><span class="phrase">"That's great to know."</span></div>
-        <p style="font-size: 11px; color: #a855f7; margin-top: 16px; font-style: italic;">KEEP THE RHYTHM HUMAN AND BUILD MICRO-TRUST.</p>
+        <h3 style="font-size: 16px; font-weight: 900; margin-bottom: 12px;">MICRO-TRUST TIPS</h3>
+        <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 16px;">After every 2 questions, give a short acknowledgment phrase like:</p>
+        <div class="phrase-bubbles">
+            <span class="phrase">"Perfect, thank you."</span>
+            <span class="phrase">"Got it, that helps."</span>
+            <span class="phrase">"That's great to know."</span>
+        </div>
+        <p style="font-size: 10px; color: #a855f7; margin-top: 16px; font-style: italic;">KEEP THE RHYTHM HUMAN AND BUILD MICRO-TRUST.</p>
     </div>
+    
 </div>
 
 <script>
-    // THIS IS THE CRITICAL FUNCTION THAT MAKES IT WORK
-    function toggleIndustry(element) {
-        // Toggle the 'expanded' class on the clicked card
-        element.classList.toggle('expanded');
+    // Toggle Industry function - matches your playbook.js exactly
+    function toggleIndustry(header) {
+        const card = header.closest('.industry-card');
+        const body = card.querySelector('.industry-body');
+        const arrow = header.querySelector('.industry-arrow');
+        const isOpen = body.classList.contains('open');
+        
+        // Close all other open industries
+        document.querySelectorAll('.industry-body.open').forEach(b => b.classList.remove('open'));
+        document.querySelectorAll('.industry-arrow.open').forEach(a => a.classList.remove('open'));
+        
+        // Toggle current one
+        if (!isOpen) {
+            body.classList.add('open');
+            if (arrow) arrow.classList.add('open');
+        }
     }
-
+    
+    // Toggle Revenue Dropdown
+    function toggleRevenueDropdown() {
+        const body = document.getElementById('revenue-body');
+        const arrow = document.getElementById('revenue-arrow');
+        const isOpen = body.classList.contains('open');
+        
+        if (isOpen) {
+            body.classList.remove('open');
+            if (arrow) arrow.classList.remove('open');
+        } else {
+            body.classList.add('open');
+            if (arrow) arrow.classList.add('open');
+        }
+    }
+    
     // Update live times
     function updatePlaybookTimes() {
         const guyanaTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
@@ -189,6 +347,11 @@
     
     updatePlaybookTimes();
     setInterval(updatePlaybookTimes, 1000);
+    
+    // Make functions globally available
+    window.toggleIndustry = toggleIndustry;
+    window.toggleRevenueDropdown = toggleRevenueDropdown;
 </script>
+
 </body>
 </html>
