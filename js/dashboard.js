@@ -70,9 +70,62 @@ function rosterSignature(arr) {
               .sort().join('::');
 }
 
-// Function to load the full agent roster (Google Sheet is source of truth).
+// Subscribe to Firestore agent_profiles and keep fullRoster in sync.
+// This is the real source of truth — the Google Sheet `getRoster` action is
+// not implemented on the deployed Apps Script, so Firebase carries the roster.
+let _rosterFirestoreSubscribed = false;
+function subscribeRosterFromFirestore() {
+    if (_rosterFirestoreSubscribed) return;
+    if (typeof window.listenToAgentProfiles !== 'function') {
+        // Firebase module hasn't loaded yet — try again shortly.
+        setTimeout(subscribeRosterFromFirestore, 500);
+        return;
+    }
+    _rosterFirestoreSubscribed = true;
+    try {
+        window.listenToAgentProfiles((profiles) => {
+            const list = Array.isArray(profiles) ? profiles : [];
+            if (list.length === 0) return;
+            fullRoster = list;
+            window.allAgentProfiles = list;
+            try { localStorage.setItem('biz_master_roster', JSON.stringify(list)); } catch (e) {}
+            console.log(`[roster] Loaded ${list.length} agents from Firestore`);
+            // Re-render daily tab with the latest live state (if any).
+            const state = window._asLastLiveState || null;
+            agents = buildAgentsFromRoster(state);
+            if (agents.length > 0) {
+                agents[0].todayName = (state && state.dateLabel) || (typeof getGuyanaToday === 'function' ? getGuyanaToday() : '');
+                let pr = 0, bb = 0, rm = 0;
+                agents.forEach(a => {
+                    if (a.team === 'PR') pr += (a.dailyLeads || 0);
+                    else if (a.team === 'BB') bb += (a.dailyLeads || 0);
+                    else if (a.team === 'RM') rm += (a.dailyLeads || 0);
+                });
+                agents[0].prTotal = pr;
+                agents[0].bbTotal = bb;
+                agents[0].rmTotal = rm;
+            }
+            if (typeof render === 'function') render();
+            if (typeof renderDaySubTabs === 'function') renderDaySubTabs();
+            const ts = document.getElementById('timestamp');
+            if (ts) ts.innerText = `Roster: ${list.length} agents | ${new Date().toLocaleTimeString()}`;
+        });
+    } catch (e) {
+        console.warn('[roster] Firestore subscription failed:', e);
+        _rosterFirestoreSubscribed = false;
+    }
+}
+
+// Function to load the full agent roster.
+// Order of sources: Firestore (live) → Google Sheet (legacy) → localStorage cache.
 async function loadFullRoster(force) {
     if (!force && fullRoster.length > 0) return fullRoster;
+
+    // Always make sure the live Firestore subscription is running.
+    subscribeRosterFromFirestore();
+
+    // Try the Google Sheet endpoint as a legacy source. This action may not
+    // exist on the deployed Apps Script — that's fine, we just ignore it.
     try {
         if (typeof API_URL !== 'undefined') {
             const resp = await fetch(`${API_URL}?action=getRoster&_=${Date.now()}`, { cache: 'no-store' });
@@ -88,6 +141,8 @@ async function loadFullRoster(force) {
     } catch (e) {
         console.warn('Could not load from Google Sheet, using fallback:', e);
     }
+
+    // Use whatever Firestore has already published.
     if (window.allAgentProfiles && window.allAgentProfiles.length > 0) {
         fullRoster = window.allAgentProfiles;
         console.log(`Loaded ${fullRoster.length} agents from allAgentProfiles`);
@@ -96,7 +151,10 @@ async function loadFullRoster(force) {
         if (saved) {
             try {
                 fullRoster = JSON.parse(saved);
-                console.log(`Loaded ${fullRoster.length} agents from localStorage`);
+                if (fullRoster.length > 0) {
+                    window.allAgentProfiles = fullRoster;
+                    console.log(`Loaded ${fullRoster.length} agents from localStorage cache`);
+                }
             } catch(e) {}
         }
     }
@@ -212,13 +270,12 @@ function _subscribeLiveDashboard() {
             // Roster is the source of truth for who appears on the daily tab.
             // CSV uploads only update the lead counts for matching agents.
             if (fullRoster.length === 0) {
-                // Try once more to load the roster, then re-render
-                loadFullRoster(true).then(() => {
-                    if (typeof window.updateDashboard === 'function') window.updateDashboard();
-                });
+                // Make sure the Firestore roster subscription is active.
+                // Once profiles arrive, the subscription itself will re-render.
+                subscribeRosterFromFirestore();
                 agents = [];
                 const ts = document.getElementById('timestamp');
-                if (ts) ts.innerText = 'Loading roster from Google Sheet…';
+                if (ts) ts.innerText = 'Loading roster from Firestore…';
             } else {
                 agents = buildAgentsFromRoster(state);
                 if (agents.length > 0) {
