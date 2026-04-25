@@ -33,6 +33,17 @@ function getCurrentGuyanaDay() {
     return dayIndex;
 }
 
+// Returns true if today is Saturday (6) or Sunday (0) in Guyana time
+function isWeekend() {
+    const d = getCurrentGuyanaDay();
+    return d === 0 || d === 6;
+}
+
+// Returns true if today is Monday (1) in Guyana time
+function isMonday() {
+    return getCurrentGuyanaDay() === 1;
+}
+
 // Function to check if a given day is completed (has passed)
 function isDayCompleted(dayKey) {
     const currentDayIndex = getCurrentGuyanaDay();
@@ -40,26 +51,36 @@ function isDayCompleted(dayKey) {
     const targetDayIndex = dayMap[dayKey];
     
     if (!targetDayIndex) return false;
-    
+
     const now = new Date();
     const guyanaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
     const currentHour = guyanaTime.getHours();
-    
+
+    // On weekends, Friday and all prior days are completed
+    // Monday is NOT completed yet (new week hasn't started)
+    if (isWeekend()) {
+        return targetDayIndex <= 5; // Mon–Fri all completed on weekend
+    }
+
+    // On Monday before data is uploaded, no day is "completed" yet for current week
+    // Historical days from last week should still show in tabs
+    // But TODAY (Monday) is always blank until upload
+    if (isMonday() && targetDayIndex === 1) {
+        return false; // Monday itself not completed until EOD
+    }
+
     // If it's a future day in the week
     if (targetDayIndex > currentDayIndex) {
         return false;
     }
-    
+
     // If it's today, check if the day is over (after 8:00 PM)
     if (targetDayIndex === currentDayIndex) {
         // Day is considered complete after 8:00 PM (20:00) Guyana time
-        if (currentHour >= 20) {
-            return true;
-        }
-        return false;
+        return currentHour >= 20;
     }
-    
-    // If it's a past day
+
+    // If it's a past day this week
     return true;
 }
 
@@ -494,7 +515,38 @@ function render() {
     const isWeekly = currentTab === 'weekly';
     const isHistory = currentTab === 'daily' && currentDayView !== 'today';
     const target = isWeekly ? 800 : 150;
-    
+
+    // ── WEEKEND / MONDAY BLANK ──
+    // On Saturday & Sunday: TODAY tab shows blank — no data until Monday upload.
+    // On Monday before upload: same — blank until CSV is pushed.
+    const _weekend = isWeekend();
+    const _isTodayView = currentTab === 'daily' && currentDayView === 'today';
+    if (_isTodayView && _weekend) {
+        // Show blank weekend state
+        document.getElementById('goal-label').innerText = 'WEEKEND — NO DATA';
+        document.getElementById('day-indicator').innerText = 'NEXT UPDATE: MONDAY';
+        const banner = document.getElementById('history-banner');
+        if (banner) banner.classList.add('hidden');
+        const leaderboardEl = document.getElementById('leaderboard');
+        if (leaderboardEl) leaderboardEl.innerHTML = `
+            <div class="glass p-10 rounded-2xl text-center" style="max-width:500px;margin:0 auto;">
+                <div style="font-size:3rem;margin-bottom:12px;">🏖️</div>
+                <div style="font-size:18px;font-weight:900;color:#facc15;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Weekend Mode</div>
+                <div style="color:#64748b;font-size:13px;font-weight:700;">No live data on weekends.<br>Check back Monday when the new week starts.</div>
+                <div style="margin-top:16px;color:#475569;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;">You can still view completed days using the tabs above.</div>
+            </div>`;
+        // Zero out stats
+        ['floor-total','master-count','active-reps','current-leads-sum','pr-count','bb-count','rm-count'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = id === 'master-count' ? '00' : id === 'current-leads-sum' ? '0 Leads' : '0';
+        });
+        const pb = document.getElementById('progress-bar');
+        const gp = document.getElementById('goal-percent');
+        if (pb) pb.style.width = '0%';
+        if (gp) gp.innerText = '0%';
+        return;
+    }
+
     const todayName = agents.length > 0 ? (agents[0].todayName || 'Today') : 'Today';
 
     // UI Goal Labels
