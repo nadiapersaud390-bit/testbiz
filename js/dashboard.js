@@ -63,12 +63,19 @@ function isDayCompleted(dayKey) {
     return true;
 }
 
-// Function to load the full agent roster (Google Sheet is source of truth)
+// Build a stable signature of a roster so we can detect add/remove/update/move
+function rosterSignature(arr) {
+    if (!Array.isArray(arr)) return '';
+    return arr.map(a => [a.fullName||a.name||'', a.userId||a.ytelId||'', a.team||''].join('|'))
+              .sort().join('::');
+}
+
+// Function to load the full agent roster (Google Sheet is source of truth).
 async function loadFullRoster(force) {
     if (!force && fullRoster.length > 0) return fullRoster;
     try {
         if (typeof API_URL !== 'undefined') {
-            const resp = await fetch(`${API_URL}?action=getRoster`);
+            const resp = await fetch(`${API_URL}?action=getRoster&_=${Date.now()}`, { cache: 'no-store' });
             const roster = await resp.json();
             if (Array.isArray(roster) && roster.length > 0) {
                 fullRoster = roster;
@@ -134,11 +141,49 @@ function updateDashboard() {
         _subscribeLiveDashboard();
     };
     if (fullRoster.length === 0) {
-        loadFullRoster().then(subscribe).catch(subscribe);
+        loadFullRoster().then(() => { subscribe(); startRosterPoller(); }).catch(subscribe);
     } else {
         subscribe();
+        startRosterPoller();
     }
     return;
+}
+
+// Live roster poller — refreshes from Google Sheet every 60s and re-renders
+// the daily tab if any agent was added, removed, updated, or moved between teams.
+let _rosterPollerHandle = null;
+function startRosterPoller() {
+    if (_rosterPollerHandle) return;
+    _rosterPollerHandle = setInterval(async () => {
+        try {
+            const before = rosterSignature(fullRoster);
+            await loadFullRoster(true);
+            const after = rosterSignature(fullRoster);
+            if (before !== after) {
+                console.log('[roster] Sheet change detected — re-rendering daily tab');
+                const state = window._asLastLiveState || null;
+                agents = buildAgentsFromRoster(state);
+                if (agents.length > 0) {
+                    agents[0].todayName = (state && state.dateLabel) || (typeof getGuyanaToday === 'function' ? getGuyanaToday() : '');
+                    let pr = 0, bb = 0, rm = 0;
+                    agents.forEach(a => {
+                        if (a.team === 'PR') pr += (a.dailyLeads || 0);
+                        else if (a.team === 'BB') bb += (a.dailyLeads || 0);
+                        else if (a.team === 'RM') rm += (a.dailyLeads || 0);
+                    });
+                    agents[0].prTotal = pr;
+                    agents[0].bbTotal = bb;
+                    agents[0].rmTotal = rm;
+                }
+                if (typeof render === 'function') render();
+                if (typeof renderDaySubTabs === 'function') renderDaySubTabs();
+                const ts = document.getElementById('timestamp');
+                if (ts) ts.innerText = `Roster updated: ${fullRoster.length} agents | ${new Date().toLocaleTimeString()}`;
+            }
+        } catch (e) {
+            console.warn('[roster] poll failed:', e);
+        }
+    }, 60000);
 }
 
 function _subscribeLiveDashboard() {
@@ -160,6 +205,10 @@ function _subscribeLiveDashboard() {
                             pushDate.toLocaleDateString('en-GB') === now.toLocaleDateString('en-GB') &&
                             labelMatches;
 
+            // Cache the latest live state so the roster poller can re-render
+            // with current lead counts when the sheet changes.
+            window._asLastLiveState = state;
+            
             // Roster is the source of truth for who appears on the daily tab.
             // CSV uploads only update the lead counts for matching agents.
             if (fullRoster.length === 0) {
