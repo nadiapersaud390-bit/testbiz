@@ -12,6 +12,25 @@ let asSubscribed = false;
 let lastAutoPushedReportId = null;
 let previousReportData = null;
 let newLeadsList = [];
+let _asLastUploadedDateLabel = null;
+
+function normalizeReportDateLabel(input) {
+    if (!input) return "Unknown Date";
+    const raw = String(input).trim();
+    let d = null;
+    const mdy = raw.match(/^(\d{1,2})[\/\-_](\d{1,2})[\/\-_](\d{2,4})/);
+    if (mdy) {
+        let yr = parseInt(mdy[3], 10);
+        if (yr < 100) yr += 2000;
+        d = new Date(yr, parseInt(mdy[1], 10) - 1, parseInt(mdy[2], 10));
+    } else {
+        const cleaned = raw.replace(/\s*\([^)]*\)\s*$/, "").trim();
+        d = new Date(cleaned);
+    }
+    if (!d || isNaN(d.getTime())) return raw;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
+           " (" + d.toLocaleDateString("en-US", { weekday: "short" }) + ")";
+}
 
 window.renderAgentStatsHistory = function() {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
@@ -53,9 +72,13 @@ window.renderAgentStatsHistory = function() {
             
             if (!currentReportData && allReports.length > 0) {
                 const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-                if (sortedForDisplay.length > 0) {
-                    viewReport(sortedForDisplay[0].id);
+                let target = sortedForDisplay[0];
+                if (_asLastUploadedDateLabel) {
+                    const justUploaded = sortedForDisplay.find(r => normalizeReportDateLabel(r.reportDate) === _asLastUploadedDateLabel);
+                    if (justUploaded) target = justUploaded;
+                    _asLastUploadedDateLabel = null;
                 }
+                if (target) viewReport(target.id);
             } else if (currentReportData) {
                 const stillExists = allReports.find(r => r.id === currentReportData.id);
                 if (!stillExists && allReports.length > 0) {
@@ -228,6 +251,7 @@ window.asConfirmUpload = async function() {
     
     const dayName = typeof getGuyanaDayName === 'function' ? getGuyanaDayName(_asStagedParsedDate) : 'MON';
     
+    let reportObj_dataOverride = null;
     const reportObj = {
         filename: _asStagedFile.name,
         reportDate: finalDateStr,
@@ -235,26 +259,52 @@ window.asConfirmUpload = async function() {
         uploadedAt: new Date().toISOString(),
         expiresAt: expiryDate.toISOString(),
         author: adminName,
-        data: _asStagedParsed
+        get data() { return reportObj_dataOverride || _asStagedParsed; },
+        set data(v) { reportObj_dataOverride = v; }
     };
     
-    const existingReport = allReports.find(r => r.reportDate === finalDateStr);
-    if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
-        await window.deleteAgentReportFromFirebase(existingReport.id);
-        console.log(`Deleted existing report for ${finalDateStr}`);
+    // Merge with existing same-date report so re-uploads only add new leads
+    const normalizedFinalDate = normalizeReportDateLabel(finalDateStr);
+    const existingReport = allReports.find(r => normalizeReportDateLabel(r.reportDate) === normalizedFinalDate);
+    let _addedCount = 0;
+    let mergedRows = (_asStagedParsed || []).map(r => ({ ...r, _isNewLead: false }));
+    if (existingReport && Array.isArray(existingReport.data) && existingReport.data.length) {
+        const sigOf = r => `${r.agentId||''}|${r.rawName||r.agentName||''}|${r.status||''}|${r.duration||0}`;
+        const existingSigs = new Set(existingReport.data.map(sigOf));
+        const additions = [];
+        mergedRows.forEach(r => {
+            if (!existingSigs.has(sigOf(r))) {
+                additions.push({ ...r, _isNewLead: true });
+                _addedCount++;
+            }
+        });
+        mergedRows = [
+            ...existingReport.data.map(r => ({ ...r, _isNewLead: false })),
+            ...additions
+        ];
+        if (typeof window.deleteAgentReportFromFirebase === 'function') {
+            await window.deleteAgentReportFromFirebase(existingReport.id);
+        }
     }
+    reportObj_dataOverride = mergedRows;
+    _asLastUploadedDateLabel = normalizedFinalDate;
     
     if (typeof window.saveAgentReportToFirebase === 'function') {
         const res = await window.saveAgentReportToFirebase(reportObj);
         if (res && res.success) {
-            updateStatsStatus('✅ Report saved successfully!', false);
+            const msg = _addedCount > 0
+                ? `✅ Saved! ${_addedCount} new lead${_addedCount === 1 ? '' : 's'} added.`
+                : (existingReport ? '✅ Re-uploaded. No new leads were added.' : '✅ Report saved successfully!');
+            updateStatsStatus(msg, false);
             if (typeof window.writeAdminActivityLog === 'function') {
-                window.writeAdminActivityLog('upload_stats', `Uploaded: ${_asStagedFile.name}`);
+                window.writeAdminActivityLog('upload_stats', `Uploaded: ${_asStagedFile.name} (+${_addedCount} new)`);
             }
             document.getElementById('as-upload-panel').classList.add('hidden');
             _asStagedFile = null;
             _asStagedParsed = null;
-            setTimeout(() => updateStatsStatus('', false), 3000);
+            // Force the bottom view to switch to the just-uploaded report once the listener fires
+            currentReportData = null;
+            setTimeout(() => updateStatsStatus('', false), 4000);
         } else {
             updateStatsStatus('❌ Failed to save', true);
         }
@@ -373,9 +423,10 @@ async function handleFileUpload(file) {
     _asRetentionDays = 30;
     
     const dateInput = document.getElementById('as-report-date-input');
-    if (dateInput) dateInput.value = fileDateStr;
+    if (dateInput) dateInput.value = normalizeReportDateLabel(fileDateStr);
     
-    asSetRetention(30);
+    // Reflect current retention pick (default 30 days)
+    asSetRetention(_asRetentionDays || 30);
     
     const panel = document.getElementById('as-upload-panel');
     if (panel) panel.classList.remove('hidden');
@@ -405,10 +456,17 @@ function renderHistoryList() {
     listHtml.innerHTML = sorted.map(r => {
         const isActive = currentReportData && currentReportData.id === r.id;
         const uploadDateTime = new Date(r.uploadedAt).toLocaleString();
+        const niceDate = normalizeReportDateLabel(r.reportDate);
+        const _ca = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        const isSuper = _ca.role === 'super_admin' || _ca.isSuper;
+        const delBtn = isSuper ? `<button onclick="event.stopPropagation(); window.asDeleteReport('${r.id}')" class="text-[10px] text-red-400 hover:text-red-300 ml-2 px-2 py-1 rounded-md hover:bg-red-500/10" title="Delete this report"><i class="fas fa-trash"></i></button>` : '';
         return `
-            <div onclick="window.viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl cursor-pointer ${isActive ? 'active' : ''}">
-                <div class="text-xs font-bold text-white">📊 ${r.reportDate}</div>
-                <div class="text-[8px] text-slate-500 mt-1">${r.author || 'Admin'} • ${uploadDateTime}</div>
+            <div onclick="window.viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl cursor-pointer flex items-center justify-between gap-2 ${isActive ? 'active' : ''}">
+                <div class="min-w-0">
+                    <div class="text-xs font-bold text-white truncate">📊 ${niceDate}</div>
+                    <div class="text-[8px] text-slate-500 mt-1 truncate">${r.author || 'Admin'} • ${uploadDateTime}</div>
+                </div>
+                ${delBtn}
             </div>
         `;
     }).join('');
@@ -424,30 +482,13 @@ window.viewReport = function(id) {
     
     currentReportData = report;
     
-    // Find new leads
-    newLeadsList = [];
-    if (previousReportData && previousReportData.data) {
-        const previousXfers = new Set();
-        previousReportData.data.forEach(row => {
-            if (row.duration >= 120) {
-                previousXfers.add(row.agentName.toUpperCase().trim());
-            }
-        });
-        report.data.forEach(row => {
-            if (row.duration >= 120 && !previousXfers.has(row.agentName.toUpperCase().trim())) {
-                newLeadsList.push(row);
-            }
-        });
-    } else {
-        report.data.forEach(row => {
-            if (row.duration >= 120) newLeadsList.push(row);
-        });
-    }
+    // New leads come from rows flagged during the latest CSV merge
+    newLeadsList = (report.data || []).filter(row => row && row._isNewLead);
     
     renderHistoryList();
     
     const uploadDateTime = new Date(report.uploadedAt).toLocaleString();
-    document.querySelectorAll('#as-report-title').forEach(el => el.innerText = '📊 Report: ' + report.reportDate);
+    document.querySelectorAll('#as-report-title').forEach(el => el.innerText = '📊 Report: ' + normalizeReportDateLabel(report.reportDate));
     document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> ${uploadDateTime}`);
     document.querySelectorAll('#as-report-author').forEach(el => el.innerHTML = `<i class="far fa-user mr-1"></i> ${report.author}`);
     
@@ -533,10 +574,10 @@ function renderActiveReportTable() {
         displayRows = rawRows.filter(d => d.agentName.toLowerCase().includes(searchVal) || d.agentId.toLowerCase().includes(searchVal));
     }
     
-    // Mark new leads (highlight only, NO reordering)
+    // Mark new leads using stored _isNewLead flag (set during CSV merge)
     const newLeadSet = new Set();
     newLeadsList.forEach(lead => {
-        newLeadSet.add(lead.agentName.toUpperCase().trim());
+        if (lead && lead.agentName) newLeadSet.add(lead.agentName.toUpperCase().trim());
     });
     
     const tbodies = document.querySelectorAll('#as-table-body');
@@ -551,7 +592,7 @@ function renderActiveReportTable() {
         const isXfer = d.duration >= 120;
         const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
         const typeLabel = isXfer ? 'XFER' : 'CONN';
-        const isNew = newLeadSet.has(d.agentName.toUpperCase().trim());
+        const isNew = !!d._isNewLead || newLeadSet.has((d.agentName || '').toUpperCase().trim());
         const highlightClass = isNew ? 'new-lead-row' : '';
         const newBadge = isNew ? '<span class="ml-2 text-[9px] bg-green-500/30 text-green-400 px-1.5 py-0.5 rounded-full">⭐ NEW</span>' : '';
         
@@ -565,12 +606,43 @@ function renderActiveReportTable() {
                 <td class="p-3 text-center text-slate-400 text-[11px]">${escapeHtml(d.status)}<\/td>
                 <td class="p-3 text-center text-slate-300 text-[11px] font-mono">${d.duration}s<\/td>
                 <td class="p-3 text-right ${typeColor} text-[11px] font-bold">${typeLabel}<\/td>
-             \u007d\u007d
+            <\/tr>
         `;
     }).join('');
     
     tbodies.forEach(tbody => tbody.innerHTML = html);
 }
+
+window.asDeleteReport = async function(id) {
+    if (!id) return;
+    if (!confirm("Delete this report? This cannot be undone.")) return;
+    if (typeof window.deleteAgentReportFromFirebase === "function") {
+        await window.deleteAgentReportFromFirebase(id);
+        if (currentReportData && currentReportData.id === id) {
+            currentReportData = null;
+        }
+    }
+};
+
+window.asDeleteAllPrevious = async function() {
+    if (!Array.isArray(allReports) || allReports.length === 0) return;
+    const sorted = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+    const latest = sorted[0];
+    const toDelete = sorted.slice(1);
+    if (toDelete.length === 0) {
+        alert("No previous reports to delete.");
+        return;
+    }
+    if (!confirm("Delete " + toDelete.length + " previous report" + (toDelete.length === 1 ? "" : "s") + "? The most recent (" + normalizeReportDateLabel(latest.reportDate) + ") will be kept.")) return;
+    for (const r of toDelete) {
+        if (typeof window.deleteAgentReportFromFirebase === "function") {
+            await window.deleteAgentReportFromFirebase(r.id);
+        }
+    }
+    if (typeof window.writeAdminActivityLog === "function") {
+        window.writeAdminActivityLog("delete_previous_reports", "Deleted " + toDelete.length + " previous reports");
+    }
+};
 
 function escapeHtml(str) {
     if (!str) return '';
