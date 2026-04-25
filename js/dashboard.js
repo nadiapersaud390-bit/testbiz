@@ -129,14 +129,29 @@ async function loadFullRoster(force) {
     try {
         if (typeof API_URL !== 'undefined') {
             const resp = await fetch(`${API_URL}?action=getRoster&_=${Date.now()}`, { cache: 'no-store' });
-            const roster = await resp.json();
-            if (Array.isArray(roster) && roster.length > 0) {
-                fullRoster = roster;
-                window.allAgentProfiles = roster;
-                try { localStorage.setItem('biz_master_roster', JSON.stringify(roster)); } catch(e) {}
+            const raw = await resp.json();
+            // Accept either a plain array, or { success:true, agents:[...] }
+            let list = Array.isArray(raw) ? raw
+                     : (raw && Array.isArray(raw.agents)) ? raw.agents
+                     : (raw && Array.isArray(raw.roster)) ? raw.roster
+                     : [];
+            // Normalize fields and drop inactive agents
+            list = list
+                .filter(a => a && !a.inactive)
+                .map(a => ({
+                    fullName: a.fullName || a.name || a.agentName || '',
+                    userId:   String(a.userId || a.ytelId || a.id || '').trim(),
+                    team:     a.team || ''
+                }))
+                .filter(a => a.fullName && a.userId);
+            if (list.length > 0) {
+                fullRoster = list;
+                window.allAgentProfiles = list;
+                try { localStorage.setItem('biz_master_roster', JSON.stringify(list)); } catch(e) {}
                 console.log(`Loaded ${fullRoster.length} agents from Google Sheet roster`);
                 return fullRoster;
             }
+            console.warn('[roster] Sheet returned empty/unsupported payload:', raw);
         }
     } catch (e) {
         console.warn('Could not load from Google Sheet, using fallback:', e);
