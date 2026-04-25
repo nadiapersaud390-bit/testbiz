@@ -1,98 +1,214 @@
+<style>
+    /* ── LEADERBOARD GRID ── */
+    #leaderboard {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+        padding: 0 8px 24px;
+    }
+    @media (max-width: 600px) {
+        #leaderboard { grid-template-columns: 1fr; }
+    }
+
+    /* ── AGENT CARD ── */
+    .lb-card {
+        position: relative;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 16px;
+        padding: 14px 18px 14px 22px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        transition: background 0.2s, transform 0.15s;
+        overflow: hidden;
+        min-height: 72px;
+    }
+    .lb-card:hover {
+        background: rgba(255,255,255,0.06);
+        transform: translateY(-1px);
+    }
+
+    /* Left accent bar */
+    .lb-card::before {
+        content: '';
+        position: absolute;
+        left: 0; top: 0; bottom: 0;
+        width: 4px;
+        border-radius: 16px 0 0 16px;
+        background: var(--tier-color, #1e293b);
+    }
+
+    .lb-card.tier-conqueror { --tier-color: #ef4444; background: rgba(239,68,68,0.04); border-color: rgba(239,68,68,0.15); }
+    .lb-card.tier-master    { --tier-color: #eab308; background: rgba(234,179,8,0.04);  border-color: rgba(234,179,8,0.15); }
+    .lb-card.tier-elite     { --tier-color: #f97316; background: rgba(249,115,22,0.04); border-color: rgba(249,115,22,0.15); }
+    .lb-card.tier-pro       { --tier-color: #3b82f6; background: rgba(59,130,246,0.04); border-color: rgba(59,130,246,0.12); }
+    .lb-card.tier-rookie    { --tier-color: #1e293b; }
+
+    /* Rank */
+    .lb-rank {
+        font-size: 12px;
+        font-weight: 900;
+        font-style: italic;
+        color: #334155;
+        min-width: 24px;
+        flex-shrink: 0;
+        text-align: center;
+    }
+    .lb-card.tier-conqueror .lb-rank { color: rgba(239,68,68,0.4); }
+    .lb-card.tier-master .lb-rank    { color: rgba(234,179,8,0.4); }
+    .lb-card.tier-elite .lb-rank     { color: rgba(249,115,22,0.4); }
+
+    /* Divider */
+    .lb-divider {
+        width: 1px;
+        height: 36px;
+        background: rgba(255,255,255,0.06);
+        flex-shrink: 0;
+    }
+
+    /* Info */
+    .lb-info {
+        flex: 1;
+        min-width: 0;
+    }
+    .lb-name-row {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        flex-wrap: nowrap;
+        overflow: hidden;
+    }
+    .lb-name {
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+        color: #f1f5f9;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex: 1;
+        min-width: 0;
+    }
+    .lb-team-badge {
+        font-size: 7px;
+        font-weight: 900;
+        padding: 2px 5px;
+        border-radius: 3px;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+    .lb-you-badge {
+        font-size: 7px;
+        font-weight: 900;
+        background: rgba(250,204,21,0.12);
+        border: 1px solid rgba(250,204,21,0.3);
+        color: #facc15;
+        padding: 2px 5px;
+        border-radius: 3px;
+        flex-shrink: 0;
+    }
+    .lb-status {
+        font-size: 8px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-top: 5px;
+    }
+    .lb-card.tier-conqueror .lb-status { color: #ef4444; }
+    .lb-card.tier-master    .lb-status { color: #eab308; }
+    .lb-card.tier-elite     .lb-status { color: #f97316; }
+    .lb-card.tier-pro       .lb-status { color: #3b82f6; }
+    .lb-card.tier-rookie    .lb-status { color: #475569; }
+
+    /* Score */
+    .lb-score {
+        text-align: right;
+        flex-shrink: 0;
+    }
+    .lb-score-num {
+        font-size: 30px;
+        font-weight: 900;
+        color: #ffffff;
+        line-height: 1;
+        letter-spacing: -0.02em;
+    }
+    .lb-score-label {
+        font-size: 7px;
+        font-weight: 900;
+        text-transform: uppercase;
+        color: #475569;
+        letter-spacing: 0.08em;
+        margin-top: 3px;
+    }
+
+    /* YOU highlight */
+    .lb-card.is-me {
+        outline: 2px solid rgba(250,204,21,0.45);
+        outline-offset: -2px;
+    }
+</style>
+
 <div id="history-banner" class="hidden mx-2 mb-4">
     <div class="history-banner"><i class="fas fa-history mr-2"></i><span id="history-banner-text"></span></div>
 </div>
 
-<div class="mb-10 px-2 max-w-3xl mx-auto">
+<!-- Progress Bar -->
+<div class="mb-8 px-2 max-w-3xl mx-auto">
     <div class="flex justify-between items-end mb-3">
-        <span id="goal-label" class="text-xs md:text-sm font-black text-yellow-500 uppercase italic tracking-widest">Daily Team Goal</span>
-        <span id="goal-percent" class="text-xs md:text-sm font-black text-white uppercase italic">0%</span>
+        <span id="goal-label" class="text-xs font-black text-yellow-500 uppercase italic tracking-widest">Daily Team Goal</span>
+        <span id="goal-percent" class="text-xs font-black text-white uppercase italic">0%</span>
     </div>
-
-    <div class="w-full h-6 bg-white/5 rounded-full overflow-hidden border border-white/10 p-[3px]">
+    <div class="w-full h-5 bg-white/5 rounded-full overflow-hidden border border-white/10 p-[3px]">
         <div id="progress-bar" class="gold-progress h-full rounded-full transition-all duration-1000" style="width:0%"></div>
     </div>
-
     <div class="flex justify-between mt-2 px-1">
         <span id="current-leads-sum" class="text-xs font-bold text-slate-400">0 Leads</span>
         <span id="target-display" class="text-xs font-bold text-slate-400">Target</span>
     </div>
 </div>
 
-<div class="grid grid-cols-4 gap-2 mb-10 px-2">
-    <div class="glass p-3 md:p-8 rounded-3xl border-b-4 border-b-yellow-500 text-center stat-card">
-        <div class="text-[9px] md:text-sm font-black text-yellow-500 uppercase mb-2 leading-tight">12+ Proof</div>
-        <div id="master-count" class="text-2xl md:text-6xl font-black text-white stat-value">00</div>
+<!-- Stats Bar -->
+<div class="grid grid-cols-4 gap-2 mb-8 px-2">
+    <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-yellow-500 text-center stat-card">
+        <div class="text-[9px] md:text-xs font-black text-yellow-500 uppercase mb-2 leading-tight">12+ Proof</div>
+        <div id="master-count" class="text-2xl md:text-5xl font-black text-white stat-value">00</div>
     </div>
-
-    <div class="glass p-3 md:p-8 rounded-3xl border-b-4 border-b-green-500 text-center stat-card">
-        <div class="text-[9px] md:text-sm font-black text-green-500 uppercase mb-2 leading-tight">Active Reps</div>
-        <div id="active-reps" class="text-2xl md:text-6xl font-black text-white stat-value">0</div>
+    <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-green-500 text-center stat-card">
+        <div class="text-[9px] md:text-xs font-black text-green-500 uppercase mb-2 leading-tight">Active Reps</div>
+        <div id="active-reps" class="text-2xl md:text-5xl font-black text-white stat-value">0</div>
     </div>
-
-    <div class="glass p-3 md:p-8 rounded-3xl border-b-4 border-b-blue-500 text-center stat-card">
-        <div class="text-[9px] md:text-sm font-black text-blue-500 uppercase mb-2 leading-tight">Floor Total</div>
-        <div id="floor-total" class="text-2xl md:text-6xl font-black text-white stat-value">0</div>
+    <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-blue-500 text-center stat-card">
+        <div class="text-[9px] md:text-xs font-black text-blue-500 uppercase mb-2 leading-tight">Floor Total</div>
+        <div id="floor-total" class="text-2xl md:text-5xl font-black text-white stat-value">0</div>
     </div>
-
-    <div class="prbb-card p-3 md:p-8 rounded-3xl text-center stat-card">
-        <div class="text-[9px] md:text-sm font-black text-purple-400 uppercase mb-2 leading-tight">PR / BB / RM</div>
-        <div class="flex items-stretch justify-center gap-2">
+    <div class="prbb-card p-3 md:p-6 rounded-2xl text-center stat-card">
+        <div class="text-[9px] md:text-xs font-black text-purple-400 uppercase mb-2 leading-tight">PR / BB / RM</div>
+        <div class="flex items-center justify-center gap-2">
             <div class="flex-1 flex flex-col items-center">
-                <div class="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">Prov</div>
-                <div id="pr-count" class="text-xl md:text-4xl font-black leading-none" style="color:#a78bfa">0</div>
+                <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Prov</div>
+                <div id="pr-count" class="text-lg md:text-3xl font-black leading-none" style="color:#a78bfa">0</div>
             </div>
-
             <div class="prbb-divider"></div>
-
             <div class="flex-1 flex flex-col items-center">
-                <div class="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">Berb</div>
-                <div id="bb-count" class="text-xl md:text-4xl font-black leading-none" style="color:#c084fc">0</div>
+                <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Berb</div>
+                <div id="bb-count" class="text-lg md:text-3xl font-black leading-none" style="color:#c084fc">0</div>
             </div>
-
             <div class="prbb-divider"></div>
-
             <div class="flex-1 flex flex-col items-center">
-                <div class="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">Remote</div>
-                <div id="rm-count" class="text-xl md:text-4xl font-black leading-none" style="color:#38bdf8">0</div>
+                <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Remote</div>
+                <div id="rm-count" class="text-lg md:text-3xl font-black leading-none" style="color:#38bdf8">0</div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="flex justify-between items-end mb-6 px-4">
-    <h2 id="ranking-title" class="header-font text-xs md:text-lg font-black tracking-widest text-slate-500 uppercase italic">Live Rankings</h2>
-    <div id="day-indicator" class="text-xs md:text-sm text-blue-500 font-bold uppercase italic">Updating...</div>
+<!-- Rankings Header -->
+<div class="flex justify-between items-end mb-4 px-3">
+    <h2 id="ranking-title" class="header-font text-xs md:text-base font-black tracking-widest text-slate-500 uppercase italic">Live Rankings</h2>
+    <div id="day-indicator" class="text-xs text-blue-500 font-bold uppercase italic">Updating...</div>
 </div>
 
-<!-- AUTO-FIT LEADERBOARD GRID: adjusts columns based on available width/zoom -->
-<style>
-    #leaderboard {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 10px;
-        padding: 0 8px;
-    }
-
-    /* Zoomed way out — allow up to 5 columns */
-    @media (min-width: 1400px) {
-        #leaderboard {
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        }
-    }
-
-    /* Mobile — always 1 column */
-    @media (max-width: 480px) {
-        #leaderboard {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    /* Each card fills its cell cleanly */
-    #leaderboard > div {
-        min-width: 0;
-        box-sizing: border-box;
-        margin: 0 !important;
-    }
-</style>
-
-<div id="leaderboard" class="px-2"></div>
+<!-- Leaderboard Grid -->
+<div id="leaderboard"></div>
