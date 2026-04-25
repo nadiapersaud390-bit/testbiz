@@ -388,8 +388,8 @@ async function handleFileUpload(file) {
         const status = row['Current Status'] || '';
         const durationRaw = row['Duration'] || '0';
         
-        // Skip PH training accounts unless they have XFER
-        if (agentNameRaw.startsWith('PH ') && status !== 'XFER') continue;
+        // Skip ALL PH training accounts (regardless of status)
+        if (/^PH[\s_-]/i.test(agentNameRaw.trim())) continue;
         if (!agentName || agentName === 'UNKNOWN') continue;
         
         // Parse duration
