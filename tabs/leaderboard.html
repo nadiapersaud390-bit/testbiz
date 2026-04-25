@@ -64,4 +64,35 @@
     <div id="day-indicator" class="text-xs md:text-sm text-blue-500 font-bold uppercase italic">Updating...</div>
 </div>
 
-<div id="leaderboard" class="leaderboard-grid space-y-3 md:space-y-0 px-2"></div>
+<!-- AUTO-FIT LEADERBOARD GRID: adjusts columns based on available width/zoom -->
+<style>
+    #leaderboard {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 10px;
+        padding: 0 8px;
+    }
+
+    /* Zoomed way out — allow up to 5 columns */
+    @media (min-width: 1400px) {
+        #leaderboard {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+    }
+
+    /* Mobile — always 1 column */
+    @media (max-width: 480px) {
+        #leaderboard {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Each card fills its cell cleanly */
+    #leaderboard > div {
+        min-width: 0;
+        box-sizing: border-box;
+        margin: 0 !important;
+    }
+</style>
+
+<div id="leaderboard" class="px-2"></div>
