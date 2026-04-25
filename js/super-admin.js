@@ -60,20 +60,16 @@ function initializeDefaultSuperAdmin() {
 // Seed specific default regular admins if they don't exist
 // Default regular admin credentials (always guaranteed)
 const DEFAULT_ADMIN_ACCOUNTS = [
-    { id: "momo",  name: "Momo",  pass: "0000" }
+    { id: "momo",  name: "Momo",  pass: "0000" },
+    { id: "0000", name: "Admin", pass: "admin" }
 ];
 
-// IDs that should NEVER have admin privileges (cleaned up at boot)
-const BLOCKED_ADMIN_IDS = ['0000'];
+// IDs that exist as logins but get NO admin features (enforced in getAdminPermissions)
+const RESTRICTED_ADMIN_IDS = ['0000'];
 
 function seedDefaultAdmins() {
     const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
     let changed = false;
-
-    // Strip blocked IDs (e.g. '0000') from any source — local or Firebase-synced
-    BLOCKED_ADMIN_IDS.forEach(id => {
-        if (admins[id]) { delete admins[id]; changed = true; }
-    });
 
     // Cleanup old system accounts not in current defaults
     const currentDefaultIds = DEFAULT_ADMIN_ACCOUNTS.map(d => d.id);
