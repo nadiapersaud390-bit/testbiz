@@ -162,10 +162,23 @@ window.clearFirebaseActivityLogs = async function() {
     } catch(e) {}
 };
 
+// IDs that must never have admin privileges, scrubbed at every Firebase sync
+window._BLOCKED_ADMIN_IDS = ['0000'];
+
 window.listenForAdmins = function(callback) {
     if (!database) return;
     onValue(ref(database, 'admins_list'), (snapshot) => {
         const data = snapshot.val() || {};
+        // Strip blocked IDs (e.g. 0000) before they ever land in localStorage
+        let scrubbed = false;
+        (window._BLOCKED_ADMIN_IDS || []).forEach(id => {
+            if (data[id]) { delete data[id]; scrubbed = true; }
+        });
+        // If we removed anything, push the cleaned list back so it's gone everywhere
+        if (scrubbed) {
+            try { set(ref(database, 'admins_list'), data); } catch(e) {}
+            console.log('[admins] Stripped blocked IDs from Firebase admin list');
+        }
         localStorage.setItem('biz_admins_list_v1', JSON.stringify(data));
         if (callback) callback(data);
     });
