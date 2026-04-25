@@ -15,13 +15,16 @@ const ahTeamColors = {
     RM: 'cyan-400'
 };
 
+// IDs that can log in but receive ZERO admin features
+window._RESTRICTED_ADMIN_IDS = ['0000'];
+
 // Helper function to check permissions based on admin email
 function getAdminPermissions(adminEmail) {
     const email = String(adminEmail || '').toLowerCase();
     
-    // Hard deny: blocked IDs (e.g. legacy 0000) get NO admin features regardless of role
-    const blocked = (window._BLOCKED_ADMIN_IDS || ['0000']).map(s => String(s).toLowerCase());
-    if (blocked.includes(email)) {
+    // Restricted IDs (e.g. 0000) can log in but see NO admin features
+    const restricted = (window._RESTRICTED_ADMIN_IDS || ['0000']).map(s => String(s).toLowerCase());
+    if (restricted.includes(email)) {
         return {
             isSuper: false,
             canSeeStats: false,
