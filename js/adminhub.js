@@ -1585,9 +1585,22 @@ window.ahToolsLoadPerformance = function() {
 window.ahSyncRosterFromSheet = async function() {
     console.log('[AdminHub] Syncing roster from Google Sheet...');
     try {
-        const resp = await fetch(`${API_URL}?action=getRoster`);
-        const roster = await resp.json();
-        
+        const resp = await fetch(`${API_URL}?action=getRoster&_=${Date.now()}`, { cache: 'no-store' });
+        const raw = await resp.json();
+        let list = Array.isArray(raw) ? raw
+                 : (raw && Array.isArray(raw.agents)) ? raw.agents
+                 : (raw && Array.isArray(raw.roster)) ? raw.roster
+                 : [];
+        list = list
+            .filter(a => a && !a.inactive)
+            .map(a => ({
+                fullName: a.fullName || a.name || a.agentName || '',
+                userId:   String(a.userId || a.ytelId || a.id || '').trim(),
+                team:     a.team || ''
+            }))
+            .filter(a => a.fullName && a.userId);
+        const roster = list;
+
         if (Array.isArray(roster) && roster.length > 0) {
             console.log(`[AdminHub] Successfully pulled ${roster.length} agents from Sheet.`);
             window.allAgentProfiles = roster;
