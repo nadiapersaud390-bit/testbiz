@@ -585,12 +585,12 @@ function render() {
         } else {
             if (banner) banner.classList.add('hidden');
             document.getElementById('goal-label').innerText = (isWeekly || isPrevWeek) ? 'Weekly Team Goal' : todayName.toUpperCase() + ' DAILY GOAL';
-            document.getElementById('day-indicator').innerText = isPrevWeek ? 'Previous Week Sprint' : (isWeekly ? 'Weekly Sprint' : todayName.toUpperCase() + ' PERFORMANCE');
+            document.getElementById('day-indicator').innerText = isPrevWeek ? 'PREVIOUS WEEK SPRINT' : (isWeekly ? 'WEEKLY SPRINT' : todayName.toUpperCase() + ' PERFORMANCE');
         }
     } else {
         if(banner) banner.classList.add('hidden');
         document.getElementById('goal-label').innerText = (isWeekly || isPrevWeek) ? 'Weekly Team Goal' : todayName.toUpperCase() + ' DAILY GOAL';
-        document.getElementById('day-indicator').innerText = isPrevWeek ? 'Previous Week Sprint' : (isWeekly ? 'Weekly Sprint' : todayName.toUpperCase() + ' PERFORMANCE');
+        document.getElementById('day-indicator').innerText = isPrevWeek ? 'PREVIOUS WEEK SPRINT' : (isWeekly ? 'WEEKLY SPRINT' : todayName.toUpperCase() + ' PERFORMANCE');
     }
 
     const isAdmin = sessionStorage.getItem('bizUserRole') === 'admin';
@@ -700,7 +700,7 @@ function render() {
     if (!leaderboardEl) return;
     
     if (fullList.length === 0 && isHistory) {
-        leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500"><i class="fas fa-calendar-day text-4xl mb-3 block"></i> No data available for this day. The day may not be completed yet or no report was uploaded.</div>';
+        leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-calendar-day text-4xl mb-3 block"></i> No data available for this day. The day may not be completed yet or no report was uploaded.</div>';
     } else if (fullList.length === 0 && !isWeekly && !isPrevWeek && !isHistory) {
         leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-calendar-week text-4xl mb-3 block"></i> The new week has started. Waiting for the live board to be updated...</div>';
     } else {
@@ -710,9 +710,22 @@ function render() {
             const isMe = (myName && agent.name && agent.name.trim().toUpperCase() === myName) ||
                          (myYtelId && agent.ytelId === myYtelId);
 
-            const teamMeta = getTeamMeta(agent.team);
-            const teamBadge = `<span class="lb-team-badge" style="background:rgba(${teamMeta.rgb},0.15);border:1px solid rgba(${teamMeta.rgb},0.3);color:${teamMeta.color};">${teamMeta.label}</span>`;
-            const youBadge = isMe ? `<span class="lb-you-badge">YOU</span>` : '';
+            // Map team code → CSS badge class
+            const teamBadgeClass = {
+                'PR': 'badge-prov',
+                'BB': 'badge-bb',
+                'RM': 'badge-rm'
+            }[String(agent.team || '').toUpperCase()] || 'badge-prov';
+
+            const teamLabel = {
+                'PR': 'PROV',
+                'BB': 'BERB',
+                'RM': 'RM'
+            }[String(agent.team || '').toUpperCase()] || 'PROV';
+
+            const teamBadge = `<span class="lb-team-badge ${teamBadgeClass}">${teamLabel}</span>`;
+            const youBadge  = isMe ? `<span class="lb-you-badge">YOU</span>` : '';
+
             return `
                 <div class="lb-card ${lvl.tierCls} ${isMe ? 'is-me' : ''}">
                     <div class="lb-rank">${String(rank).padStart(2,'0')}</div>
@@ -726,7 +739,7 @@ function render() {
                     </div>
                     <div class="lb-score">
                         <div class="lb-score-num">${agent.leads}</div>
-                        <div class="lb-score-label">Transfers</div>
+                        <div class="lb-score-label">TRANSFERS</div>
                     </div>
                 </div>`;
         }).join('');
