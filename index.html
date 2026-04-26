@@ -65,11 +65,17 @@
             padding: clamp(4px, 0.6vw, 7px) clamp(8px, 1.2vw, 14px) !important;
         }
 
-        /* Leaderboard grid: auto-fit columns — zoom out = more columns, zoom in = fewer */
+        /* Leaderboard grid: 2 cols at normal zoom, scales with zoom */
         #leaderboard {
             display: grid !important;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
+            grid-template-columns: 1fr 1fr !important;
             gap: 14px !important;
+        }
+        @media(min-width:1800px) {
+            #leaderboard { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important; }
+        }
+        @media(max-width:640px) {
+            #leaderboard { grid-template-columns: 1fr !important; }
         }
 
         /* Each leaderboard card fills its cell */
