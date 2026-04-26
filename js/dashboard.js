@@ -589,6 +589,10 @@ function render() {
     // All users see the full leaderboard
     const displayData = fullList.map((a, i) => ({ ...a, rank: i + 1 }));
 
+    // Expose for team drill-down popup
+    window._lastFullList = fullList;
+
+
     // Rendering
     const leaderboardEl = document.getElementById('leaderboard');
     if (!leaderboardEl) return;

@@ -60,7 +60,7 @@ function initializeDefaultSuperAdmin() {
 // Seed specific default regular admins if they don't exist
 // Default regular admin credentials (always guaranteed)
 const DEFAULT_ADMIN_ACCOUNTS = [
-    { id: "momo",  name: "Momo",  pass: "0000" },
+    { id: "momo",  name: "Momo",  pass: "2424" },
     { id: "0000", name: "Admin", pass: "admin" }
 ];
 

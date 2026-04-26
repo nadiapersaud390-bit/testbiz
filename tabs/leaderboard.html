@@ -2,8 +2,8 @@
     /* ── LEADERBOARD GRID ── */
     #leaderboard {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
         padding: 0 8px 24px;
     }
     @media (max-width: 600px) {
@@ -16,13 +16,13 @@
         background: rgba(255,255,255,0.03);
         border: 1px solid rgba(255,255,255,0.07);
         border-radius: 16px;
-        padding: 14px 18px 14px 22px;
+        padding: 20px 22px 20px 28px;
         display: flex;
         align-items: center;
-        gap: 14px;
+        gap: 18px;
         transition: background 0.2s, transform 0.15s;
         overflow: hidden;
-        min-height: 72px;
+        min-height: 96px;
     }
     .lb-card:hover {
         background: rgba(255,255,255,0.06);
@@ -34,7 +34,7 @@
         content: '';
         position: absolute;
         left: 0; top: 0; bottom: 0;
-        width: 4px;
+        width: 5px;
         border-radius: 16px 0 0 16px;
         background: var(--tier-color, #1e293b);
     }
@@ -47,23 +47,23 @@
 
     /* Rank */
     .lb-rank {
-        font-size: 12px;
+        font-size: 18px;
         font-weight: 900;
         font-style: italic;
         color: #334155;
-        min-width: 24px;
+        min-width: 32px;
         flex-shrink: 0;
         text-align: center;
     }
-    .lb-card.tier-conqueror .lb-rank { color: rgba(239,68,68,0.4); }
-    .lb-card.tier-master .lb-rank    { color: rgba(234,179,8,0.4); }
-    .lb-card.tier-elite .lb-rank     { color: rgba(249,115,22,0.4); }
+    .lb-card.tier-conqueror .lb-rank { color: rgba(239,68,68,0.5); }
+    .lb-card.tier-master .lb-rank    { color: rgba(234,179,8,0.5); }
+    .lb-card.tier-elite .lb-rank     { color: rgba(249,115,22,0.5); }
 
     /* Divider */
     .lb-divider {
         width: 1px;
-        height: 36px;
-        background: rgba(255,255,255,0.06);
+        height: 44px;
+        background: rgba(255,255,255,0.08);
         flex-shrink: 0;
     }
 
@@ -75,12 +75,12 @@
     .lb-name-row {
         display: flex;
         align-items: center;
-        gap: 5px;
+        gap: 7px;
         flex-wrap: nowrap;
         overflow: hidden;
     }
     .lb-name {
-        font-size: 12px;
+        font-size: 15px;
         font-weight: 900;
         text-transform: uppercase;
         color: #f1f5f9;
@@ -92,29 +92,29 @@
         min-width: 0;
     }
     .lb-team-badge {
-        font-size: 7px;
+        font-size: 8px;
         font-weight: 900;
-        padding: 2px 5px;
-        border-radius: 3px;
+        padding: 3px 7px;
+        border-radius: 4px;
         flex-shrink: 0;
         white-space: nowrap;
     }
     .lb-you-badge {
-        font-size: 7px;
+        font-size: 8px;
         font-weight: 900;
         background: rgba(250,204,21,0.12);
         border: 1px solid rgba(250,204,21,0.3);
         color: #facc15;
-        padding: 2px 5px;
-        border-radius: 3px;
+        padding: 3px 7px;
+        border-radius: 4px;
         flex-shrink: 0;
     }
     .lb-status {
-        font-size: 8px;
+        font-size: 9px;
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: 0.1em;
-        margin-top: 5px;
+        margin-top: 7px;
     }
     .lb-card.tier-conqueror .lb-status { color: #ef4444; }
     .lb-card.tier-master    .lb-status { color: #eab308; }
@@ -128,19 +128,19 @@
         flex-shrink: 0;
     }
     .lb-score-num {
-        font-size: 30px;
+        font-size: 46px;
         font-weight: 900;
         color: #ffffff;
         line-height: 1;
         letter-spacing: -0.02em;
     }
     .lb-score-label {
-        font-size: 7px;
+        font-size: 8px;
         font-weight: 900;
         text-transform: uppercase;
         color: #475569;
         letter-spacing: 0.08em;
-        margin-top: 3px;
+        margin-top: 4px;
     }
 
     /* YOU highlight */
@@ -169,40 +169,177 @@
     </div>
 </div>
 
-<!-- Stats Bar -->
-<div class="grid grid-cols-4 gap-2 mb-8 px-2">
-    <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-yellow-500 text-center stat-card">
-        <div class="text-[9px] md:text-xs font-black text-yellow-500 uppercase mb-2 leading-tight">12+ Proof</div>
-        <div id="master-count" class="text-2xl md:text-5xl font-black text-white stat-value">00</div>
-    </div>
-    <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-green-500 text-center stat-card">
-        <div class="text-[9px] md:text-xs font-black text-green-500 uppercase mb-2 leading-tight">Active Reps</div>
-        <div id="active-reps" class="text-2xl md:text-5xl font-black text-white stat-value">0</div>
-    </div>
-    <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-blue-500 text-center stat-card">
-        <div class="text-[9px] md:text-xs font-black text-blue-500 uppercase mb-2 leading-tight">Floor Total</div>
-        <div id="floor-total" class="text-2xl md:text-5xl font-black text-white stat-value">0</div>
-    </div>
-    <div class="prbb-card p-3 md:p-6 rounded-2xl text-center stat-card">
-        <div class="text-[9px] md:text-xs font-black text-purple-400 uppercase mb-2 leading-tight">PR / BB / RM</div>
-        <div class="flex items-center justify-center gap-2">
-            <div class="flex-1 flex flex-col items-center">
-                <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Prov</div>
-                <div id="pr-count" class="text-lg md:text-3xl font-black leading-none" style="color:#a78bfa">0</div>
+
+<!-- Stats Bar — narrower, centered container -->
+<div style="max-width:900px;margin:0 auto 32px;padding:0 8px;">
+    <div class="grid grid-cols-4 gap-3">
+        <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-yellow-500 text-center stat-card">
+            <div class="text-[9px] md:text-xs font-black text-yellow-500 uppercase mb-2 leading-tight">12+ Proof</div>
+            <div id="master-count" class="text-2xl md:text-5xl font-black text-white stat-value">00</div>
+        </div>
+        <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-green-500 text-center stat-card">
+            <div class="text-[9px] md:text-xs font-black text-green-500 uppercase mb-2 leading-tight">Active Reps</div>
+            <div id="active-reps" class="text-2xl md:text-5xl font-black text-white stat-value">0</div>
+        </div>
+        <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-blue-500 text-center stat-card">
+            <div class="text-[9px] md:text-xs font-black text-blue-500 uppercase mb-2 leading-tight">Floor Total</div>
+            <div id="floor-total" class="text-2xl md:text-5xl font-black text-white stat-value">0</div>
+        </div>
+        <div class="prbb-card p-3 md:p-6 rounded-2xl text-center stat-card">
+            <div class="text-[9px] md:text-xs font-black text-purple-400 uppercase mb-2 leading-tight">PR / BB / RM</div>
+            <div class="flex items-center justify-center gap-2">
+                <!-- PROV clickable -->
+                <div class="flex-1 flex flex-col items-center team-slot" onclick="openTeamPopup('PR')" title="View Providence agents" style="cursor:pointer;transition:opacity 0.15s;" onmouseenter="this.style.opacity='0.7'" onmouseleave="this.style.opacity='1'">
+                    <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Prov</div>
+                    <div id="pr-count" class="text-lg md:text-3xl font-black leading-none" style="color:#a78bfa">0</div>
+                </div>
+                <div class="prbb-divider"></div>
+                <!-- BERB clickable -->
+                <div class="flex-1 flex flex-col items-center team-slot" onclick="openTeamPopup('BB')" title="View Berbice agents" style="cursor:pointer;transition:opacity 0.15s;" onmouseenter="this.style.opacity='0.7'" onmouseleave="this.style.opacity='1'">
+                    <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Berb</div>
+                    <div id="bb-count" class="text-lg md:text-3xl font-black leading-none" style="color:#c084fc">0</div>
+                </div>
+                <div class="prbb-divider"></div>
+                <!-- REMOTE clickable -->
+                <div class="flex-1 flex flex-col items-center team-slot" onclick="openTeamPopup('RM')" title="View Remote agents" style="cursor:pointer;transition:opacity 0.15s;" onmouseenter="this.style.opacity='0.7'" onmouseleave="this.style.opacity='1'">
+                    <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Remote</div>
+                    <div id="rm-count" class="text-lg md:text-3xl font-black leading-none" style="color:#38bdf8">0</div>
+                </div>
             </div>
-            <div class="prbb-divider"></div>
-            <div class="flex-1 flex flex-col items-center">
-                <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Berb</div>
-                <div id="bb-count" class="text-lg md:text-3xl font-black leading-none" style="color:#c084fc">0</div>
-            </div>
-            <div class="prbb-divider"></div>
-            <div class="flex-1 flex flex-col items-center">
-                <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Remote</div>
-                <div id="rm-count" class="text-lg md:text-3xl font-black leading-none" style="color:#38bdf8">0</div>
-            </div>
+            <div style="font-size:8px;color:#334155;margin-top:8px;font-weight:700;letter-spacing:0.06em;">TAP TO DRILL DOWN</div>
         </div>
     </div>
 </div>
+
+<!-- Team Agents Popup Modal -->
+<div id="team-popup-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9998;backdrop-filter:blur(6px);align-items:center;justify-content:center;" onclick="closeTeamPopup(event)">
+    <div id="team-popup-box" style="background:rgba(10,14,30,0.97);border:1px solid rgba(255,255,255,0.12);border-radius:20px;width:min(520px,92vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,0.8);">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid rgba(255,255,255,0.07);">
+            <div>
+                <div id="team-popup-label" style="font-size:10px;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#64748b;margin-bottom:4px;"></div>
+                <div id="team-popup-title" style="font-size:20px;font-weight:900;color:#f1f5f9;letter-spacing:0.02em;"></div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">TOTAL</div>
+                <div id="team-popup-total" style="font-size:32px;font-weight:900;line-height:1;"></div>
+            </div>
+        </div>
+        <!-- Agent list -->
+        <div id="team-popup-list" style="overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px;"></div>
+        <!-- Footer -->
+        <div style="padding:14px 22px;border-top:1px solid rgba(255,255,255,0.07);text-align:center;">
+            <button onclick="closeTeamPopup()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#94a3b8;font-size:12px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;padding:8px 28px;cursor:pointer;">✕ Close</button>
+        </div>
+    </div>
+</div>
+
+<style>
+#team-popup-overlay { display: none; }
+#team-popup-overlay.visible { display: flex; }
+.tp-agent-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    gap: 12px;
+}
+.tp-agent-rank {
+    font-size: 13px;
+    font-weight: 900;
+    font-style: italic;
+    color: #334155;
+    min-width: 28px;
+}
+.tp-agent-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 800;
+    color: #e2e8f0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.tp-agent-leads {
+    font-size: 22px;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+    min-width: 36px;
+    text-align: right;
+}
+.tp-agent-label {
+    font-size: 7px;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    text-align: right;
+}
+</style>
+
+<script>
+function openTeamPopup(teamCode) {
+    const overlay = document.getElementById('team-popup-overlay');
+    const titleEl = document.getElementById('team-popup-title');
+    const labelEl = document.getElementById('team-popup-label');
+    const totalEl = document.getElementById('team-popup-total');
+    const listEl  = document.getElementById('team-popup-list');
+
+    const teamMeta = {
+        PR: { name: 'Providence',  label: 'PROV TEAM BREAKDOWN', color: '#a78bfa' },
+        BB: { name: 'Berbice',     label: 'BERB TEAM BREAKDOWN', color: '#c084fc' },
+        RM: { name: 'Remote',      label: 'REMOTE TEAM BREAKDOWN', color: '#38bdf8' }
+    };
+    const meta = teamMeta[teamCode] || { name: teamCode, label: teamCode, color: '#fff' };
+
+    // Pull data from the global fullList that dashboard.js builds
+    // We expose it via window._lastFullList set in dashboard.js render()
+    const allAgents = window._lastFullList || [];
+    const teamAgents = allAgents
+        .filter(a => (a.team || '').toUpperCase() === teamCode)
+        .sort((a, b) => (b.leads || 0) - (a.leads || 0));
+
+    const total = teamAgents.reduce((s, a) => s + (a.leads || 0), 0);
+
+    titleEl.textContent = meta.name;
+    titleEl.style.color = meta.color;
+    labelEl.textContent = meta.label;
+    totalEl.textContent = total;
+    totalEl.style.color = meta.color;
+
+    if (teamAgents.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;color:#475569;padding:24px;font-size:13px;font-weight:700;">No agents found for this team.</div>';
+    } else {
+        listEl.innerHTML = teamAgents.map((a, i) => `
+            <div class="tp-agent-row">
+                <div class="tp-agent-rank">${String(i+1).padStart(2,'0')}</div>
+                <div class="tp-agent-name">${escapeHtml ? escapeHtml(a.name) : a.name}</div>
+                <div style="text-align:right;">
+                    <div class="tp-agent-leads" style="color:${meta.color}">${a.leads || 0}</div>
+                    <div class="tp-agent-label">transfers</div>
+                </div>
+            </div>`).join('');
+    }
+
+    overlay.classList.add('visible');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeTeamPopup(e) {
+    if (e && e.target !== document.getElementById('team-popup-overlay')) return;
+    document.getElementById('team-popup-overlay').classList.remove('visible');
+    document.body.style.overflow = '';
+}
+
+window.openTeamPopup = openTeamPopup;
+window.closeTeamPopup = closeTeamPopup;
+</script>
 
 <!-- Rankings Header -->
 <div class="flex justify-between items-end mb-4 px-3">
