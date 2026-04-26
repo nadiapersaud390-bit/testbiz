@@ -2,12 +2,12 @@
     /* ── LEADERBOARD GRID ── */
     #leaderboard {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-        gap: 16px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
         padding: 0 8px 24px;
         align-items: start;
     }
-    @media (max-width: 600px) {
+    @media (max-width: 700px) {
         #leaderboard { grid-template-columns: 1fr; }
     }
 
@@ -17,58 +17,43 @@
         background: rgba(255,255,255,0.03);
         border: 1px solid rgba(255,255,255,0.07);
         border-radius: 16px;
-        padding: 20px 22px 20px 28px;
+        padding: 18px 20px 18px 20px;
         display: flex;
         align-items: center;
-        gap: 18px;
+        gap: 14px;
         transition: background 0.2s, transform 0.15s;
         overflow: hidden;
-        min-height: 96px;
+        min-height: 90px;
     }
     .lb-card:hover {
         background: rgba(255,255,255,0.06);
         transform: translateY(-1px);
     }
 
-    /* Left accent bar */
-    .lb-card::before {
-        content: '';
-        position: absolute;
-        left: 0; top: 0; bottom: 0;
-        width: 5px;
-        border-radius: 16px 0 0 16px;
-        background: var(--tier-color, #1e293b);
-    }
-
-    .lb-card.tier-conqueror { --tier-color: #ef4444; background: rgba(239,68,68,0.04); border-color: rgba(239,68,68,0.15); }
-    .lb-card.tier-master    { --tier-color: #eab308; background: rgba(234,179,8,0.04);  border-color: rgba(234,179,8,0.15); }
-    .lb-card.tier-elite     { --tier-color: #f97316; background: rgba(249,115,22,0.04); border-color: rgba(249,115,22,0.15); }
-    .lb-card.tier-pro       { --tier-color: #3b82f6; background: rgba(59,130,246,0.04); border-color: rgba(59,130,246,0.12); }
-    .lb-card.tier-rookie    { --tier-color: #1e293b; }
-
-    /* Rank */
+    /* Rank number — large, left side, italic, dim */
     .lb-rank {
-        font-size: 18px;
+        font-size: 22px;
         font-weight: 900;
         font-style: italic;
         color: #334155;
-        min-width: 32px;
+        min-width: 36px;
         flex-shrink: 0;
         text-align: center;
+        line-height: 1;
     }
     .lb-card.tier-conqueror .lb-rank { color: rgba(239,68,68,0.5); }
-    .lb-card.tier-master .lb-rank    { color: rgba(234,179,8,0.5); }
-    .lb-card.tier-elite .lb-rank     { color: rgba(249,115,22,0.5); }
+    .lb-card.tier-master    .lb-rank { color: rgba(234,179,8,0.5); }
+    .lb-card.tier-elite     .lb-rank { color: rgba(249,115,22,0.5); }
 
-    /* Divider */
+    /* Vertical divider */
     .lb-divider {
         width: 1px;
         height: 44px;
-        background: rgba(255,255,255,0.08);
+        background: rgba(255,255,255,0.07);
         flex-shrink: 0;
     }
 
-    /* Info */
+    /* Info block */
     .lb-info {
         flex: 1;
         min-width: 0;
@@ -81,7 +66,7 @@
         overflow: hidden;
     }
     .lb-name {
-        font-size: 15px;
+        font-size: 14px;
         font-weight: 900;
         text-transform: uppercase;
         color: #f1f5f9;
@@ -96,9 +81,28 @@
         font-size: 8px;
         font-weight: 900;
         padding: 3px 7px;
-        border-radius: 4px;
+        border-radius: 5px;
         flex-shrink: 0;
         white-space: nowrap;
+        background: rgba(99,102,241,0.18);
+        border: 1px solid rgba(99,102,241,0.3);
+        color: #818cf8;
+        letter-spacing: 0.06em;
+    }
+    .lb-team-badge.badge-prov {
+        background: rgba(167,139,250,0.15);
+        border-color: rgba(167,139,250,0.3);
+        color: #a78bfa;
+    }
+    .lb-team-badge.badge-rm {
+        background: rgba(56,189,248,0.12);
+        border-color: rgba(56,189,248,0.28);
+        color: #38bdf8;
+    }
+    .lb-team-badge.badge-bb {
+        background: rgba(192,132,252,0.12);
+        border-color: rgba(192,132,252,0.28);
+        color: #c084fc;
     }
     .lb-you-badge {
         font-size: 8px;
@@ -111,25 +115,34 @@
         flex-shrink: 0;
     }
     .lb-status {
-        font-size: 9px;
+        font-size: 8px;
         font-weight: 900;
         text-transform: uppercase;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.12em;
         margin-top: 7px;
+        color: #334155;
     }
     .lb-card.tier-conqueror .lb-status { color: #ef4444; }
     .lb-card.tier-master    .lb-status { color: #eab308; }
     .lb-card.tier-elite     .lb-status { color: #f97316; }
     .lb-card.tier-pro       .lb-status { color: #3b82f6; }
-    .lb-card.tier-rookie    .lb-status { color: #475569; }
+    .lb-card.tier-rookie    .lb-status { color: #334155; }
 
-    /* Score */
+    /* Tier colors */
+    .lb-card.tier-conqueror { background: rgba(239,68,68,0.04);  border-color: rgba(239,68,68,0.15); }
+    .lb-card.tier-master    { background: rgba(234,179,8,0.04);  border-color: rgba(234,179,8,0.15); }
+    .lb-card.tier-elite     { background: rgba(249,115,22,0.04); border-color: rgba(249,115,22,0.15); }
+    .lb-card.tier-pro       { background: rgba(59,130,246,0.04); border-color: rgba(59,130,246,0.12); }
+    .lb-card.tier-rookie    { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.07); }
+
+    /* Score block — right side */
     .lb-score {
         text-align: right;
         flex-shrink: 0;
+        min-width: 52px;
     }
     .lb-score-num {
-        font-size: 46px;
+        font-size: 42px;
         font-weight: 900;
         color: #ffffff;
         line-height: 1;
@@ -139,15 +152,49 @@
         font-size: 8px;
         font-weight: 900;
         text-transform: uppercase;
-        color: #475569;
-        letter-spacing: 0.08em;
-        margin-top: 4px;
+        color: #334155;
+        letter-spacing: 0.1em;
+        margin-top: 3px;
     }
 
     /* YOU highlight */
     .lb-card.is-me {
         outline: 2px solid rgba(250,204,21,0.45);
         outline-offset: -2px;
+    }
+
+    /* ── STAT CARDS ── */
+    .stat-card {
+        position: relative;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+    .prbb-card {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+    .prbb-divider {
+        width: 1px;
+        height: 32px;
+        background: rgba(255,255,255,0.08);
+    }
+
+    /* History banner */
+    .history-banner {
+        background: rgba(59,130,246,0.08);
+        border: 1px solid rgba(59,130,246,0.2);
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-size: 12px;
+        font-weight: 800;
+        color: #60a5fa;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    /* Gold progress bar */
+    .gold-progress {
+        background: linear-gradient(90deg, #b45309, #eab308, #fde68a);
     }
 </style>
 
@@ -170,41 +217,41 @@
     </div>
 </div>
 
-
-<!-- Stats Bar — narrower, centered container -->
-<div style="max-width:900px;margin:0 auto 32px;padding:0 8px;">
+<!-- Stats Bar -->
+<div style="max-width:960px;margin:0 auto 32px;padding:0 8px;">
     <div class="grid grid-cols-4 gap-3">
-        <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-yellow-500 text-center stat-card">
-            <div class="text-[9px] md:text-xs font-black text-yellow-500 uppercase mb-2 leading-tight">12+ Proof</div>
-            <div id="master-count" class="text-2xl md:text-5xl font-black text-white stat-value">00</div>
+        <!-- 12+ Proof -->
+        <div class="stat-card p-3 md:p-6 rounded-2xl border-b-4 border-b-yellow-500 text-center">
+            <div class="text-[9px] md:text-xs font-black text-yellow-500 uppercase mb-2 leading-tight tracking-widest">12+ Proof</div>
+            <div id="master-count" class="text-2xl md:text-5xl font-black text-white" style="font-style:italic;">00</div>
         </div>
-        <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-green-500 text-center stat-card">
-            <div class="text-[9px] md:text-xs font-black text-green-500 uppercase mb-2 leading-tight">Active Reps</div>
-            <div id="active-reps" class="text-2xl md:text-5xl font-black text-white stat-value">0</div>
+        <!-- Active Reps -->
+        <div class="stat-card p-3 md:p-6 rounded-2xl border-b-4 border-b-green-500 text-center">
+            <div class="text-[9px] md:text-xs font-black text-green-500 uppercase mb-2 leading-tight tracking-widest">Active Reps</div>
+            <div id="active-reps" class="text-2xl md:text-5xl font-black text-white" style="font-style:italic;">0</div>
         </div>
-        <div class="glass p-3 md:p-6 rounded-2xl border-b-4 border-b-blue-500 text-center stat-card">
-            <div class="text-[9px] md:text-xs font-black text-blue-500 uppercase mb-2 leading-tight">Floor Total</div>
-            <div id="floor-total" class="text-2xl md:text-5xl font-black text-white stat-value">0</div>
+        <!-- Floor Total -->
+        <div class="stat-card p-3 md:p-6 rounded-2xl border-b-4 border-b-blue-500 text-center">
+            <div class="text-[9px] md:text-xs font-black text-blue-500 uppercase mb-2 leading-tight tracking-widest">Floor Total</div>
+            <div id="floor-total" class="text-2xl md:text-5xl font-black text-white" style="font-style:italic;">0</div>
         </div>
-        <div class="prbb-card p-3 md:p-6 rounded-2xl text-center stat-card">
-            <div class="text-[9px] md:text-xs font-black text-purple-400 uppercase mb-2 leading-tight">PR / BB / RM</div>
+        <!-- PR / BB / RM -->
+        <div class="prbb-card p-3 md:p-6 rounded-2xl text-center">
+            <div class="text-[9px] md:text-xs font-black text-purple-400 uppercase mb-2 leading-tight tracking-widest">PR / BB / RM</div>
             <div class="flex items-center justify-center gap-2">
-                <!-- PROV clickable -->
                 <div class="flex-1 flex flex-col items-center team-slot" onclick="openTeamPopup('PR')" title="View Providence agents" style="cursor:pointer;transition:opacity 0.15s;" onmouseenter="this.style.opacity='0.7'" onmouseleave="this.style.opacity='1'">
                     <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Prov</div>
-                    <div id="pr-count" class="text-lg md:text-3xl font-black leading-none" style="color:#a78bfa">0</div>
+                    <div id="pr-count" class="text-lg md:text-3xl font-black leading-none" style="color:#a78bfa;font-style:italic;">0</div>
                 </div>
                 <div class="prbb-divider"></div>
-                <!-- BERB clickable -->
                 <div class="flex-1 flex flex-col items-center team-slot" onclick="openTeamPopup('BB')" title="View Berbice agents" style="cursor:pointer;transition:opacity 0.15s;" onmouseenter="this.style.opacity='0.7'" onmouseleave="this.style.opacity='1'">
                     <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Berb</div>
-                    <div id="bb-count" class="text-lg md:text-3xl font-black leading-none" style="color:#c084fc">0</div>
+                    <div id="bb-count" class="text-lg md:text-3xl font-black leading-none" style="color:#c084fc;font-style:italic;">0</div>
                 </div>
                 <div class="prbb-divider"></div>
-                <!-- REMOTE clickable -->
                 <div class="flex-1 flex flex-col items-center team-slot" onclick="openTeamPopup('RM')" title="View Remote agents" style="cursor:pointer;transition:opacity 0.15s;" onmouseenter="this.style.opacity='0.7'" onmouseleave="this.style.opacity='1'">
                     <div class="text-[7px] font-black text-slate-500 uppercase tracking-wider mb-1">Remote</div>
-                    <div id="rm-count" class="text-lg md:text-3xl font-black leading-none" style="color:#38bdf8">0</div>
+                    <div id="rm-count" class="text-lg md:text-3xl font-black leading-none" style="color:#38bdf8;font-style:italic;">0</div>
                 </div>
             </div>
             <div style="font-size:8px;color:#334155;margin-top:8px;font-weight:700;letter-spacing:0.06em;">TAP TO DRILL DOWN</div>
@@ -215,7 +262,6 @@
 <!-- Team Agents Popup Modal -->
 <div id="team-popup-overlay" onclick="closeTeamPopup(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99999;backdrop-filter:blur(6px);align-items:center;justify-content:center;">
     <div id="team-popup-box" style="background:rgba(10,14,30,0.97);border:1px solid rgba(255,255,255,0.12);border-radius:20px;width:min(520px,92vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,0.8);">
-        <!-- Header -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid rgba(255,255,255,0.07);">
             <div>
                 <div id="team-popup-label" style="font-size:10px;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#64748b;margin-bottom:4px;"></div>
@@ -226,9 +272,7 @@
                 <div id="team-popup-total" style="font-size:32px;font-weight:900;line-height:1;"></div>
             </div>
         </div>
-        <!-- Agent list -->
         <div id="team-popup-list" style="overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px;"></div>
-        <!-- Footer -->
         <div style="padding:14px 22px;border-top:1px solid rgba(255,255,255,0.07);text-align:center;">
             <button onclick="closeTeamPopup()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#94a3b8;font-size:12px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;padding:8px 28px;cursor:pointer;">✕ Close</button>
         </div>
@@ -248,60 +292,28 @@
     border: 1px solid rgba(255,255,255,0.06);
     gap: 12px;
 }
-.tp-agent-rank {
-    font-size: 13px;
-    font-weight: 900;
-    font-style: italic;
-    color: #334155;
-    min-width: 28px;
-}
-.tp-agent-name {
-    flex: 1;
-    font-size: 13px;
-    font-weight: 800;
-    color: #e2e8f0;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.tp-agent-leads {
-    font-size: 22px;
-    font-weight: 900;
-    color: #fff;
-    line-height: 1;
-    min-width: 36px;
-    text-align: right;
-}
-.tp-agent-label {
-    font-size: 7px;
-    font-weight: 700;
-    color: #475569;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    text-align: right;
-}
+.tp-agent-rank { font-size: 13px; font-weight: 900; font-style: italic; color: #334155; min-width: 28px; }
+.tp-agent-name { flex: 1; font-size: 13px; font-weight: 800; color: #e2e8f0; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tp-agent-leads { font-size: 22px; font-weight: 900; color: #fff; line-height: 1; min-width: 36px; text-align: right; }
+.tp-agent-label { font-size: 7px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; text-align: right; }
 </style>
 
 <script>
 function openTeamPopup(teamCode) {
-    const overlay = document.getElementById('team-popup-overlay');
-    const titleEl = document.getElementById('team-popup-title');
-    const labelEl = document.getElementById('team-popup-label');
-    const totalEl = document.getElementById('team-popup-total');
-    const listEl  = document.getElementById('team-popup-list');
+    const overlay  = document.getElementById('team-popup-overlay');
+    const titleEl  = document.getElementById('team-popup-title');
+    const labelEl  = document.getElementById('team-popup-label');
+    const totalEl  = document.getElementById('team-popup-total');
+    const listEl   = document.getElementById('team-popup-list');
 
     const teamMeta = {
-        PR: { name: 'Providence',  label: 'PROV TEAM BREAKDOWN', color: '#a78bfa' },
-        BB: { name: 'Berbice',     label: 'BERB TEAM BREAKDOWN', color: '#c084fc' },
-        RM: { name: 'Remote',      label: 'REMOTE TEAM BREAKDOWN', color: '#38bdf8' }
+        PR: { name: 'Providence', label: 'PROV TEAM BREAKDOWN', color: '#a78bfa' },
+        BB: { name: 'Berbice',    label: 'BERB TEAM BREAKDOWN', color: '#c084fc' },
+        RM: { name: 'Remote',     label: 'REMOTE TEAM BREAKDOWN', color: '#38bdf8' }
     };
     const meta = teamMeta[teamCode] || { name: teamCode, label: teamCode, color: '#fff' };
 
-    // Pull data from the global fullList that dashboard.js builds
-    // We expose it via window._lastFullList set in dashboard.js render()
-    const allAgents = window._lastFullList || [];
+    const allAgents  = window._lastFullList || [];
     const teamAgents = allAgents
         .filter(a => (a.team || '').toUpperCase() === teamCode)
         .sort((a, b) => (b.leads || 0) - (a.leads || 0));
@@ -319,14 +331,14 @@ function openTeamPopup(teamCode) {
     } else {
         listEl.innerHTML = teamAgents.map((a, i) => {
             const idLookup = String(a.ytelId || a.rawName || a.name || '').trim();
-            const prev = (window._prevDailyLeadsMap && window._prevDailyLeadsMap[idLookup]) || 0;
-            const diff = (a.leads || 0) - prev;
+            const prev     = (window._prevDailyLeadsMap && window._prevDailyLeadsMap[idLookup]) || 0;
+            const diff     = (a.leads || 0) - prev;
             const diffHtml = (diff > 0) ? `<span style="font-size:10px;font-weight:900;color:#22c55e;background:rgba(34,197,94,0.15);padding:2px 5px;border-radius:4px;margin-right:8px;border:1px solid rgba(34,197,94,0.25);">+${diff}</span>` : '';
             return `
             <div class="tp-agent-row">
                 <div class="tp-agent-rank">${String(i+1).padStart(2,'0')}</div>
-                <div class="tp-agent-name">${escapeHtml ? escapeHtml(a.name) : a.name}</div>
-                <div style="text-align:right; display:flex; align-items:center; justify-content:flex-end;">
+                <div class="tp-agent-name">${typeof escapeHtml === 'function' ? escapeHtml(a.name) : a.name}</div>
+                <div style="text-align:right;display:flex;align-items:center;justify-content:flex-end;">
                     ${diffHtml}
                     <div>
                         <div class="tp-agent-leads" style="color:${meta.color}">${a.leads || 0}</div>
@@ -337,7 +349,6 @@ function openTeamPopup(teamCode) {
         }).join('');
     }
 
-    // Use direct style to override inline display:none
     overlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
 }
@@ -348,7 +359,7 @@ function closeTeamPopup(e) {
     document.body.style.overflow = '';
 }
 
-window.openTeamPopup = openTeamPopup;
+window.openTeamPopup  = openTeamPopup;
 window.closeTeamPopup = closeTeamPopup;
 </script>
 
