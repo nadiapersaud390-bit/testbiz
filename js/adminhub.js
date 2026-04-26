@@ -167,7 +167,7 @@ function ahInitZeroPerfLazy() {
                 const uid = String(row.agentId || '').trim();
                 if (!uid) return;
                 if (!map[uid]) map[uid] = 0;
-                if ((row.duration || 0) >= 120) map[uid]++;
+                if (String(row.currentStatus || row['Current Status'] || row.status || '').toUpperCase() === 'XFER') map[uid]++;
             });
             return map;
         }
@@ -399,7 +399,7 @@ async function loadWeeklyDataForWeek(weekKey) {
             const agentName = row.agentName || row.name;
             const rawName = row.rawName || agentName;
             const team = normalizeTeam(row.team, rawName);
-            const isXfer = (row.duration || 0) >= 120;
+            const isXfer = String(row.currentStatus || row['Current Status'] || row.status || '').toUpperCase() === 'XFER';
             const leadCount = isXfer ? 1 : (Number(row.dailyLeads) || 0);
             
             if (leadCount > 0) {
