@@ -278,6 +278,30 @@ function _subscribeLiveDashboard() {
                             pushDate.toLocaleDateString('en-GB') === now.toLocaleDateString('en-GB') &&
                             labelMatches;
 
+            // Track diff changes inside localStorage across pushes
+            const lastPushedAt = localStorage.getItem('biz_last_pushed_at');
+            const statePushedAt = state.pushedAt || '';
+            let prevMap = JSON.parse(localStorage.getItem('biz_prev_leads_map') || '{}');
+            
+            if (statePushedAt && statePushedAt !== lastPushedAt) {
+                 // Push is actually new!
+                 const lastStateStr = localStorage.getItem('biz_last_state_obj');
+                 if (lastStateStr) {
+                     try {
+                         const lastState = JSON.parse(lastStateStr);
+                         prevMap = {};
+                         (lastState.agents || []).forEach(a => {
+                             const id = String(a.ytelId || a.name || '').trim();
+                             if (id) prevMap[id] = a.dailyLeads || 0;
+                         });
+                         localStorage.setItem('biz_prev_leads_map', JSON.stringify(prevMap));
+                     } catch(e) {}
+                 }
+                 localStorage.setItem('biz_last_pushed_at', statePushedAt);
+                 localStorage.setItem('biz_last_state_obj', JSON.stringify(state));
+            }
+            window._prevDailyLeadsMap = prevMap;
+
             // Cache the latest live state so the roster poller can re-render
             // with current lead counts when the sheet changes.
             window._asLastLiveState = state;
@@ -332,6 +356,29 @@ function _subscribeLiveDashboard() {
                 
                 console.log(`Week starting Monday: ${monday.toLocaleDateString()}`);
                 
+                const lastMonday = new Date(monday);
+                lastMonday.setDate(monday.getDate() - 7);
+                
+                // Process Last Week's Totals
+                const lastWeekReports = data.filter(r => {
+                    const uploadDate = new Date(r.uploadedAt);
+                    return uploadDate >= lastMonday && uploadDate < monday;
+                });
+                
+                const lastWeekAgg = {};
+                lastWeekReports.forEach(r => {
+                    (r.data || []).forEach(d => {
+                        const id = String(d.agentId || d.ytelId || d.name || '').trim();
+                        if (!id) return;
+                        if (!lastWeekAgg[id]) lastWeekAgg[id] = 0;
+                        let lc = d.dailyLeads || 0;
+                        if (d.duration !== undefined && d.duration >= 120) lc = 1;
+                        else if (d.duration !== undefined && d.duration < 120) lc = 0;
+                        lastWeekAgg[id] += lc;
+                    });
+                });
+                window._lastWeekTotals = lastWeekAgg;
+
                 // Filter reports from this week
                 const thisWeekReports = data.filter(r => {
                     const uploadDate = new Date(r.uploadedAt);
@@ -492,8 +539,9 @@ function render() {
 
     // Setup Variables
     const isWeekly = currentTab === 'weekly';
+    const isPrevWeek = currentTab === 'prevweek';
     const isHistory = currentTab === 'daily' && currentDayView !== 'today';
-    const target = isWeekly ? 800 : 150;
+    const target = isWeekly ? 800 : (isPrevWeek ? 800 : 150);
     
     const todayName = agents.length > 0 ? (agents[0].todayName || 'Today') : 'Today';
 
@@ -513,13 +561,13 @@ function render() {
             }
         } else {
             if (banner) banner.classList.add('hidden');
-            document.getElementById('goal-label').innerText = isWeekly ? 'Weekly Team Goal' : todayName.toUpperCase() + ' DAILY GOAL';
-            document.getElementById('day-indicator').innerText = isWeekly ? 'Weekly Sprint' : todayName.toUpperCase() + ' PERFORMANCE';
+            document.getElementById('goal-label').innerText = (isWeekly || isPrevWeek) ? 'Weekly Team Goal' : todayName.toUpperCase() + ' DAILY GOAL';
+            document.getElementById('day-indicator').innerText = isPrevWeek ? 'Previous Week Sprint' : (isWeekly ? 'Weekly Sprint' : todayName.toUpperCase() + ' PERFORMANCE');
         }
     } else {
         if(banner) banner.classList.add('hidden');
-        document.getElementById('goal-label').innerText = isWeekly ? 'Weekly Team Goal' : todayName.toUpperCase() + ' DAILY GOAL';
-        document.getElementById('day-indicator').innerText = isWeekly ? 'Weekly Sprint' : todayName.toUpperCase() + ' PERFORMANCE';
+        document.getElementById('goal-label').innerText = (isWeekly || isPrevWeek) ? 'Weekly Team Goal' : todayName.toUpperCase() + ' DAILY GOAL';
+        document.getElementById('day-indicator').innerText = isPrevWeek ? 'Previous Week Sprint' : (isWeekly ? 'Weekly Sprint' : todayName.toUpperCase() + ' PERFORMANCE');
     }
 
     const isAdmin = sessionStorage.getItem('bizUserRole') === 'admin';
@@ -564,17 +612,45 @@ function render() {
             });
         }
     } else {
+        // Figure out week boundaries to hide old data on Sunday/Monday
+        const guyanaTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+        const currentDay = guyanaTime.getDay();
+        const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
+        const currentMonday = new Date(guyanaTime);
+        currentMonday.setDate(guyanaTime.getDate() - daysToMonday);
+        currentMonday.setHours(0, 0, 0, 0);
+        
+        const stateObj = window._asLastLiveState;
+        const pushDate = stateObj && stateObj.pushedAt ? new Date(stateObj.pushedAt) : null;
+        
+        // Hide data if it's a daily view and the live data is from last week.
+        // Wait until supervisor updates Monday's data.
+        let forceHideDaily = false;
+        if (!isHistory && !isWeekly && !isPrevWeek && pushDate && pushDate < currentMonday) {
+            forceHideDaily = true;
+        }
+
         // Use current agents array
         fullList = agents
             .filter(a => !(a.name && String(a.name).toUpperCase().startsWith('PH ')))
-            .map(a => ({
-                name: typeof stripPrefix === 'function' ? stripPrefix(a.name).toUpperCase() : a.name,
-                leads: isWeekly ? (a.weeklyLeads || 0) : (a.dailyLeads || 0),
-                team: normalizeTeam(a.team, a.name),
-                ytelId: a.ytelId || '',
-                rawName: a.name
-            }))
+            .map(a => {
+                let leads = isWeekly ? (a.weeklyLeads || 0) : (a.dailyLeads || 0);
+                if (isPrevWeek && window._lastWeekTotals) {
+                    const idLookup = String(a.ytelId || a.name || '').trim();
+                    leads = window._lastWeekTotals[idLookup] || 0;
+                }
+                if (forceHideDaily) leads = 0;
+                return {
+                    name: typeof stripPrefix === 'function' ? stripPrefix(a.name).toUpperCase() : a.name,
+                    leads: leads,
+                    team: normalizeTeam(a.team, a.name),
+                    ytelId: a.ytelId || '',
+                    rawName: a.name
+                };
+            })
             .sort((a, b) => b.leads - a.leads);
+            
+        if (forceHideDaily) fullList = []; // clear everyone to show no data message
 
         fullList.forEach(a => {
             if (a.team === 'PR') prTotal += a.leads;
@@ -599,6 +675,8 @@ function render() {
     
     if (fullList.length === 0 && isHistory) {
         leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500"><i class="fas fa-calendar-day text-4xl mb-3 block"></i> No data available for this day. The day may not be completed yet or no report was uploaded.</div>';
+    } else if (fullList.length === 0 && !isWeekly && !isPrevWeek && !isHistory) {
+        leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-calendar-week text-4xl mb-3 block"></i> The new week has started. Waiting for the live board to be updated...</div>';
     } else {
         leaderboardEl.innerHTML = displayData.map((agent) => {
             const lvl = getLevel(agent.leads);

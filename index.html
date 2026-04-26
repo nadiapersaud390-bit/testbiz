@@ -12,10 +12,10 @@
 
         .main-container {
             width: 100%;
-            max-width: 900px;
+            max-width: 1400px;
             margin-left: auto;
             margin-right: auto;
-            padding: 0 clamp(8px, 2vw, 20px);
+            padding: 0 clamp(8px, 2vw, 24px);
             box-sizing: border-box;
         }
 
@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
     </div>
 </div>
 
-<div class="main-container max-w-lg mx-auto transition-all duration-500">
+<div class="main-container mx-auto transition-all duration-500">
 
     <div class="flex justify-between items-center mb-8 px-2 mt-4">
         <div class="flex items-center gap-3">
@@ -301,7 +301,10 @@ document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
         
         <button onclick="switchTab('rebuttals')" id="tab-rebuttals" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#14b8a6;border-color:rgba(20,184,166,0.3);">💬 Rebuttals</button>
         <button onclick="switchTab('prank')"     id="tab-prank"     class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#a855f7;">🚨 Prank</button>
-        <button onclick="requestWeekly()"        id="tab-weekly"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-lock text-[9px] mr-1 opacity-60"></i>Weekly</button>
+        <div style="display:flex;gap:8px;">
+            <button onclick="requestWeekly()"        id="tab-weekly"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500 flex-1"><i class="fas fa-lock text-[9px] mr-1 opacity-60"></i>Weekly</button>
+            <button onclick="switchTab('prevweek')"  id="tab-prevweek"  class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500 flex-1" style="color:#94a3b8;border-color:rgba(148,163,184,0.3);"><i class="fas fa-history text-[9px] mr-1 opacity-60"></i>Prev Wk</button>
+        </div>
         
         <button onclick="switchTab('trivia')"    id="tab-trivia"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);grid-column:1/-1;">🎯 Trivia Blitz</button>
         
@@ -395,7 +398,8 @@ window.switchTab = async function(tab) {
         agentstats: 'agentstats-view',
         agentprofiles: 'agentprofiles-view',
         tracker: 'tracker-view',
-        weekly: 'leaderboard-view'
+        weekly: 'leaderboard-view',
+        prevweek: 'leaderboard-view'
     };
 
     if (sessionStorage.getItem('bizUserRole') === 'admin') {

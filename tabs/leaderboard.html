@@ -316,15 +316,24 @@ function openTeamPopup(teamCode) {
     if (teamAgents.length === 0) {
         listEl.innerHTML = '<div style="text-align:center;color:#475569;padding:24px;font-size:13px;font-weight:700;">No agents found for this team.</div>';
     } else {
-        listEl.innerHTML = teamAgents.map((a, i) => `
+        listEl.innerHTML = teamAgents.map((a, i) => {
+            const idLookup = String(a.ytelId || a.rawName || a.name || '').trim();
+            const prev = (window._prevDailyLeadsMap && window._prevDailyLeadsMap[idLookup]) || 0;
+            const diff = (a.leads || 0) - prev;
+            const diffHtml = (diff > 0) ? `<span style="font-size:10px;font-weight:900;color:#22c55e;background:rgba(34,197,94,0.15);padding:2px 5px;border-radius:4px;margin-right:8px;border:1px solid rgba(34,197,94,0.25);">+${diff}</span>` : '';
+            return `
             <div class="tp-agent-row">
                 <div class="tp-agent-rank">${String(i+1).padStart(2,'0')}</div>
                 <div class="tp-agent-name">${escapeHtml ? escapeHtml(a.name) : a.name}</div>
-                <div style="text-align:right;">
-                    <div class="tp-agent-leads" style="color:${meta.color}">${a.leads || 0}</div>
-                    <div class="tp-agent-label">transfers</div>
+                <div style="text-align:right; display:flex; align-items:center; justify-content:flex-end;">
+                    ${diffHtml}
+                    <div>
+                        <div class="tp-agent-leads" style="color:${meta.color}">${a.leads || 0}</div>
+                        <div class="tp-agent-label">transfers</div>
+                    </div>
                 </div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
     }
 
     // Use direct style to override inline display:none
