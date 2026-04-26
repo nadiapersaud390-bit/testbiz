@@ -369,12 +369,25 @@ async function loadWeeklyDataForWeek(weekKey) {
     }
     
     // Filter reports for this week
-    const weekReports = reports.filter(r => {
+    const weekReportsRaw = reports.filter(r => {
         const uploadDate = new Date(r.uploadedAt);
         return uploadDate >= weekStart && uploadDate <= weekEnd;
     });
     
-    // Calculate team totals from all reports in this week
+    // Deduplicate: Keep only the latest report for each calendar day
+    const dayMap = new Map();
+    weekReportsRaw.forEach(report => {
+        const d = new Date(report.uploadedAt);
+        // Using local date string to avoid timezone shifts
+        const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const existing = dayMap.get(dateKey);
+        if (!existing || new Date(report.uploadedAt) > new Date(existing.uploadedAt)) {
+            dayMap.set(dateKey, report);
+        }
+    });
+    const weekReports = Array.from(dayMap.values());
+    
+    // Calculate team totals from the deduplicated reports in this week
     const teamTotals = { PR: 0, BB: 0, RM: 0 };
     const agentWeeklyMap = new Map(); // Store weekly totals per agent
     
@@ -389,16 +402,18 @@ async function loadWeeklyDataForWeek(weekKey) {
             if (leadCount > 0) {
                 teamTotals[team] = (teamTotals[team] || 0) + leadCount;
                 
-                const agentKey = agentName;
-                if (!agentWeeklyMap.has(agentKey)) {
-                    agentWeeklyMap.set(agentKey, {
+                // Unified key matching to prevent alias fragmentation
+                const cleanKey = String(agentName).replace(/^GY[BP]\s*/i, '').trim().toUpperCase();
+                
+                if (!agentWeeklyMap.has(cleanKey)) {
+                    agentWeeklyMap.set(cleanKey, {
                         name: agentName,
                         team: team,
                         transfers: 0,
                         rawName: rawName
                     });
                 }
-                agentWeeklyMap.get(agentKey).transfers += leadCount;
+                agentWeeklyMap.get(cleanKey).transfers += leadCount;
             }
         });
     });

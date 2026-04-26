@@ -395,13 +395,19 @@ function _subscribeLiveDashboard() {
                 Object.values(lastWeekMap).forEach(r => {
                     if (!r) return;
                     (r.data || []).forEach(d => {
-                        const id = String(d.agentId || d.ytelId || d.name || '').trim();
-                        if (!id) return;
-                        if (!lastWeekAgg[id]) lastWeekAgg[id] = 0;
+                        const cleanName = String(d.agentName || d.name || '').replace(/^GY[BP]\s*/i, '').trim().toUpperCase();
+                        const ytelId = String(d.agentId || d.ytelId || '').trim();
+                        
                         let lc = d.dailyLeads || 0;
                         if (d.duration !== undefined && d.duration >= 120) lc = 1;
                         else if (d.duration !== undefined && d.duration < 120) lc = 0;
-                        lastWeekAgg[id] += lc;
+                        
+                        if (ytelId) {
+                            lastWeekAgg[ytelId] = (lastWeekAgg[ytelId] || 0) + lc;
+                        }
+                        if (cleanName) {
+                            lastWeekAgg[cleanName] = (lastWeekAgg[cleanName] || 0) + lc;
+                        }
                     });
                 });
                 window._lastWeekTotals = lastWeekAgg;
