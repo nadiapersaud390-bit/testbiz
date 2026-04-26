@@ -212,7 +212,7 @@
 </div>
 
 <!-- Team Agents Popup Modal -->
-<div id="team-popup-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9998;backdrop-filter:blur(6px);align-items:center;justify-content:center;" onclick="closeTeamPopup(event)">
+<div id="team-popup-overlay" onclick="closeTeamPopup(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99999;backdrop-filter:blur(6px);align-items:center;justify-content:center;">
     <div id="team-popup-box" style="background:rgba(10,14,30,0.97);border:1px solid rgba(255,255,255,0.12);border-radius:20px;width:min(520px,92vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,0.8);">
         <!-- Header -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid rgba(255,255,255,0.07);">
@@ -327,13 +327,14 @@ function openTeamPopup(teamCode) {
             </div>`).join('');
     }
 
-    overlay.classList.add('visible');
+    // Use direct style to override inline display:none
+    overlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
 }
 
 function closeTeamPopup(e) {
     if (e && e.target !== document.getElementById('team-popup-overlay')) return;
-    document.getElementById('team-popup-overlay').classList.remove('visible');
+    document.getElementById('team-popup-overlay').style.display = 'none';
     document.body.style.overflow = '';
 }
 
