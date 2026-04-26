@@ -258,45 +258,57 @@ document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
     </div>
 </div>
 
-<div class="main-container mx-auto transition-all duration-500">
+<div class="main-container max-w-lg mx-auto transition-all duration-500">
 
-    <!-- Compact time pills + refresh row -->
-    <div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-bottom:18px;position:relative;">
-        <div id="clock-guyana-pill" style="background:rgba(255,160,0,0.18);border:1px solid rgba(255,160,0,0.35);border-radius:50px;padding:6px 18px;font-family:'Inter',sans-serif;font-size:15px;font-weight:900;color:#facc15;letter-spacing:0.04em;display:flex;align-items:center;gap:6px;">
-            <span style="font-size:11px;font-weight:900;color:#f97316;letter-spacing:0.1em;">GY</span>
-            <span id="clock-guyana">--:--:-- --</span>
+    <div class="flex justify-between items-center mb-8 px-2 mt-4">
+        <div class="flex items-center gap-3">
+            <span class="live-pulse"></span>
+            <div class="flex flex-col">
+                <span class="text-[10px] md:text-xs font-black tracking-widest text-red-500 uppercase italic leading-none">Live System Performance</span>
+                <span id="timestamp" class="text-[8px] md:text-sm text-slate-500 font-bold uppercase mt-1">Live: --:--:--</span>
+            </div>
         </div>
-        <div id="clock-us-pill" style="background:rgba(56,189,248,0.14);border:1px solid rgba(56,189,248,0.3);border-radius:50px;padding:6px 18px;font-family:'Inter',sans-serif;font-size:15px;font-weight:900;color:#38bdf8;letter-spacing:0.04em;display:flex;align-items:center;gap:6px;">
-            <span style="font-size:11px;font-weight:900;color:#38bdf8;letter-spacing:0.1em;">US</span>
-            <span id="clock-california">--:--:-- --</span>
+        <button onclick="typeof updateDashboard==='function'?updateDashboard():window.location.reload()" id="refresh-btn" class="glass p-3 px-4 rounded-xl hover:bg-white/10 transition-all active:scale-95">
+            <i class="fas fa-sync-alt text-sm text-blue-400"></i>
+        </button>
+    </div>
+
+    <div class="text-center mb-10">
+        <h1 class="header-font text-4xl md:text-6xl font-black tracking-tighter bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 bg-clip-text text-transparent italic leading-tight uppercase" id="main-title" onclick="typeof handleTitleTap==='function'?handleTitleTap():null" style="cursor:default;user-select:none;">BIZ Level Up Dashboard</h1>
+        <div style="display:flex;justify-content:center;gap:16px;margin-top:12px;flex-wrap:wrap;">
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:8px 18px;display:flex;align-items:center;gap:10px;">
+                <span style="font-size:11px;font-weight:900;color:#f97316;letter-spacing:0.1em;opacity:0.8;">GY</span>
+                <div>
+                    <div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#64748b;">Guyana</div>
+                    <div id="clock-guyana" style="font-family:'Inter',sans-serif;font-size:20px;font-weight:900;color:#facc15;letter-spacing:0.02em;">--:-- --</div>
+                </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:8px 18px;display:flex;align-items:center;gap:10px;">
+                <span style="font-size:11px;font-weight:900;color:#38bdf8;letter-spacing:0.1em;opacity:0.8;">US</span>
+                <div>
+                    <div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#64748b;">California</div>
+                    <div id="clock-california" style="font-family:'Inter',sans-serif;font-size:20px;font-weight:900;color:#38bdf8;letter-spacing:0.02em;">--:-- --</div>
+                </div>
+            </div>
         </div>
-        <button onclick="logoutUser()" title="Log Out" style="position:absolute;right:0;padding:6px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(2,6,23,0.7);color:#f8fafc;font-size:11px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;">LOG OUT</button>
     </div>
 
-    <!-- ROW 1: Daily | Lookup | Playbook -->
-    <div class="tab-grid">
-        <button onclick="switchTab('daily')" id="tab-daily" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all tab-active">Daily</button>
-        <button onclick="switchTab('lookup')" id="tab-lookup" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-search text-[9px] mr-1 opacity-60"></i>Lookup</button>
-        <button onclick="switchTab('playbook')" id="tab-playbook" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500">Playbook</button>
-    </div>
-
-    <!-- ROW 2: Rebuttals | Prank | Weekly -->
-    <div class="tab-grid">
-        <button onclick="switchTab('rebuttals')" id="tab-rebuttals" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500" style="color:#14b8a6;border-color:rgba(20,184,166,0.3);">💬 Rebuttals</button>
-        <button onclick="switchTab('prank')" id="tab-prank" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500" style="color:#a855f7;">🚨 Prank</button>
-        <button onclick="requestWeekly()" id="tab-weekly" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-lock text-[9px] mr-1 opacity-60"></i>Weekly</button>
-    </div>
-
-    <!-- ROW 3: Trivia | My Tracker | Admin Tools -->
-    <div class="tab-grid">
-        <button onclick="switchTab('trivia')" id="tab-trivia" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);">🎯 Trivia Blitz</button>
-        <button onclick="switchTab('tracker')" id="tab-tracker" class="glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500" style="color:#818cf8;border-color:rgba(129,140,248,0.3);">📋 My Tracker</button>
-        <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500" style="color:#ef4444;border-color:rgba(239,68,68,0.35);">🛡️ Admin Tools</button>
-    </div>
-
-    <!-- ROW 4: Super Admin (only visible to Super Admin) -->
-    <div class="tab-grid">
-        <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden glass py-3 rounded-xl font-black uppercase tracking-widest transition-all text-slate-500 tab-grid-full" style="color:#eab308;border-color:rgba(234,179,8,0.35);">👑 Super Admin</button>
+    <!-- MAIN TABS GRID -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:0 8px;max-width:48rem;margin-left:auto;margin-right:auto;">
+        <button onclick="switchTab('daily')"     id="tab-daily"     class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all tab-active">Daily</button>
+        <button onclick="switchTab('lookup')"    id="tab-lookup"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-search text-[9px] mr-1 opacity-60"></i>Lookup</button>
+        <button onclick="switchTab('playbook')"  id="tab-playbook"  class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500">Playbook</button>
+        
+        <button onclick="switchTab('rebuttals')" id="tab-rebuttals" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#14b8a6;border-color:rgba(20,184,166,0.3);">💬 Rebuttals</button>
+        <button onclick="switchTab('prank')"     id="tab-prank"     class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#a855f7;">🚨 Prank</button>
+        <button onclick="requestWeekly()"        id="tab-weekly"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-lock text-[9px] mr-1 opacity-60"></i>Weekly</button>
+        
+        <button onclick="switchTab('trivia')"    id="tab-trivia"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);grid-column:1/-1;">🎯 Trivia Blitz</button>
+        
+        <!-- ADMIN/TRACKER TABS (Hidden by default, unlocked by setupRoleBasedTabs) -->
+        <button onclick="switchTab('tracker')" id="tab-tracker" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#818cf8;border-color:rgba(129,140,248,0.3);grid-column:1/-1;">📋 My Tracker</button>
+        <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#ef4444;border-color:rgba(239,68,68,0.35);grid-column:1/-1;">🛡️ Admin Tools</button>
+        <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#eab308;border-color:rgba(234,179,8,0.35);grid-column:1/-1;">👑 Super Admin</button>
     </div>
 
     <div id="day-sub-tabs-wrapper" class="hidden px-2 mb-5 max-w-2xl mx-auto">

@@ -206,23 +206,41 @@
   try {
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
+
+    // Sync admin accounts
     onValue(ref(db, 'admins_list'), (snapshot) => {
       const firebaseData = snapshot.val() || {};
-      // MERGE: get existing local data first, then overlay Firebase data
-      // This ensures system-seeded accounts (momo, 0000) are never wiped
       const localData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
       const merged = Object.assign({}, localData, firebaseData);
       localStorage.setItem('biz_admins_list_v1', JSON.stringify(merged));
-      // Re-seed defaults in case Firebase didn't have them
       if (typeof window.seedDefaultAdmins === 'function') window.seedDefaultAdmins();
     });
+
+    // Sync super admin
     onValue(ref(db, 'super_admin'), (snapshot) => {
-        const data = snapshot.val();
-        if (data) localStorage.setItem('biz_super_admin_v1', JSON.stringify(data));
+      const data = snapshot.val();
+      if (data) localStorage.setItem('biz_super_admin_v1', JSON.stringify(data));
     });
+
+    // ── Load agent roster for login fallback ──
+    onValue(ref(db, 'agent_profiles'), (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+      // Firebase stores profiles as an object keyed by userId
+      const list = typeof data === 'object' && !Array.isArray(data)
+        ? Object.values(data)
+        : (Array.isArray(data) ? data : []);
+      if (list.length > 0) {
+        window.allAgentProfiles = list;
+        try { localStorage.setItem('biz_master_roster', JSON.stringify(list)); } catch(e) {}
+        console.log(`[login] Loaded ${list.length} agent profiles from Firebase`);
+      }
+    });
+
   } catch (e) {
     console.warn("Firebase sync failed", e);
   }
+
 </script>
 <script>
   const API_URL = 'https://script.google.com/macros/s/AKfycbyRxs3TigaCWv8_HAv43kzQOBlk-xRk02kGM3iJrsBIXCU-7E2UuXUkbTwTVeHY5Ucigw/exec';
@@ -372,7 +390,7 @@
     if (isPotentialAdmin) {
       btn.dataset.mode = 'admin';
       adminPasswordWrap.style.display = 'block';
-      btn.dataset.adminId = loginId; // Store original to preserve ROSE, superAdminLogin handles lowercase for regular admins
+      btn.dataset.adminId = loginId;
       btn.textContent = 'Admin Log In →';
       adminPasswordInput.focus();
       return;
@@ -389,47 +407,80 @@
 
     const existingRecord = getStoredAttendance(ytelId);
 
+    // ── STEP 1: Try Apps Script schedule lookup ──
+    let sData = null;
     try {
       const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
-      const sData = await sRes.json();
+      const raw = await sRes.json();
+      if (raw && raw.found) sData = raw;
+    } catch (e) {
+      console.warn('[login] getAgentSchedule fetch failed:', e);
+    }
 
-      if (!sData.found) {
-        flashError(input, errEl, btn, 'Ytel ID not found — double-check your number.');
-        return;
+    // ── STEP 2: Fallback — check local Firebase roster ──
+    if (!sData) {
+      const roster = window.allAgentProfiles ||
+        (() => { try { return JSON.parse(localStorage.getItem('biz_master_roster') || '[]'); } catch(e) { return []; } })();
+
+      const match = roster.find(a =>
+        String(a.userId || a.ytelId || '').trim() === ytelId ||
+        String(a.userId || a.ytelId || '').trim() === loginId
+      );
+
+      if (match) {
+        // Build a minimal sData object from roster record
+        sData = {
+          found: true,
+          name: match.fullName || match.name || ('Agent ' + ytelId),
+          team: match.team || '',
+          shift: '—',
+          lunch: '—'
+        };
+        console.log('[login] Roster fallback matched:', sData.name);
       }
+    }
 
-      if (existingRecord) {
-        showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
-      } else {
-        const status = checkLate() ? 'Late' : 'Present';
-        const clockedAt = fmtTime(guyanaTime());
+    // ── STEP 3: Still not found — block ──
+    if (!sData) {
+      flashError(input, errEl, btn, 'Ytel ID not found — double-check your number or contact your supervisor.');
+      return;
+    }
 
-        const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
-        const aData = await aRes.json();
+    // ── STEP 4: Already clocked in today? Show result directly ──
+    if (existingRecord) {
+      showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
+      return;
+    }
 
-        if (!aData.ok && aData.writeResult !== 'already_marked') {
-          let msg = 'Attendance marking failed — please try again.';
-          if (aData.writeResult === 'agent_not_found') {
-            msg = 'You were found in the system but not in the weekly sheet — please contact your supervisor.';
-          } else if (aData.writeResult === 'no_sheet') {
-            msg = 'Weekly attendance sheet not found — contact your supervisor.';
-          } else if (aData.writeResult === 'no_week_block') {
-            msg = 'No active week block found in the sheet — contact your supervisor.';
-          }
-          flashError(input, errEl, btn, msg);
-          return;
-        }
+    // ── STEP 5: Mark attendance (non-blocking) ──
+    const status = checkLate() ? 'Late' : 'Present';
+    const clockedAt = fmtTime(guyanaTime());
 
-        storeAttendance(ytelId, status, clockedAt);
-        if (typeof window.ahUpdateAgentPresence === 'function') {
-          window.ahUpdateAgentPresence(ytelId, sData.name, status);
-        }
-        showResult(sData, status, ytelId, clockedAt);
+    try {
+      const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
+      const aData = await aRes.json();
+
+      if (!aData.ok && aData.writeResult !== 'already_marked') {
+        // Soft warning — log but don't block the login
+        console.warn('[attendance] Marking failed:', aData.writeResult);
+        errEl.textContent = '⚠️ Attendance sheet not updated, but you are logged in.';
+        errEl.style.color = '#f59e0b';
       }
     } catch (e) {
-      flashError(input, errEl, btn, 'Network error — check your connection and retry.');
+      // Network issue on attendance — still let agent in
+      console.warn('[attendance] Network error during marking:', e);
+      errEl.textContent = '⚠️ Attendance not recorded (offline), but you are logged in.';
+      errEl.style.color = '#f59e0b';
     }
+
+    storeAttendance(ytelId, status, clockedAt);
+    if (typeof window.ahUpdateAgentPresence === 'function') {
+      window.ahUpdateAgentPresence(ytelId, sData.name, status);
+    }
+    showResult(sData, status, ytelId, clockedAt);
   }
+
+
 
   async function doAdminLogin(adminPasswordInput, errEl, btn) {
     const loginId = btn.dataset.adminId;
