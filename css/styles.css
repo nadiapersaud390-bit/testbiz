@@ -69,8 +69,10 @@
         .rebuttal-body.open{max-height:1200px;}
         .rebuttal-card:has(.rebuttal-body.open){grid-column:1/-1;}
         .rebuttal-body-inner{padding:0 20px 18px;}
-        .leaderboard-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;}
+        .leaderboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
         @media(min-width:1024px){.main-container{max-width:1400px!important;}.stat-card{padding:30px!important;}.stat-value{font-size:3rem!important;}}
+        @media(min-width:1800px){.leaderboard-grid{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));}}
+        @media(max-width:640px){.leaderboard-grid{grid-template-columns:1fr;}}
 
         /* ===== TRIVIA STYLES ===== */
         :root{--neon-yellow:#FFE500;--neon-orange:#FF6B00;--neon-pink:#FF2D78;--neon-cyan:#00F5FF;--neon-green:#39FF14;}
