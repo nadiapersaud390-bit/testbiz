@@ -359,14 +359,41 @@ function _subscribeLiveDashboard() {
                 const lastMonday = new Date(monday);
                 lastMonday.setDate(monday.getDate() - 7);
                 
-                // Process Last Week's Totals
+                // Process Last Week's Totals (Deduplicate to pick 1 report per day)
                 const lastWeekReports = data.filter(r => {
                     const uploadDate = new Date(r.uploadedAt);
                     return uploadDate >= lastMonday && uploadDate < monday;
                 });
                 
-                const lastWeekAgg = {};
+                const lastWeekMap = {};
+                FULL_WEEK_DAYS.forEach(day => { lastWeekMap[day] = null; });
+
                 lastWeekReports.forEach(r => {
+                    const reportDate = new Date(r.uploadedAt);
+                    const reportDayIndex = reportDate.getDay();
+                    let dayKey = '';
+                    
+                    if (reportDayIndex === 1) dayKey = 'MON';
+                    else if (reportDayIndex === 2) dayKey = 'TUE';
+                    else if (reportDayIndex === 3) dayKey = 'WED';
+                    else if (reportDayIndex === 4) dayKey = 'THU';
+                    else if (reportDayIndex === 5) dayKey = 'FRI';
+                    
+                    const reportDayOfWeek = r.dayOfWeek;
+                    if (FULL_WEEK_DAYS.includes(reportDayOfWeek) && !lastWeekMap[reportDayOfWeek]) {
+                        dayKey = reportDayOfWeek;
+                    }
+                    
+                    if (dayKey && FULL_WEEK_DAYS.includes(dayKey)) {
+                        if (!lastWeekMap[dayKey] || new Date(r.uploadedAt) > new Date(lastWeekMap[dayKey].uploadedAt)) {
+                            lastWeekMap[dayKey] = r;
+                        }
+                    }
+                });
+
+                const lastWeekAgg = {};
+                Object.values(lastWeekMap).forEach(r => {
+                    if (!r) return;
                     (r.data || []).forEach(d => {
                         const id = String(d.agentId || d.ytelId || d.name || '').trim();
                         if (!id) return;
@@ -623,11 +650,14 @@ function render() {
         const stateObj = window._asLastLiveState;
         const pushDate = stateObj && stateObj.pushedAt ? new Date(stateObj.pushedAt) : null;
         
-        // Hide data if it's a daily view and the live data is from last week.
-        // Wait until supervisor updates Monday's data.
+        // Hide data if it's Sunday waiting for Monday's push, or if Monday hasn't been pushed yet.
         let forceHideDaily = false;
-        if (!isHistory && !isWeekly && !isPrevWeek && pushDate && pushDate < currentMonday) {
-            forceHideDaily = true;
+        if (!isHistory && !isWeekly && !isPrevWeek) {
+            if (currentDay === 0) {
+                forceHideDaily = true;
+            } else if (pushDate && pushDate < currentMonday) {
+                forceHideDaily = true;
+            }
         }
 
         // Use current agents array

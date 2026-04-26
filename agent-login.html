@@ -433,8 +433,8 @@
           found: true,
           name: match.fullName || match.name || ('Agent ' + ytelId),
           team: match.team || '',
-          shift: '—',
-          lunch: '—'
+          shift: match.shift || '—',
+          lunch: match.lunchTime || match.lunch || '—'
         };
         console.log('[login] Roster fallback matched:', sData.name);
       }

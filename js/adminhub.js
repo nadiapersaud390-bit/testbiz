@@ -676,20 +676,13 @@ window.ahInitOverview = function() {
     }
     
     if (!permissions.isSuper) {
-        const zeroBtn = document.getElementById('ah-tab-zero');
-        if (zeroBtn) {
-            zeroBtn.classList.remove('flex', 'flex-col', 'items-center', 'justify-center', 'py-4');
-            zeroBtn.classList.add('ah-nav-btn', 'w-full');
-            const gridWrapper = zeroBtn.parentElement;
-            if (gridWrapper) {
-                gridWrapper.classList.remove('grid', 'grid-cols-2');
-                gridWrapper.classList.add('flex', 'flex-col');
-            }
-            zeroBtn.innerHTML = '<i class="fas fa-ghost mr-2"></i> Zero Performance';
-        }
-        
         if (['admintools', 'trivia', 'super'].includes(ahCurrentSubTab)) {
-            window.switchAdminHubTab('overview');
+            // Only force switch if the active tab is one they strictly don't have access to
+            if ((ahCurrentSubTab === 'adminpanel' && !permissions.canSeeAdminTools) ||
+                (ahCurrentSubTab === 'trivia' && !permissions.canSeeTrivia) ||
+                (ahCurrentSubTab === 'super')) {
+                window.switchAdminHubTab('overview');
+            }
         }
     }
 
