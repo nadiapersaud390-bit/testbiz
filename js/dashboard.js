@@ -539,8 +539,8 @@ function render() {
 
     // Setup Variables
     const isWeekly = currentTab === 'weekly';
-    const isPrevWeek = currentTab === 'prevweek';
-    const isHistory = currentTab === 'daily' && currentDayView !== 'today';
+    const isPrevWeek = currentTab === 'daily' && currentDayView === 'prevweek';
+    const isHistory = currentTab === 'daily' && currentDayView !== 'today' && currentDayView !== 'prevweek';
     const target = isWeekly ? 800 : (isPrevWeek ? 800 : 150);
     
     const todayName = agents.length > 0 ? (agents[0].todayName || 'Today') : 'Today';
@@ -773,7 +773,15 @@ function renderDaySubTabs() {
                 </button>`;
         }
     });
-    
+
+    // Append Previous Week button
+    const isPrevActive = currentDayView === 'prevweek';
+    html += `
+        <button onclick="switchDayView('prevweek')" 
+                class="day-sub-tab is-history ${isPrevActive ? 'active' : ''}" style="margin-left:8px; border-color:rgba(148,163,184,0.3); color:#94a3b8;">
+            <i class="fas fa-history mr-1 opacity-60"></i> PREV WK
+        </button>`;
+
     container.innerHTML = html;
     
     // Add CSS for the day tabs if not already present

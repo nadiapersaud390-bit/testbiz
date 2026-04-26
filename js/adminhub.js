@@ -48,8 +48,8 @@ function getAdminPermissions(adminEmail) {
         return {
             isSuper: false,
             canSeeStats: true,
-            canSeeAdminTools: false,
-            canSeeTrivia: false,
+            canSeeAdminTools: true,
+            canSeeTrivia: true,
             canSeeSuper: false
         };
     }
