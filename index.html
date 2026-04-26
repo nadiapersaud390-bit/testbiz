@@ -9,42 +9,43 @@
     <link rel="stylesheet" href="css/styles.css">
     <style>
         /* ── RESPONSIVE ZOOM FIX ── */
-        /* Fluid container that adjusts at any zoom level */
+
+        /* Main container: fluid width, generous max, never clips */
         .main-container {
             width: 100%;
-            max-width: min(42rem, 98vw);
+            max-width: 1400px;
             margin-left: auto;
             margin-right: auto;
-            padding: 0 clamp(4px, 2vw, 16px);
+            padding: 0 clamp(8px, 2vw, 24px);
             box-sizing: border-box;
         }
 
-        /* Tab grid — fluid columns, never overflow */
+        /* Tab grid — always 3 equal columns */
         .tab-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: clamp(4px, 1.5vw, 10px);
+            gap: clamp(4px, 1vw, 10px);
             margin-bottom: clamp(4px, 1vw, 10px);
             padding: 0;
             width: 100%;
             box-sizing: border-box;
         }
 
-        /* Buttons scale text and padding fluidly */
+        /* Buttons: fluid text, never overflow */
         .tab-grid button {
             width: 100%;
             min-width: 0;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            font-size: clamp(7px, 1.8vw, 11px) !important;
-            padding: clamp(8px, 2vw, 14px) clamp(2px, 1vw, 8px) !important;
+            font-size: clamp(8px, 1.2vw, 13px) !important;
+            padding: clamp(8px, 1.2vw, 14px) clamp(4px, 0.8vw, 10px) !important;
             box-sizing: border-box;
         }
 
-        /* Icon inside buttons scale too */
+        /* Icon inside buttons */
         .tab-grid button i {
-            font-size: clamp(7px, 1.6vw, 10px) !important;
+            font-size: clamp(7px, 1vw, 11px) !important;
         }
 
         /* Full-width row (Super Admin) */
@@ -52,7 +53,7 @@
             grid-column: 1 / -1;
         }
 
-        /* Day sub-tabs also fluid */
+        /* Day sub-tabs fluid */
         #day-sub-tabs-container {
             display: flex;
             flex-wrap: wrap;
@@ -60,21 +61,28 @@
         }
 
         .day-sub-tab {
-            font-size: clamp(8px, 1.8vw, 11px) !important;
-            padding: clamp(4px, 1vw, 7px) clamp(8px, 2vw, 14px) !important;
+            font-size: clamp(8px, 1vw, 11px) !important;
+            padding: clamp(4px, 0.6vw, 7px) clamp(8px, 1.2vw, 14px) !important;
         }
 
-        /* Leaderboard cards don't overflow on zoom out */
+        /* Leaderboard grid: auto-fit columns — zoom out = more columns, zoom in = fewer */
+        #leaderboard {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
+            gap: 14px !important;
+        }
+
+        /* Each leaderboard card fills its cell */
         #leaderboard > div {
             min-width: 0;
             box-sizing: border-box;
         }
 
-        /* Stats bar responsive */
+        /* Stats bar: auto-fit, always fills width */
         .stats-bar-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(min(120px, 40vw), 1fr));
-            gap: clamp(6px, 1.5vw, 12px);
+            grid-template-columns: repeat(auto-fit, minmax(min(160px, 40vw), 1fr));
+            gap: clamp(6px, 1.2vw, 14px);
         }
 
         /* Hide elements gracefully */
@@ -251,7 +259,7 @@ document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
     </div>
 </div>
 
-<div class="main-container max-w-lg mx-auto transition-all duration-500">
+<div class="main-container mx-auto transition-all duration-500">
 
     <div class="flex justify-between items-center mb-8 px-2">
         <div class="flex items-center">
