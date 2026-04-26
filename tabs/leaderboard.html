@@ -2,9 +2,10 @@
     /* ── LEADERBOARD GRID ── */
     #leaderboard {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 14px;
+        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+        gap: 16px;
         padding: 0 8px 24px;
+        align-items: start;
     }
     @media (max-width: 600px) {
         #leaderboard { grid-template-columns: 1fr; }
