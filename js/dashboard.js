@@ -369,19 +369,14 @@ function _subscribeLiveDashboard() {
                 FULL_WEEK_DAYS.forEach(day => { lastWeekMap[day] = null; });
 
                 lastWeekReports.forEach(r => {
-                    const reportDate = new Date(r.uploadedAt);
-                    const reportDayIndex = reportDate.getDay();
-                    let dayKey = '';
-                    
-                    if (reportDayIndex === 1) dayKey = 'MON';
-                    else if (reportDayIndex === 2) dayKey = 'TUE';
-                    else if (reportDayIndex === 3) dayKey = 'WED';
-                    else if (reportDayIndex === 4) dayKey = 'THU';
-                    else if (reportDayIndex === 5) dayKey = 'FRI';
-                    
-                    const reportDayOfWeek = r.dayOfWeek;
-                    if (FULL_WEEK_DAYS.includes(reportDayOfWeek) && !lastWeekMap[reportDayOfWeek]) {
-                        dayKey = reportDayOfWeek;
+                    let dayKey = r.dayOfWeek;
+                    if (!FULL_WEEK_DAYS.includes(dayKey)) {
+                        const reportDayIndex = new Date(r.uploadedAt).getDay();
+                        if (reportDayIndex === 1) dayKey = 'MON';
+                        else if (reportDayIndex === 2) dayKey = 'TUE';
+                        else if (reportDayIndex === 3) dayKey = 'WED';
+                        else if (reportDayIndex === 4) dayKey = 'THU';
+                        else if (reportDayIndex === 5) dayKey = 'FRI';
                     }
                     
                     if (dayKey && FULL_WEEK_DAYS.includes(dayKey)) {
@@ -398,9 +393,9 @@ function _subscribeLiveDashboard() {
                         const cleanName = String(d.agentName || d.name || '').replace(/^GY[BP]\s*/i, '').trim().toUpperCase();
                         const ytelId = String(d.agentId || d.ytelId || '').trim();
                         
-                        let lc = d.dailyLeads || 0;
-                        if (d.duration !== undefined && d.duration >= 120) lc = 1;
-                        else if (d.duration !== undefined && d.duration < 120) lc = 0;
+                        let lc = Number(d.dailyLeads) || 0;
+                        if (d.duration !== undefined && Number(d.duration) >= 120) lc = 1;
+                        else if (d.duration !== undefined && Number(d.duration) < 120) lc = 0;
                         
                         if (ytelId) {
                             lastWeekAgg[ytelId] = (lastWeekAgg[ytelId] || 0) + lc;
@@ -428,19 +423,14 @@ function _subscribeLiveDashboard() {
                 
                 // Process each report and assign to the correct day
                 thisWeekReports.forEach(r => {
-                    const reportDate = new Date(r.uploadedAt);
-                    const reportDayIndex = reportDate.getDay();
-                    let dayKey = '';
-                    
-                    if (reportDayIndex === 1) dayKey = 'MON';
-                    else if (reportDayIndex === 2) dayKey = 'TUE';
-                    else if (reportDayIndex === 3) dayKey = 'WED';
-                    else if (reportDayIndex === 4) dayKey = 'THU';
-                    else if (reportDayIndex === 5) dayKey = 'FRI';
-                    
-                    const reportDayOfWeek = r.dayOfWeek;
-                    if (FULL_WEEK_DAYS.includes(reportDayOfWeek) && !weekMap[reportDayOfWeek]) {
-                        dayKey = reportDayOfWeek;
+                    let dayKey = r.dayOfWeek;
+                    if (!FULL_WEEK_DAYS.includes(dayKey)) {
+                        const reportDayIndex = new Date(r.uploadedAt).getDay();
+                        if (reportDayIndex === 1) dayKey = 'MON';
+                        else if (reportDayIndex === 2) dayKey = 'TUE';
+                        else if (reportDayIndex === 3) dayKey = 'WED';
+                        else if (reportDayIndex === 4) dayKey = 'THU';
+                        else if (reportDayIndex === 5) dayKey = 'FRI';
                     }
                     
                     if (dayKey && FULL_WEEK_DAYS.includes(dayKey)) {

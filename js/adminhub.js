@@ -374,12 +374,15 @@ async function loadWeeklyDataForWeek(weekKey) {
         return uploadDate >= weekStart && uploadDate <= weekEnd;
     });
     
-    // Deduplicate: Keep only the latest report for each calendar day
+    // Deduplicate: Keep only the latest report for each categorized day
     const dayMap = new Map();
     weekReportsRaw.forEach(report => {
-        const d = new Date(report.uploadedAt);
-        // Using local date string to avoid timezone shifts
-        const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        let dateKey = report.dayOfWeek;
+        if (!dateKey || !['MON','TUE','WED','THU','FRI','SAT','SUN'].includes(dateKey)) {
+            const d = new Date(report.uploadedAt);
+            dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+        
         const existing = dayMap.get(dateKey);
         if (!existing || new Date(report.uploadedAt) > new Date(existing.uploadedAt)) {
             dayMap.set(dateKey, report);
@@ -397,7 +400,7 @@ async function loadWeeklyDataForWeek(weekKey) {
             const rawName = row.rawName || agentName;
             const team = normalizeTeam(row.team, rawName);
             const isXfer = (row.duration || 0) >= 120;
-            const leadCount = isXfer ? 1 : (row.dailyLeads || 0);
+            const leadCount = isXfer ? 1 : (Number(row.dailyLeads) || 0);
             
             if (leadCount > 0) {
                 teamTotals[team] = (teamTotals[team] || 0) + leadCount;
