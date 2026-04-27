@@ -358,27 +358,45 @@ function _subscribeLiveDashboard() {
                 
                 const lastMonday = new Date(monday);
                 lastMonday.setDate(monday.getDate() - 7);
-                
-                // Process Last Week's Totals (Deduplicate to pick 1 report per day)
+
+                // Resolve a report's true date (CSV reportDate > filename date > uploadedAt).
+                // The upload time is unreliable because Friday's CSV is often uploaded
+                // the following Monday — using uploadedAt would drop that day from last
+                // week and mis-tag it as Monday of this week.
+                const _actualDate = (r) => {
+                    if (r && r.reportDate) {
+                        const d = new Date(r.reportDate);
+                        if (!isNaN(d.getTime())) return d;
+                    }
+                    if (r && r.filename) {
+                        const m = r.filename.match(/(\d{2})_(\d{2})_(\d{4})/);
+                        if (m) {
+                            const d = new Date(`${m[3]}-${m[1]}-${m[2]}`);
+                            if (!isNaN(d.getTime())) return d;
+                        }
+                    }
+                    return new Date(r && r.uploadedAt);
+                };
+                const _dayKeyFromIndex = (i) => (
+                    i === 1 ? 'MON' : i === 2 ? 'TUE' : i === 3 ? 'WED' :
+                    i === 4 ? 'THU' : i === 5 ? 'FRI' : null
+                );
+
+                // Process Last Week's Totals — bucket by ACTUAL report date
                 const lastWeekReports = data.filter(r => {
-                    const uploadDate = new Date(r.uploadedAt);
-                    return uploadDate >= lastMonday && uploadDate < monday;
+                    const d = _actualDate(r);
+                    return d >= lastMonday && d < monday;
                 });
-                
+
                 const lastWeekMap = {};
                 FULL_WEEK_DAYS.forEach(day => { lastWeekMap[day] = null; });
 
                 lastWeekReports.forEach(r => {
                     let dayKey = r.dayOfWeek;
                     if (!FULL_WEEK_DAYS.includes(dayKey)) {
-                        const reportDayIndex = new Date(r.uploadedAt).getDay();
-                        if (reportDayIndex === 1) dayKey = 'MON';
-                        else if (reportDayIndex === 2) dayKey = 'TUE';
-                        else if (reportDayIndex === 3) dayKey = 'WED';
-                        else if (reportDayIndex === 4) dayKey = 'THU';
-                        else if (reportDayIndex === 5) dayKey = 'FRI';
+                        dayKey = _dayKeyFromIndex(_actualDate(r).getDay());
                     }
-                    
+
                     if (dayKey && FULL_WEEK_DAYS.includes(dayKey)) {
                         if (!lastWeekMap[dayKey] || new Date(r.uploadedAt) > new Date(lastWeekMap[dayKey].uploadedAt)) {
                             lastWeekMap[dayKey] = r;
@@ -407,32 +425,27 @@ function _subscribeLiveDashboard() {
                 });
                 window._lastWeekTotals = lastWeekAgg;
 
-                // Filter reports from this week
+                // Filter reports from this week — by ACTUAL report date, not upload time
                 const thisWeekReports = data.filter(r => {
-                    const uploadDate = new Date(r.uploadedAt);
-                    return uploadDate >= monday;
+                    const d = _actualDate(r);
+                    return d >= monday;
                 });
-                
+
                 // Map to store the best report for each day
                 const weekMap = {};
-                
+
                 // Initialize Monday-Friday
                 FULL_WEEK_DAYS.forEach(day => {
                     weekMap[day] = null;
                 });
-                
+
                 // Process each report and assign to the correct day
                 thisWeekReports.forEach(r => {
                     let dayKey = r.dayOfWeek;
                     if (!FULL_WEEK_DAYS.includes(dayKey)) {
-                        const reportDayIndex = new Date(r.uploadedAt).getDay();
-                        if (reportDayIndex === 1) dayKey = 'MON';
-                        else if (reportDayIndex === 2) dayKey = 'TUE';
-                        else if (reportDayIndex === 3) dayKey = 'WED';
-                        else if (reportDayIndex === 4) dayKey = 'THU';
-                        else if (reportDayIndex === 5) dayKey = 'FRI';
+                        dayKey = _dayKeyFromIndex(_actualDate(r).getDay());
                     }
-                    
+
                     if (dayKey && FULL_WEEK_DAYS.includes(dayKey)) {
                         if (!weekMap[dayKey] || new Date(r.uploadedAt) > new Date(weekMap[dayKey].uploadedAt)) {
                             weekMap[dayKey] = r;
