@@ -87,7 +87,8 @@
       transition: border-color 0.2s, box-shadow 0.2s;
       margin-bottom: 6px;
     }
-    #ytel-input { font-size: 2rem; letter-spacing: 0.16em; font-weight: 800; text-transform: uppercase; }
+    #ytel-input { font-size: 2rem; letter-spacing: 0.16em; -moz-appearance: textfield; font-weight: 800; }
+    #ytel-input::-webkit-outer-spin-button, #ytel-input::-webkit-inner-spin-button { -webkit-appearance: none; }
     #admin-password-input { font-size: 1rem; letter-spacing: 0.08em; margin-bottom: 10px; }
     #ytel-input:focus, #admin-password-input:focus { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(250,204,21,0.10); }
     #ytel-input.shake, #admin-password-input.shake { border-color: var(--red); animation: shake 0.4s ease; }
@@ -154,7 +155,7 @@
   <div class="logo-ring">🏢</div>
   <div class="brand">BIZ Level Up</div>
   <h1>Clock In</h1>
-  <p class="subtitle">Enter your Ytel ID — or ROSE for super admin</p>
+  <p class="subtitle">Enter your Ytel ID — see your shift & lunch info</p>
   <p class="subtitle" id="redirect-note" style="display:none;margin-top:-14px;margin-bottom:20px;color:#22c55e;">Login confirmed. Redirecting to dashboard…</p>
 
   <div id="live-clock">
@@ -164,11 +165,11 @@
   </div>
 
   <div id="login-form">
-    <label for="ytel-input">Your Ytel ID / Super Admin</label>
-    <input type="text" id="ytel-input" placeholder="e.g. 1055 or ROSE" autocomplete="off" onkeydown="if(event.key==='Enter') doSubmit()" />
+    <label for="ytel-input">Your Ytel ID</label>
+    <input type="text" id="ytel-input" placeholder="e.g. 1055" autocomplete="off" inputmode="numeric" pattern="[0-9]*" onkeydown="if(event.key==='Enter') doSubmit()" />
     <div id="admin-password-wrap" style="display:none;">
-      <label for="admin-password-input">Super Admin Password</label>
-      <input type="password" id="admin-password-input" placeholder="Enter super admin password" autocomplete="off" onkeydown="if(event.key==='Enter') doSubmit()" />
+      <label for="admin-password-input">Admin Password</label>
+      <input type="password" id="admin-password-input" placeholder="Enter admin password" autocomplete="off" onkeydown="if(event.key==='Enter') doSubmit()" />
     </div>
     <p class="err" id="err-msg"></p>
     <button id="submit-btn" onclick="doSubmit()">Clock In →</button>
@@ -188,85 +189,15 @@
   </div>
 
 </div>
-<script src="js/super-admin.js"></script>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-  
-  const firebaseConfig = {
-    apiKey: "AIzaSyA5u7B8UJQOFG8yhE0YKWCiWCHQgaNu1mY",
-    authDomain: "biz-dashboard-4396c.firebaseapp.com",
-    databaseURL: "https://biz-dashboard-4396c-default-rtdb.firebaseio.com",
-    projectId: "biz-dashboard-4396c",
-    storageBucket: "biz-dashboard-4396c.firebasestorage.app",
-    messagingSenderId: "394155720592",
-    appId: "1:394155720592:web:b85a142cf8c885726b3d15"
-  };
 
-  try {
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-
-    // Sync admin accounts
-    onValue(ref(db, 'admins_list'), (snapshot) => {
-      const firebaseData = snapshot.val() || {};
-      const localData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
-      const merged = Object.assign({}, localData, firebaseData);
-      localStorage.setItem('biz_admins_list_v1', JSON.stringify(merged));
-      if (typeof window.seedDefaultAdmins === 'function') window.seedDefaultAdmins();
-    });
-
-    // Sync super admin
-    onValue(ref(db, 'super_admin'), (snapshot) => {
-      const data = snapshot.val();
-      if (data) localStorage.setItem('biz_super_admin_v1', JSON.stringify(data));
-    });
-
-    // ── Load agent roster for login fallback ──
-    onValue(ref(db, 'agent_profiles'), (snapshot) => {
-      const data = snapshot.val();
-      if (!data) return;
-      // Firebase stores profiles as an object keyed by userId
-      const list = typeof data === 'object' && !Array.isArray(data)
-        ? Object.values(data)
-        : (Array.isArray(data) ? data : []);
-      if (list.length > 0) {
-        window.allAgentProfiles = list;
-        try { localStorage.setItem('biz_master_roster', JSON.stringify(list)); } catch(e) {}
-        console.log(`[login] Loaded ${list.length} agent profiles from Firebase`);
-      }
-    });
-
-  } catch (e) {
-    console.warn("Firebase sync failed", e);
-  }
-
-</script>
 <script>
-  const API_URL = 'https://script.google.com/macros/s/AKfycbyRxs3TigaCWv8_HAv43kzQOBlk-xRk02kGM3iJrsBIXCU-7E2UuXUkbTwTVeHY5Ucigw/exec';
+  // Your Google Apps Script Web App URL
+  const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
   const SHIFT_HOUR = 10;
   const SHIFT_MINUTE = 0;
   const GRACE_MINUTES = 15;
 
-  function getTodayISO() {
-    return formatGuyanaDateISO(guyanaTime());
-  }
-
-  function getStoredAttendance(ytelId) {
-    const key = 'biz_att_' + ytelId + '_' + getTodayISO();
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) { return null; }
-  }
-
-  function storeAttendance(ytelId, status, clockedAt) {
-    const key = 'biz_att_' + ytelId + '_' + getTodayISO();
-    try {
-      localStorage.setItem(key, JSON.stringify({ status, clockedAt }));
-    } catch (e) {}
-  }
-
+  // ── Helper Functions ──────────────────────────────────────────────────────
   function guyanaTime() {
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
   }
@@ -310,6 +241,46 @@
     return d.toISOString().slice(0, 10);
   }
 
+  function fmtTime(d) {
+    const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
+    return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
+  }
+
+  function checkLate() {
+    const g = guyanaTime();
+    const now = g.getHours() * 60 + g.getMinutes();
+    const gate = SHIFT_HOUR * 60 + SHIFT_MINUTE + GRACE_MINUTES;
+    return now > gate;
+  }
+
+  function tickClock() {
+    document.getElementById('clock-display').textContent = fmtTime(guyanaTime());
+    document.getElementById('late-badge').style.display = checkLate() ? 'inline-block' : 'none';
+  }
+
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  // ── Attendance persistence ────────────────────────────────────────────────
+  function getTodayISO() {
+    return formatGuyanaDateISO(guyanaTime());
+  }
+
+  function getStoredAttendance(ytelId) {
+    const key = 'biz_att_' + ytelId + '_' + getTodayISO();
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function storeAttendance(ytelId, status, clockedAt) {
+    const key = 'biz_att_' + ytelId + '_' + getTodayISO();
+    try {
+      localStorage.setItem(key, JSON.stringify({ status, clockedAt }));
+    } catch (e) {}
+  }
+
   function updateAgentStreak(profile) {
     const today = guyanaTime();
     const todayISO = formatGuyanaDateISO(today);
@@ -332,49 +303,13 @@
     return current.streak || 1;
   }
 
-  function fmtTime(d) {
-    const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
-    return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
-  }
-
-  function checkLate() {
-    const g = guyanaTime();
-    const now = g.getHours() * 60 + g.getMinutes();
-    const gate = SHIFT_HOUR * 60 + SHIFT_MINUTE + GRACE_MINUTES;
-    return now > gate;
-  }
-
-  function tickClock() {
-    document.getElementById('clock-display').textContent = fmtTime(guyanaTime());
-    document.getElementById('late-badge').style.display = checkLate() ? 'inline-block' : 'none';
-  }
-
-  tickClock();
-  setInterval(tickClock, 1000);
-
-  async function logAdminActivity(action, details) {
-    try {
-      await fetch('/api/activity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adminId: sessionStorage.getItem('bizAdminId') || '',
-          adminName: sessionStorage.getItem('bizAdminName') || '',
-          action,
-          details,
-          page: 'agent-login.html'
-        })
-      });
-    } catch (e) {}
-  }
-
+  // ── Main Submit Function ──────────────────────────────────────────────────
   async function doSubmit() {
     const input = document.getElementById('ytel-input');
     const adminPasswordInput = document.getElementById('admin-password-input');
     const adminPasswordWrap = document.getElementById('admin-password-wrap');
     const errEl = document.getElementById('err-msg');
     const btn = document.getElementById('submit-btn');
-    const loginId = normalizeLoginId(input.value);
     const ytelId = normalizeYtelId(input.value);
     const inAdminMode = btn.dataset.mode === 'admin';
 
@@ -383,21 +318,18 @@
       return;
     }
 
-    const adminData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
-    const loginIdLower = loginId.toLowerCase();
-    const isPotentialAdmin = (loginId === 'ROSE' || loginId === '0000' || !!adminData[loginIdLower]);
-
-    if (isPotentialAdmin) {
-      btn.dataset.mode = 'admin';
-      adminPasswordWrap.style.display = 'block';
-      btn.dataset.adminId = loginId;
-      btn.textContent = 'Admin Log In →';
-      adminPasswordInput.focus();
+    if (!ytelId) {
+      flashError(input, errEl, btn, 'Please enter your Ytel ID.');
       return;
     }
 
-    if (!ytelId) {
-      flashError(input, errEl, btn, 'Please enter your Ytel ID.');
+    // Handle admin login via 0000
+    if (ytelId === '0000') {
+      errEl.textContent = '';
+      adminPasswordWrap.style.display = 'block';
+      btn.dataset.mode = 'admin';
+      btn.textContent = 'Admin Log In →';
+      adminPasswordInput.focus();
       return;
     }
 
@@ -405,95 +337,69 @@
     btn.disabled = true;
     btn.textContent = '⏳ Clocking In...';
 
+    // Check if already clocked in today
     const existingRecord = getStoredAttendance(ytelId);
 
-    // ── STEP 1: Try Apps Script schedule lookup ──
-    let sData = null;
     try {
+      // Fetch agent data from Google Sheet
       const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
-      const raw = await sRes.json();
-      if (raw && raw.found) sData = raw;
-    } catch (e) {
-      console.warn('[login] getAgentSchedule fetch failed:', e);
-    }
+      const sData = await sRes.json();
 
-    // ── STEP 2: Fallback — check local Firebase roster ──
-    if (!sData) {
-      const roster = window.allAgentProfiles ||
-        (() => { try { return JSON.parse(localStorage.getItem('biz_master_roster') || '[]'); } catch(e) { return []; } })();
-
-      const match = roster.find(a =>
-        String(a.userId || a.ytelId || '').trim() === ytelId ||
-        String(a.userId || a.ytelId || '').trim() === loginId
-      );
-
-      if (match) {
-        // Build a minimal sData object from roster record
-        sData = {
-          found: true,
-          name: match.fullName || match.name || ('Agent ' + ytelId),
-          team: match.team || '',
-          shift: match.shift || '—',
-          lunch: match.lunchTime || match.lunch || '—'
-        };
-        console.log('[login] Roster fallback matched:', sData.name);
+      if (!sData.found) {
+        flashError(input, errEl, btn, 'Ytel ID not found — double-check your number.');
+        return;
       }
-    }
 
-    // ── STEP 3: Still not found — block ──
-    if (!sData) {
-      flashError(input, errEl, btn, 'Ytel ID not found — double-check your number or contact your supervisor.');
-      return;
-    }
+      // Debug: Log what we received from the sheet
+      console.log('[Login] Agent data from sheet:', sData);
+      console.log('[Login] Shift value:', sData.shift);
+      console.log('[Login] Lunch value:', sData.lunch);
 
-    // ── STEP 4: Already clocked in today? Show result directly ──
-    if (existingRecord) {
-      showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
-      return;
-    }
+      if (existingRecord) {
+        // Re-login: use stored attendance status
+        showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
+      } else {
+        // First clock-in today
+        const status = checkLate() ? 'Late' : 'Present';
+        const clockedAt = fmtTime(guyanaTime());
 
-    // ── STEP 5: Mark attendance (non-blocking) ──
-    const status = checkLate() ? 'Late' : 'Present';
-    const clockedAt = fmtTime(guyanaTime());
+        // Mark attendance in sheet
+        const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
+        const aData = await aRes.json();
 
-    try {
-      const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
-      const aData = await aRes.json();
+        if (!aData.ok && aData.writeResult !== 'already_marked') {
+          let msg = 'Attendance marking failed — please try again.';
+          if (aData.writeResult === 'agent_not_found') {
+            msg = 'You were found in the system but not in the weekly sheet — please contact your supervisor.';
+          } else if (aData.writeResult === 'no_sheet') {
+            msg = 'Weekly attendance sheet not found — contact your supervisor.';
+          } else if (aData.writeResult === 'no_week_block') {
+            msg = 'No active week block found in the sheet — contact your supervisor.';
+          }
+          flashError(input, errEl, btn, msg);
+          return;
+        }
 
-      if (!aData.ok && aData.writeResult !== 'already_marked') {
-        // Soft warning — log but don't block the login
-        console.warn('[attendance] Marking failed:', aData.writeResult);
-        errEl.textContent = '⚠️ Attendance sheet not updated, but you are logged in.';
-        errEl.style.color = '#f59e0b';
+        storeAttendance(ytelId, status, clockedAt);
+        showResult(sData, status, ytelId, clockedAt);
       }
     } catch (e) {
-      // Network issue on attendance — still let agent in
-      console.warn('[attendance] Network error during marking:', e);
-      errEl.textContent = '⚠️ Attendance not recorded (offline), but you are logged in.';
-      errEl.style.color = '#f59e0b';
+      console.error('Login error:', e);
+      flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
-
-    storeAttendance(ytelId, status, clockedAt);
-    if (typeof window.ahUpdateAgentPresence === 'function') {
-      window.ahUpdateAgentPresence(ytelId, sData.name, status);
-    }
-    showResult(sData, status, ytelId, clockedAt);
   }
 
-
-
-  async function doAdminLogin(adminPasswordInput, errEl, btn) {
-    const loginId = btn.dataset.adminId;
-    const password = adminPasswordInput.value;
-
-    const result = window.superAdminLogin(loginId, password);
-
-    if (!result.success) {
-      flashError(adminPasswordInput, errEl, btn, result.error || 'Incorrect admin password.');
+  function doAdminLogin(adminPasswordInput, errEl, btn) {
+    if (adminPasswordInput.value !== 'admin') {
+      flashError(adminPasswordInput, errEl, btn, 'Incorrect admin password.');
       return;
     }
 
-    // Success - superAdminLogin already sets sessionStorage
+    sessionStorage.setItem('agentLoggedIn', '1');
+    sessionStorage.setItem('bizAdminUnlocked', '1');
+    sessionStorage.setItem('bizUserRole', 'admin');
+    sessionStorage.removeItem('currentAgentName');
+    sessionStorage.removeItem('currentAgentProfile');
     window.location.href = 'index.html';
   }
 
@@ -501,7 +407,7 @@
     input.classList.add('shake');
     errEl.textContent = msg;
     btn.disabled = false;
-    btn.textContent = btn.dataset.mode === 'admin' ? 'Super Admin Log In →' : 'Clock In →';
+    btn.textContent = btn.dataset.mode === 'admin' ? 'Admin Log In →' : 'Clock In →';
     setTimeout(() => input.classList.remove('shake'), 500);
   }
 
@@ -509,35 +415,43 @@
     return String(value || '').replace(/\D/g, '');
   }
 
-  function normalizeLoginId(value) {
-    return String(value || '').trim().toUpperCase();
-  }
-
+  // Enhanced lunch value resolver that tries multiple field names
   function resolveLunchValue(data) {
     if (!data || typeof data !== 'object') return '—';
+    
+    // Try all possible field names that might contain lunch info
     const candidates = [
       data.lunch,
+      data.Lunch,
       data.lunchSlot,
       data.lunch_time,
       data.lunchTime,
       data['Lunch Slot'],
-      data['Lunch'],
       data['Lunch Time'],
       data['lunch time'],
       data['LunchTime'],
-      data['lunchbreak'],
-      data['LunchBreak'],
-      data['lunch_break'],
-      data['lunchBreak'],
-      data['break'],
-      data['Break'],
+      data.lunchbreak,
+      data.LunchBreak,
+      data.lunch_break,
+      data.lunchBreak,
+      data.break,
+      data.Break,
       data['Break Time'],
-      data['break_time']
+      data.break_time,
+      data['Lunch (E)'],  // Column E from your sheet
+      data['Lunch'],       // Direct column match
+      data['Shift (D)'],   // Just in case
+      data.shift_lunch,
+      data.schedule
     ];
+    
     const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
     if (match === undefined || match === null) return '—';
-    const val = String(match).trim();
+    
+    let val = String(match).trim();
     if (!val) return '—';
+    
+    // Handle decimal time values (e.g., 0.5833 = 2:00 PM)
     const num = Number(val);
     if (!isNaN(num) && num > 0 && num < 1) {
       const totalMinutes = Math.round(num * 24 * 60);
@@ -547,7 +461,30 @@
       const h = hours % 12 || 12;
       return h + ':' + String(minutes).padStart(2, '0') + ' ' + ampm;
     }
+    
     return val;
+  }
+
+  // Enhanced shift value resolver
+  function resolveShiftValue(data) {
+    if (!data || typeof data !== 'object') return '—';
+    
+    const candidates = [
+      data.shift,
+      data.Shift,
+      data.shiftTime,
+      data.shift_time,
+      data['Shift'],
+      data['Shift (D)'],
+      data.schedule,
+      data.workHours,
+      data.work_hours
+    ];
+    
+    const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
+    if (match === undefined || match === null) return '—';
+    
+    return String(match).trim();
   }
 
   function showResult(data, status, ytelId, clockedAt) {
@@ -564,11 +501,17 @@
     tag.textContent = late ? 'Marked Late' : 'Marked Present';
     tag.className = 'result-tag ' + (late ? 'late' : 'present');
 
+    // Use enhanced resolvers that try multiple field names
+    const shiftValue = resolveShiftValue(data);
     const lunchValue = resolveLunchValue(data);
+    
+    console.log('[ShowResult] Final shift:', shiftValue);
+    console.log('[ShowResult] Final lunch:', lunchValue);
+    console.log('[ShowResult] Raw data:', data);
 
     const cells = [
       { label: 'Team', value: data.team || '—', cls: '' },
-      { label: 'Shift', value: data.shift || '—', cls: late ? 'warn' : 'ok' },
+      { label: 'Shift', value: shiftValue, cls: late ? 'warn' : 'ok' },
       { label: 'Lunch Slot', value: lunchValue, cls: '' },
       { label: 'Clocked In', value: displayTime, cls: late ? 'warn' : 'ok' },
     ];
@@ -590,17 +533,18 @@
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizUserRole', 'agent');
     sessionStorage.setItem('currentAgentName', data.name || '');
-
+    
     const profile = {
       name: data.name || 'Agent',
       ytelId: ytelId || '',
       lunch: lunchValue,
-      shift: data.shift || '—'
+      shift: shiftValue,
+      team: data.team || '—'
     };
-
+    
     profile.streak = updateAgentStreak(profile);
     sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
-
+    
     setTimeout(() => {
       window.location.href = 'index.html';
     }, 1200);
@@ -616,7 +560,6 @@
     document.getElementById('err-msg').textContent = '';
     document.getElementById('submit-btn').disabled = false;
     document.getElementById('submit-btn').dataset.mode = '';
-    document.getElementById('submit-btn').dataset.adminId = '';
     document.getElementById('submit-btn').textContent = 'Clock In →';
     document.getElementById('ytel-input').focus();
   }
