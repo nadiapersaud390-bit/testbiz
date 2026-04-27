@@ -1,8 +1,7 @@
 /**
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
  * PRESERVES EXACT CSV ORDER - NO SORTING WHATSOEVER
- * FIXED: Completely replaces data on re-upload (no merging)
- * FIXED: Counts leads based on duration >= 120 AND status = XFER (0s XFERs are ignored)
+ * FIXED: Counts leads based ONLY on duration >= 120 seconds (Status column ignored for counting)
  */
 
 let allReports = [];
@@ -22,21 +21,17 @@ function isPhTrainingName(rawName) {
     return /^PH(?![A-Za-z])/i.test(t);
 }
 
-// 🔥 FIXED: Determines if a row counts as a lead
-// A lead requires: duration >= 120 seconds AND status = XFER
-// 0-second XFER calls (like the one in your CSV) are IGNORED
+// 🔥 FIXED: Determines if a row counts as a lead based ONLY on duration
+// A lead counts if the call duration is 120 seconds or more
+// Status column (XFER/CONN/etc.) does NOT matter for counting
 function isLead(row) {
     const duration = Number(row.duration) || 0;
-    const statusValue = String(row.status || row.currentStatus || row['Current Status'] || '').toUpperCase().trim();
     
-    // If duration is 0, never count as a lead (even if status says XFER)
+    // If duration is 0, never count as a lead
     if (duration === 0) return false;
     
-    // Must have duration >= 120 seconds AND status = XFER
-    const isValidDuration = duration >= 120;
-    const isValidStatus = statusValue === 'XFER';
-    
-    return isValidDuration && isValidStatus;
+    // Count as lead if duration >= 120 seconds
+    return duration >= 120;
 }
 
 function normalizeReportDateLabel(input) {
@@ -318,7 +313,7 @@ window.asConfirmUpload = async function() {
     if (typeof window.saveAgentReportToFirebase === 'function') {
         const res = await window.saveAgentReportToFirebase(reportObj);
         if (res && res.success) {
-            updateStatsStatus(`✅ Saved! ${totalRows} rows, ${totalLeads} leads (120+ sec AND XFER) - Replaced previous data`, false);
+            updateStatsStatus(`✅ Saved! ${totalRows} rows, ${totalLeads} leads (duration >= 120 sec) - Replaced previous data`, false);
             
             if (typeof window.writeAdminActivityLog === 'function') {
                 window.writeAdminActivityLog('upload_stats', `Uploaded (replaced): ${_asStagedFile.name} (${totalRows} rows, ${totalLeads} leads)`);
@@ -473,7 +468,7 @@ async function handleFileUpload(file) {
     const leadCount = Object.values(agentLeadMap).reduce((a, b) => a + b, 0);
     const agentSummary = Object.entries(agentLeadMap).slice(0, 5).map(([name, count]) => `${name}: ${count}`).join(', ');
     
-    updateStatsStatus(`✅ Ready: ${parsedData.length} rows, ${leadCount} qualified leads (120+ sec AND XFER). ${agentSummary}${Object.keys(agentLeadMap).length > 5 ? '...' : ''}. This will REPLACE previous data.`, false);
+    updateStatsStatus(`✅ Ready: ${parsedData.length} rows, ${leadCount} qualified leads (duration >= 120 sec). ${agentSummary}${Object.keys(agentLeadMap).length > 5 ? '...' : ''}. This will REPLACE previous data.`, false);
     
     console.log('[File Upload] Per-agent lead counts:', agentLeadMap);
 }
@@ -594,7 +589,7 @@ function renderActiveReportTable() {
     
     const rawRows = (currentReportData.data || []).filter(d => !isPhTrainingName(d && (d.rawName || d.agentName)));
     
-    // Count leads per agent using the corrected isLead function
+    // Count leads per agent based ONLY on duration >= 120
     const agentLeadCount = {};
     rawRows.forEach(row => {
         const agentName = row.agentName;
@@ -622,14 +617,23 @@ function renderActiveReportTable() {
     
     const tbodies = document.querySelectorAll('#as-table-body');
     if (displayRows.length === 0) {
-        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500">No matches found.基督</tr>`);
+        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500">No matches found.基督</td>`);
         return;
     }
     
     const html = displayRows.map(d => {
         const isLeadRow = isLead(d);
         const typeColor = isLeadRow ? 'text-cyan-400 font-bold' : 'text-slate-600';
-        const typeLabel = isLeadRow ? 'LEAD (120+ sec & XFER)' : (d.duration > 0 ? `${d.duration}s - ${d.status}` : `0s - ${d.status} (ignored)`);
+        
+        // Show duration and status for context
+        let typeLabel = '';
+        if (isLeadRow) {
+            typeLabel = `✅ LEAD (${d.duration}s)`;
+        } else if (d.duration === 0) {
+            typeLabel = `⏳ 0s - No lead`;
+        } else {
+            typeLabel = `⏳ ${d.duration}s - No lead (needs 120s)`;
+        }
         
         return `
             <tr class="border-b border-white/5 hover:bg-white/5 transition">
