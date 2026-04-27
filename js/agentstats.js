@@ -141,7 +141,9 @@ async function autoPushReportToDashboard(report) {
         const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
         const rawKey = d.rawName || d.agentName;
         if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0 };
-        if(d.duration >= 120) aggMap[nameKey].transfers++;
+        // Use status field (stored as 'status' by the CSV parser)
+        const isXfer = String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim() === 'XFER';
+        if(isXfer) aggMap[nameKey].transfers++;
     });
     const aggregatedList = Object.values(aggMap);
     
@@ -436,7 +438,13 @@ async function handleFileUpload(file) {
     _asStagedFile = file;
     _asStagedParsed = parsedData;
     _asStagedDateStr = fileDateStr;
-    _asStagedParsedDate = new Date();
+    // Use the actual date from the filename so dayOfWeek is stored correctly
+    if (dateMatch) {
+        _asStagedParsedDate = new Date(`${dateMatch[3]}-${dateMatch[1]}-${dateMatch[2]}`);
+        if (isNaN(_asStagedParsedDate.getTime())) _asStagedParsedDate = new Date();
+    } else {
+        _asStagedParsedDate = new Date();
+    }
     _asRetentionDays = 30;
     
     const dateInput = document.getElementById('as-report-date-input');
@@ -540,7 +548,8 @@ window.viewReport = function(id) {
                     report.data.forEach(d => {
                         const nameKey = d.agentName.toUpperCase().trim();
                         if (!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, transfers: 0 };
-                        if (d.duration >= 120) aggMap[nameKey].transfers++;
+                        const isXfer = String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim() === 'XFER';
+                        if (isXfer) aggMap[nameKey].transfers++;
                     });
                     const pushState = {
                         dateLabel: report.reportDate,
@@ -574,7 +583,7 @@ function renderActiveReportTable() {
     // Strip any legacy PH rows from old reports saved before the PH filter existed
     const rawRows = (currentReportData.data || []).filter(d => !isPhTrainingName(d && (d.rawName || d.agentName)));
     
-    const totalXfers = rawRows.filter(d => d.duration >= 120).length;
+    const totalXfers = rawRows.filter(d => String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim() === 'XFER').length;
     const agentCount = new Set(rawRows.map(d => d.agentId)).size;
     
     document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
@@ -607,7 +616,7 @@ function renderActiveReportTable() {
     // 🔥 CRITICAL: Render in EXACT order of displayRows (which matches CSV order)
     // NO SORTING - just map through in the order they appear
     const html = displayRows.map(d => {
-        const isXfer = d.duration >= 120;
+        const isXfer = String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim() === 'XFER';
         const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
         const typeLabel = isXfer ? 'XFER' : 'CONN';
         const isNew = !!d._isNewLead || newLeadSet.has((d.agentName || '').toUpperCase().trim());
