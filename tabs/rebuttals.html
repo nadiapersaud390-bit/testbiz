@@ -734,6 +734,7 @@
 
         // Highlight the new button
         var btn = document.getElementById('rb-btn-' + index);
+        var btnLabel = btn ? btn.textContent.trim() : 'Rebuttal #' + index;
         if (btn) {
             btn.style.background = 'rgba(20,184,166,0.2)';
             btn.style.borderColor = '#14b8a6';
@@ -742,10 +743,44 @@
 
         activePanel = index;
 
-        // NEW: Log click for Admin Intel
+        // Log a 'view' event so admins can see which rebuttals are being looked at
         if (typeof window.logRebuttalUsage === 'function') {
-            const btn = document.getElementById('rb-btn-' + index);
-            if (btn) window.logRebuttalUsage(index, btn.textContent);
+            window.logRebuttalUsage(index, btnLabel);
+        }
+
+        // Inject the "Used in Call" confirmation footer once per panel.
+        // Pressing it fires a 'use' event so admins can tell who actually
+        // delivered the rebuttal vs. just opened the panel for a peek.
+        if (panel && !panel.querySelector('.rb-used-footer')) {
+            var footer = document.createElement('div');
+            footer.className = 'rb-used-footer';
+            footer.style.cssText = 'margin-top:14px;display:flex;gap:8px;align-items:center;justify-content:flex-end;';
+            footer.innerHTML =
+                '<span class="rb-used-msg" style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;"></span>' +
+                '<button type="button" class="rb-used-btn" ' +
+                'style="padding:8px 14px;border-radius:12px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.4);color:#34d399;transition:all .15s;">' +
+                '<i class="fas fa-check-circle" style="margin-right:6px;"></i>Used in Call</button>';
+            panel.appendChild(footer);
+
+            var usedBtn = footer.querySelector('.rb-used-btn');
+            var usedMsg = footer.querySelector('.rb-used-msg');
+            usedBtn.addEventListener('click', function() {
+                if (typeof window.markRebuttalUsed === 'function') {
+                    window.markRebuttalUsed(index, btnLabel);
+                }
+                usedBtn.disabled = true;
+                usedBtn.style.opacity = '0.55';
+                usedBtn.style.cursor = 'default';
+                usedBtn.innerHTML = '<i class="fas fa-check" style="margin-right:6px;"></i>Marked Used';
+                usedMsg.textContent = 'Logged for admin intel';
+                setTimeout(function() {
+                    usedBtn.disabled = false;
+                    usedBtn.style.opacity = '1';
+                    usedBtn.style.cursor = 'pointer';
+                    usedBtn.innerHTML = '<i class="fas fa-check-circle" style="margin-right:6px;"></i>Used in Call';
+                    usedMsg.textContent = '';
+                }, 2500);
+            });
         }
     }
 
