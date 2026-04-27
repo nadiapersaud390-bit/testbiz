@@ -192,7 +192,6 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-  import { getFirestore, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   
   const firebaseConfig = {
     apiKey: "AIzaSyA5u7B8UJQOFG8yhE0YKWCiWCHQgaNu1mY",
@@ -207,7 +206,6 @@
   try {
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    const fs = getFirestore(app);
 
     // Sync admin accounts
     onValue(ref(db, 'admins_list'), (snapshot) => {
@@ -224,36 +222,20 @@
       if (data) localStorage.setItem('biz_super_admin_v1', JSON.stringify(data));
     });
 
-    // ── Load agent roster from FIRESTORE (primary — has shift & lunchTime) ──
-    try {
-      const q = query(collection(fs, 'agent_profiles'));
-      const snapshot = await getDocs(q);
-      const list = [];
-      snapshot.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
+    // ── Load agent roster for login fallback ──
+    onValue(ref(db, 'agent_profiles'), (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+      // Firebase stores profiles as an object keyed by userId
+      const list = typeof data === 'object' && !Array.isArray(data)
+        ? Object.values(data)
+        : (Array.isArray(data) ? data : []);
       if (list.length > 0) {
         window.allAgentProfiles = list;
         try { localStorage.setItem('biz_master_roster', JSON.stringify(list)); } catch(e) {}
-        console.log(`[login] Loaded ${list.length} agent profiles from Firestore (shift/lunch included)`);
+        console.log(`[login] Loaded ${list.length} agent profiles from Firebase`);
       }
-    } catch (fsErr) {
-      console.warn('[login] Firestore agent_profiles read failed, trying RTDB fallback:', fsErr);
-    }
-
-    // ── Fallback: Load agent roster from Realtime Database ──
-    if (!window.allAgentProfiles || window.allAgentProfiles.length === 0) {
-      onValue(ref(db, 'agent_profiles'), (snapshot) => {
-        const data = snapshot.val();
-        if (!data) return;
-        const list = typeof data === 'object' && !Array.isArray(data)
-          ? Object.values(data)
-          : (Array.isArray(data) ? data : []);
-        if (list.length > 0 && (!window.allAgentProfiles || window.allAgentProfiles.length === 0)) {
-          window.allAgentProfiles = list;
-          try { localStorage.setItem('biz_master_roster', JSON.stringify(list)); } catch(e) {}
-          console.log(`[login] Loaded ${list.length} agent profiles from RTDB fallback`);
-        }
-      });
-    }
+    });
 
   } catch (e) {
     console.warn("Firebase sync failed", e);

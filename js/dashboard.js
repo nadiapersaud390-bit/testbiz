@@ -388,72 +388,41 @@ function _subscribeLiveDashboard() {
                     return d >= lastMonday && d < monday;
                 });
 
-                // Deduplicate: keep only the latest-uploaded report per calendar date
-                // (same approach as Weekly Performance in adminhub.js)
-                const lastWeekDayMap = new Map();
+                const lastWeekMap = {};
+                FULL_WEEK_DAYS.forEach(day => { lastWeekMap[day] = null; });
+
                 lastWeekReports.forEach(r => {
-                    const actualDate = _actualDate(r);
-                    const dateKey = `${actualDate.getFullYear()}-${String(actualDate.getMonth()+1).padStart(2,'0')}-${String(actualDate.getDate()).padStart(2,'0')}`;
-                    const existing = lastWeekDayMap.get(dateKey);
-                    if (!existing || new Date(r.uploadedAt) > new Date(existing.uploadedAt)) {
-                        lastWeekDayMap.set(dateKey, r);
+                    let dayKey = r.dayOfWeek;
+                    if (!FULL_WEEK_DAYS.includes(dayKey)) {
+                        dayKey = _dayKeyFromIndex(_actualDate(r).getDay());
+                    }
+
+                    if (dayKey && FULL_WEEK_DAYS.includes(dayKey)) {
+                        if (!lastWeekMap[dayKey] || new Date(r.uploadedAt) > new Date(lastWeekMap[dayKey].uploadedAt)) {
+                            lastWeekMap[dayKey] = r;
+                        }
                     }
                 });
-                const lastWeekDeduped = Array.from(lastWeekDayMap.values());
-
-                // Count transfers using the same logic as Weekly Performance:
-                // each row with status === 'XFER' counts as 1 transfer.
-                // Resolve agents by ID first, then by normalized name, to avoid double-counting.
-                const _normName = (n) => String(n || '')
-                    .replace(/^(GYP|GYB|GTM|RM|PH)\s+/i, '')
-                    .replace(/\s+/g, ' ')
-                    .trim()
-                    .toUpperCase();
 
                 const lastWeekAgg = {};
-                // Track by a canonical key (prefer ID) so same agent isn't counted twice
-                const _lwAgentMap = new Map(); // canonical key -> { ids: Set, names: Set, transfers: number }
-
-                lastWeekDeduped.forEach(r => {
+                Object.values(lastWeekMap).forEach(r => {
+                    if (!r) return;
                     (r.data || []).forEach(d => {
-                        const agentName = d.agentName || d.name || '';
-                        const rawName = d.rawName || agentName;
-                        if (!agentName && !d.agentId) return;
-
-                        // Skip PH training accounts
-                        if (/^PH(?![A-Za-z])/i.test(rawName)) return;
-
-                        const statusVal = String(
-                            d.status || d.currentStatus || d['Current Status'] || ''
-                        ).toUpperCase().trim();
-                        const isXfer = statusVal === 'XFER';
-
-                        // 1 per confirmed XFER, or fall back to dailyLeads for live data rows
-                        const leadCount = isXfer ? 1 : (Number(d.dailyLeads) || 0);
-                        if (leadCount <= 0) return;
-
+                        const cleanName = String(d.agentName || d.name || '').replace(/^GY[BP]\s*/i, '').trim().toUpperCase();
                         const ytelId = String(d.agentId || d.ytelId || '').trim();
-                        const cleanName = _normName(agentName);
-
-                        // Canonical key: prefer agent ID, fall back to name
-                        const canonKey = ytelId ? `id:${ytelId}` : `name:${cleanName}`;
-
-                        if (!_lwAgentMap.has(canonKey)) {
-                            _lwAgentMap.set(canonKey, { ids: new Set(), names: new Set(), transfers: 0 });
+                        
+                        let lc = Number(d.dailyLeads) || 0;
+                        if (d.duration !== undefined && Number(d.duration) >= 120) lc = 1;
+                        else if (d.duration !== undefined && Number(d.duration) < 120) lc = 0;
+                        
+                        if (ytelId) {
+                            lastWeekAgg[ytelId] = (lastWeekAgg[ytelId] || 0) + lc;
                         }
-                        const entry = _lwAgentMap.get(canonKey);
-                        if (ytelId) entry.ids.add(ytelId);
-                        if (cleanName) entry.names.add(cleanName);
-                        entry.transfers += leadCount;
+                        if (cleanName) {
+                            lastWeekAgg[cleanName] = (lastWeekAgg[cleanName] || 0) + lc;
+                        }
                     });
                 });
-
-                // Flatten to a lookup map keyed by both ID and name for easy matching
-                _lwAgentMap.forEach((entry) => {
-                    entry.ids.forEach(id => { lastWeekAgg[id] = entry.transfers; });
-                    entry.names.forEach(name => { lastWeekAgg[name] = entry.transfers; });
-                });
-
                 window._lastWeekTotals = lastWeekAgg;
 
                 // Filter reports from this week — by ACTUAL report date, not upload time
