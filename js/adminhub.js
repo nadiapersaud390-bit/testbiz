@@ -166,8 +166,11 @@ function ahInitZeroPerfLazy() {
             (rows || []).forEach(row => {
                 const uid = String(row.agentId || '').trim();
                 if (!uid) return;
+                // Skip PH training accounts
+                const rawName = row.rawName || row.agentName || '';
+                if (/^PH(?![A-Za-z])/i.test(rawName)) return;
                 if (!map[uid]) map[uid] = 0;
-                if (String(row.currentStatus || row['Current Status'] || row.status || '').toUpperCase() === 'XFER') map[uid]++;
+                if (String(row.status || row.currentStatus || row['Current Status'] || '').toUpperCase() === 'XFER') map[uid]++;
             });
             return map;
         }
@@ -418,11 +421,16 @@ async function loadWeeklyDataForWeek(weekKey) {
             const agentName = row.agentName || row.name || row['Agent Name'] || '';
             if (!agentName) return;
             const rawName = row.rawName || agentName;
-            const team = normalizeTeam(row.team, rawName);
+            
+            // Skip PH training accounts that slipped into old Firebase records
+            if (/^PH(?![A-Za-z])/i.test(rawName)) return;
+            
+            // Use stored team field first (set by parser), fall back to normalizeTeam
+            const team = row.team || normalizeTeam(row.team, rawName);
             
             // Check XFER status — try every possible field name the CSV parser may have used
             const statusVal = String(
-                row.currentStatus || row['Current Status'] || row.status ||
+                row.status || row.currentStatus || row['Current Status'] ||
                 row.currentstatus || row.Status || ''
             ).toUpperCase().trim();
             const isXfer = statusVal === 'XFER';
@@ -433,11 +441,10 @@ async function loadWeeklyDataForWeek(weekKey) {
             if (leadCount > 0) {
                 teamTotals[team] = (teamTotals[team] || 0) + leadCount;
                 
-                // Strip prefix (GYP / GYB / PH / GTM) for unified agent key
-                const cleanKey = String(agentName)
-                    .replace(/^(GYP|GYB|PH|GTM|RM)\s+/i, '')
-                    .trim()
-                    .toUpperCase();
+                // Use agentId as key if available (most reliable), else name-based key
+                const cleanKey = row.agentId
+                    ? String(row.agentId).trim()
+                    : String(agentName).replace(/^(GYP|GYB|PH|GTM|RM)\s+/i, '').trim().toUpperCase();
                 
                 if (!agentWeeklyMap.has(cleanKey)) {
                     agentWeeklyMap.set(cleanKey, {
@@ -1590,10 +1597,14 @@ window.ahToolsLoadPerformance = function() {
                 (r.data || []).forEach(a => {
                     const name = a.agentName || a.name || a['Agent Name'];
                     if (!name) return;
+                    const rawName = a.rawName || name;
+                    // Skip PH training accounts
+                    if (/^PH(?![A-Za-z])/i.test(rawName)) return;
+                    const teamLabel = a.team || '—';
                     if (!matrix[name]) {
-                        matrix[name] = { team: a.team || '—', Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, total: 0 };
+                        matrix[name] = { team: teamLabel, Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, total: 0 };
                     }
-                    const statusVal = String(a.currentStatus || a['Current Status'] || a.status || a.currentstatus || '').toUpperCase().trim();
+                    const statusVal = String(a.status || a.currentStatus || a['Current Status'] || a.currentstatus || '').toUpperCase().trim();
                     const xferCount = statusVal === 'XFER' ? 1 : (Number(a.dailyLeads) || 0);
                     matrix[name][reportDay] = (matrix[name][reportDay] || 0) + xferCount;
                     matrix[name].total += xferCount;
