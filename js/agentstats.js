@@ -1,7 +1,8 @@
 /**
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
  * PRESERVES EXACT CSV ORDER - NO SORTING WHATSOEVER
- * FIXED: Replaces data completely on re-upload (no merging)
+ * FIXED: Completely replaces data on re-upload (no merging)
+ * FIXED: Counts leads based on 120+ seconds OR XFER status
  */
 
 let allReports = [];
@@ -12,7 +13,6 @@ let asSubscribed = false;
 
 let lastAutoPushedReportId = null;
 let previousReportData = null;
-let newLeadsList = [];
 let _asLastUploadedDateLabel = null;
 
 // Returns true if a CSV agent-name represents a PH (Philippines) training account.
@@ -20,6 +20,19 @@ function isPhTrainingName(rawName) {
     if (!rawName) return false;
     const t = String(rawName).trim();
     return /^PH(?![A-Za-z])/i.test(t);
+}
+
+// 🔥 FIXED: Determines if a row counts as a lead (120+ seconds OR XFER status)
+function isLead(row) {
+    // Check duration first
+    const duration = Number(row.duration) || 0;
+    if (duration >= 120) return true;
+    
+    // Check status as fallback
+    const status = String(row.status || row.currentStatus || row['Current Status'] || '').toUpperCase().trim();
+    if (status === 'XFER') return true;
+    
+    return false;
 }
 
 function normalizeReportDateLabel(input) {
@@ -135,8 +148,8 @@ async function autoPushReportToDashboard(report) {
         const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
         const rawKey = d.rawName || d.agentName;
         if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0 };
-        const isXfer = String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim() === 'XFER';
-        if(isXfer) aggMap[nameKey].transfers++;
+        // 🔥 FIXED: Use isLead() function for consistent counting
+        if(isLead(d)) aggMap[nameKey].transfers++;
     });
     const aggregatedList = Object.values(aggMap);
     
@@ -240,7 +253,7 @@ window.asToggleDateOverride = function(checked) {
     input.style.cursor = checked ? 'text' : 'default';
 };
 
-// 🔥 FIXED: REPLACE data completely on re-upload (no merging)
+// 🔥 FIXED: COMPLETELY REPLACE data on re-upload (DELETE + CREATE)
 window.asConfirmUpload = async function() {
     if (!_asStagedParsed || !_asStagedFile) {
         updateStatsStatus('❌ No file staged. Please re-select your CSV.', true);
@@ -266,14 +279,18 @@ window.asConfirmUpload = async function() {
     
     const normalizedFinalDate = normalizeReportDateLabel(finalDateStr);
     
-    // 🔥 FIX: DELETE existing report for this date completely
+    // 🔥 CRITICAL: DELETE existing report for this date completely
     const existingReport = allReports.find(r => normalizeReportDateLabel(r.reportDate) === normalizedFinalDate);
     if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
         await window.deleteAgentReportFromFirebase(existingReport.id);
-        console.log(`[Upload] Deleted existing report for ${normalizedFinalDate} - replacing with fresh data`);
+        console.log(`[Upload] Deleted existing report for ${normalizedFinalDate} - will replace with fresh data`);
     }
     
-    // Create brand new report with FRESH data (no merging)
+    // Calculate lead counts for success message
+    const leadCount = _asStagedParsed.filter(row => isLead(row)).length;
+    const totalRows = _asStagedParsed.length;
+    
+    // Create brand new report with FRESH data
     const reportObj = {
         filename: _asStagedFile.name,
         reportDate: finalDateStr,
@@ -281,7 +298,7 @@ window.asConfirmUpload = async function() {
         uploadedAt: new Date().toISOString(),
         expiresAt: expiryDate.toISOString(),
         author: adminName,
-        data: _asStagedParsed  // Fresh data, exactly as parsed from CSV
+        data: _asStagedParsed
     };
     
     _asLastUploadedDateLabel = normalizedFinalDate;
@@ -289,22 +306,16 @@ window.asConfirmUpload = async function() {
     if (typeof window.saveAgentReportToFirebase === 'function') {
         const res = await window.saveAgentReportToFirebase(reportObj);
         if (res && res.success) {
-            const totalRows = _asStagedParsed.length;
-            const xferCount = _asStagedParsed.filter(d => {
-                const status = String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim();
-                return status === 'XFER';
-            }).length;
-            
-            updateStatsStatus(`✅ Saved! ${totalRows} rows, ${xferCount} transfers (replaced previous data)`, false);
+            updateStatsStatus(`✅ Saved! ${totalRows} rows, ${leadCount} leads (120+ sec rule) - Replaced previous data`, false);
             
             if (typeof window.writeAdminActivityLog === 'function') {
-                window.writeAdminActivityLog('upload_stats', `Uploaded (replaced): ${_asStagedFile.name} (${totalRows} rows, ${xferCount} XFERs)`);
+                window.writeAdminActivityLog('upload_stats', `Uploaded (replaced): ${_asStagedFile.name} (${totalRows} rows, ${leadCount} leads)`);
             }
             
             document.getElementById('as-upload-panel').classList.add('hidden');
             _asStagedFile = null;
             _asStagedParsed = null;
-            // Force refresh to show new data
+            // Force refresh
             currentReportData = null;
             setTimeout(() => updateStatsStatus('', false), 4000);
         } else {
@@ -439,7 +450,9 @@ async function handleFileUpload(file) {
     const panel = document.getElementById('as-upload-panel');
     if (panel) panel.classList.remove('hidden');
     
-    updateStatsStatus(`✅ Ready: ${parsedData.length} rows, will REPLACE previous data for this date`, false);
+    // Show preview of what will be counted
+    const leadCount = parsedData.filter(row => isLead(row)).length;
+    updateStatsStatus(`✅ Ready: ${parsedData.length} rows, ${leadCount} qualified leads (120+ sec rule). This will REPLACE previous data for this date.`, false);
 }
 
 function updateStatsStatus(msg, isError) {
@@ -490,8 +503,6 @@ window.viewReport = function(id) {
     
     currentReportData = report;
     
-    newLeadsList = [];
-    
     renderHistoryList();
     
     const uploadDateTime = new Date(report.uploadedAt).toLocaleString();
@@ -528,8 +539,8 @@ window.viewReport = function(id) {
                     report.data.forEach(d => {
                         const nameKey = d.agentName.toUpperCase().trim();
                         if (!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, transfers: 0 };
-                        const isXfer = String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim() === 'XFER';
-                        if (isXfer) aggMap[nameKey].transfers++;
+                        // 🔥 FIXED: Use isLead() function
+                        if (isLead(d)) aggMap[nameKey].transfers++;
                     });
                     const pushState = {
                         dateLabel: report.reportDate,
@@ -556,18 +567,20 @@ window.viewReport = function(id) {
     renderActiveReportTable();
 };
 
+// 🔥 FIXED: Render table using 120+ second rule for lead counting
 function renderActiveReportTable() {
     if (!currentReportData) return;
     
     const rawRows = (currentReportData.data || []).filter(d => !isPhTrainingName(d && (d.rawName || d.agentName)));
     
-    const totalXfers = rawRows.filter(d => String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim() === 'XFER').length;
+    // 🔥 FIXED: Count leads based on 120+ seconds OR XFER status
+    const totalLeads = rawRows.filter(row => isLead(row)).length;
     const agentCount = new Set(rawRows.map(d => d.agentId)).size;
     
     document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
     document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = rawRows.length);
-    document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
-    document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = agentCount > 0 ? ((totalXfers / agentCount) * 100).toFixed(1) + '%' : '0%');
+    document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalLeads);
+    document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = agentCount > 0 ? ((totalLeads / agentCount) * 100).toFixed(1) + '%' : '0%');
     
     let searchVal = '';
     const searchInput = document.getElementById('as-search-input');
@@ -585,9 +598,9 @@ function renderActiveReportTable() {
     }
     
     const html = displayRows.map(d => {
-        const isXfer = String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim() === 'XFER';
-        const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
-        const typeLabel = isXfer ? 'XFER' : 'CONN';
+        const isLeadRow = isLead(d);
+        const typeColor = isLeadRow ? 'text-cyan-400 font-bold' : 'text-slate-600';
+        const typeLabel = isLeadRow ? 'LEAD (120+ sec)' : (d.duration > 0 ? `${d.duration}s` : '0s');
         
         return `
             <tr class="border-b border-white/5 hover:bg-white/5 transition">
