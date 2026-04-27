@@ -3,12 +3,13 @@
  * All logged-in users see the full leaderboard with ALL agents from roster.
  * The logged-in agent's own row is highlighted automatically.
  * UPDATED: Only show completed days (Monday-Friday) with short names (Mon, Tue, Wed, Thu, Fri)
- * FIXED: Real-time +X badge tracking for agent lead changes
+ * FIXED: Properly initialize and update _prevDailyLeadsMap for +X badges
  */
 
 let isDashboardSubscribed = false;
 let fullRoster = []; // Store the full agent roster
 let _lastSeenLeadCounts = {}; // Track real-time lead changes for +X badges
+let _initialPrevMapLoaded = false; // Track if we've loaded initial previous map
 
 // Full week days array (Monday to Friday only - Saturday excluded from history)
 const FULL_WEEK_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
@@ -31,7 +32,7 @@ const FULL_DAY_NAMES = {
 function getCurrentGuyanaDay() {
     const now = new Date();
     const guyanaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
-    const dayIndex = guyanaTime.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const dayIndex = guyanaTime.getDay();
     return dayIndex;
 }
 
@@ -47,39 +48,32 @@ function isDayCompleted(dayKey) {
     const guyanaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
     const currentHour = guyanaTime.getHours();
     
-    // If it's a future day in the week
     if (targetDayIndex > currentDayIndex) {
         return false;
     }
     
-    // If it's today, check if the day is over (after 8:00 PM)
     if (targetDayIndex === currentDayIndex) {
-        // Day is considered complete after 8:00 PM (20:00) Guyana time
         if (currentHour >= 20) {
             return true;
         }
         return false;
     }
     
-    // If it's a past day
     return true;
 }
 
-// Build a stable signature of a roster so we can detect add/remove/update/move
+// Build a stable signature of a roster
 function rosterSignature(arr) {
     if (!Array.isArray(arr)) return '';
     return arr.map(a => [a.fullName||a.name||'', a.userId||a.ytelId||'', a.team||''].join('|'))
               .sort().join('::');
 }
 
-// Subscribe to Firestore agent_profiles and keep fullRoster in sync.
-// This is the real source of truth — the Google Sheet `getRoster` action is
-// not implemented on the deployed Apps Script, so Firebase carries the roster.
+// Subscribe to Firestore agent_profiles
 let _rosterFirestoreSubscribed = false;
 function subscribeRosterFromFirestore() {
     if (_rosterFirestoreSubscribed) return;
     if (typeof window.listenToAgentProfiles !== 'function') {
-        // Firebase module hasn't loaded yet — try again shortly.
         setTimeout(subscribeRosterFromFirestore, 500);
         return;
     }
@@ -92,7 +86,6 @@ function subscribeRosterFromFirestore() {
             window.allAgentProfiles = list;
             try { localStorage.setItem('biz_master_roster', JSON.stringify(list)); } catch (e) {}
             console.log(`[roster] Loaded ${list.length} agents from Firestore`);
-            // Re-render daily tab with the latest live state (if any).
             const state = window._asLastLiveState || null;
             agents = buildAgentsFromRoster(state);
             if (agents.length > 0) {
@@ -118,26 +111,20 @@ function subscribeRosterFromFirestore() {
     }
 }
 
-// Function to load the full agent roster.
-// Order of sources: Firestore (live) → Google Sheet (legacy) → localStorage cache.
+// Function to load the full agent roster
 async function loadFullRoster(force) {
     if (!force && fullRoster.length > 0) return fullRoster;
 
-    // Always make sure the live Firestore subscription is running.
     subscribeRosterFromFirestore();
 
-    // Try the Google Sheet endpoint as a legacy source. This action may not
-    // exist on the deployed Apps Script — that's fine, we just ignore it.
     try {
         if (typeof API_URL !== 'undefined') {
             const resp = await fetch(`${API_URL}?action=getRoster&_=${Date.now()}`, { cache: 'no-store' });
             const raw = await resp.json();
-            // Accept either a plain array, or { success:true, agents:[...] }
             let list = Array.isArray(raw) ? raw
                      : (raw && Array.isArray(raw.agents)) ? raw.agents
                      : (raw && Array.isArray(raw.roster)) ? raw.roster
                      : [];
-            // Normalize fields and drop inactive agents
             list = list
                 .filter(a => a && !a.inactive)
                 .map(a => ({
@@ -159,7 +146,6 @@ async function loadFullRoster(force) {
         console.warn('Could not load from Google Sheet, using fallback:', e);
     }
 
-    // Use whatever Firestore has already published.
     if (window.allAgentProfiles && window.allAgentProfiles.length > 0) {
         fullRoster = window.allAgentProfiles;
         console.log(`Loaded ${fullRoster.length} agents from allAgentProfiles`);
@@ -178,7 +164,6 @@ async function loadFullRoster(force) {
     return fullRoster;
 }
 
-// Build the agent list for the daily tab from the roster, applying lead counts from live state
 function buildAgentsFromRoster(state) {
     const leadMap = new Map();
     if (state && Array.isArray(state.agents)) {
@@ -210,7 +195,6 @@ function updateDashboard() {
         setTimeout(() => btn.classList.remove('spin-anim'), 1000);
     }
 
-    // Load roster (Google Sheet is the source of truth) before subscribing
     const subscribe = () => {
         if (isDashboardSubscribed || typeof window.listenForLiveDashboardState !== 'function') return;
         _subscribeLiveDashboard();
@@ -224,8 +208,6 @@ function updateDashboard() {
     return;
 }
 
-// Live roster poller — refreshes from Google Sheet every 60s and re-renders
-// the daily tab if any agent was added, removed, updated, or moved between teams.
 let _rosterPollerHandle = null;
 function startRosterPoller() {
     if (_rosterPollerHandle) return;
@@ -261,48 +243,90 @@ function startRosterPoller() {
     }, 60000);
 }
 
-// 🔥 NEW: Update real-time lead tracking for +X badges
+// 🔥 FIXED: Initialize previous leads map from current state
+function initializePrevLeadsMap(agentsList) {
+    if (!agentsList || agentsList.length === 0) return;
+    
+    const prevMap = {};
+    agentsList.forEach(agent => {
+        const id = String(agent.ytelId || agent.name || '').trim();
+        const nameKey = (agent.name || '').toUpperCase().trim();
+        if (id) prevMap[id] = agent.dailyLeads || 0;
+        if (nameKey) prevMap[nameKey] = agent.dailyLeads || 0;
+        // Also store by raw name
+        if (agent.rawName) {
+            const rawKey = (agent.rawName || '').toUpperCase().trim();
+            if (rawKey) prevMap[rawKey] = agent.dailyLeads || 0;
+        }
+    });
+    
+    window._prevDailyLeadsMap = prevMap;
+    localStorage.setItem('biz_prev_leads_map', JSON.stringify(prevMap));
+    console.log('[Init] Previous leads map initialized with', Object.keys(prevMap).length, 'entries');
+    
+    // Also initialize tracking map
+    _lastSeenLeadCounts = {};
+    agentsList.forEach(agent => {
+        const id = String(agent.ytelId || agent.name || '').trim();
+        if (id) _lastSeenLeadCounts[id] = agent.dailyLeads || 0;
+    });
+}
+
+// 🔥 FIXED: Update real-time lead tracking for +X badges
 function updateRealTimeLeadTracking(newAgents) {
     if (!newAgents || !newAgents.length) return;
     
-    // Initialize previous map if empty
-    if (Object.keys(_lastSeenLeadCounts).length === 0) {
-        newAgents.forEach(agent => {
-            const id = String(agent.ytelId || agent.name || '').trim();
-            if (id) _lastSeenLeadCounts[id] = agent.dailyLeads || 0;
-        });
+    // If we don't have a previous map yet, initialize it
+    if (!window._prevDailyLeadsMap || Object.keys(window._prevDailyLeadsMap).length === 0) {
+        initializePrevLeadsMap(newAgents);
         return;
     }
     
-    // Track changes and update the global _prevDailyLeadsMap for the popup
+    // If we haven't loaded initial map from localStorage, try that
+    if (!_initialPrevMapLoaded) {
+        const savedMap = localStorage.getItem('biz_prev_leads_map');
+        if (savedMap) {
+            try {
+                window._prevDailyLeadsMap = JSON.parse(savedMap);
+                console.log('[Init] Loaded previous map from localStorage');
+            } catch(e) {}
+        }
+        _initialPrevMapLoaded = true;
+    }
+    
+    // Track changes
     const changes = {};
     newAgents.forEach(agent => {
         const id = String(agent.ytelId || agent.name || '').trim();
-        if (!id) return;
+        const nameKey = (agent.name || '').toUpperCase().trim();
         const currentLeads = agent.dailyLeads || 0;
-        const previousLeads = _lastSeenLeadCounts[id] || 0;
         
-        if (currentLeads !== previousLeads) {
-            changes[id] = { from: previousLeads, to: currentLeads, diff: currentLeads - previousLeads };
+        // Try to find previous using multiple keys
+        let previousLeads = 0;
+        if (window._prevDailyLeadsMap[id] !== undefined) {
+            previousLeads = window._prevDailyLeadsMap[id];
+        } else if (window._prevDailyLeadsMap[nameKey] !== undefined) {
+            previousLeads = window._prevDailyLeadsMap[nameKey];
+        } else if (_lastSeenLeadCounts[id] !== undefined) {
+            previousLeads = _lastSeenLeadCounts[id];
         }
         
-        // Update the stored count
-        _lastSeenLeadCounts[id] = currentLeads;
+        if (currentLeads !== previousLeads && previousLeads > 0) {
+            changes[id] = { from: previousLeads, to: currentLeads, diff: currentLeads - previousLeads };
+            // Update the stored previous map
+            if (id) window._prevDailyLeadsMap[id] = previousLeads;
+            if (nameKey) window._prevDailyLeadsMap[nameKey] = previousLeads;
+        }
+        
+        // Update tracking
+        if (id) _lastSeenLeadCounts[id] = currentLeads;
+        if (nameKey) _lastSeenLeadCounts[nameKey] = currentLeads;
     });
     
-    // If there are changes, update the global map that leaderboard.html reads
     if (Object.keys(changes).length > 0) {
-        // Merge changes into the existing prev map
-        const currentPrevMap = window._prevDailyLeadsMap || {};
-        Object.entries(changes).forEach(([id, change]) => {
-            currentPrevMap[id] = change.from;
-        });
-        window._prevDailyLeadsMap = currentPrevMap;
-        
-        // Also save to localStorage for persistence
-        localStorage.setItem('biz_prev_leads_map', JSON.stringify(currentPrevMap));
-        
         console.log('[Lead Tracking] Changes detected:', changes);
+        // Save updated map
+        localStorage.setItem('biz_prev_leads_map', JSON.stringify(window._prevDailyLeadsMap));
     }
 }
 
@@ -331,7 +355,7 @@ function _subscribeLiveDashboard() {
             let prevMap = JSON.parse(localStorage.getItem('biz_prev_leads_map') || '{}');
             
             if (statePushedAt && statePushedAt !== lastPushedAt) {
-                 // Push is actually new!
+                 // Push is actually new! Save the OLD state as previous
                  const lastStateStr = localStorage.getItem('biz_last_state_obj');
                  if (lastStateStr) {
                      try {
@@ -340,10 +364,13 @@ function _subscribeLiveDashboard() {
                          (lastState.agents || []).forEach(a => {
                              const id = String(a.ytelId || a.name || '').trim();
                              if (id) prevMap[id] = a.dailyLeads || 0;
+                             const nameKey = (a.name || '').toUpperCase().trim();
+                             if (nameKey) prevMap[nameKey] = a.dailyLeads || 0;
                          });
                          localStorage.setItem('biz_prev_leads_map', JSON.stringify(prevMap));
+                         console.log('[Push] Saved previous leads map from last state');
                          
-                         // Also reset real-time tracker on new push
+                         // Reset real-time tracker
                          _lastSeenLeadCounts = {};
                          if (state.agents) {
                              state.agents.forEach(a => {
@@ -352,21 +379,43 @@ function _subscribeLiveDashboard() {
                              });
                          }
                      } catch(e) {}
+                 } else {
+                     // First push of the day - initialize map from current state
+                     if (state.agents) {
+                         prevMap = {};
+                         state.agents.forEach(a => {
+                             const id = String(a.ytelId || a.name || '').trim();
+                             if (id) prevMap[id] = a.dailyLeads || 0;
+                             const nameKey = (a.name || '').toUpperCase().trim();
+                             if (nameKey) prevMap[nameKey] = a.dailyLeads || 0;
+                         });
+                         localStorage.setItem('biz_prev_leads_map', JSON.stringify(prevMap));
+                         console.log('[Push] Initialized previous leads map from current state');
+                     }
                  }
                  localStorage.setItem('biz_last_pushed_at', statePushedAt);
                  localStorage.setItem('biz_last_state_obj', JSON.stringify(state));
+            } else if (!_initialPrevMapLoaded && state.agents) {
+                // No push yet, initialize map from current state
+                if (Object.keys(prevMap).length === 0) {
+                    state.agents.forEach(a => {
+                        const id = String(a.ytelId || a.name || '').trim();
+                        if (id) prevMap[id] = a.dailyLeads || 0;
+                        const nameKey = (a.name || '').toUpperCase().trim();
+                        if (nameKey) prevMap[nameKey] = a.dailyLeads || 0;
+                    });
+                    localStorage.setItem('biz_prev_leads_map', JSON.stringify(prevMap));
+                    console.log('[Init] Initialized previous leads map from current state (no push yet)');
+                }
+                _initialPrevMapLoaded = true;
             }
+            
             window._prevDailyLeadsMap = prevMap;
 
-            // Cache the latest live state so the roster poller can re-render
-            // with current lead counts when the sheet changes.
+            // Cache the latest live state
             window._asLastLiveState = state;
             
-            // Roster is the source of truth for who appears on the daily tab.
-            // CSV uploads only update the lead counts for matching agents.
             if (fullRoster.length === 0) {
-                // Make sure the Firestore roster subscription is active.
-                // Once profiles arrive, the subscription itself will re-render.
                 subscribeRosterFromFirestore();
                 agents = [];
                 const ts = document.getElementById('timestamp');
@@ -374,7 +423,7 @@ function _subscribeLiveDashboard() {
             } else {
                 agents = buildAgentsFromRoster(state);
                 
-                // 🔥 NEW: Update real-time tracking for +X badges
+                // Update real-time tracking for +X badges
                 if (agents && agents.length > 0) {
                     updateRealTimeLeadTracking(agents);
                 }
@@ -407,7 +456,6 @@ function _subscribeLiveDashboard() {
                 
                 console.log('Processing historical reports for day tabs...');
                 
-                // Get the start of the current week (Monday)
                 const now = new Date();
                 const guyanaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
                 const currentDay = guyanaTime.getDay();
@@ -421,10 +469,6 @@ function _subscribeLiveDashboard() {
                 const lastMonday = new Date(monday);
                 lastMonday.setDate(monday.getDate() - 7);
 
-                // Resolve a report's true date (CSV reportDate > filename date > uploadedAt).
-                // The upload time is unreliable because Friday's CSV is often uploaded
-                // the following Monday — using uploadedAt would drop that day from last
-                // week and mis-tag it as Monday of this week.
                 const _actualDate = (r) => {
                     if (r && r.reportDate) {
                         const d = new Date(r.reportDate);
@@ -444,7 +488,6 @@ function _subscribeLiveDashboard() {
                     i === 4 ? 'THU' : i === 5 ? 'FRI' : null
                 );
 
-                // Process Last Week's Totals — bucket by ACTUAL report date
                 const lastWeekReports = data.filter(r => {
                     const d = _actualDate(r);
                     return d >= lastMonday && d < monday;
@@ -487,21 +530,17 @@ function _subscribeLiveDashboard() {
                 });
                 window._lastWeekTotals = lastWeekAgg;
 
-                // Filter reports from this week — by ACTUAL report date, not upload time
                 const thisWeekReports = data.filter(r => {
                     const d = _actualDate(r);
                     return d >= monday;
                 });
 
-                // Map to store the best report for each day
                 const weekMap = {};
 
-                // Initialize Monday-Friday
                 FULL_WEEK_DAYS.forEach(day => {
                     weekMap[day] = null;
                 });
 
-                // Process each report and assign to the correct day
                 thisWeekReports.forEach(r => {
                     let dayKey = r.dayOfWeek;
                     if (!FULL_WEEK_DAYS.includes(dayKey)) {
@@ -515,7 +554,6 @@ function _subscribeLiveDashboard() {
                     }
                 });
                 
-                // Build dayHistory array - ONLY for COMPLETED days
                 dayHistory = FULL_WEEK_DAYS.map(day => {
                     const r = weekMap[day];
                     const isCompleted = isDayCompleted(day);
@@ -581,7 +619,6 @@ function _subscribeLiveDashboard() {
                 
                 renderDaySubTabs();
                 
-                // If currently viewing a historical day, re-render
                 if (currentDayView !== 'today') {
                     render();
                 }
@@ -619,10 +656,8 @@ function render() {
     const asView = document.getElementById('agentstats-view');
     const trackerView = document.getElementById('tracker-view');
 
-    // Hide all views first
     [lView, pView, luView, prView, rbView, trView, adView, sadView, asView, trackerView].forEach(v => { if (v) v.classList.add('hidden'); });
 
-    // Handle non-leaderboard tabs
     if (currentTab === 'playbook') { pView.classList.remove('hidden'); return; }
     if (currentTab === 'lookup') { luView.classList.remove('hidden'); return; }
     if (currentTab === 'prank') { if (prView) prView.classList.remove('hidden'); return; }
@@ -635,7 +670,6 @@ function render() {
 
     lView.classList.remove('hidden');
 
-    // Setup Variables
     const isWeekly = currentTab === 'weekly';
     const isPrevWeek = currentTab === 'daily' && currentDayView === 'prevweek';
     const isHistory = currentTab === 'daily' && currentDayView !== 'today' && currentDayView !== 'prevweek';
@@ -643,7 +677,6 @@ function render() {
     
     const todayName = agents.length > 0 ? (agents[0].todayName || 'Today') : 'Today';
 
-    // UI Goal Labels
     const banner = document.getElementById('history-banner');
     if (isHistory) {
         const snap = dayHistory.find(d => d.day === currentDayView);
@@ -676,7 +709,6 @@ function render() {
         targetDisplay.style.display = isAdmin ? '' : 'none';
     }
 
-    // Process Data
     let fullList = [];
     let prTotal = 0, bbTotal = 0, rmTotal = 0, totalLeads = 0, masters = 0, activeReps = 0;
 
@@ -710,7 +742,6 @@ function render() {
             });
         }
     } else {
-        // Figure out week boundaries to hide old data on Sunday/Monday
         const guyanaTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
         const currentDay = guyanaTime.getDay();
         const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
@@ -721,7 +752,6 @@ function render() {
         const stateObj = window._asLastLiveState;
         const pushDate = stateObj && stateObj.pushedAt ? new Date(stateObj.pushedAt) : null;
         
-        // Hide data if it's Sunday waiting for Monday's push, or if Monday hasn't been pushed yet.
         let forceHideDaily = false;
         if (!isHistory && !isWeekly && !isPrevWeek) {
             if (currentDay === 0) {
@@ -731,7 +761,6 @@ function render() {
             }
         }
 
-        // Use current agents array
         fullList = agents
             .filter(a => !(a.name && String(a.name).toUpperCase().startsWith('PH ')))
             .map(a => {
@@ -751,7 +780,7 @@ function render() {
             })
             .sort((a, b) => b.leads - a.leads);
             
-        if (forceHideDaily) fullList = []; // clear everyone to show no data message
+        if (forceHideDaily) fullList = [];
 
         fullList.forEach(a => {
             if (a.team === 'PR') prTotal += a.leads;
@@ -763,14 +792,9 @@ function render() {
         });
     }
 
-    // All users see the full leaderboard
     const displayData = fullList.map((a, i) => ({ ...a, rank: i + 1 }));
-
-    // Expose for team drill-down popup
     window._lastFullList = fullList;
 
-
-    // Rendering
     const leaderboardEl = document.getElementById('leaderboard');
     if (!leaderboardEl) return;
     
@@ -785,7 +809,6 @@ function render() {
             const isMe = (myName && agent.name && agent.name.trim().toUpperCase() === myName) ||
                          (myYtelId && agent.ytelId === myYtelId);
 
-            // Map team code → CSS badge class
             const teamBadgeClass = {
                 'PR': 'badge-prov',
                 'BB': 'badge-bb',
@@ -820,7 +843,6 @@ function render() {
         }).join('');
     }
 
-    // Update Bottom Stats Bar
     const floorTotalEl = document.getElementById('floor-total');
     const masterCountEl = document.getElementById('master-count');
     const activeRepsEl = document.getElementById('active-reps');
@@ -852,7 +874,6 @@ function getLevel(l) {
     return           { title: 'ROOKIE',    cls: 'slate-tier',     tierCls: 'tier-rookie',    color: 'text-slate-500' };
 }
 
-// Navigation & Tab UI - ONLY SHOW COMPLETED DAYS WITH SHORT NAMES
 function renderDaySubTabs() {
     const wrapper = document.getElementById('day-sub-tabs-wrapper');
     const container = document.getElementById('day-sub-tabs-container');
@@ -865,10 +886,8 @@ function renderDaySubTabs() {
     if (wrapper) wrapper.classList.remove('hidden');
     if (!container) return;
     
-    // Build tabs: Today + ONLY completed Monday-Friday with short names
     let html = `<button onclick="switchDayView('today')" class="day-sub-tab is-today ${currentDayView === 'today' ? 'active' : ''}">📅 Today</button>`;
     
-    // Add ONLY completed days with short names (Mon, Tue, Wed, Thu, Fri)
     FULL_WEEK_DAYS.forEach(day => {
         const dayData = dayHistory.find(d => d && d.day === day);
         const hasData = dayData && !dayData.empty && dayData.agents && dayData.agents.length > 0;
@@ -876,7 +895,6 @@ function renderDaySubTabs() {
         const isActive = currentDayView === day;
         const shortName = DAY_NAMES[day] || day;
         
-        // ONLY show the tab if the day is COMPLETED
         if (isCompleted) {
             html += `
                 <button onclick="switchDayView('${day}')" 
@@ -888,7 +906,6 @@ function renderDaySubTabs() {
         }
     });
 
-    // Append Previous Week button
     const isPrevActive = currentDayView === 'prevweek';
     html += `
         <button onclick="switchDayView('prevweek')" 
@@ -898,7 +915,6 @@ function renderDaySubTabs() {
 
     container.innerHTML = html;
     
-    // Add CSS for the day tabs if not already present
     if (!document.getElementById('day-tabs-style')) {
         const style = document.createElement('style');
         style.id = 'day-tabs-style';
