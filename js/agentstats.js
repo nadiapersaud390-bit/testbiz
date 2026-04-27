@@ -2,7 +2,7 @@
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
  * PRESERVES EXACT CSV ORDER - NO SORTING WHATSOEVER
  * FIXED: Completely replaces data on re-upload (no merging)
- * FIXED: Counts leads based on 120+ seconds OR XFER status
+ * FIXED: Counts leads based on duration >= 120 AND status = XFER (0s XFERs are ignored)
  */
 
 let allReports = [];
@@ -22,17 +22,21 @@ function isPhTrainingName(rawName) {
     return /^PH(?![A-Za-z])/i.test(t);
 }
 
-// 🔥 FIXED: Determines if a row counts as a lead (120+ seconds OR XFER status)
+// 🔥 FIXED: Determines if a row counts as a lead
+// A lead requires: duration >= 120 seconds AND status = XFER
+// 0-second XFER calls (like the one in your CSV) are IGNORED
 function isLead(row) {
-    // Check duration first
     const duration = Number(row.duration) || 0;
-    if (duration >= 120) return true;
+    const statusValue = String(row.status || row.currentStatus || row['Current Status'] || '').toUpperCase().trim();
     
-    // Check status as fallback
-    const status = String(row.status || row.currentStatus || row['Current Status'] || '').toUpperCase().trim();
-    if (status === 'XFER') return true;
+    // If duration is 0, never count as a lead (even if status says XFER)
+    if (duration === 0) return false;
     
-    return false;
+    // Must have duration >= 120 seconds AND status = XFER
+    const isValidDuration = duration >= 120;
+    const isValidStatus = statusValue === 'XFER';
+    
+    return isValidDuration && isValidStatus;
 }
 
 function normalizeReportDateLabel(input) {
@@ -148,7 +152,6 @@ async function autoPushReportToDashboard(report) {
         const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
         const rawKey = d.rawName || d.agentName;
         if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0 };
-        // 🔥 FIXED: Use isLead() function for consistent counting
         if(isLead(d)) aggMap[nameKey].transfers++;
     });
     const aggregatedList = Object.values(aggMap);
@@ -253,7 +256,6 @@ window.asToggleDateOverride = function(checked) {
     input.style.cursor = checked ? 'text' : 'default';
 };
 
-// 🔥 FIXED: COMPLETELY REPLACE data on re-upload (DELETE + CREATE)
 window.asConfirmUpload = async function() {
     if (!_asStagedParsed || !_asStagedFile) {
         updateStatsStatus('❌ No file staged. Please re-select your CSV.', true);
@@ -279,16 +281,26 @@ window.asConfirmUpload = async function() {
     
     const normalizedFinalDate = normalizeReportDateLabel(finalDateStr);
     
-    // 🔥 CRITICAL: DELETE existing report for this date completely
+    // DELETE existing report for this date completely
     const existingReport = allReports.find(r => normalizeReportDateLabel(r.reportDate) === normalizedFinalDate);
     if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
         await window.deleteAgentReportFromFirebase(existingReport.id);
         console.log(`[Upload] Deleted existing report for ${normalizedFinalDate} - will replace with fresh data`);
     }
     
-    // Calculate lead counts for success message
-    const leadCount = _asStagedParsed.filter(row => isLead(row)).length;
+    // Calculate lead counts for success message with per-agent breakdown
+    const agentLeadMap = {};
+    _asStagedParsed.forEach(row => {
+        const agentName = row.agentName;
+        if (!agentName) return;
+        if (!agentLeadMap[agentName]) agentLeadMap[agentName] = 0;
+        if (isLead(row)) agentLeadMap[agentName]++;
+    });
+    
     const totalRows = _asStagedParsed.length;
+    const totalLeads = Object.values(agentLeadMap).reduce((a, b) => a + b, 0);
+    
+    console.log('[Upload] Per-agent lead counts:', agentLeadMap);
     
     // Create brand new report with FRESH data
     const reportObj = {
@@ -306,16 +318,15 @@ window.asConfirmUpload = async function() {
     if (typeof window.saveAgentReportToFirebase === 'function') {
         const res = await window.saveAgentReportToFirebase(reportObj);
         if (res && res.success) {
-            updateStatsStatus(`✅ Saved! ${totalRows} rows, ${leadCount} leads (120+ sec rule) - Replaced previous data`, false);
+            updateStatsStatus(`✅ Saved! ${totalRows} rows, ${totalLeads} leads (120+ sec AND XFER) - Replaced previous data`, false);
             
             if (typeof window.writeAdminActivityLog === 'function') {
-                window.writeAdminActivityLog('upload_stats', `Uploaded (replaced): ${_asStagedFile.name} (${totalRows} rows, ${leadCount} leads)`);
+                window.writeAdminActivityLog('upload_stats', `Uploaded (replaced): ${_asStagedFile.name} (${totalRows} rows, ${totalLeads} leads)`);
             }
             
             document.getElementById('as-upload-panel').classList.add('hidden');
             _asStagedFile = null;
             _asStagedParsed = null;
-            // Force refresh
             currentReportData = null;
             setTimeout(() => updateStatsStatus('', false), 4000);
         } else {
@@ -450,9 +461,21 @@ async function handleFileUpload(file) {
     const panel = document.getElementById('as-upload-panel');
     if (panel) panel.classList.remove('hidden');
     
-    // Show preview of what will be counted
-    const leadCount = parsedData.filter(row => isLead(row)).length;
-    updateStatsStatus(`✅ Ready: ${parsedData.length} rows, ${leadCount} qualified leads (120+ sec rule). This will REPLACE previous data for this date.`, false);
+    // Show preview of what will be counted with per-agent breakdown
+    const agentLeadMap = {};
+    parsedData.forEach(row => {
+        const agentName = row.agentName;
+        if (!agentName) return;
+        if (!agentLeadMap[agentName]) agentLeadMap[agentName] = 0;
+        if (isLead(row)) agentLeadMap[agentName]++;
+    });
+    
+    const leadCount = Object.values(agentLeadMap).reduce((a, b) => a + b, 0);
+    const agentSummary = Object.entries(agentLeadMap).slice(0, 5).map(([name, count]) => `${name}: ${count}`).join(', ');
+    
+    updateStatsStatus(`✅ Ready: ${parsedData.length} rows, ${leadCount} qualified leads (120+ sec AND XFER). ${agentSummary}${Object.keys(agentLeadMap).length > 5 ? '...' : ''}. This will REPLACE previous data.`, false);
+    
+    console.log('[File Upload] Per-agent lead counts:', agentLeadMap);
 }
 
 function updateStatsStatus(msg, isError) {
@@ -539,7 +562,6 @@ window.viewReport = function(id) {
                     report.data.forEach(d => {
                         const nameKey = d.agentName.toUpperCase().trim();
                         if (!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, transfers: 0 };
-                        // 🔥 FIXED: Use isLead() function
                         if (isLead(d)) aggMap[nameKey].transfers++;
                     });
                     const pushState = {
@@ -567,15 +589,22 @@ window.viewReport = function(id) {
     renderActiveReportTable();
 };
 
-// 🔥 FIXED: Render table using 120+ second rule for lead counting
 function renderActiveReportTable() {
     if (!currentReportData) return;
     
     const rawRows = (currentReportData.data || []).filter(d => !isPhTrainingName(d && (d.rawName || d.agentName)));
     
-    // 🔥 FIXED: Count leads based on 120+ seconds OR XFER status
-    const totalLeads = rawRows.filter(row => isLead(row)).length;
-    const agentCount = new Set(rawRows.map(d => d.agentId)).size;
+    // Count leads per agent using the corrected isLead function
+    const agentLeadCount = {};
+    rawRows.forEach(row => {
+        const agentName = row.agentName;
+        if (!agentName) return;
+        if (!agentLeadCount[agentName]) agentLeadCount[agentName] = 0;
+        if (isLead(row)) agentLeadCount[agentName]++;
+    });
+    
+    const totalLeads = Object.values(agentLeadCount).reduce((a, b) => a + b, 0);
+    const agentCount = Object.keys(agentLeadCount).length;
     
     document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
     document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = rawRows.length);
@@ -600,7 +629,7 @@ function renderActiveReportTable() {
     const html = displayRows.map(d => {
         const isLeadRow = isLead(d);
         const typeColor = isLeadRow ? 'text-cyan-400 font-bold' : 'text-slate-600';
-        const typeLabel = isLeadRow ? 'LEAD (120+ sec)' : (d.duration > 0 ? `${d.duration}s` : '0s');
+        const typeLabel = isLeadRow ? 'LEAD (120+ sec & XFER)' : (d.duration > 0 ? `${d.duration}s - ${d.status}` : `0s - ${d.status} (ignored)`);
         
         return `
             <tr class="border-b border-white/5 hover:bg-white/5 transition">
