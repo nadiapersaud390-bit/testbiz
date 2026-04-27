@@ -302,6 +302,28 @@ window.saveMasterRoster = async function(rosterArray) {
     await set(ref(database, 'biz_master_roster'), rosterArray);
 };
 
+// ========== REBUTTAL USAGE TRACKING (RTDB) ==========
+// Each event is pushed under /rebuttal_usage with a unique key. Events carry
+// eventType: 'view' (panel opened) or 'use' (agent confirmed they used it on a call).
+window.saveRebuttalUsage = async function(eventObj) {
+    if (!database) return;
+    try {
+        await push(ref(database, 'rebuttal_usage'), eventObj);
+    } catch (e) {
+        console.error('saveRebuttalUsage failed:', e);
+    }
+};
+
+window.listenToRebuttalUsage = function(callback) {
+    if (!database) return;
+    onValue(ref(database, 'rebuttal_usage'), (snapshot) => {
+        const val = snapshot.val() || {};
+        // Convert object-of-pushes to array for easy aggregation
+        const arr = Object.keys(val).map(k => ({ id: k, ...val[k] }));
+        if (callback) callback(arr);
+    });
+};
+
 // ========== AGENT PROFILES (FIRESTORE) ==========
 window.saveAgentProfileToFirestore = async function(agentData) {
     if (!firestore) return { success: false, error: 'Firestore not initialized' };
