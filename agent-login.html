@@ -335,13 +335,23 @@
     const existingRecord = getStoredAttendance(ytelId);
 
     try {
-      const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
+      const timestamp = Date.now();
+      const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}&_=${timestamp}`);
       const sData = await sRes.json();
+
+      console.log('🔍 API Response for', ytelId, ':', sData);
 
       if (!sData.found) {
         flashError(input, errEl, btn, 'Ytel ID not found — double-check your number.');
         return;
       }
+
+      // Ensure shift and lunch are properly captured
+      const shiftValue = sData.shift || sData.Shift || sData['Shift'] || '—';
+      const lunchValue = sData.lunch || sData.Lunch || sData['Lunch'] || sData.lunchTime || '—';
+      
+      console.log('📋 Captured shift:', shiftValue);
+      console.log('📋 Captured lunch:', lunchValue);
 
       if (existingRecord) {
         showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
@@ -369,6 +379,7 @@
         showResult(sData, status, ytelId, clockedAt);
       }
     } catch (e) {
+      console.error('Login error:', e);
       flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
   }
@@ -399,31 +410,6 @@
     return String(value || '').replace(/\D/g, '');
   }
 
-  function resolveLunchValue(data) {
-    if (!data || typeof data !== 'object') return '—';
-    const candidates = [
-      data.lunch, data.lunchSlot, data.lunch_time, data.lunchTime,
-      data['Lunch Slot'], data['Lunch'], data['Lunch Time'],
-      data.lunchbreak, data.LunchBreak, data.lunch_break,
-      data.lunchBreak, data.break, data.Break,
-      data['Break Time'], data.break_time
-    ];
-    const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
-    if (match === undefined || match === null) return '—';
-    const val = String(match).trim();
-    if (!val) return '—';
-    const num = Number(val);
-    if (!isNaN(num) && num > 0 && num < 1) {
-      const totalMinutes = Math.round(num * 24 * 60);
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = totalMinutes % 60;
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      const h = hours % 12 || 12;
-      return h + ':' + String(minutes).padStart(2, '0') + ' ' + ampm;
-    }
-    return val;
-  }
-
   function showResult(data, status, ytelId, clockedAt) {
     const late = status === 'Late';
     const now = guyanaTime();
@@ -438,11 +424,16 @@
     tag.textContent = late ? 'Marked Late' : 'Marked Present';
     tag.className = 'result-tag ' + (late ? 'late' : 'present');
 
-    const lunchValue = resolveLunchValue(data);
+    // CRITICAL: Extract shift and lunch from the API response
+    const shiftValue = data.shift || data.Shift || data['Shift'] || '—';
+    const lunchValue = data.lunch || data.Lunch || data['Lunch'] || data.lunchTime || '—';
+    
+    console.log('✅ Final shift value being saved:', shiftValue);
+    console.log('✅ Final lunch value being saved:', lunchValue);
 
     const cells = [
       { label: 'Team', value: data.team || '—', cls: '' },
-      { label: 'Shift', value: data.shift || '—', cls: late ? 'warn' : 'ok' },
+      { label: 'Shift', value: shiftValue, cls: late ? 'warn' : 'ok' },
       { label: 'Lunch Slot', value: lunchValue, cls: '' },
       { label: 'Clocked In', value: displayTime, cls: late ? 'warn' : 'ok' },
     ];
@@ -464,14 +455,20 @@
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizUserRole', 'agent');
     sessionStorage.setItem('currentAgentName', data.name || '');
+    
     const profile = {
       name: data.name || 'Agent',
       ytelId: ytelId || '',
       lunch: lunchValue,
-      shift: data.shift || '—'
+      shift: shiftValue,
+      team: data.team || '—'
     };
+    
     profile.streak = updateAgentStreak(profile);
     sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
+    
+    console.log('💾 Saved to sessionStorage:', profile);
+    
     setTimeout(() => {
       window.location.href = 'index.html';
     }, 1200);
