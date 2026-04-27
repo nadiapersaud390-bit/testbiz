@@ -403,13 +403,23 @@ async function handleFileUpload(file) {
         
         const agentId = row['Agent Id'] || '';
         const agentNameRaw = row['Agent Name'] || '';
-        const agentName = agentNameRaw.toUpperCase().replace(/^GY[BP]\s*/i, '').replace(/^GTM\s*/i, '').trim();
         const status = row['Current Status'] || '';
         const durationRaw = row['Duration'] || '0';
         
         // Skip ALL PH training accounts — match 'PH ' / 'PH-' / 'PH.' / 'PH123' but NOT 'PHIL' etc.
         if (isPhTrainingName(agentNameRaw)) continue;
-        if (!agentName || agentName === 'UNKNOWN') continue;
+        if (!agentNameRaw.trim() || agentNameRaw.trim() === 'UNKNOWN') continue;
+        
+        // Derive team from prefix BEFORE stripping it
+        let team = 'PR'; // default
+        const upperRaw = agentNameRaw.toUpperCase().trim();
+        if (upperRaw.startsWith('GYB ') || upperRaw.startsWith('GYB\t')) team = 'BB';
+        else if (upperRaw.startsWith('GYP ') || upperRaw.startsWith('GYP\t')) team = 'PR';
+        else if (upperRaw.startsWith('GTM ') || upperRaw.startsWith('GTM\t')) team = 'RM';
+        else if (upperRaw.startsWith('RM ') || upperRaw.startsWith('RM\t')) team = 'RM';
+
+        // agentName: strip prefix for display but keep rawName for team lookup
+        const agentName = agentNameRaw.replace(/^(GYP|GYB|GTM|RM)\s+/i, '').trim();
         
         // Parse duration
         let duration = 0;
@@ -423,8 +433,9 @@ async function handleFileUpload(file) {
         
         parsedData.push({
             agentId: agentId,
-            agentName: agentName,
-            rawName: agentNameRaw,
+            agentName: agentName,       // "Patricia Ramkishun" (no prefix, proper case)
+            rawName: agentNameRaw,      // "GYP Patricia Ramkishun" (full original)
+            team: team,                 // "PR" / "BB" / "RM" — derived at parse time
             status: status.toUpperCase(),
             duration: duration
         });
