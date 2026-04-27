@@ -191,13 +191,11 @@
 </div>
 
 <script>
-  // Your Google Apps Script Web App URL
   const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
   const SHIFT_HOUR = 10;
   const SHIFT_MINUTE = 0;
   const GRACE_MINUTES = 15;
 
-  // ── Helper Functions ──────────────────────────────────────────────────────
   function guyanaTime() {
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
   }
@@ -261,7 +259,6 @@
   tickClock();
   setInterval(tickClock, 1000);
 
-  // ── Attendance persistence ────────────────────────────────────────────────
   function getTodayISO() {
     return formatGuyanaDateISO(guyanaTime());
   }
@@ -303,7 +300,6 @@
     return current.streak || 1;
   }
 
-  // ── Main Submit Function ──────────────────────────────────────────────────
   async function doSubmit() {
     const input = document.getElementById('ytel-input');
     const adminPasswordInput = document.getElementById('admin-password-input');
@@ -323,7 +319,6 @@
       return;
     }
 
-    // Handle admin login via 0000
     if (ytelId === '0000') {
       errEl.textContent = '';
       adminPasswordWrap.style.display = 'block';
@@ -337,11 +332,9 @@
     btn.disabled = true;
     btn.textContent = '⏳ Clocking In...';
 
-    // Check if already clocked in today
     const existingRecord = getStoredAttendance(ytelId);
 
     try {
-      // Fetch agent data from Google Sheet
       const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
       const sData = await sRes.json();
 
@@ -350,20 +343,12 @@
         return;
       }
 
-      // Debug: Log what we received from the sheet
-      console.log('[Login] Agent data from sheet:', sData);
-      console.log('[Login] Shift value:', sData.shift);
-      console.log('[Login] Lunch value:', sData.lunch);
-
       if (existingRecord) {
-        // Re-login: use stored attendance status
         showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
       } else {
-        // First clock-in today
         const status = checkLate() ? 'Late' : 'Present';
         const clockedAt = fmtTime(guyanaTime());
 
-        // Mark attendance in sheet
         const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
         const aData = await aRes.json();
 
@@ -384,7 +369,6 @@
         showResult(sData, status, ytelId, clockedAt);
       }
     } catch (e) {
-      console.error('Login error:', e);
       flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
   }
@@ -415,43 +399,19 @@
     return String(value || '').replace(/\D/g, '');
   }
 
-  // Enhanced lunch value resolver that tries multiple field names
   function resolveLunchValue(data) {
     if (!data || typeof data !== 'object') return '—';
-    
-    // Try all possible field names that might contain lunch info
     const candidates = [
-      data.lunch,
-      data.Lunch,
-      data.lunchSlot,
-      data.lunch_time,
-      data.lunchTime,
-      data['Lunch Slot'],
-      data['Lunch Time'],
-      data['lunch time'],
-      data['LunchTime'],
-      data.lunchbreak,
-      data.LunchBreak,
-      data.lunch_break,
-      data.lunchBreak,
-      data.break,
-      data.Break,
-      data['Break Time'],
-      data.break_time,
-      data['Lunch (E)'],  // Column E from your sheet
-      data['Lunch'],       // Direct column match
-      data['Shift (D)'],   // Just in case
-      data.shift_lunch,
-      data.schedule
+      data.lunch, data.lunchSlot, data.lunch_time, data.lunchTime,
+      data['Lunch Slot'], data['Lunch'], data['Lunch Time'],
+      data.lunchbreak, data.LunchBreak, data.lunch_break,
+      data.lunchBreak, data.break, data.Break,
+      data['Break Time'], data.break_time
     ];
-    
     const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
     if (match === undefined || match === null) return '—';
-    
-    let val = String(match).trim();
+    const val = String(match).trim();
     if (!val) return '—';
-    
-    // Handle decimal time values (e.g., 0.5833 = 2:00 PM)
     const num = Number(val);
     if (!isNaN(num) && num > 0 && num < 1) {
       const totalMinutes = Math.round(num * 24 * 60);
@@ -461,30 +421,7 @@
       const h = hours % 12 || 12;
       return h + ':' + String(minutes).padStart(2, '0') + ' ' + ampm;
     }
-    
     return val;
-  }
-
-  // Enhanced shift value resolver
-  function resolveShiftValue(data) {
-    if (!data || typeof data !== 'object') return '—';
-    
-    const candidates = [
-      data.shift,
-      data.Shift,
-      data.shiftTime,
-      data.shift_time,
-      data['Shift'],
-      data['Shift (D)'],
-      data.schedule,
-      data.workHours,
-      data.work_hours
-    ];
-    
-    const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
-    if (match === undefined || match === null) return '—';
-    
-    return String(match).trim();
   }
 
   function showResult(data, status, ytelId, clockedAt) {
@@ -501,17 +438,11 @@
     tag.textContent = late ? 'Marked Late' : 'Marked Present';
     tag.className = 'result-tag ' + (late ? 'late' : 'present');
 
-    // Use enhanced resolvers that try multiple field names
-    const shiftValue = resolveShiftValue(data);
     const lunchValue = resolveLunchValue(data);
-    
-    console.log('[ShowResult] Final shift:', shiftValue);
-    console.log('[ShowResult] Final lunch:', lunchValue);
-    console.log('[ShowResult] Raw data:', data);
 
     const cells = [
       { label: 'Team', value: data.team || '—', cls: '' },
-      { label: 'Shift', value: shiftValue, cls: late ? 'warn' : 'ok' },
+      { label: 'Shift', value: data.shift || '—', cls: late ? 'warn' : 'ok' },
       { label: 'Lunch Slot', value: lunchValue, cls: '' },
       { label: 'Clocked In', value: displayTime, cls: late ? 'warn' : 'ok' },
     ];
@@ -533,18 +464,14 @@
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizUserRole', 'agent');
     sessionStorage.setItem('currentAgentName', data.name || '');
-    
     const profile = {
       name: data.name || 'Agent',
       ytelId: ytelId || '',
       lunch: lunchValue,
-      shift: shiftValue,
-      team: data.team || '—'
+      shift: data.shift || '—'
     };
-    
     profile.streak = updateAgentStreak(profile);
     sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
-    
     setTimeout(() => {
       window.location.href = 'index.html';
     }, 1200);
