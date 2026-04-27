@@ -395,86 +395,129 @@ async function loadWeeklyDataForWeek(weekKey) {
         const actualDate = getReportActualDate(r);
         return actualDate >= weekStart && actualDate <= weekEnd;
     });
-    
-    // Deduplicate: Keep only the latest-uploaded report per actual calendar date
-    // This prevents double-counting re-uploads of the same day while keeping all days
+
+    // Deduplicate: keep only the latest-uploaded report per actual calendar date
+    // so re-uploads of the same day don't double-count, but every distinct day in
+    // the week still contributes its own data.
     const dayMap = new Map();
     weekReportsRaw.forEach(report => {
-        // Always derive dateKey from the ACTUAL report date, never uploadedAt
         const actualDate = getReportActualDate(report);
         const dateKey = `${actualDate.getFullYear()}-${String(actualDate.getMonth()+1).padStart(2,'0')}-${String(actualDate.getDate()).padStart(2,'0')}`;
-        
         const existing = dayMap.get(dateKey);
-        // If same day was uploaded multiple times, keep the most recently uploaded one
         if (!existing || new Date(report.uploadedAt) > new Date(existing.uploadedAt)) {
             dayMap.set(dateKey, report);
         }
     });
     const weekReports = Array.from(dayMap.values());
-    
-    // Calculate team totals — accumulate ALL days in the week
+
+    // ----- Build a roster lookup so we can resolve every row to a single agent
+    // by ID first, falling back to a normalized-name match. This prevents the
+    // same person from appearing twice (once from a CSV row, once from the
+    // roster) when their CSV name differs slightly from their roster name.
+    const normalizeName = (n) => String(n || '')
+        .replace(/^(GYP|GYB|GTM|RM|PH)\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toUpperCase();
+
+    const rosterById = new Map();
+    const rosterByName = new Map();
+    roster.forEach(agent => {
+        const id = String(agent.userId || agent.ytelId || '').trim();
+        const displayName = agent.fullName || agent.name || '';
+        const team = agent.team || normalizeTeam('', displayName);
+        const entry = { id, displayName, team };
+        if (id) rosterById.set(id, entry);
+        const nameKey = normalizeName(displayName);
+        if (nameKey) rosterByName.set(nameKey, entry);
+    });
+
+    // Resolve a row (or roster record) to a stable canonical key + display info.
+    // Preference order:
+    //   1. Match by agentId on the roster (most reliable)
+    //   2. Match by normalized name on the roster
+    //   3. Use the row's own agentId
+    //   4. Use the row's normalized name
+    function resolveAgent({ id, name, team, rawName }) {
+        const cleanId = String(id || '').trim();
+        const nameKey = normalizeName(name || rawName || '');
+
+        let rosterEntry = null;
+        if (cleanId && rosterById.has(cleanId)) rosterEntry = rosterById.get(cleanId);
+        else if (nameKey && rosterByName.has(nameKey)) rosterEntry = rosterByName.get(nameKey);
+
+        const finalId = (rosterEntry && rosterEntry.id) || cleanId;
+        const finalName = (rosterEntry && rosterEntry.displayName) || name || rawName || '';
+        const finalTeam = (rosterEntry && rosterEntry.team) || team || normalizeTeam(team, rawName || name);
+        const key = finalId ? `id:${finalId}` : `name:${nameKey}`;
+        return { key, id: finalId, name: finalName, team: finalTeam };
+    }
+
+    // ----- Walk every row of every day-deduped report and accumulate transfers
     const teamTotals = { PR: 0, BB: 0, RM: 0 };
-    const agentWeeklyMap = new Map(); // agent key -> { name, team, transfers }
-    
+    const agentWeeklyMap = new Map(); // canonical key -> { id, name, team, transfers }
+
     weekReports.forEach(report => {
         (report.data || []).forEach(row => {
             const agentName = row.agentName || row.name || row['Agent Name'] || '';
-            if (!agentName) return;
             const rawName = row.rawName || agentName;
-            
+            if (!agentName && !row.agentId) return;
+
             // Skip PH training accounts that slipped into old Firebase records
             if (/^PH(?![A-Za-z])/i.test(rawName)) return;
-            
-            // Use stored team field first (set by parser), fall back to normalizeTeam
-            const team = row.team || normalizeTeam(row.team, rawName);
-            
-            // Check XFER status — try every possible field name the CSV parser may have used
+
             const statusVal = String(
                 row.status || row.currentStatus || row['Current Status'] ||
                 row.currentstatus || row.Status || ''
             ).toUpperCase().trim();
             const isXfer = statusVal === 'XFER';
-            
-            // leadCount: 1 per confirmed XFER, or fall back to dailyLeads for live data
+
+            // 1 per confirmed XFER, or fall back to dailyLeads for live data rows
             const leadCount = isXfer ? 1 : (Number(row.dailyLeads) || 0);
-            
-            if (leadCount > 0) {
-                teamTotals[team] = (teamTotals[team] || 0) + leadCount;
-                
-                // Use agentId as key if available (most reliable), else name-based key
-                const cleanKey = row.agentId
-                    ? String(row.agentId).trim()
-                    : String(agentName).replace(/^(GYP|GYB|PH|GTM|RM)\s+/i, '').trim().toUpperCase();
-                
-                if (!agentWeeklyMap.has(cleanKey)) {
-                    agentWeeklyMap.set(cleanKey, {
-                        name: agentName,
-                        team: team,
-                        transfers: 0,
-                        rawName: rawName
-                    });
-                }
-                agentWeeklyMap.get(cleanKey).transfers += leadCount;
+            if (leadCount <= 0) return;
+
+            const resolved = resolveAgent({
+                id: row.agentId,
+                name: agentName,
+                team: row.team,
+                rawName
+            });
+
+            teamTotals[resolved.team] = (teamTotals[resolved.team] || 0) + leadCount;
+
+            if (!agentWeeklyMap.has(resolved.key)) {
+                agentWeeklyMap.set(resolved.key, {
+                    id: resolved.id,
+                    name: resolved.name,
+                    team: resolved.team,
+                    transfers: 0
+                });
             }
+            agentWeeklyMap.get(resolved.key).transfers += leadCount;
         });
     });
-    
-    // Also include agents from roster with 0 transfers
+
+    // ----- Add roster agents with zero transfers so the table shows everyone
     roster.forEach(agent => {
-        const agentName = agent.fullName || agent.name;
-        if (!agentWeeklyMap.has(agentName)) {
-            agentWeeklyMap.set(agentName, {
-                name: agentName,
-                team: agent.team || normalizeTeam('', agentName),
-                transfers: 0,
-                rawName: agentName
+        const resolved = resolveAgent({
+            id: agent.userId || agent.ytelId,
+            name: agent.fullName || agent.name,
+            team: agent.team
+        });
+        if (!resolved.name) return;
+        if (!agentWeeklyMap.has(resolved.key)) {
+            agentWeeklyMap.set(resolved.key, {
+                id: resolved.id,
+                name: resolved.name,
+                team: resolved.team,
+                transfers: 0
             });
         }
     });
-    
-    // Convert to array and sort by transfers (highest first)
+
+    // Convert to array, sort by transfers desc then name asc for stable ties
     ahAllAgentsWeeklyData = Array.from(agentWeeklyMap.values())
-        .sort((a, b) => b.transfers - a.transfers);
+        .sort((a, b) => (b.transfers - a.transfers) || a.name.localeCompare(b.name));
     
     // Render team rankings
     renderWeeklyTeamRankings(teamTotals);
@@ -587,6 +630,7 @@ function renderTeamTable(title, agents, colorClass) {
                     <thead class="sticky top-0 bg-black/80">
                         <tr class="text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
                             <th class="p-3">Rank</th>
+                            <th class="p-3">Agent ID</th>
                             <th class="p-3">Agent Name</th>
                             <th class="p-3 text-center">Team</th>
                             <th class="p-3 text-right">Weekly Xfers</th>
@@ -596,6 +640,7 @@ function renderTeamTable(title, agents, colorClass) {
                         ${agents.map((agent, idx) => `
                             <tr class="hover:bg-white/5 transition group text-[11px]">
                                 <td class="p-3 text-slate-500 font-black">${idx + 1}</td>
+                                <td class="p-3 text-slate-400 font-mono">${escapeHtml(agent.id || '—')}</td>
                                 <td class="p-3 font-bold text-white uppercase">${escapeHtml(agent.name)}</td>
                                 <td class="p-3 text-center">
                                     <span class="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-${colorClass}/10 text-${colorClass} border border-${colorClass}/20">${agent.team}</span>
