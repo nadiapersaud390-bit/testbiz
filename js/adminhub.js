@@ -1158,13 +1158,58 @@ window.ahEditGoal = function() {
     }
 };
 
-// COACHING LOGIC
+// ==========================================================================
+// COACHING NOTES
+// ==========================================================================
+let ahCoachingSessions = [];
+
+function ahEscapeHtml(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function ahLinesToHtml(text) {
+    const safe = ahEscapeHtml(text || '').trim();
+    if (!safe) return '<span class="text-slate-500 italic">—</span>';
+    const lines = safe.split(/\r?\n/).map(l => l.replace(/^[•\-\*]\s*/, '').trim()).filter(Boolean);
+    if (lines.length <= 1) return `<div class="text-[11px] text-slate-300 leading-relaxed">${safe.replace(/\n/g, '<br>')}</div>`;
+    return '<ul class="text-[11px] text-slate-300 leading-relaxed list-disc list-inside space-y-1">' +
+        lines.map(l => `<li>${l}</li>`).join('') + '</ul>';
+}
+
+function ahPopulateRepDatalist(listId) {
+    const datalist = document.getElementById(listId);
+    if (!datalist) return;
+    const agents = (window.agents || window.allAgentProfiles || []).slice();
+    const seen = new Set();
+    datalist.innerHTML = agents
+        .map(a => a.name || a.fullName || '')
+        .filter(name => {
+            if (!name) return false;
+            const key = name.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
+        .sort()
+        .map(name => `<option value="${ahEscapeHtml(name)}">`)
+        .join('');
+}
+
 window.ahOpenCoachingInline = function() {
     const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    document.getElementById('coach-admin-name').value = cAdmin.name || cAdmin.email || 'Admin';
-    document.getElementById('ah-coaching-form').reset();
-    document.getElementById('ah-coaching-inline').classList.remove('hidden');
-    document.getElementById('ah-coaching-inline').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const form = document.querySelector('#ah-coaching-inline form');
+    if (form) form.reset();
+    const adminInput = document.getElementById('coach-admin-name');
+    if (adminInput) adminInput.value = cAdmin.name || cAdmin.email || 'Admin';
+    ahPopulateRepDatalist('coach-rep-list');
+    const inline = document.getElementById('ah-coaching-inline');
+    inline.classList.remove('hidden');
+    inline.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 window.ahCloseCoachingInline = function() {
@@ -1175,104 +1220,162 @@ window.ahHandleCoachingSubmit = async function(e) {
     e.preventDefault();
     const saveBtn = document.getElementById('coach-save-btn');
     const status = document.getElementById('coach-submit-status');
-    
-    const repName = document.getElementById('coach-rep-name').value;
-    const adminName = document.getElementById('coach-admin-name').value;
-    const topic = document.getElementById('coach-topic').value;
-    const points = document.getElementById('coach-points').value;
-    const outcome = document.getElementById('coach-outcome').value;
-    
-    const agent = (window.agents || []).find(a => a.name === repName);
+
+    const repName = document.getElementById('coach-rep-name').value.trim();
+    const adminName = document.getElementById('coach-admin-name').value.trim();
+    const discussion = document.getElementById('coach-discussion').value.trim();
+    const goal = document.getElementById('coach-goal').value.trim();
+    const points = document.getElementById('coach-points').value.trim();
+    const advice = document.getElementById('coach-advice').value.trim();
+    const outcome = document.getElementById('coach-outcome').value.trim();
+
+    if (!repName || !adminName) {
+        status.innerHTML = '<span class="text-red-400">Rep name and admin name are required.</span>';
+        return;
+    }
+
+    const agent = (window.agents || []).find(a => (a.name || '').toLowerCase() === repName.toLowerCase());
     const repTeam = agent ? normalizeTeam(agent.team, agent.name) : 'PR';
 
     const sessionData = {
         repName,
         repTeam,
         adminName,
-        topic,
+        discussion,
+        goal,
         points,
-        outcome
+        advice,
+        outcome,
+        // Backwards-compatible alias used by older render code
+        topic: discussion
     };
 
     saveBtn.disabled = true;
     status.innerHTML = '<span class="text-blue-400">Saving...</span>';
 
+    if (typeof window.saveCoachingSession !== 'function') {
+        status.innerHTML = '<span class="text-red-400">❌ Firebase not ready. Please refresh and try again.</span>';
+        saveBtn.disabled = false;
+        return;
+    }
+
     const res = await window.saveCoachingSession(sessionData);
-    if (res.success) {
-        status.innerHTML = '<span class="text-green-400">✅ Saved Successfully</span>';
+    if (res && res.success) {
+        status.innerHTML = '<span class="text-green-400">✅ Saved to Firebase</span>';
         if (typeof window.writeAdminActivityLog === 'function') {
-            window.writeAdminActivityLog('coaching', `Logged coaching session for ${repName} on "${topic}"`);
+            window.writeAdminActivityLog('coaching', `Logged coaching note for ${repName}${discussion ? ` on "${discussion}"` : ''}`);
         }
         setTimeout(() => {
             ahCloseCoachingInline();
             saveBtn.disabled = false;
             status.innerHTML = '';
-        }, 1500);
+        }, 1200);
     } else {
-        status.innerHTML = '<span class="text-red-400">❌ Error Saving</span>';
+        const msg = res && res.error ? (res.error.message || res.error) : 'Unknown error';
+        status.innerHTML = `<span class="text-red-400">❌ Save failed: ${ahEscapeHtml(String(msg))}</span>`;
         saveBtn.disabled = false;
     }
 };
 
 window.coachingInit = function() {
-    if (window.ahCoachingSubscribed) return;
+    ahPopulateRepDatalist('coach-rep-list');
+    if (window.ahCoachingSubscribed) {
+        renderCoachingList(ahCoachingSessions);
+        return;
+    }
     if (typeof window.listenToCoaching === 'function') {
         window.listenToCoaching((sessions) => {
-            renderCoachingList(sessions);
+            ahCoachingSessions = sessions || [];
+            renderCoachingList(ahCoachingSessions);
         });
         window.ahCoachingSubscribed = true;
+    } else {
+        renderCoachingList([]);
     }
+};
+
+window.ahFilterCoachingList = function() {
+    renderCoachingList(ahCoachingSessions);
 };
 
 function renderCoachingList(sessions) {
     const list = document.getElementById('ah-coaching-list');
     if (!list) return;
 
-    if (sessions.length === 0) {
-        list.innerHTML = '<div class="py-20 text-center text-slate-500 font-bold uppercase tracking-widest border border-dashed border-white/10 rounded-[2.5rem]">No Coaching Sessions Recorded Yet</div>';
+    const searchEl = document.getElementById('coach-search');
+    const teamEl = document.getElementById('coach-team-filter');
+    const search = (searchEl ? searchEl.value : '').toLowerCase().trim();
+    const team = teamEl ? teamEl.value : 'ALL';
+
+    const filtered = (sessions || []).filter(s => {
+        if (search && !(s.repName || '').toLowerCase().includes(search)) return false;
+        if (team !== 'ALL' && (s.repTeam || '').toUpperCase() !== team) return false;
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        list.innerHTML = '<div class="py-20 text-center text-slate-500 font-bold uppercase tracking-widest border border-dashed border-white/10 rounded-2xl">No Coaching Notes Recorded Yet</div>';
         return;
     }
 
-    list.innerHTML = sessions.map(s => {
+    list.innerHTML = filtered.map(s => {
         const colorClass = ahTeamColors[s.repTeam] || 'slate-500';
+        const dateStr = s.timestamp ? new Date(s.timestamp).toLocaleString() : '';
+        const discussion = s.discussion || s.topic || '';
         return `
-            <div class="glass p-6 rounded-[2rem] border border-white/5 hover:bg-white/5 transition group">
+            <div class="glass p-6 rounded-2xl border border-white/5 hover:bg-white/5 transition group">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-xl">📝</div>
+                        <div class="w-12 h-12 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-xl">📝</div>
                         <div>
-                            <h4 class="text-sm font-black text-white uppercase tracking-tight">${s.repName}</h4>
-                            <div class="flex gap-2 mt-1">
-                                <span class="px-2 py-0.5 rounded bg-${colorClass}/10 text-${colorClass} text-[7px] font-black uppercase tracking-widest">${s.repTeam}</span>
-                                <span class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${new Date(s.timestamp).toLocaleDateString()}</span>
+                            <h4 class="text-sm font-black text-white uppercase tracking-tight">${ahEscapeHtml(s.repName || '')}</h4>
+                            <div class="flex flex-wrap gap-2 mt-1 items-center">
+                                <span class="px-2 py-0.5 rounded bg-${colorClass}/10 text-${colorClass} text-[8px] font-black uppercase tracking-widest">${ahEscapeHtml(s.repTeam || '')}</span>
+                                <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">${ahEscapeHtml(dateStr)}</span>
                             </div>
                         </div>
                     </div>
-                    <button onclick="ahDeleteSession('coaching_sessions', '${s.id}')" class="text-red-500/30 hover:text-red-500 transition opacity-0 group-hover:opacity-100 p-2"><i class="fas fa-trash"></i></button>
+                    <button onclick="ahDeleteSession('coaching_sessions', '${s.id}')" class="text-red-500/30 hover:text-red-500 transition opacity-0 group-hover:opacity-100 p-2" title="Delete"><i class="fas fa-trash"></i></button>
                 </div>
+
+                ${discussion ? `<div class="mb-3"><div class="text-[9px] font-black text-cyan-400 uppercase tracking-widest mb-1">💬 Discussion</div><div class="text-[12px] text-white">${ahEscapeHtml(discussion)}</div></div>` : ''}
+                ${s.goal ? `<div class="mb-3"><div class="text-[9px] font-black text-pink-400 uppercase tracking-widest mb-1">🌹 Goal</div><div class="text-[12px] text-white">${ahEscapeHtml(s.goal)}</div></div>` : ''}
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/5">
                     <div>
-                        <div class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Topic: ${s.topic}</div>
-                        <div class="text-[11px] text-slate-300 leading-relaxed">${s.points || 'No points recorded.'}</div>
+                        <div class="text-[9px] font-black text-yellow-400 uppercase tracking-widest mb-1">✏️ Key Discussion Points</div>
+                        ${ahLinesToHtml(s.points)}
                     </div>
                     <div>
-                        <div class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Outcome</div>
-                        <div class="text-[11px] text-slate-300 italic">${s.outcome || 'Pending follow-up.'}</div>
+                        <div class="text-[9px] font-black text-yellow-400 uppercase tracking-widest mb-1">💡 My Advice</div>
+                        ${ahLinesToHtml(s.advice)}
                     </div>
                 </div>
-                <div class="mt-4 text-[7px] text-slate-600 font-bold uppercase tracking-widest text-right">Logged by ${s.adminName}</div>
+                ${s.outcome ? `<div class="mt-4 pt-4 border-t border-white/5">
+                    <div class="text-[9px] font-black text-green-400 uppercase tracking-widest mb-1">✅ Outcome</div>
+                    ${ahLinesToHtml(s.outcome)}
+                </div>` : ''}
+                <div class="mt-4 text-[8px] text-slate-600 font-bold uppercase tracking-widest text-right">Coached by ${ahEscapeHtml(s.adminName || '')}</div>
             </div>
         `;
     }).join('');
 }
 
-// MONITORING LOGIC
+// ==========================================================================
+// LIVE MONITORING
+// ==========================================================================
+let ahMonitoringSessions = [];
+
 window.ahOpenMonitoringInline = function() {
     const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    document.getElementById('mon-admin-name').value = cAdmin.name || cAdmin.email || 'Admin';
-    document.getElementById('ah-monitoring-form').reset();
-    document.getElementById('ah-monitoring-inline').classList.remove('hidden');
-    document.getElementById('ah-monitoring-inline').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const form = document.querySelector('#ah-monitoring-inline form');
+    if (form) form.reset();
+    const adminInput = document.getElementById('mon-admin-name');
+    if (adminInput) adminInput.value = cAdmin.name || cAdmin.email || 'Admin';
+    ahPopulateRepDatalist('mon-rep-list');
+    const inline = document.getElementById('ah-monitoring-inline');
+    inline.classList.remove('hidden');
+    inline.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 window.ahCloseMonitoringInline = function() {
@@ -1283,92 +1386,146 @@ window.ahHandleMonitoringSubmit = async function(e) {
     e.preventDefault();
     const saveBtn = document.getElementById('mon-save-btn');
     const status = document.getElementById('mon-submit-status');
-    
-    const repName = document.getElementById('mon-rep-name').value;
-    const adminName = document.getElementById('mon-admin-name').value;
-    const tone = document.getElementById('mon-score-tone').value;
-    const script = document.getElementById('mon-score-script').value;
-    const points = document.getElementById('mon-coaching-pts').value;
-    
-    const agent = (window.agents || []).find(a => a.name === repName);
+
+    const repName = document.getElementById('mon-rep-name').value.trim();
+    const adminName = document.getElementById('mon-admin-name').value.trim();
+    const dialBehavior = document.getElementById('mon-dial-behavior').value.trim();
+    const voiceTone = document.getElementById('mon-voice-tone').value.trim();
+    const scriptEngagement = document.getElementById('mon-script-engagement').value.trim();
+    const objectionHandling = document.getElementById('mon-objection-handling').value.trim();
+    const points = document.getElementById('mon-coaching-pts').value.trim();
+
+    if (!repName || !adminName) {
+        status.innerHTML = '<span class="text-red-400">Rep name and admin name are required.</span>';
+        return;
+    }
+
+    const agent = (window.agents || []).find(a => (a.name || '').toLowerCase() === repName.toLowerCase());
     const repTeam = agent ? normalizeTeam(agent.team, agent.name) : 'PR';
 
     const sessionData = {
         repName,
         repTeam,
         adminName,
-        scores: { tone, script },
+        dialBehavior,
+        voiceTone,
+        scriptEngagement,
+        objectionHandling,
         points
     };
 
     saveBtn.disabled = true;
     status.innerHTML = '<span class="text-blue-400">Saving...</span>';
 
+    if (typeof window.saveMonitoringSession !== 'function') {
+        status.innerHTML = '<span class="text-red-400">❌ Firebase not ready. Please refresh and try again.</span>';
+        saveBtn.disabled = false;
+        return;
+    }
+
     const res = await window.saveMonitoringSession(sessionData);
-    if (res.success) {
-        status.innerHTML = '<span class="text-green-400">✅ QA Logged</span>';
+    if (res && res.success) {
+        status.innerHTML = '<span class="text-green-400">✅ Saved to Firebase</span>';
         if (typeof window.writeAdminActivityLog === 'function') {
-            window.writeAdminActivityLog('monitoring', `Logged QA check for ${repName}`);
+            window.writeAdminActivityLog('monitoring', `Logged monitoring session for ${repName}`);
         }
         setTimeout(() => {
             ahCloseMonitoringInline();
             saveBtn.disabled = false;
             status.innerHTML = '';
-        }, 1500);
+        }, 1200);
     } else {
-        status.innerHTML = '<span class="text-red-400">❌ Error</span>';
+        const msg = res && res.error ? (res.error.message || res.error) : 'Unknown error';
+        status.innerHTML = `<span class="text-red-400">❌ Save failed: ${ahEscapeHtml(String(msg))}</span>`;
         saveBtn.disabled = false;
     }
 };
 
 window.monitoringInit = function() {
-    if (window.ahMonitoringSubscribed) return;
+    ahPopulateRepDatalist('mon-rep-list');
+    if (window.ahMonitoringSubscribed) {
+        renderMonitoringList(ahMonitoringSessions);
+        return;
+    }
     if (typeof window.listenToMonitoring === 'function') {
         window.listenToMonitoring((sessions) => {
-            renderMonitoringList(sessions);
+            ahMonitoringSessions = sessions || [];
+            renderMonitoringList(ahMonitoringSessions);
         });
         window.ahMonitoringSubscribed = true;
+    } else {
+        renderMonitoringList([]);
     }
+};
+
+window.ahFilterMonitoringList = function() {
+    renderMonitoringList(ahMonitoringSessions);
 };
 
 function renderMonitoringList(sessions) {
     const list = document.getElementById('ah-monitoring-list');
     if (!list) return;
 
-    if (sessions.length === 0) {
-        list.innerHTML = '<div class="py-20 text-center text-slate-500 font-bold uppercase tracking-widest border border-dashed border-white/10 rounded-[2.5rem]">No QA Checks Logged Yet</div>';
+    const searchEl = document.getElementById('mon-search');
+    const teamEl = document.getElementById('mon-team-filter');
+    const search = (searchEl ? searchEl.value : '').toLowerCase().trim();
+    const team = teamEl ? teamEl.value : 'ALL';
+
+    const filtered = (sessions || []).filter(s => {
+        if (search && !(s.repName || '').toLowerCase().includes(search)) return false;
+        if (team !== 'ALL' && (s.repTeam || '').toUpperCase() !== team) return false;
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        list.innerHTML = '<div class="py-20 text-center text-slate-500 font-bold uppercase tracking-widest border border-dashed border-white/10 rounded-2xl">No Monitoring Sessions Recorded Yet</div>';
         return;
     }
 
-    list.innerHTML = sessions.map(s => {
+    list.innerHTML = filtered.map(s => {
         const colorClass = ahTeamColors[s.repTeam] || 'slate-500';
-        const avg = ((Number(s.scores.tone) + Number(s.scores.script)) / 2).toFixed(1);
+        const dateStr = s.timestamp ? new Date(s.timestamp).toLocaleString() : '';
         return `
-            <div class="glass p-6 rounded-[2rem] border border-white/5 hover:bg-white/5 transition group">
+            <div class="glass p-6 rounded-2xl border border-white/5 hover:bg-white/5 transition group">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-xl">🎧</div>
+                        <div class="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-xl">🎧</div>
                         <div>
-                            <h4 class="text-sm font-black text-white uppercase tracking-tight">${s.repName}</h4>
-                            <div class="flex gap-2 mt-1">
-                                <span class="px-2 py-0.5 rounded bg-${colorClass}/10 text-${colorClass} text-[7px] font-black uppercase tracking-widest">${s.repTeam}</span>
-                                <span class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">${new Date(s.timestamp).toLocaleDateString()}</span>
+                            <h4 class="text-sm font-black text-white uppercase tracking-tight">${ahEscapeHtml(s.repName || '')}</h4>
+                            <div class="flex flex-wrap gap-2 mt-1 items-center">
+                                <span class="px-2 py-0.5 rounded bg-${colorClass}/10 text-${colorClass} text-[8px] font-black uppercase tracking-widest">${ahEscapeHtml(s.repTeam || '')}</span>
+                                <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">${ahEscapeHtml(dateStr)}</span>
                             </div>
                         </div>
                     </div>
-                    <div class="text-right">
-                        <div class="text-[14px] font-black text-cyan-400 italic">${avg}/5.0</div>
-                        <div class="text-[7px] text-slate-600 font-black uppercase tracking-tighter">QA SCORE</div>
+                    <button onclick="ahDeleteSession('monitoring_sessions', '${s.id}')" class="text-red-500/30 hover:text-red-500 transition opacity-0 group-hover:opacity-100 p-2" title="Delete"><i class="fas fa-trash"></i></button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 pt-4 border-t border-white/5">
+                    <div>
+                        <div class="text-[9px] font-black text-pink-400 uppercase tracking-widest mb-1">📞 Dial Behavior</div>
+                        ${ahLinesToHtml(s.dialBehavior)}
+                    </div>
+                    <div>
+                        <div class="text-[9px] font-black text-yellow-400 uppercase tracking-widest mb-1">🎙 Voice, Energy & Tone</div>
+                        ${ahLinesToHtml(s.voiceTone)}
+                    </div>
+                    <div>
+                        <div class="text-[9px] font-black text-cyan-400 uppercase tracking-widest mb-1">📜 Script & Engagement</div>
+                        ${ahLinesToHtml(s.scriptEngagement)}
+                    </div>
+                    <div>
+                        <div class="text-[9px] font-black text-purple-400 uppercase tracking-widest mb-1">💬 Objection / Rebuttal Handling</div>
+                        ${ahLinesToHtml(s.objectionHandling)}
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-white/5">
-                    <div class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Primary Feedback</div>
-                    <div class="text-[11px] text-slate-300 leading-relaxed">${s.points || 'Standard quality maintained.'}</div>
-                </div>
-                <div class="mt-4 flex justify-between items-center">
-                    <div class="text-[7px] text-slate-600 font-bold uppercase tracking-widest">Logged by ${s.adminName}</div>
-                    <button onclick="ahDeleteSession('monitoring_sessions', '${s.id}')" class="text-red-500/30 hover:text-red-500 transition opacity-0 group-hover:opacity-100 text-[10px]"><i class="fas fa-trash mr-1"></i> Delete</button>
-                </div>
+
+                ${s.points ? `<div class="mt-4 pt-4 border-t border-white/5">
+                    <div class="text-[9px] font-black text-yellow-400 uppercase tracking-widest mb-1">⭐ Coaching Points</div>
+                    ${ahLinesToHtml(s.points)}
+                </div>` : ''}
+
+                <div class="mt-4 text-[8px] text-slate-600 font-bold uppercase tracking-widest text-right">Logged by ${ahEscapeHtml(s.adminName || '')}</div>
             </div>
         `;
     }).join('');
