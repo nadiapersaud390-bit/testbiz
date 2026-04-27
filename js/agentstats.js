@@ -1,6 +1,7 @@
 /**
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
  * PRESERVES EXACT CSV ORDER - NO SORTING WHATSOEVER
+ * FIXED: Replaces data on re-upload instead of merging
  */
 
 let allReports = [];
@@ -15,8 +16,6 @@ let newLeadsList = [];
 let _asLastUploadedDateLabel = null;
 
 // Returns true if a CSV agent-name represents a PH (Philippines) training account.
-// Matches: 'PH JOHN', 'PH-ROSE', 'PH.MIKE', 'PH123', bare 'PH'.
-// Does NOT match real names that happen to start with PH like 'PHIL', 'PHOEBE', etc.
 function isPhTrainingName(rawName) {
     if (!rawName) return false;
     const t = String(rawName).trim();
@@ -82,21 +81,17 @@ window.renderAgentStatsHistory = function() {
             if (allReports.length > 0) {
                 const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
                 
-                // 1) If we just uploaded, ALWAYS jump to the freshly uploaded report
                 if (_asLastUploadedDateLabel) {
                     const justUploaded = sortedForDisplay.find(r => normalizeReportDateLabel(r.reportDate) === _asLastUploadedDateLabel);
                     _asLastUploadedDateLabel = null;
                     if (justUploaded) {
                         viewReport(justUploaded.id);
                     } else {
-                        // Fallback: most recent uploadedAt
                         viewReport(sortedForDisplay[0].id);
                     }
                 } else if (!currentReportData) {
-                    // 2) First load — show most recent
                     viewReport(sortedForDisplay[0].id);
                 } else {
-                    // 3) Already viewing one — stay unless it was deleted
                     const stillExists = allReports.find(r => r.id === currentReportData.id);
                     if (!stillExists) viewReport(sortedForDisplay[0].id);
                 }
@@ -126,7 +121,6 @@ window.renderAgentStatsHistory = function() {
 async function autoPushReportToDashboard(report) {
     if (!report || !report.data) return;
     
-    // Normalize today's date to canonical 'Mon DD, YYYY' to compare apples-to-apples
     const today = new Date();
     const todayCanon = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const reportCanon = (normalizeReportDateLabel(report.reportDate) || '').split(' (')[0];
@@ -141,7 +135,6 @@ async function autoPushReportToDashboard(report) {
         const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
         const rawKey = d.rawName || d.agentName;
         if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0 };
-        // Use status field (stored as 'status' by the CSV parser)
         const isXfer = String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim() === 'XFER';
         if(isXfer) aggMap[nameKey].transfers++;
     });
@@ -247,6 +240,7 @@ window.asToggleDateOverride = function(checked) {
     input.style.cursor = checked ? 'text' : 'default';
 };
 
+// 🔥 FIXED: REPLACE data instead of MERGE on re-upload
 window.asConfirmUpload = async function() {
     if (!_asStagedParsed || !_asStagedFile) {
         updateStatsStatus('❌ No file staged. Please re-select your CSV.', true);
@@ -270,7 +264,16 @@ window.asConfirmUpload = async function() {
     
     const dayName = typeof getGuyanaDayName === 'function' ? getGuyanaDayName(_asStagedParsedDate) : 'MON';
     
-    let reportObj_dataOverride = null;
+    const normalizedFinalDate = normalizeReportDateLabel(finalDateStr);
+    
+    // 🔥 FIX: Delete existing report for this date FIRST (REPLACE, not MERGE)
+    const existingReport = allReports.find(r => normalizeReportDateLabel(r.reportDate) === normalizedFinalDate);
+    if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
+        await window.deleteAgentReportFromFirebase(existingReport.id);
+        console.log(`[Upload] Deleted existing report for ${normalizedFinalDate} before re-upload`);
+    }
+    
+    // Create new report with FRESH data (no merging, no _isNewLead flags)
     const reportObj = {
         filename: _asStagedFile.name,
         reportDate: finalDateStr,
@@ -278,50 +281,22 @@ window.asConfirmUpload = async function() {
         uploadedAt: new Date().toISOString(),
         expiresAt: expiryDate.toISOString(),
         author: adminName,
-        get data() { return reportObj_dataOverride || _asStagedParsed; },
-        set data(v) { reportObj_dataOverride = v; }
+        data: _asStagedParsed.map(r => ({ ...r, _isNewLead: false }))
     };
     
-    // Merge with existing same-date report so re-uploads only add new leads
-    const normalizedFinalDate = normalizeReportDateLabel(finalDateStr);
-    const existingReport = allReports.find(r => normalizeReportDateLabel(r.reportDate) === normalizedFinalDate);
-    let _addedCount = 0;
-    let mergedRows = (_asStagedParsed || []).map(r => ({ ...r, _isNewLead: false }));
-    if (existingReport && Array.isArray(existingReport.data) && existingReport.data.length) {
-        const sigOf = r => `${r.agentId||''}|${r.rawName||r.agentName||''}|${r.status||''}|${r.duration||0}`;
-        const existingSigs = new Set(existingReport.data.map(sigOf));
-        const additions = [];
-        mergedRows.forEach(r => {
-            if (!existingSigs.has(sigOf(r))) {
-                additions.push({ ...r, _isNewLead: true });
-                _addedCount++;
-            }
-        });
-        mergedRows = [
-            ...existingReport.data.map(r => ({ ...r, _isNewLead: false })),
-            ...additions
-        ];
-        if (typeof window.deleteAgentReportFromFirebase === 'function') {
-            await window.deleteAgentReportFromFirebase(existingReport.id);
-        }
-    }
-    reportObj_dataOverride = mergedRows;
     _asLastUploadedDateLabel = normalizedFinalDate;
     
     if (typeof window.saveAgentReportToFirebase === 'function') {
         const res = await window.saveAgentReportToFirebase(reportObj);
         if (res && res.success) {
-            const msg = _addedCount > 0
-                ? `✅ Saved! ${_addedCount} new lead${_addedCount === 1 ? '' : 's'} added.`
-                : (existingReport ? '✅ Re-uploaded. No new leads were added.' : '✅ Report saved successfully!');
-            updateStatsStatus(msg, false);
+            updateStatsStatus(`✅ Report saved! (${_asStagedParsed.length} rows, replaced previous data)`, false);
             if (typeof window.writeAdminActivityLog === 'function') {
-                window.writeAdminActivityLog('upload_stats', `Uploaded: ${_asStagedFile.name} (+${_addedCount} new)`);
+                window.writeAdminActivityLog('upload_stats', `Uploaded (replaced): ${_asStagedFile.name} (${_asStagedParsed.length} rows)`);
             }
             document.getElementById('as-upload-panel').classList.add('hidden');
             _asStagedFile = null;
             _asStagedParsed = null;
-            // Force the bottom view to switch to the just-uploaded report once the listener fires
+            // Force refresh
             currentReportData = null;
             setTimeout(() => updateStatsStatus('', false), 4000);
         } else {
@@ -348,7 +323,6 @@ async function handleFileUpload(file) {
     const text = await file.text();
     let lines = text.split(/\r?\n/);
     
-    // Find the actual header row
     let headerIdx = -1;
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].toLowerCase();
@@ -367,16 +341,13 @@ async function handleFileUpload(file) {
         return;
     }
     
-    // Get headers
     const headers = lines[headerIdx].split(',').map(h => h.replace(/^"|"$/g, '').trim());
     
-    // Parse data rows - PRESERVE ORIGINAL ORDER
     const parsedData = [];
     for (let i = headerIdx + 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
         
-        // Parse CSV line respecting quotes
         const values = [];
         let inQuote = false;
         let current = '';
@@ -395,7 +366,6 @@ async function handleFileUpload(file) {
         
         if (values.length < 5) continue;
         
-        // Map values to headers
         const row = {};
         headers.forEach((h, idx) => {
             row[h] = values[idx] || '';
@@ -406,22 +376,18 @@ async function handleFileUpload(file) {
         const status = row['Current Status'] || '';
         const durationRaw = row['Duration'] || '0';
         
-        // Skip ALL PH training accounts — match 'PH ' / 'PH-' / 'PH.' / 'PH123' but NOT 'PHIL' etc.
         if (isPhTrainingName(agentNameRaw)) continue;
         if (!agentNameRaw.trim() || agentNameRaw.trim() === 'UNKNOWN') continue;
         
-        // Derive team from prefix BEFORE stripping it
-        let team = 'PR'; // default
+        let team = 'PR';
         const upperRaw = agentNameRaw.toUpperCase().trim();
         if (upperRaw.startsWith('GYB ') || upperRaw.startsWith('GYB\t')) team = 'BB';
         else if (upperRaw.startsWith('GYP ') || upperRaw.startsWith('GYP\t')) team = 'PR';
         else if (upperRaw.startsWith('GTM ') || upperRaw.startsWith('GTM\t')) team = 'RM';
         else if (upperRaw.startsWith('RM ') || upperRaw.startsWith('RM\t')) team = 'RM';
 
-        // agentName: strip prefix for display but keep rawName for team lookup
         const agentName = agentNameRaw.replace(/^(GYP|GYB|GTM|RM)\s+/i, '').trim();
         
-        // Parse duration
         let duration = 0;
         if (durationRaw.includes(':')) {
             const parts = durationRaw.split(':').map(Number);
@@ -433,9 +399,9 @@ async function handleFileUpload(file) {
         
         parsedData.push({
             agentId: agentId,
-            agentName: agentName,       // "Patricia Ramkishun" (no prefix, proper case)
-            rawName: agentNameRaw,      // "GYP Patricia Ramkishun" (full original)
-            team: team,                 // "PR" / "BB" / "RM" — derived at parse time
+            agentName: agentName,
+            rawName: agentNameRaw,
+            team: team,
             status: status.toUpperCase(),
             duration: duration
         });
@@ -449,7 +415,6 @@ async function handleFileUpload(file) {
     _asStagedFile = file;
     _asStagedParsed = parsedData;
     _asStagedDateStr = fileDateStr;
-    // Use the actual date from the filename so dayOfWeek is stored correctly
     if (dateMatch) {
         _asStagedParsedDate = new Date(`${dateMatch[3]}-${dateMatch[1]}-${dateMatch[2]}`);
         if (isNaN(_asStagedParsedDate.getTime())) _asStagedParsedDate = new Date();
@@ -461,13 +426,12 @@ async function handleFileUpload(file) {
     const dateInput = document.getElementById('as-report-date-input');
     if (dateInput) dateInput.value = normalizeReportDateLabel(fileDateStr);
     
-    // Reflect current retention pick (default 30 days)
     asSetRetention(_asRetentionDays || 30);
     
     const panel = document.getElementById('as-upload-panel');
     if (panel) panel.classList.remove('hidden');
     
-    updateStatsStatus(`✅ Ready: ${parsedData.length} rows, preserving CSV order`, false);
+    updateStatsStatus(`✅ Ready: ${parsedData.length} rows, will REPLACE previous data for this date`, false);
 }
 
 function updateStatsStatus(msg, isError) {
@@ -518,8 +482,7 @@ window.viewReport = function(id) {
     
     currentReportData = report;
     
-    // New leads come from rows flagged during the latest CSV merge
-    newLeadsList = (report.data || []).filter(row => row && row._isNewLead);
+    newLeadsList = []; // No new leads on fresh reports
     
     renderHistoryList();
     
@@ -528,7 +491,6 @@ window.viewReport = function(id) {
     document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> ${uploadDateTime}`);
     document.querySelectorAll('#as-report-author').forEach(el => el.innerHTML = `<i class="far fa-user mr-1"></i> ${report.author}`);
     
-    // Delete button
     const delBtns = document.querySelectorAll('#as-delete-btn');
     delBtns.forEach(delBtn => {
         const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
@@ -547,7 +509,6 @@ window.viewReport = function(id) {
         }
     });
     
-    // Push button
     const pushBtns = document.querySelectorAll('#as-push-btn');
     pushBtns.forEach(pushBtn => {
         const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
@@ -587,11 +548,9 @@ window.viewReport = function(id) {
     renderActiveReportTable();
 };
 
-// 🔥 FIXED: Render table EXACTLY as it appears in parsed data - NO SORTING
 function renderActiveReportTable() {
     if (!currentReportData) return;
     
-    // Strip any legacy PH rows from old reports saved before the PH filter existed
     const rawRows = (currentReportData.data || []).filter(d => !isPhTrainingName(d && (d.rawName || d.agentName)));
     
     const totalXfers = rawRows.filter(d => String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim() === 'XFER').length;
@@ -602,7 +561,6 @@ function renderActiveReportTable() {
     document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalXfers);
     document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = agentCount > 0 ? ((totalXfers / agentCount) * 100).toFixed(1) + '%' : '0%');
     
-    // Apply search filter (only filtering, NO sorting)
     let searchVal = '';
     const searchInput = document.getElementById('as-search-input');
     if (searchInput) searchVal = searchInput.value.toLowerCase().trim();
@@ -612,34 +570,22 @@ function renderActiveReportTable() {
         displayRows = rawRows.filter(d => d.agentName.toLowerCase().includes(searchVal) || d.agentId.toLowerCase().includes(searchVal));
     }
     
-    // Mark new leads using stored _isNewLead flag (set during CSV merge)
-    const newLeadSet = new Set();
-    newLeadsList.forEach(lead => {
-        if (lead && lead.agentName) newLeadSet.add(lead.agentName.toUpperCase().trim());
-    });
-    
     const tbodies = document.querySelectorAll('#as-table-body');
     if (displayRows.length === 0) {
         tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500">No matches found.基督</tr>`);
         return;
     }
     
-    // 🔥 CRITICAL: Render in EXACT order of displayRows (which matches CSV order)
-    // NO SORTING - just map through in the order they appear
     const html = displayRows.map(d => {
         const isXfer = String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim() === 'XFER';
         const typeColor = isXfer ? 'text-cyan-400 font-bold' : 'text-slate-600';
         const typeLabel = isXfer ? 'XFER' : 'CONN';
-        const isNew = !!d._isNewLead || newLeadSet.has((d.agentName || '').toUpperCase().trim());
-        const highlightClass = isNew ? 'new-lead-row' : '';
-        const newBadge = isNew ? '<span class="ml-2 text-[9px] bg-green-500/30 text-green-400 px-1.5 py-0.5 rounded-full">⭐ NEW</span>' : '';
         
         return `
-            <tr class="border-b border-white/5 hover:bg-white/5 transition ${highlightClass}">
+            <tr class="border-b border-white/5 hover:bg-white/5 transition">
                 <td class="p-3 text-slate-500 text-[11px] font-mono">${escapeHtml(d.agentId)}<\/td>
                 <td class="p-3 font-bold text-white text-[12px] uppercase">
                     ${escapeHtml(d.rawName || d.agentName)}
-                    ${newBadge}
                 <\/td>
                 <td class="p-3 text-center text-slate-400 text-[11px]">${escapeHtml(d.status)}<\/td>
                 <td class="p-3 text-center text-slate-300 text-[11px] font-mono">${d.duration}s<\/td>
