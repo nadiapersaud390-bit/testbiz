@@ -261,6 +261,24 @@ function initWeeklyPerformance() {
     loadWeeklyDataForWeek('current');
 }
 
+function getReportActualDate(report) {
+    // Priority: reportDate (actual CSV date) > filename date > uploadedAt (upload timestamp - least reliable)
+    if (report.reportDate) {
+        const d = new Date(report.reportDate);
+        if (!isNaN(d.getTime())) return d;
+    }
+    // Try to parse date from filename e.g. xfer_report04_20_2026.csv
+    if (report.filename) {
+        const m = report.filename.match(/(\d{2})_(\d{2})_(\d{4})/);
+        if (m) {
+            const d = new Date(`${m[3]}-${m[1]}-${m[2]}`);
+            if (!isNaN(d.getTime())) return d;
+        }
+    }
+    // Fallback to uploadedAt
+    return new Date(report.uploadedAt);
+}
+
 function buildAvailableWeeks() {
     const reports = window.allAgentReports || [];
     if (!reports.length) {
@@ -268,11 +286,12 @@ function buildAvailableWeeks() {
         return;
     }
     
-    // Get unique weeks from reports
+    // Get unique weeks from reports — use ACTUAL report date, not upload timestamp
     const weekMap = new Map();
     
     reports.forEach(report => {
-        const reportDate = new Date(report.uploadedAt);
+        const reportDate = getReportActualDate(report);
+        if (isNaN(reportDate.getTime())) return;
         // Get the Monday of that week
         const day = reportDate.getDay();
         const diff = (day === 0 ? -6 : 1) - day;
@@ -368,45 +387,57 @@ async function loadWeeklyDataForWeek(weekKey) {
         rangeEl.innerText = weekLabel;
     }
     
-    // Filter reports for this week
+    // Filter reports for this week using ACTUAL report date (not upload timestamp)
     const weekReportsRaw = reports.filter(r => {
-        const uploadDate = new Date(r.uploadedAt);
-        return uploadDate >= weekStart && uploadDate <= weekEnd;
+        const actualDate = getReportActualDate(r);
+        return actualDate >= weekStart && actualDate <= weekEnd;
     });
     
-    // Deduplicate: Keep only the latest report for each categorized day
+    // Deduplicate: Keep only the latest-uploaded report per actual calendar date
+    // This prevents double-counting re-uploads of the same day while keeping all days
     const dayMap = new Map();
     weekReportsRaw.forEach(report => {
-        let dateKey = report.dayOfWeek;
-        if (!dateKey || !['MON','TUE','WED','THU','FRI','SAT','SUN'].includes(dateKey)) {
-            const d = new Date(report.uploadedAt);
-            dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-        }
+        // Always derive dateKey from the ACTUAL report date, never uploadedAt
+        const actualDate = getReportActualDate(report);
+        const dateKey = `${actualDate.getFullYear()}-${String(actualDate.getMonth()+1).padStart(2,'0')}-${String(actualDate.getDate()).padStart(2,'0')}`;
         
         const existing = dayMap.get(dateKey);
+        // If same day was uploaded multiple times, keep the most recently uploaded one
         if (!existing || new Date(report.uploadedAt) > new Date(existing.uploadedAt)) {
             dayMap.set(dateKey, report);
         }
     });
     const weekReports = Array.from(dayMap.values());
     
-    // Calculate team totals from the deduplicated reports in this week
+    // Calculate team totals — accumulate ALL days in the week
     const teamTotals = { PR: 0, BB: 0, RM: 0 };
-    const agentWeeklyMap = new Map(); // Store weekly totals per agent
+    const agentWeeklyMap = new Map(); // agent key -> { name, team, transfers }
     
     weekReports.forEach(report => {
         (report.data || []).forEach(row => {
-            const agentName = row.agentName || row.name;
+            const agentName = row.agentName || row.name || row['Agent Name'] || '';
+            if (!agentName) return;
             const rawName = row.rawName || agentName;
             const team = normalizeTeam(row.team, rawName);
-            const isXfer = String(row.currentStatus || row['Current Status'] || row.status || '').toUpperCase() === 'XFER';
+            
+            // Check XFER status — try every possible field name the CSV parser may have used
+            const statusVal = String(
+                row.currentStatus || row['Current Status'] || row.status ||
+                row.currentstatus || row.Status || ''
+            ).toUpperCase().trim();
+            const isXfer = statusVal === 'XFER';
+            
+            // leadCount: 1 per confirmed XFER, or fall back to dailyLeads for live data
             const leadCount = isXfer ? 1 : (Number(row.dailyLeads) || 0);
             
             if (leadCount > 0) {
                 teamTotals[team] = (teamTotals[team] || 0) + leadCount;
                 
-                // Unified key matching to prevent alias fragmentation
-                const cleanKey = String(agentName).replace(/^GY[BP]\s*/i, '').trim().toUpperCase();
+                // Strip prefix (GYP / GYB / PH / GTM) for unified agent key
+                const cleanKey = String(agentName)
+                    .replace(/^(GYP|GYB|PH|GTM|RM)\s+/i, '')
+                    .trim()
+                    .toUpperCase();
                 
                 if (!agentWeeklyMap.has(cleanKey)) {
                     agentWeeklyMap.set(cleanKey, {
@@ -1547,7 +1578,7 @@ window.ahToolsLoadPerformance = function() {
             if(rangeEl) rangeEl.textContent = `Tracking: ${monday.toLocaleDateString()} — ${sunday.toLocaleDateString()}`;
 
             const thisWeekReports = reports.filter(r => {
-                const rd = new Date(r.uploadedAt);
+                const rd = getReportActualDate(r);
                 return rd >= monday && rd <= sunday;
             });
 
@@ -1555,14 +1586,17 @@ window.ahToolsLoadPerformance = function() {
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
             thisWeekReports.forEach(r => {
-                const reportDay = days[new Date(r.uploadedAt).getDay()];
+                const reportDay = days[getReportActualDate(r).getDay()];
                 (r.data || []).forEach(a => {
-                    const name = a.agentName;
+                    const name = a.agentName || a.name || a['Agent Name'];
+                    if (!name) return;
                     if (!matrix[name]) {
                         matrix[name] = { team: a.team || '—', Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, total: 0 };
                     }
-                    matrix[name][reportDay] = (matrix[name][reportDay] || 0) + (a.dailyLeads || 0);
-                    matrix[name].total += (a.dailyLeads || 0);
+                    const statusVal = String(a.currentStatus || a['Current Status'] || a.status || a.currentstatus || '').toUpperCase().trim();
+                    const xferCount = statusVal === 'XFER' ? 1 : (Number(a.dailyLeads) || 0);
+                    matrix[name][reportDay] = (matrix[name][reportDay] || 0) + xferCount;
+                    matrix[name].total += xferCount;
                 });
             });
 
