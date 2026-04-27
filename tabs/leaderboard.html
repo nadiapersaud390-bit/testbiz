@@ -341,15 +341,68 @@ window.openTeamPopup = function(teamCode) {
     if (teamAgents.length === 0) {
         listEl.innerHTML = '<div style="text-align:center;color:#475569;padding:24px;font-size:13px;font-weight:700;">No agents found for this team.</div>';
     } else {
+        // Get the previous leads map
+        const prevMap = window._prevDailyLeadsMap || {};
+        
+        // Debug: Log the prevMap to console to see what's stored
+        console.log('[Team Popup] Previous leads map:', prevMap);
+        
         listEl.innerHTML = teamAgents.map((a, i) => {
-            const idLookup = String(a.ytelId || a.rawName || a.name || '').trim();
-            // Get previous lead count from stored map
-            const prevMap = window._prevDailyLeadsMap || {};
-            const prev = prevMap[idLookup] || 0;
+            // Generate multiple possible keys for matching
+            const keys = [
+                String(a.ytelId || '').trim(),
+                String(a.rawName || a.name || '').trim().toUpperCase(),
+                String(a.name || '').trim().toUpperCase(),
+                (a.rawName || a.name || '').replace(/^(GYP|GYB|GTM|RM)\s+/i, '').trim().toUpperCase()
+            ].filter(k => k !== '');
+            
+            // Try to find previous lead count using any of the keys
+            let prev = 0;
+            let matchedKey = null;
+            for (const key of keys) {
+                if (prevMap[key] !== undefined) {
+                    prev = prevMap[key];
+                    matchedKey = key;
+                    break;
+                }
+            }
+            
             const currentLeads = a.leads || 0;
             const diff = currentLeads - prev;
-            // Only show +X if diff is positive
-            const diffHtml = (diff > 0) ? `<span style="font-size:10px;font-weight:900;color:#22c55e;background:rgba(34,197,94,0.15);padding:2px 5px;border-radius:4px;margin-right:8px;border:1px solid rgba(34,197,94,0.25);">+${diff}</span>` : '';
+            
+            // Debug logging for Chauncey
+            if (a.name && a.name.toLowerCase().includes('chauncey')) {
+                console.log(`[Chauncey Debug] Name: ${a.name}, YtelId: ${a.ytelId}, RawName: ${a.rawName}`);
+                console.log(`[Chauncey Debug] Keys tried:`, keys);
+                console.log(`[Chauncey Debug] Matched key: ${matchedKey}, Previous leads: ${prev}, Current: ${currentLeads}, Diff: ${diff}`);
+            }
+            
+            // Only show +X if diff is positive AND diff is less than current (prevent showing +3 when it should be +1)
+            let diffHtml = '';
+            if (diff > 0 && diff <= currentLeads) {
+                diffHtml = `<span style="font-size:10px;font-weight:900;color:#22c55e;background:rgba(34,197,94,0.15);padding:2px 5px;border-radius:4px;margin-right:8px;border:1px solid rgba(34,197,94,0.25);">+${diff}</span>`;
+            } else if (diff > currentLeads) {
+                // This catches cases where prev was 0 but should have been something else
+                // Try to use the stored previous map from the last push as fallback
+                const lastStateStr = localStorage.getItem('biz_last_state_obj');
+                if (lastStateStr) {
+                    try {
+                        const lastState = JSON.parse(lastStateStr);
+                        const lastAgent = (lastState.agents || []).find(agent => {
+                            return String(agent.ytelId || '').trim() === String(a.ytelId || '').trim() ||
+                                   (agent.name || '').toUpperCase() === (a.name || '').toUpperCase();
+                        });
+                        if (lastAgent && (lastAgent.dailyLeads || 0) > 0) {
+                            const correctedPrev = lastAgent.dailyLeads || 0;
+                            const correctedDiff = currentLeads - correctedPrev;
+                            if (correctedDiff > 0 && correctedDiff <= currentLeads) {
+                                diffHtml = `<span style="font-size:10px;font-weight:900;color:#22c55e;background:rgba(34,197,94,0.15);padding:2px 5px;border-radius:4px;margin-right:8px;border:1px solid rgba(34,197,94,0.25);">+${correctedDiff}</span>`;
+                                console.log(`[${a.name}] Corrected diff using lastState: ${correctedDiff} (was ${diff})`);
+                            }
+                        }
+                    } catch(e) {}
+                }
+            }
             
             return `
             <div class="tp-agent-row">
