@@ -321,11 +321,13 @@ window.saveAgentProfileToFirestore = async function(agentData) {
 
 // ── AGENT COACHING SESSIONS ──
 window.saveCoachingSession = async (sessionData) => {
+    if (!firestore) return { success: false, error: 'Firestore not initialized' };
     try {
         const id = sessionData.id || `coach_${Date.now()}`;
-        await window.db_fs.collection("coaching_sessions").doc(id).set({
+        const docRef = doc(firestore, "coaching_sessions", id);
+        await setDoc(docRef, {
             ...sessionData,
-            timestamp: new Date().toISOString()
+            timestamp: sessionData.timestamp || new Date().toISOString()
         }, { merge: true });
         return { success: true, id };
     } catch (e) {
@@ -335,13 +337,14 @@ window.saveCoachingSession = async (sessionData) => {
 };
 
 window.listenToCoaching = (callback) => {
-    return window.db_fs.collection("coaching_sessions")
-        .orderBy("timestamp", "desc")
-        .limit(100)
-        .onSnapshot(snap => {
-            const sessions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            callback(sessions);
-        });
+    if (!firestore) return;
+    const q = query(collection(firestore, "coaching_sessions"), orderBy("timestamp", "desc"));
+    return onSnapshot(q, snap => {
+        const sessions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        callback(sessions);
+    }, (error) => {
+        console.error("Coaching Listener Error:", error);
+    });
 };
 
 // ── LIVE MONITORING SESSIONS ──
@@ -372,9 +375,10 @@ window.listenToMonitoring = (callback) => {
     });
 };
 
-window.deleteSession = async (collection, id) => {
+window.deleteSession = async (collectionName, id) => {
+    if (!firestore) return { success: false, error: 'Firestore not initialized' };
     try {
-        await window.db_fs.collection(collection).doc(id).delete();
+        await deleteDoc(doc(firestore, collectionName, id));
         return { success: true };
     } catch (e) {
         console.error("Delete Session Error:", e);
