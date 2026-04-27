@@ -460,6 +460,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (superAdminTab) superAdminTab.classList.add('hidden');
     }
 
+    // Force re-render session banner when DOM is fully loaded
+    if (typeof renderSessionBanner === 'function') {
+        renderSessionBanner();
+    }
+    
+    // Also set up a mutation observer to watch for changes to sessionStorage
+    const originalSetItem = sessionStorage.setItem;
+    sessionStorage.setItem = function(key, value) {
+        const event = new Event('storageChange');
+        event.key = key;
+        event.newValue = value;
+        window.dispatchEvent(event);
+        originalSetItem.apply(this, arguments);
+    };
+    
+    window.addEventListener('storageChange', function(e) {
+        if (e.key === 'currentAgentProfile' && typeof renderSessionBanner === 'function') {
+            renderSessionBanner();
+        }
+    });
+
     // Load the leaderboard tab
     loadTab('leaderboard-view');
 });
