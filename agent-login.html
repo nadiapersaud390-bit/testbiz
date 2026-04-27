@@ -196,6 +196,9 @@
   const GRACE_MINUTES = 15;
 
   // ── Attendance persistence ──────────────────────────────────────────────────
+  // Stores the ORIGINAL clock-in result in localStorage keyed by ytelId + date.
+  // On re-login the same day, the stored status is reused — no API re-mark.
+
   function getTodayISO() {
     return formatGuyanaDateISO(guyanaTime());
   }
@@ -214,6 +217,7 @@
       localStorage.setItem(key, JSON.stringify({ status, clockedAt }));
     } catch (e) {}
   }
+  // ────────────────────────────────────────────────────────────────────────────
 
   function guyanaTime() {
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
@@ -288,66 +292,6 @@
   tickClock();
   setInterval(tickClock, 1000);
 
-  // ========== NEW: Enhanced resolver for Shift value ==========
-  function resolveShiftValue(data) {
-    if (!data || typeof data !== 'object') return '—';
-    const candidates = [
-      data.shift,
-      data.Shift,
-      data['Shift'],
-      data.shiftTime,
-      data.shift_time,
-      data.schedule,
-      data.workHours,
-      data['Shift (D)'],
-      data.shiftSchedule,
-      data.workingHours
-    ];
-    const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
-    if (match === undefined || match === null) return '—';
-    return String(match).trim();
-  }
-
-  // ========== NEW: Enhanced resolver for Lunch value ==========
-  function resolveLunchValueEnhanced(data) {
-    if (!data || typeof data !== 'object') return '—';
-    const candidates = [
-      data.lunch,
-      data.Lunch,
-      data['Lunch'],
-      data.lunchSlot,
-      data.lunch_time,
-      data.lunchTime,
-      data['Lunch Slot'],
-      data['Lunch Time'],
-      data['lunch time'],
-      data['LunchTime'],
-      data.lunchbreak,
-      data.LunchBreak,
-      data.lunch_break,
-      data.lunchBreak,
-      data.break,
-      data.Break,
-      data['Break Time'],
-      data.break_time,
-      data['Lunch (E)']
-    ];
-    const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
-    if (match === undefined || match === null) return '—';
-    const val = String(match).trim();
-    if (!val) return '—';
-    const num = Number(val);
-    if (!isNaN(num) && num > 0 && num < 1) {
-      const totalMinutes = Math.round(num * 24 * 60);
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = totalMinutes % 60;
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      const h = hours % 12 || 12;
-      return h + ':' + String(minutes).padStart(2, '0') + ' ' + ampm;
-    }
-    return val;
-  }
-
   async function doSubmit() {
     const input = document.getElementById('ytel-input');
     const adminPasswordInput = document.getElementById('admin-password-input');
@@ -380,13 +324,12 @@
     btn.disabled = true;
     btn.textContent = '⏳ Clocking In...';
 
+    // ── Check if agent already clocked in today ──────────────────────────────
     const existingRecord = getStoredAttendance(ytelId);
 
     try {
       const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
       const sData = await sRes.json();
-
-      console.log('📡 API Response:', sData);
 
       if (!sData.found) {
         flashError(input, errEl, btn, 'Ytel ID not found — double-check your number.');
@@ -394,14 +337,19 @@
       }
 
       if (existingRecord) {
+        // ── RE-LOGIN: use original attendance status, skip API re-mark ────────
         showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
       } else {
+        // ── FIRST CLOCK-IN today: calculate status and mark attendance ────────
         const status = checkLate() ? 'Late' : 'Present';
         const clockedAt = fmtTime(guyanaTime());
 
         const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
         const aData = await aRes.json();
 
+        // ── FIX: allow through if already_marked (cell had P/L from a previous
+        //    mark by supervisor or trigger) or absent_overwrite (cell had A).
+        //    Only block on genuine failures.
         if (!aData.ok && aData.writeResult !== 'already_marked') {
           let msg = 'Attendance marking failed — please try again.';
           if (aData.writeResult === 'agent_not_found') {
@@ -415,11 +363,12 @@
           return;
         }
 
+        // Save to localStorage so re-logins today reuse this status.
+        // If already_marked, we still save so the agent can proceed to dashboard.
         storeAttendance(ytelId, status, clockedAt);
         showResult(sData, status, ytelId, clockedAt);
       }
     } catch (e) {
-      console.error('Login error:', e);
       flashError(input, errEl, btn, 'Network error — check your connection and retry.');
     }
   }
@@ -450,6 +399,43 @@
     return String(value || '').replace(/\D/g, '');
   }
 
+  function resolveLunchValue(data) {
+    if (!data || typeof data !== 'object') return '—';
+    const candidates = [
+      data.lunch,
+      data.lunchSlot,
+      data.lunch_time,
+      data.lunchTime,
+      data['Lunch Slot'],
+      data['Lunch'],
+      data['Lunch Time'],
+      data['lunch time'],
+      data['LunchTime'],
+      data['lunchbreak'],
+      data['LunchBreak'],
+      data['lunch_break'],
+      data['lunchBreak'],
+      data['break'],
+      data['Break'],
+      data['Break Time'],
+      data['break_time']
+    ];
+    const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
+    if (match === undefined || match === null) return '—';
+    const val = String(match).trim();
+    if (!val) return '—';
+    const num = Number(val);
+    if (!isNaN(num) && num > 0 && num < 1) {
+      const totalMinutes = Math.round(num * 24 * 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const h = hours % 12 || 12;
+      return h + ':' + String(minutes).padStart(2, '0') + ' ' + ampm;
+    }
+    return val;
+  }
+
   function showResult(data, status, ytelId, clockedAt) {
     const late = status === 'Late';
     const now = guyanaTime();
@@ -464,17 +450,11 @@
     tag.textContent = late ? 'Marked Late' : 'Marked Present';
     tag.className = 'result-tag ' + (late ? 'late' : 'present');
 
-    // Use the enhanced resolvers
-    const shiftValue = resolveShiftValue(data);
-    const lunchValue = resolveLunchValueEnhanced(data);
-    
-    console.log('🕐 Resolved Shift:', shiftValue);
-    console.log('🍽️ Resolved Lunch:', lunchValue);
-    console.log('📦 Raw data object:', data);
+    const lunchValue = resolveLunchValue(data);
 
     const cells = [
       { label: 'Team', value: data.team || '—', cls: '' },
-      { label: 'Shift', value: shiftValue, cls: late ? 'warn' : 'ok' },
+      { label: 'Shift', value: data.shift || '—', cls: late ? 'warn' : 'ok' },
       { label: 'Lunch Slot', value: lunchValue, cls: '' },
       { label: 'Clocked In', value: displayTime, cls: late ? 'warn' : 'ok' },
     ];
@@ -495,20 +475,14 @@
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizUserRole', 'agent');
     sessionStorage.setItem('currentAgentName', data.name || '');
-    
     const profile = {
       name: data.name || 'Agent',
       ytelId: ytelId || '',
       lunch: lunchValue,
-      shift: shiftValue,
-      team: data.team || '—'
+      shift: data.shift || '—'
     };
-    
     profile.streak = updateAgentStreak(profile);
     sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
-    
-    console.log('💾 Saved to sessionStorage:', profile);
-    
     setTimeout(() => {
       window.location.href = 'index.html';
     }, 1200);
