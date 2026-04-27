@@ -1,7 +1,7 @@
 /**
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
  * PRESERVES EXACT CSV ORDER - NO SORTING WHATSOEVER
- * FIXED: Replaces data on re-upload instead of merging
+ * FIXED: Replaces data completely on re-upload (no merging)
  */
 
 let allReports = [];
@@ -240,7 +240,7 @@ window.asToggleDateOverride = function(checked) {
     input.style.cursor = checked ? 'text' : 'default';
 };
 
-// 🔥 FIXED: REPLACE data instead of MERGE on re-upload
+// 🔥 FIXED: REPLACE data completely on re-upload (no merging)
 window.asConfirmUpload = async function() {
     if (!_asStagedParsed || !_asStagedFile) {
         updateStatsStatus('❌ No file staged. Please re-select your CSV.', true);
@@ -266,14 +266,14 @@ window.asConfirmUpload = async function() {
     
     const normalizedFinalDate = normalizeReportDateLabel(finalDateStr);
     
-    // 🔥 FIX: Delete existing report for this date FIRST (REPLACE, not MERGE)
+    // 🔥 FIX: DELETE existing report for this date completely
     const existingReport = allReports.find(r => normalizeReportDateLabel(r.reportDate) === normalizedFinalDate);
     if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
         await window.deleteAgentReportFromFirebase(existingReport.id);
-        console.log(`[Upload] Deleted existing report for ${normalizedFinalDate} before re-upload`);
+        console.log(`[Upload] Deleted existing report for ${normalizedFinalDate} - replacing with fresh data`);
     }
     
-    // Create new report with FRESH data (no merging, no _isNewLead flags)
+    // Create brand new report with FRESH data (no merging)
     const reportObj = {
         filename: _asStagedFile.name,
         reportDate: finalDateStr,
@@ -281,7 +281,7 @@ window.asConfirmUpload = async function() {
         uploadedAt: new Date().toISOString(),
         expiresAt: expiryDate.toISOString(),
         author: adminName,
-        data: _asStagedParsed.map(r => ({ ...r, _isNewLead: false }))
+        data: _asStagedParsed  // Fresh data, exactly as parsed from CSV
     };
     
     _asLastUploadedDateLabel = normalizedFinalDate;
@@ -289,14 +289,22 @@ window.asConfirmUpload = async function() {
     if (typeof window.saveAgentReportToFirebase === 'function') {
         const res = await window.saveAgentReportToFirebase(reportObj);
         if (res && res.success) {
-            updateStatsStatus(`✅ Report saved! (${_asStagedParsed.length} rows, replaced previous data)`, false);
+            const totalRows = _asStagedParsed.length;
+            const xferCount = _asStagedParsed.filter(d => {
+                const status = String(d.status || d.currentStatus || d['Current Status'] || '').toUpperCase().trim();
+                return status === 'XFER';
+            }).length;
+            
+            updateStatsStatus(`✅ Saved! ${totalRows} rows, ${xferCount} transfers (replaced previous data)`, false);
+            
             if (typeof window.writeAdminActivityLog === 'function') {
-                window.writeAdminActivityLog('upload_stats', `Uploaded (replaced): ${_asStagedFile.name} (${_asStagedParsed.length} rows)`);
+                window.writeAdminActivityLog('upload_stats', `Uploaded (replaced): ${_asStagedFile.name} (${totalRows} rows, ${xferCount} XFERs)`);
             }
+            
             document.getElementById('as-upload-panel').classList.add('hidden');
             _asStagedFile = null;
             _asStagedParsed = null;
-            // Force refresh
+            // Force refresh to show new data
             currentReportData = null;
             setTimeout(() => updateStatsStatus('', false), 4000);
         } else {
@@ -482,7 +490,7 @@ window.viewReport = function(id) {
     
     currentReportData = report;
     
-    newLeadsList = []; // No new leads on fresh reports
+    newLeadsList = [];
     
     renderHistoryList();
     
