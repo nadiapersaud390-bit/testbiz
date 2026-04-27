@@ -87,7 +87,7 @@ window.switchAdminHubTab = function(tabId) {
 
     ahCurrentSubTab = tabId;
     
-    document.querySelectorAll('.ah-nav-btn, .ah-nav-btn-special').forEach(btn => {
+    document.querySelectorAll('.ah-tab-btn, .ah-nav-btn, .ah-nav-btn-special').forEach(btn => {
         btn.classList.remove('active');
         if (btn.id === `ah-tab-${tabId}`) btn.classList.add('active');
     });
@@ -771,23 +771,26 @@ window.ahInitOverview = function() {
 
     if (typeof window.listenForAgentReports === 'function') {
         window.listenForAgentReports(reports => {
-            const select = document.getElementById('ah-att-report-select');
-            if (!select) return;
-            
-            select.innerHTML = '<option value="live" class="bg-slate-900">Live Today</option>';
-            
-            const sorted = [...reports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-            sorted.forEach(r => {
-                const opt = document.createElement('option');
-                opt.value = r.id;
-                opt.className = 'bg-slate-900';
-                opt.innerText = r.reportDate || r.filename;
-                select.appendChild(opt);
-            });
-            
+            // Always publish the reports list first so other features (like the
+            // Weekly Performance dropdown) can see it, regardless of whether the
+            // attendance dropdown is currently in the DOM.
             window.ahAllReports = reports;
             window.allAgentReports = reports;
-            
+
+            const select = document.getElementById('ah-att-report-select');
+            if (select) {
+                select.innerHTML = '<option value="live" class="bg-slate-900">Live Today</option>';
+
+                const sorted = [...reports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+                sorted.forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r.id;
+                    opt.className = 'bg-slate-900';
+                    opt.innerText = r.reportDate || r.filename;
+                    select.appendChild(opt);
+                });
+            }
+
             // Refresh weekly performance if tab is active
             if (ahCurrentSubTab === 'performance') {
                 buildAvailableWeeks();
@@ -797,6 +800,13 @@ window.ahInitOverview = function() {
         });
     }
 }
+
+// Refresh button handler for the Weekly Performance section.
+window.refreshWeeklyPerformance = function() {
+    buildAvailableWeeks();
+    populateWeekDropdown();
+    loadWeeklyDataForWeek(ahSelectedWeek || 'current');
+};
 
 let ahAttFilterTeam = 'ALL';
 let ahAttCurrentView = 'daily';
