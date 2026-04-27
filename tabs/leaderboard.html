@@ -299,7 +299,19 @@
 </style>
 
 <script>
-function openTeamPopup(teamCode) {
+// Helper function for escaping HTML
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+// Global function to open team popup with +X badges
+window.openTeamPopup = function(teamCode) {
     const overlay  = document.getElementById('team-popup-overlay');
     const titleEl  = document.getElementById('team-popup-title');
     const labelEl  = document.getElementById('team-popup-label');
@@ -331,17 +343,22 @@ function openTeamPopup(teamCode) {
     } else {
         listEl.innerHTML = teamAgents.map((a, i) => {
             const idLookup = String(a.ytelId || a.rawName || a.name || '').trim();
-            const prev     = (window._prevDailyLeadsMap && window._prevDailyLeadsMap[idLookup]) || 0;
-            const diff     = (a.leads || 0) - prev;
+            // Get previous lead count from stored map
+            const prevMap = window._prevDailyLeadsMap || {};
+            const prev = prevMap[idLookup] || 0;
+            const currentLeads = a.leads || 0;
+            const diff = currentLeads - prev;
+            // Only show +X if diff is positive
             const diffHtml = (diff > 0) ? `<span style="font-size:10px;font-weight:900;color:#22c55e;background:rgba(34,197,94,0.15);padding:2px 5px;border-radius:4px;margin-right:8px;border:1px solid rgba(34,197,94,0.25);">+${diff}</span>` : '';
+            
             return `
             <div class="tp-agent-row">
                 <div class="tp-agent-rank">${String(i+1).padStart(2,'0')}</div>
-                <div class="tp-agent-name">${typeof escapeHtml === 'function' ? escapeHtml(a.name) : a.name}</div>
+                <div class="tp-agent-name">${escapeHtml(a.name)}</div>
                 <div style="text-align:right;display:flex;align-items:center;justify-content:flex-end;">
                     ${diffHtml}
                     <div>
-                        <div class="tp-agent-leads" style="color:${meta.color}">${a.leads || 0}</div>
+                        <div class="tp-agent-leads" style="color:${meta.color}">${currentLeads}</div>
                         <div class="tp-agent-label">transfers</div>
                     </div>
                 </div>
@@ -353,13 +370,15 @@ function openTeamPopup(teamCode) {
     document.body.style.overflow = 'hidden';
 }
 
-function closeTeamPopup(e) {
+// Global function to close team popup
+window.closeTeamPopup = function(e) {
     if (e && e.target !== document.getElementById('team-popup-overlay')) return;
     document.getElementById('team-popup-overlay').style.display = 'none';
     document.body.style.overflow = '';
 }
 
-window.openTeamPopup  = openTeamPopup;
+// Also expose to global scope for inline onclick handlers
+window.openTeamPopup = openTeamPopup;
 window.closeTeamPopup = closeTeamPopup;
 </script>
 
