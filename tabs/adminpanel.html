@@ -453,9 +453,19 @@
             <h3 class="text-xl font-black text-white uppercase mb-6">💡 Rebuttal Intel</h3>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="glass p-6 rounded-2xl"><h4 class="text-sm font-black mb-4">🏆 Top Rebuttals</h4><div id="ah-rebuttal-chart"></div></div>
-                <div class="glass p-6 rounded-2xl"><h4 class="text-sm font-black mb-4">🎯 Coaching Signals</h4><div id="ah-coaching-signals"></div></div>
+                <div class="glass p-6 rounded-2xl"><h4 class="text-sm font-black mb-4">🎯 Coaching Signals</h4><div id="ah-coaching-signals" class="space-y-3"></div></div>
             </div>
-            <div class="mt-6 glass p-6 rounded-2xl overflow-x-auto"><table class="w-full"><tbody id="ah-rebuttal-table-body"></tbody></table></div>
+            <div class="mt-6 glass p-6 rounded-2xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-sm font-black text-white uppercase">👥 All Agents — Click on a name to see which rebuttals they use</h4>
+                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Use rate = uses ÷ (uses + views)</span>
+                </div>
+                <div id="ah-rebuttal-agents" class="space-y-2 max-h-[500px] overflow-y-auto pr-2"></div>
+            </div>
+            <div class="mt-6 glass p-6 rounded-2xl overflow-x-auto">
+                <h4 class="text-sm font-black text-white uppercase mb-4">📊 Per-Rebuttal Totals</h4>
+                <table class="w-full"><tbody id="ah-rebuttal-table-body"></tbody></table>
+            </div>
         </div>
 
         <!-- ========== WEEKLY PERFORMANCE WITH DROPDOWN & ALL AGENTS ========== -->
