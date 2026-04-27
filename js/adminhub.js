@@ -668,81 +668,319 @@ function escapeHtml(str) {
     });
 }
 
-window.logRebuttalUsage = async function(id, title) {
-    const cUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+// ============================================================================
+// REBUTTAL USAGE TRACKING
+// ============================================================================
+// Two event types are recorded per agent action:
+//   - 'view' : agent opened the rebuttal panel (a glance / click)
+//   - 'use'  : agent pressed the "Used in Call" confirmation button
+// The ratio of use:view tells us whether agents are actually delivering the
+// rebuttal on calls or just clicking around.
+
+function _rebuttalCurrentAgent() {
+    // Prefer the real agent profile (set at agent login). Fall back to admin
+    // session for testing, then a hard "Unknown" so we never crash.
+    try {
+        const profile = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}');
+        if (profile && (profile.fullName || profile.name)) {
+            return {
+                agentId: String(profile.userId || profile.ytelId || '').trim(),
+                agentName: profile.fullName || profile.name,
+                team: profile.team || ''
+            };
+        }
+    } catch (e) {}
+    try {
+        const admin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        if (admin && admin.email) {
+            return { agentId: '', agentName: admin.email, team: 'ADMIN' };
+        }
+    } catch (e) {}
+    return { agentId: '', agentName: 'Unknown', team: '' };
+}
+
+function _logRebuttalEvent(id, title, eventType) {
+    const who = _rebuttalCurrentAgent();
     const data = {
         rebuttalId: id,
         rebuttalTitle: title,
-        agentName: cUser.name || 'Unknown',
+        agentId: who.agentId,
+        agentName: who.agentName,
+        team: who.team,
+        eventType: eventType,
         timestamp: Date.now()
     };
     if (typeof window.saveRebuttalUsage === 'function') {
         window.saveRebuttalUsage(data);
     }
+}
+
+window.logRebuttalUsage = function(id, title) {
+    _logRebuttalEvent(id, title, 'view');
+};
+
+window.markRebuttalUsed = function(id, title) {
+    _logRebuttalEvent(id, title, 'use');
 };
 
 function initRebuttalIntel() {
     if (window.ahRebuttalSubscribed) return;
     if (typeof window.listenToRebuttalUsage === 'function') {
         window.listenToRebuttalUsage((usage) => {
-            renderRebuttalIntel(usage);
+            window._ahRebuttalUsage = usage || [];
+            renderRebuttalIntel(window._ahRebuttalUsage);
         });
         window.ahRebuttalSubscribed = true;
     }
 }
 
+// Tracks which agent row is currently expanded in the All Agents panel.
+window._ahRebuttalExpandedAgent = null;
+
+window.ahToggleAgentRebuttal = function(key) {
+    window._ahRebuttalExpandedAgent =
+        (window._ahRebuttalExpandedAgent === key) ? null : key;
+    renderRebuttalIntel(window._ahRebuttalUsage || []);
+};
+
 function renderRebuttalIntel(usage) {
     const chart = document.getElementById('ah-rebuttal-chart');
     const table = document.getElementById('ah-rebuttal-table-body');
     const signals = document.getElementById('ah-coaching-signals');
+    const agentsBox = document.getElementById('ah-rebuttal-agents');
     if (!chart || !table) return;
 
-    const counts = {};
+    usage = usage || [];
+
+    // ---------- Top Rebuttals (uses, with views as context) ----------
+    const perRebuttal = {}; // title -> { views, uses }
     usage.forEach(u => {
-        counts[u.rebuttalTitle] = (counts[u.rebuttalTitle] || 0) + 1;
+        const t = u.rebuttalTitle || 'Untitled';
+        if (!perRebuttal[t]) perRebuttal[t] = { views: 0, uses: 0 };
+        if (u.eventType === 'use') perRebuttal[t].uses++;
+        else perRebuttal[t].views++;
     });
 
-    const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
-    const top5 = sorted.slice(0, 5);
-    const max = top5[0] ? top5[0][1] : 1;
+    const sortedRebuttals = Object.entries(perRebuttal)
+        .sort((a, b) => (b[1].uses - a[1].uses) || (b[1].views - a[1].views));
+    const top5 = sortedRebuttals.slice(0, 5);
+    const max = top5[0] ? Math.max(top5[0][1].uses, top5[0][1].views, 1) : 1;
 
-    chart.innerHTML = top5.map(([title, val]) => `
-        <div class="space-y-2">
-            <div class="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <span>${title}</span>
-                <span class="text-white">${val} Hits</span>
-            </div>
-            <div class="h-2 bg-white/5 rounded-full overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-blue-600 to-cyan-400 rounded-full" style="width: ${(val/max)*100}%"></div>
-            </div>
-        </div>
-    `).join('') || '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[10px] tracking-widest">No clicks recorded yet today</div>';
-
-    table.innerHTML = sorted.map(([title, val]) => `
-        <tr class="hover:bg-white/5 transition">
-            <td class="p-4 text-[12px] font-black text-white uppercase tracking-tight">${title}</td>
-            <td class="p-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">General Objection</td>
-            <td class="p-4 text-center font-black text-blue-400 tabular-nums">${val}</td>
-            <td class="p-4 text-right"><span class="px-2 py-0.5 rounded bg-green-500/10 text-green-500 text-[8px] font-black uppercase tracking-widest">↗ Stable</span></td>
-        </tr>
-    `).join('');
-
-    if (usage.length > 5) {
-        const agentHits = {};
-        usage.forEach(u => {
-            agentHits[u.agentName] = (agentHits[u.agentName] || 0) + 1;
-        });
-        const heavyUsers = Object.entries(agentHits).filter(([name, hits]) => hits > usage.length / 3);
-        
-        if (heavyUsers.length > 0 && signals) {
-            signals.innerHTML = heavyUsers.map(([name, hits]) => `
-                <div class="bg-purple-500/5 border border-purple-500/20 p-4 rounded-2xl">
-                    <div class="text-[10px] font-black text-white uppercase tracking-tight mb-1">${name}</div>
-                    <div class="text-[9px] text-purple-400 font-bold uppercase tracking-widest">High Objection Volume (${hits} hits)</div>
-                    <div class="text-[9px] text-slate-500 mt-2 font-bold leading-relaxed italic">Suggestion: Monitor live calls to check closing tone.</div>
+    chart.innerHTML = top5.length === 0
+        ? '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[10px] tracking-widest">No rebuttal activity recorded yet</div>'
+        : top5.map(([title, c]) => `
+            <div class="space-y-2 mb-4">
+                <div class="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <span class="truncate pr-2">${escapeHtml(title)}</span>
+                    <span class="text-white whitespace-nowrap">${c.uses} used <span class="text-slate-500">/ ${c.views} viewed</span></span>
                 </div>
-            `).join('');
+                <div class="h-2 bg-white/5 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 rounded-full" style="width: ${(c.uses/max)*100}%"></div>
+                </div>
+            </div>
+        `).join('');
+
+    // ---------- Full rebuttal table ----------
+    table.innerHTML = `
+        <tr class="text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
+            <th class="p-3 text-left">Rebuttal</th>
+            <th class="p-3 text-center">Views</th>
+            <th class="p-3 text-center">Uses</th>
+            <th class="p-3 text-center">Use Rate</th>
+        </tr>
+    ` + (sortedRebuttals.length === 0
+        ? `<tr><td colspan="4" class="p-6 text-center text-slate-500 text-[11px]">No rebuttal events yet</td></tr>`
+        : sortedRebuttals.map(([title, c]) => {
+            const total = c.views + c.uses;
+            const rate = total > 0 ? Math.round((c.uses / total) * 100) : 0;
+            const rateColor = rate >= 50 ? 'text-emerald-400' : rate >= 20 ? 'text-amber-400' : 'text-red-400';
+            return `
+                <tr class="hover:bg-white/5 transition border-b border-white/5">
+                    <td class="p-3 text-[12px] font-black text-white uppercase tracking-tight">${escapeHtml(title)}</td>
+                    <td class="p-3 text-center font-black text-slate-300 tabular-nums">${c.views}</td>
+                    <td class="p-3 text-center font-black text-emerald-400 tabular-nums">${c.uses}</td>
+                    <td class="p-3 text-center font-black tabular-nums ${rateColor}">${rate}%</td>
+                </tr>
+            `;
+        }).join(''));
+
+    // ---------- Per-agent aggregation ----------
+    // Key by agentId when available so we don't split the same person across
+    // sessions, but display the most recent name we saw for them.
+    const roster = window.allAgentProfiles || [];
+    const agentMap = new Map(); // key -> { id, name, team, views, uses, perRebuttal }
+
+    function getKey(u) {
+        const id = String(u.agentId || '').trim();
+        if (id) return 'id:' + id;
+        return 'name:' + String(u.agentName || 'Unknown').trim().toUpperCase();
+    }
+
+    usage.forEach(u => {
+        const key = getKey(u);
+        if (!agentMap.has(key)) {
+            agentMap.set(key, {
+                id: u.agentId || '',
+                name: u.agentName || 'Unknown',
+                team: u.team || '',
+                views: 0,
+                uses: 0,
+                lastAt: 0,
+                perRebuttal: {} // title -> { views, uses }
+            });
         }
+        const a = agentMap.get(key);
+        if (u.timestamp && u.timestamp > a.lastAt) {
+            a.lastAt = u.timestamp;
+            if (u.agentName) a.name = u.agentName; // keep freshest name
+            if (u.team) a.team = u.team;
+        }
+        const t = u.rebuttalTitle || 'Untitled';
+        if (!a.perRebuttal[t]) a.perRebuttal[t] = { views: 0, uses: 0 };
+        if (u.eventType === 'use') { a.uses++; a.perRebuttal[t].uses++; }
+        else { a.views++; a.perRebuttal[t].views++; }
+    });
+
+    // Add roster agents with no activity so admins see EVERYONE
+    roster.forEach(p => {
+        const id = String(p.userId || p.ytelId || '').trim();
+        const key = id ? 'id:' + id : 'name:' + String(p.fullName || p.name || '').trim().toUpperCase();
+        if (!key || key === 'name:') return;
+        if (!agentMap.has(key)) {
+            agentMap.set(key, {
+                id: id,
+                name: p.fullName || p.name || 'Unknown',
+                team: p.team || '',
+                views: 0,
+                uses: 0,
+                lastAt: 0,
+                perRebuttal: {}
+            });
+        }
+    });
+
+    const agents = Array.from(agentMap.entries())
+        .map(([key, a]) => ({ key, ...a }))
+        .sort((a, b) => (b.uses + b.views) - (a.uses + a.views) || a.name.localeCompare(b.name));
+
+    // ---------- Coaching Signals: who clicks but doesn't use ----------
+    const totalEvents = usage.length;
+    const clickWithoutUse = agents.filter(a => a.views >= 5 && a.uses === 0);
+    const lowConverters = agents.filter(a => {
+        const total = a.views + a.uses;
+        return total >= 8 && (a.uses / total) < 0.2 && a.uses > 0;
+    });
+    const heavyUsers = agents.filter(a => totalEvents > 0 && (a.views + a.uses) > totalEvents / 3);
+
+    if (signals) {
+        const cards = [];
+        clickWithoutUse.slice(0, 4).forEach(a => cards.push(`
+            <div class="bg-red-500/5 border border-red-500/20 p-3 rounded-2xl">
+                <div class="text-[10px] font-black text-white uppercase tracking-tight mb-1">${escapeHtml(a.name)}</div>
+                <div class="text-[9px] text-red-400 font-bold uppercase tracking-widest">Just Clicking — ${a.views} views, 0 uses</div>
+                <div class="text-[9px] text-slate-500 mt-2 font-bold leading-relaxed italic">Coach to actually deliver the rebuttal on calls, not just open the panel.</div>
+            </div>
+        `));
+        lowConverters.slice(0, 4).forEach(a => {
+            const total = a.views + a.uses;
+            const pct = Math.round((a.uses / total) * 100);
+            cards.push(`
+                <div class="bg-amber-500/5 border border-amber-500/20 p-3 rounded-2xl">
+                    <div class="text-[10px] font-black text-white uppercase tracking-tight mb-1">${escapeHtml(a.name)}</div>
+                    <div class="text-[9px] text-amber-400 font-bold uppercase tracking-widest">Low Conversion — ${pct}% used (${a.uses}/${total})</div>
+                    <div class="text-[9px] text-slate-500 mt-2 font-bold leading-relaxed italic">Reviewing rebuttals more than delivering them. Live monitor recommended.</div>
+                </div>
+            `);
+        });
+        heavyUsers.slice(0, 3).forEach(a => cards.push(`
+            <div class="bg-purple-500/5 border border-purple-500/20 p-3 rounded-2xl">
+                <div class="text-[10px] font-black text-white uppercase tracking-tight mb-1">${escapeHtml(a.name)}</div>
+                <div class="text-[9px] text-purple-400 font-bold uppercase tracking-widest">High Objection Volume (${a.views + a.uses} events)</div>
+                <div class="text-[9px] text-slate-500 mt-2 font-bold leading-relaxed italic">Heavy rebuttal user — check closing tone on a live call.</div>
+            </div>
+        `));
+        signals.innerHTML = cards.length
+            ? cards.join('')
+            : '<div class="py-6 text-center text-slate-600 font-bold uppercase text-[10px] tracking-widest">No coaching signals yet</div>';
+    }
+
+    // ---------- All Agents panel with drill-down ----------
+    if (agentsBox) {
+        if (agents.length === 0) {
+            agentsBox.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[10px] tracking-widest">No agents in roster yet</div>';
+            return;
+        }
+
+        const expandedKey = window._ahRebuttalExpandedAgent;
+
+        agentsBox.innerHTML = agents.map(a => {
+            const total = a.views + a.uses;
+            const rate = total > 0 ? Math.round((a.uses / total) * 100) : 0;
+            const rateColor = total === 0
+                ? 'text-slate-500'
+                : (rate >= 50 ? 'text-emerald-400' : rate >= 20 ? 'text-amber-400' : 'text-red-400');
+            const lastSeen = a.lastAt
+                ? new Date(a.lastAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : '—';
+            const isOpen = expandedKey === a.key;
+
+            // Per-rebuttal breakdown for this agent (only visible when expanded)
+            const rebuttalRows = Object.entries(a.perRebuttal)
+                .sort((x, y) => (y[1].uses + y[1].views) - (x[1].uses + x[1].views));
+            const detail = !isOpen ? '' : `
+                <div class="border-t border-white/5 bg-black/30 p-4">
+                    ${rebuttalRows.length === 0
+                        ? '<div class="text-center text-slate-500 text-[10px] py-3">No rebuttal activity yet for this agent</div>'
+                        : `<div class="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Rebuttals — Views vs. Uses</div>
+                           <table class="w-full text-left text-[11px]">
+                               <thead><tr class="text-[8px] font-black text-slate-600 uppercase tracking-widest">
+                                   <th class="py-1 pr-2">Rebuttal</th>
+                                   <th class="py-1 px-2 text-center">Views</th>
+                                   <th class="py-1 px-2 text-center">Uses</th>
+                                   <th class="py-1 pl-2 text-center">Use Rate</th>
+                               </tr></thead>
+                               <tbody class="divide-y divide-white/5">
+                               ${rebuttalRows.map(([title, c]) => {
+                                   const tot = c.views + c.uses;
+                                   const r = tot > 0 ? Math.round((c.uses / tot) * 100) : 0;
+                                   const rc = r >= 50 ? 'text-emerald-400' : r >= 20 ? 'text-amber-400' : 'text-red-400';
+                                   return `<tr>
+                                       <td class="py-2 pr-2 font-bold text-white">${escapeHtml(title)}</td>
+                                       <td class="py-2 px-2 text-center text-slate-300 tabular-nums">${c.views}</td>
+                                       <td class="py-2 px-2 text-center text-emerald-400 font-black tabular-nums">${c.uses}</td>
+                                       <td class="py-2 pl-2 text-center font-black tabular-nums ${rc}">${r}%</td>
+                                   </tr>`;
+                               }).join('')}
+                               </tbody>
+                           </table>`}
+                </div>`;
+
+            return `
+                <div class="border border-white/5 rounded-2xl overflow-hidden bg-white/5">
+                    <button type="button" onclick="ahToggleAgentRebuttal('${a.key.replace(/'/g, "\\'")}')"
+                        class="w-full flex items-center gap-3 p-3 text-left hover:bg-white/5 transition">
+                        <div class="w-8 h-8 rounded-xl bg-black/40 flex items-center justify-center text-[10px] font-black text-slate-400">
+                            <i class="fas fa-${isOpen ? 'chevron-down' : 'chevron-right'}"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-[12px] font-black text-white uppercase truncate">${escapeHtml(a.name)}</div>
+                            <div class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">
+                                ID ${escapeHtml(a.id || '—')} · ${escapeHtml(a.team || '—')} · Last ${lastSeen}
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[10px] font-black text-slate-300">${a.views} <span class="text-slate-500">views</span></div>
+                            <div class="text-[10px] font-black text-emerald-400">${a.uses} <span class="text-slate-500">used</span></div>
+                        </div>
+                        <div class="w-16 text-right">
+                            <div class="text-lg font-black tabular-nums ${rateColor}">${total > 0 ? rate + '%' : '—'}</div>
+                            <div class="text-[8px] text-slate-600 font-bold uppercase tracking-widest">use rate</div>
+                        </div>
+                    </button>
+                    ${detail}
+                </div>
+            `;
+        }).join('');
     }
 }
 
