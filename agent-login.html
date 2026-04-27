@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BIZ Level Up — Clock In</title>
+  <title>BIZ Berbice — Clock In</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700;900&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -153,9 +153,9 @@
 <div class="card">
 
   <div class="logo-ring">🏢</div>
-  <div class="brand">BIZ Level Up</div>
+  <div class="brand">BIZ Level Up — Berbice</div>
   <h1>Clock In</h1>
-  <p class="subtitle">Enter your Ytel ID — see your shift & lunch info</p>
+  <p class="subtitle">Enter your Ytel ID — the system handles the rest</p>
   <p class="subtitle" id="redirect-note" style="display:none;margin-top:-14px;margin-bottom:20px;color:#22c55e;">Login confirmed. Redirecting to dashboard…</p>
 
   <div id="live-clock">
@@ -189,76 +189,13 @@
   </div>
 
 </div>
-
 <script>
   const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
   const SHIFT_HOUR = 10;
   const SHIFT_MINUTE = 0;
   const GRACE_MINUTES = 15;
 
-  function guyanaTime() {
-    return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
-  }
-
-  function pad(n) {
-    return String(n).padStart(2, '0');
-  }
-
-  function formatGuyanaDateISO(d) {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Guyana',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).formatToParts(d).reduce((acc, part) => {
-      if (part.type !== 'literal') acc[part.type] = part.value;
-      return acc;
-    }, {});
-    return `${parts.year}-${parts.month}-${parts.day}`;
-  }
-
-  function getGuyanaWeekday(d) {
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Guyana',
-      weekday: 'short'
-    }).format(d);
-  }
-
-  function isWorkday(weekday) {
-    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
-  }
-
-  function toUTCDate(dateStr) {
-    return new Date(`${dateStr}T00:00:00Z`);
-  }
-
-  function nextWorkday(dateStr) {
-    const d = toUTCDate(dateStr);
-    d.setUTCDate(d.getUTCDate() + 1);
-    while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
-    return d.toISOString().slice(0, 10);
-  }
-
-  function fmtTime(d) {
-    const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
-    return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
-  }
-
-  function checkLate() {
-    const g = guyanaTime();
-    const now = g.getHours() * 60 + g.getMinutes();
-    const gate = SHIFT_HOUR * 60 + SHIFT_MINUTE + GRACE_MINUTES;
-    return now > gate;
-  }
-
-  function tickClock() {
-    document.getElementById('clock-display').textContent = fmtTime(guyanaTime());
-    document.getElementById('late-badge').style.display = checkLate() ? 'inline-block' : 'none';
-  }
-
-  tickClock();
-  setInterval(tickClock, 1000);
-
+  // ── Attendance persistence ──────────────────────────────────────────────────
   function getTodayISO() {
     return formatGuyanaDateISO(guyanaTime());
   }
@@ -278,6 +215,40 @@
     } catch (e) {}
   }
 
+  function guyanaTime() {
+    return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+  }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function formatGuyanaDateISO(d) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Guyana',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(d).reduce((acc, part) => {
+      if (part.type !== 'literal') acc[part.type] = part.value;
+      return acc;
+    }, {});
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+  function getGuyanaWeekday(d) {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Guyana',
+      weekday: 'short'
+    }).format(d);
+  }
+  function isWorkday(weekday) {
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
+  }
+  function toUTCDate(dateStr) {
+    return new Date(`${dateStr}T00:00:00Z`);
+  }
+  function nextWorkday(dateStr) {
+    const d = toUTCDate(dateStr);
+    d.setUTCDate(d.getUTCDate() + 1);
+    while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
   function updateAgentStreak(profile) {
     const today = guyanaTime();
     const todayISO = formatGuyanaDateISO(today);
@@ -298,6 +269,83 @@
     allStreaks[profile.ytelId] = current;
     localStorage.setItem('biz_agent_streaks_v1', JSON.stringify(allStreaks));
     return current.streak || 1;
+  }
+  function fmtTime(d) {
+    const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
+    return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
+  }
+  function checkLate() {
+    const g = guyanaTime();
+    const now = g.getHours() * 60 + g.getMinutes();
+    const gate = SHIFT_HOUR * 60 + SHIFT_MINUTE + GRACE_MINUTES;
+    return now > gate;
+  }
+
+  function tickClock() {
+    document.getElementById('clock-display').textContent = fmtTime(guyanaTime());
+    document.getElementById('late-badge').style.display = checkLate() ? 'inline-block' : 'none';
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  // ========== NEW: Enhanced resolver for Shift value ==========
+  function resolveShiftValue(data) {
+    if (!data || typeof data !== 'object') return '—';
+    const candidates = [
+      data.shift,
+      data.Shift,
+      data['Shift'],
+      data.shiftTime,
+      data.shift_time,
+      data.schedule,
+      data.workHours,
+      data['Shift (D)'],
+      data.shiftSchedule,
+      data.workingHours
+    ];
+    const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
+    if (match === undefined || match === null) return '—';
+    return String(match).trim();
+  }
+
+  // ========== NEW: Enhanced resolver for Lunch value ==========
+  function resolveLunchValueEnhanced(data) {
+    if (!data || typeof data !== 'object') return '—';
+    const candidates = [
+      data.lunch,
+      data.Lunch,
+      data['Lunch'],
+      data.lunchSlot,
+      data.lunch_time,
+      data.lunchTime,
+      data['Lunch Slot'],
+      data['Lunch Time'],
+      data['lunch time'],
+      data['LunchTime'],
+      data.lunchbreak,
+      data.LunchBreak,
+      data.lunch_break,
+      data.lunchBreak,
+      data.break,
+      data.Break,
+      data['Break Time'],
+      data.break_time,
+      data['Lunch (E)']
+    ];
+    const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
+    if (match === undefined || match === null) return '—';
+    const val = String(match).trim();
+    if (!val) return '—';
+    const num = Number(val);
+    if (!isNaN(num) && num > 0 && num < 1) {
+      const totalMinutes = Math.round(num * 24 * 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const h = hours % 12 || 12;
+      return h + ':' + String(minutes).padStart(2, '0') + ' ' + ampm;
+    }
+    return val;
   }
 
   async function doSubmit() {
@@ -335,23 +383,15 @@
     const existingRecord = getStoredAttendance(ytelId);
 
     try {
-      const timestamp = Date.now();
-      const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}&_=${timestamp}`);
+      const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
       const sData = await sRes.json();
 
-      console.log('🔍 API Response for', ytelId, ':', sData);
+      console.log('📡 API Response:', sData);
 
       if (!sData.found) {
         flashError(input, errEl, btn, 'Ytel ID not found — double-check your number.');
         return;
       }
-
-      // Ensure shift and lunch are properly captured
-      const shiftValue = sData.shift || sData.Shift || sData['Shift'] || '—';
-      const lunchValue = sData.lunch || sData.Lunch || sData['Lunch'] || sData.lunchTime || '—';
-      
-      console.log('📋 Captured shift:', shiftValue);
-      console.log('📋 Captured lunch:', lunchValue);
 
       if (existingRecord) {
         showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
@@ -424,12 +464,13 @@
     tag.textContent = late ? 'Marked Late' : 'Marked Present';
     tag.className = 'result-tag ' + (late ? 'late' : 'present');
 
-    // CRITICAL: Extract shift and lunch from the API response
-    const shiftValue = data.shift || data.Shift || data['Shift'] || '—';
-    const lunchValue = data.lunch || data.Lunch || data['Lunch'] || data.lunchTime || '—';
+    // Use the enhanced resolvers
+    const shiftValue = resolveShiftValue(data);
+    const lunchValue = resolveLunchValueEnhanced(data);
     
-    console.log('✅ Final shift value being saved:', shiftValue);
-    console.log('✅ Final lunch value being saved:', lunchValue);
+    console.log('🕐 Resolved Shift:', shiftValue);
+    console.log('🍽️ Resolved Lunch:', lunchValue);
+    console.log('📦 Raw data object:', data);
 
     const cells = [
       { label: 'Team', value: data.team || '—', cls: '' },
@@ -437,7 +478,6 @@
       { label: 'Lunch Slot', value: lunchValue, cls: '' },
       { label: 'Clocked In', value: displayTime, cls: late ? 'warn' : 'ok' },
     ];
-
     if (data.weekLead !== null && data.weekLead !== undefined) {
       cells.push({ label: '⚡ Weekly Leads', value: data.weekLead, cls: 'leads', full: true });
     }
