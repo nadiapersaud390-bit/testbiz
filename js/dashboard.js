@@ -3,10 +3,12 @@
  * All logged-in users see the full leaderboard with ALL agents from roster.
  * The logged-in agent's own row is highlighted automatically.
  * UPDATED: Only show completed days (Monday-Friday) with short names (Mon, Tue, Wed, Thu, Fri)
+ * FIXED: Real-time +X badge tracking for agent lead changes
  */
 
 let isDashboardSubscribed = false;
 let fullRoster = []; // Store the full agent roster
+let _lastSeenLeadCounts = {}; // Track real-time lead changes for +X badges
 
 // Full week days array (Monday to Friday only - Saturday excluded from history)
 const FULL_WEEK_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
@@ -259,6 +261,51 @@ function startRosterPoller() {
     }, 60000);
 }
 
+// 🔥 NEW: Update real-time lead tracking for +X badges
+function updateRealTimeLeadTracking(newAgents) {
+    if (!newAgents || !newAgents.length) return;
+    
+    // Initialize previous map if empty
+    if (Object.keys(_lastSeenLeadCounts).length === 0) {
+        newAgents.forEach(agent => {
+            const id = String(agent.ytelId || agent.name || '').trim();
+            if (id) _lastSeenLeadCounts[id] = agent.dailyLeads || 0;
+        });
+        return;
+    }
+    
+    // Track changes and update the global _prevDailyLeadsMap for the popup
+    const changes = {};
+    newAgents.forEach(agent => {
+        const id = String(agent.ytelId || agent.name || '').trim();
+        if (!id) return;
+        const currentLeads = agent.dailyLeads || 0;
+        const previousLeads = _lastSeenLeadCounts[id] || 0;
+        
+        if (currentLeads !== previousLeads) {
+            changes[id] = { from: previousLeads, to: currentLeads, diff: currentLeads - previousLeads };
+        }
+        
+        // Update the stored count
+        _lastSeenLeadCounts[id] = currentLeads;
+    });
+    
+    // If there are changes, update the global map that leaderboard.html reads
+    if (Object.keys(changes).length > 0) {
+        // Merge changes into the existing prev map
+        const currentPrevMap = window._prevDailyLeadsMap || {};
+        Object.entries(changes).forEach(([id, change]) => {
+            currentPrevMap[id] = change.from;
+        });
+        window._prevDailyLeadsMap = currentPrevMap;
+        
+        // Also save to localStorage for persistence
+        localStorage.setItem('biz_prev_leads_map', JSON.stringify(currentPrevMap));
+        
+        console.log('[Lead Tracking] Changes detected:', changes);
+    }
+}
+
 function _subscribeLiveDashboard() {
     if (!isDashboardSubscribed && typeof window.listenForLiveDashboardState === 'function') {
         window.listenForLiveDashboardState((state) => {
@@ -295,6 +342,15 @@ function _subscribeLiveDashboard() {
                              if (id) prevMap[id] = a.dailyLeads || 0;
                          });
                          localStorage.setItem('biz_prev_leads_map', JSON.stringify(prevMap));
+                         
+                         // Also reset real-time tracker on new push
+                         _lastSeenLeadCounts = {};
+                         if (state.agents) {
+                             state.agents.forEach(a => {
+                                 const id = String(a.ytelId || a.name || '').trim();
+                                 if (id) _lastSeenLeadCounts[id] = a.dailyLeads || 0;
+                             });
+                         }
                      } catch(e) {}
                  }
                  localStorage.setItem('biz_last_pushed_at', statePushedAt);
@@ -317,6 +373,12 @@ function _subscribeLiveDashboard() {
                 if (ts) ts.innerText = 'Loading roster from Firestore…';
             } else {
                 agents = buildAgentsFromRoster(state);
+                
+                // 🔥 NEW: Update real-time tracking for +X badges
+                if (agents && agents.length > 0) {
+                    updateRealTimeLeadTracking(agents);
+                }
+                
                 if (agents.length > 0) {
                     agents[0].todayName = (state && state.dateLabel) || getGuyanaToday();
                     let pr = 0, bb = 0, rm = 0;
