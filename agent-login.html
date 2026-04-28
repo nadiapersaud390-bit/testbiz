@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BIZ Berbice — Clock In</title>
+  <title>BIZ Level Up — Clock In</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700;900&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -153,9 +153,9 @@
 <div class="card">
 
   <div class="logo-ring">🏢</div>
-  <div class="brand">BIZ Level Up — Berbice</div>
+  <div class="brand">BIZ Level Up</div>
   <h1>Clock In</h1>
-  <p class="subtitle">Enter your Ytel ID — the system handles the rest</p>
+  <p class="subtitle">Enter your Ytel ID — or use admin access</p>
   <p class="subtitle" id="redirect-note" style="display:none;margin-top:-14px;margin-bottom:20px;color:#22c55e;">Login confirmed. Redirecting to dashboard…</p>
 
   <div id="live-clock">
@@ -165,11 +165,11 @@
   </div>
 
   <div id="login-form">
-    <label for="ytel-input">Your Ytel ID</label>
-    <input type="text" id="ytel-input" placeholder="e.g. 1055" autocomplete="off" inputmode="numeric" pattern="[0-9]*" onkeydown="if(event.key==='Enter') doSubmit()" />
+    <label for="ytel-input">Your Ytel ID / Super Admin</label>
+    <input type="text" id="ytel-input" placeholder="e.g. 1055 or ROSE" autocomplete="off" onkeydown="if(event.key==='Enter') doSubmit()" />
     <div id="admin-password-wrap" style="display:none;">
-      <label for="admin-password-input">Admin Password</label>
-      <input type="password" id="admin-password-input" placeholder="Enter admin password" autocomplete="off" onkeydown="if(event.key==='Enter') doSubmit()" />
+      <label for="admin-password-input">Super Admin Password</label>
+      <input type="password" id="admin-password-input" placeholder="Enter super admin password" autocomplete="off" onkeydown="if(event.key==='Enter') doSubmit()" />
     </div>
     <p class="err" id="err-msg"></p>
     <button id="submit-btn" onclick="doSubmit()">Clock In →</button>
@@ -189,15 +189,73 @@
   </div>
 
 </div>
+<script src="js/super-admin.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  
+  const firebaseConfig = {
+    apiKey: "AIzaSyA5u7B8UJQOFG8yhE0YKWCiWCHQgaNu1mY",
+    authDomain: "biz-dashboard-4396c.firebaseapp.com",
+    databaseURL: "https://biz-dashboard-4396c-default-rtdb.firebaseio.com",
+    projectId: "biz-dashboard-4396c",
+    storageBucket: "biz-dashboard-4396c.firebasestorage.app",
+    messagingSenderId: "394155720592",
+    appId: "1:394155720592:web:b85a142cf8c885726b3d15"
+  };
+
+  try {
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const firestore = getFirestore(app);
+
+    // Sync admin accounts from Firebase RTDB
+    onValue(ref(db, 'admins_list'), (snapshot) => {
+      const firebaseData = snapshot.val() || {};
+      const localData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+      const merged = Object.assign({}, localData, firebaseData);
+      localStorage.setItem('biz_admins_list_v1', JSON.stringify(merged));
+      if (typeof window.seedDefaultAdmins === 'function') window.seedDefaultAdmins();
+    });
+
+    // Sync super admin from Firebase RTDB
+    onValue(ref(db, 'super_admin'), (snapshot) => {
+      const data = snapshot.val();
+      if (data) localStorage.setItem('biz_super_admin_v1', JSON.stringify(data));
+    });
+
+    // Load agent profiles from Firestore (contains shift, lunchTime, etc.)
+    const loadAgentProfiles = async () => {
+      try {
+        const profilesRef = collection(firestore, 'agent_profiles');
+        const snapshot = await getDocs(profilesRef);
+        const profiles = [];
+        snapshot.forEach(doc => {
+          profiles.push({ id: doc.id, ...doc.data() });
+        });
+        if (profiles.length > 0) {
+          window.allAgentProfiles = profiles;
+          try { localStorage.setItem('biz_master_roster', JSON.stringify(profiles)); } catch(e) {}
+          console.log(`[login] Loaded ${profiles.length} agent profiles from Firestore`);
+        }
+      } catch (e) {
+        console.warn("Failed to load agent profiles from Firestore", e);
+      }
+    };
+    
+    loadAgentProfiles();
+
+  } catch (e) {
+    console.warn("Firebase sync failed", e);
+  }
+
+</script>
 <script>
   const API_URL = 'https://script.google.com/macros/s/AKfycbzAKQCxoAhX260aUZCjlH7P-DjfQKlSuUJ9V7QO0g71z6SDk5d5oEXyaTh4GoSWzEeXgQ/exec';
   const SHIFT_HOUR = 10;
   const SHIFT_MINUTE = 0;
   const GRACE_MINUTES = 15;
-
-  // ── Attendance persistence ──────────────────────────────────────────────────
-  // Stores the ORIGINAL clock-in result in localStorage keyed by ytelId + date.
-  // On re-login the same day, the stored status is reused — no API re-mark.
 
   function getTodayISO() {
     return formatGuyanaDateISO(guyanaTime());
@@ -217,12 +275,15 @@
       localStorage.setItem(key, JSON.stringify({ status, clockedAt }));
     } catch (e) {}
   }
-  // ────────────────────────────────────────────────────────────────────────────
 
   function guyanaTime() {
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
   }
-  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function pad(n) {
+    return String(n).padStart(2, '0');
+  }
+
   function formatGuyanaDateISO(d) {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Guyana',
@@ -235,24 +296,29 @@
     }, {});
     return `${parts.year}-${parts.month}-${parts.day}`;
   }
+
   function getGuyanaWeekday(d) {
     return new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/Guyana',
       weekday: 'short'
     }).format(d);
   }
+
   function isWorkday(weekday) {
     return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
   }
+
   function toUTCDate(dateStr) {
     return new Date(`${dateStr}T00:00:00Z`);
   }
+
   function nextWorkday(dateStr) {
     const d = toUTCDate(dateStr);
     d.setUTCDate(d.getUTCDate() + 1);
     while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
     return d.toISOString().slice(0, 10);
   }
+
   function updateAgentStreak(profile) {
     const today = guyanaTime();
     const todayISO = formatGuyanaDateISO(today);
@@ -274,10 +340,12 @@
     localStorage.setItem('biz_agent_streaks_v1', JSON.stringify(allStreaks));
     return current.streak || 1;
   }
+
   function fmtTime(d) {
     const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
     return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
   }
+
   function checkLate() {
     const g = guyanaTime();
     const now = g.getHours() * 60 + g.getMinutes();
@@ -289,8 +357,24 @@
     document.getElementById('clock-display').textContent = fmtTime(guyanaTime());
     document.getElementById('late-badge').style.display = checkLate() ? 'inline-block' : 'none';
   }
+
   tickClock();
   setInterval(tickClock, 1000);
+
+  // Helper to get agent profile from Firebase roster by Ytel ID (for shift/lunch fallback)
+  function getAgentProfileFromRoster(ytelId) {
+    const roster = window.allAgentProfiles || [];
+    try {
+      const localRoster = JSON.parse(localStorage.getItem('biz_master_roster') || '[]');
+      if (localRoster.length > 0) {
+        const match = localRoster.find(p => String(p.userId || p.ytelId || p.id || '').trim() === String(ytelId).trim());
+        if (match) return match;
+      }
+    } catch(e) {}
+    
+    const match = roster.find(p => String(p.userId || p.ytelId || p.id || '').trim() === String(ytelId).trim());
+    return match || null;
+  }
 
   async function doSubmit() {
     const input = document.getElementById('ytel-input');
@@ -298,6 +382,7 @@
     const adminPasswordWrap = document.getElementById('admin-password-wrap');
     const errEl = document.getElementById('err-msg');
     const btn = document.getElementById('submit-btn');
+    const loginId = normalizeLoginId(input.value);
     const ytelId = normalizeYtelId(input.value);
     const inAdminMode = btn.dataset.mode === 'admin';
 
@@ -306,17 +391,22 @@
       return;
     }
 
-    if (!ytelId) {
-      flashError(input, errEl, btn, 'Please enter your Ytel ID.');
+    // 🔥 FIXED: Check for ROSE (case-insensitive) to trigger admin mode
+    const adminData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+    const loginIdLower = loginId.toLowerCase();
+    const isPotentialAdmin = (loginIdLower === 'rose' || loginId === '0000' || !!adminData[loginIdLower]);
+
+    if (isPotentialAdmin) {
+      btn.dataset.mode = 'admin';
+      adminPasswordWrap.style.display = 'block';
+      btn.dataset.adminId = loginId;
+      btn.textContent = 'Admin Log In →';
+      adminPasswordInput.focus();
       return;
     }
 
-    if (ytelId === '0000') {
-      errEl.textContent = '';
-      adminPasswordWrap.style.display = 'block';
-      btn.dataset.mode = 'admin';
-      btn.textContent = 'Admin Log In →';
-      adminPasswordInput.focus();
+    if (!ytelId) {
+      flashError(input, errEl, btn, 'Please enter your Ytel ID.');
       return;
     }
 
@@ -324,66 +414,73 @@
     btn.disabled = true;
     btn.textContent = '⏳ Clocking In...';
 
-    // ── Check if agent already clocked in today ──────────────────────────────
     const existingRecord = getStoredAttendance(ytelId);
+    const localProfile = getAgentProfileFromRoster(ytelId);
 
+    let sData = null;
     try {
-      const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}`);
-      const sData = await sRes.json();
-
-      if (!sData.found) {
-        flashError(input, errEl, btn, 'Ytel ID not found — double-check your number.');
-        return;
-      }
-
-      if (existingRecord) {
-        // ── RE-LOGIN: use original attendance status, skip API re-mark ────────
-        showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
-      } else {
-        // ── FIRST CLOCK-IN today: calculate status and mark attendance ────────
-        const status = checkLate() ? 'Late' : 'Present';
-        const clockedAt = fmtTime(guyanaTime());
-
-        const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
-        const aData = await aRes.json();
-
-        // ── FIX: allow through if already_marked (cell had P/L from a previous
-        //    mark by supervisor or trigger) or absent_overwrite (cell had A).
-        //    Only block on genuine failures.
-        if (!aData.ok && aData.writeResult !== 'already_marked') {
-          let msg = 'Attendance marking failed — please try again.';
-          if (aData.writeResult === 'agent_not_found') {
-            msg = 'You were found in the system but not in the weekly sheet — please contact your supervisor.';
-          } else if (aData.writeResult === 'no_sheet') {
-            msg = 'Weekly attendance sheet not found — contact your supervisor.';
-          } else if (aData.writeResult === 'no_week_block') {
-            msg = 'No active week block found in the sheet — contact your supervisor.';
-          }
-          flashError(input, errEl, btn, msg);
-          return;
-        }
-
-        // Save to localStorage so re-logins today reuse this status.
-        // If already_marked, we still save so the agent can proceed to dashboard.
-        storeAttendance(ytelId, status, clockedAt);
-        showResult(sData, status, ytelId, clockedAt);
-      }
+      const sRes = await fetch(`${API_URL}?action=getAgentSchedule&ytelId=${encodeURIComponent(ytelId)}&_=${Date.now()}`);
+      const raw = await sRes.json();
+      if (raw && raw.found) sData = raw;
     } catch (e) {
-      flashError(input, errEl, btn, 'Network error — check your connection and retry.');
+      console.warn('[login] getAgentSchedule fetch failed:', e);
     }
-  }
 
-  function doAdminLogin(adminPasswordInput, errEl, btn) {
-    if (adminPasswordInput.value !== 'admin') {
-      flashError(adminPasswordInput, errEl, btn, 'Incorrect admin password.');
+    // Merge local profile data (from Firebase) into sData for shift/lunch fallback
+    if (localProfile) {
+      if (!sData) sData = { found: true, name: localProfile.fullName || localProfile.name || 'Agent' };
+      if (localProfile.shift) sData.shift = localProfile.shift;
+      if (localProfile.lunchTime) sData.lunch = localProfile.lunchTime;
+      if (localProfile.team) sData.team = localProfile.team;
+      console.log('[login] Enhanced with Firebase profile data:', sData);
+    }
+
+    if (!sData || !sData.found) {
+      flashError(input, errEl, btn, 'Ytel ID not found — double-check your number or contact your supervisor.');
       return;
     }
 
-    sessionStorage.setItem('agentLoggedIn', '1');
-    sessionStorage.setItem('bizAdminUnlocked', '1');
-    sessionStorage.setItem('bizUserRole', 'admin');
-    sessionStorage.removeItem('currentAgentName');
-    sessionStorage.removeItem('currentAgentProfile');
+    if (existingRecord) {
+      showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
+      return;
+    }
+
+    const status = checkLate() ? 'Late' : 'Present';
+    const clockedAt = fmtTime(guyanaTime());
+
+    try {
+      const aRes = await fetch(`${API_URL}?action=autoAttendance&ytelId=${encodeURIComponent(ytelId)}&name=${encodeURIComponent(sData.name)}&status=${encodeURIComponent(status)}`);
+      const aData = await aRes.json();
+
+      if (!aData.ok && aData.writeResult !== 'already_marked') {
+        console.warn('[attendance] Marking failed:', aData.writeResult);
+        errEl.textContent = '⚠️ Attendance sheet not updated, but you are logged in.';
+        errEl.style.color = '#f59e0b';
+      }
+    } catch (e) {
+      console.warn('[attendance] Network error during marking:', e);
+      errEl.textContent = '⚠️ Attendance not recorded (offline), but you are logged in.';
+      errEl.style.color = '#f59e0b';
+    }
+
+    storeAttendance(ytelId, status, clockedAt);
+    if (typeof window.ahUpdateAgentPresence === 'function') {
+      window.ahUpdateAgentPresence(ytelId, sData.name, status);
+    }
+    showResult(sData, status, ytelId, clockedAt);
+  }
+
+  async function doAdminLogin(adminPasswordInput, errEl, btn) {
+    const loginId = btn.dataset.adminId;
+    const password = adminPasswordInput.value;
+
+    const result = window.superAdminLogin(loginId, password);
+
+    if (!result.success) {
+      flashError(adminPasswordInput, errEl, btn, result.error || 'Incorrect admin password.');
+      return;
+    }
+
     window.location.href = 'index.html';
   }
 
@@ -391,7 +488,7 @@
     input.classList.add('shake');
     errEl.textContent = msg;
     btn.disabled = false;
-    btn.textContent = btn.dataset.mode === 'admin' ? 'Admin Log In →' : 'Clock In →';
+    btn.textContent = btn.dataset.mode === 'admin' ? 'Super Admin Log In →' : 'Clock In →';
     setTimeout(() => input.classList.remove('shake'), 500);
   }
 
@@ -399,26 +496,18 @@
     return String(value || '').replace(/\D/g, '');
   }
 
+  function normalizeLoginId(value) {
+    return String(value || '').trim().toUpperCase();
+  }
+
   function resolveLunchValue(data) {
     if (!data || typeof data !== 'object') return '—';
     const candidates = [
-      data.lunch,
-      data.lunchSlot,
-      data.lunch_time,
-      data.lunchTime,
-      data['Lunch Slot'],
-      data['Lunch'],
-      data['Lunch Time'],
-      data['lunch time'],
-      data['LunchTime'],
-      data['lunchbreak'],
-      data['LunchBreak'],
-      data['lunch_break'],
-      data['lunchBreak'],
-      data['break'],
-      data['Break'],
-      data['Break Time'],
-      data['break_time']
+      data.lunch, data.lunchSlot, data.lunch_time, data.lunchTime,
+      data['Lunch Slot'], data['Lunch'], data['Lunch Time'],
+      data['lunch time'], data['LunchTime'], data['lunchbreak'],
+      data['LunchBreak'], data['lunch_break'], data['lunchBreak'],
+      data['break'], data['Break'], data['Break Time'], data['break_time']
     ];
     const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
     if (match === undefined || match === null) return '—';
@@ -458,6 +547,7 @@
       { label: 'Lunch Slot', value: lunchValue, cls: '' },
       { label: 'Clocked In', value: displayTime, cls: late ? 'warn' : 'ok' },
     ];
+
     if (data.weekLead !== null && data.weekLead !== undefined) {
       cells.push({ label: '⚡ Weekly Leads', value: data.weekLead, cls: 'leads', full: true });
     }
@@ -475,14 +565,18 @@
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizUserRole', 'agent');
     sessionStorage.setItem('currentAgentName', data.name || '');
+    
     const profile = {
       name: data.name || 'Agent',
       ytelId: ytelId || '',
       lunch: lunchValue,
-      shift: data.shift || '—'
+      shift: data.shift || '—',
+      team: data.team || '—'
     };
+    
     profile.streak = updateAgentStreak(profile);
     sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
+    
     setTimeout(() => {
       window.location.href = 'index.html';
     }, 1200);
@@ -498,6 +592,7 @@
     document.getElementById('err-msg').textContent = '';
     document.getElementById('submit-btn').disabled = false;
     document.getElementById('submit-btn').dataset.mode = '';
+    document.getElementById('submit-btn').dataset.adminId = '';
     document.getElementById('submit-btn').textContent = 'Clock In →';
     document.getElementById('ytel-input').focus();
   }
