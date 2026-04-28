@@ -533,9 +533,13 @@ function _subscribeLiveDashboard() {
                 FULL_WEEK_DAYS.forEach(day => { lastWeekMap[day] = null; });
 
                 lastWeekReports.forEach(r => {
-                    let dayKey = r.dayOfWeek;
-                    if (!FULL_WEEK_DAYS.includes(dayKey)) {
-                        dayKey = _dayKeyFromIndex(_actualDate(r).getDay());
+                    // 🔥 FIX: Always derive day-of-week from the report's actual date.
+                    // r.dayOfWeek can be wrong (e.g. apSaveCurrentToHistory used to stamp
+                    // it with today's day even when saving an older day's data), which
+                    // caused multiple days to overwrite each other in the weekMap.
+                    let dayKey = _dayKeyFromIndex(_actualDate(r).getDay());
+                    if (!dayKey && FULL_WEEK_DAYS.includes(r.dayOfWeek)) {
+                        dayKey = r.dayOfWeek;
                     }
 
                     if (dayKey && FULL_WEEK_DAYS.includes(dayKey)) {
@@ -578,9 +582,13 @@ function _subscribeLiveDashboard() {
                 });
 
                 thisWeekReports.forEach(r => {
-                    let dayKey = r.dayOfWeek;
-                    if (!FULL_WEEK_DAYS.includes(dayKey)) {
-                        dayKey = _dayKeyFromIndex(_actualDate(r).getDay());
+                    // 🔥 FIX: Always derive day-of-week from the report's actual date.
+                    // The stored r.dayOfWeek can be wrong, which made reports for different
+                    // days collide on the same dayKey and silently overwrite each other —
+                    // that's why Monday's data was disappearing from the Weekly tab.
+                    let dayKey = _dayKeyFromIndex(_actualDate(r).getDay());
+                    if (!dayKey && FULL_WEEK_DAYS.includes(r.dayOfWeek)) {
+                        dayKey = r.dayOfWeek;
                     }
 
                     if (dayKey && FULL_WEEK_DAYS.includes(dayKey)) {
