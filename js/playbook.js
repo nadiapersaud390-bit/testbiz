@@ -1,88 +1,273 @@
-function toggleIndustry(header) {
-    const card=header.closest('.industry-card'),body=card.querySelector('.industry-body'),arrow=header.querySelector('.industry-arrow'),isOpen=body.classList.contains('open');
-    document.querySelectorAll('.industry-body.open').forEach(b=>b.classList.remove('open'));
-    document.querySelectorAll('.industry-arrow.open').forEach(a=>a.classList.remove('open'));
-    if(!isOpen){body.classList.add('open');arrow.classList.add('open');}
-}
+<div class="glass p-6 rounded-3xl border-l-8 border-l-green-500 bg-green-500/5">
+            <h3 class="header-font text-sm md:text-xl font-black text-green-500 uppercase mb-4 italic">Quality Guidelines</h3>
+            <div class="text-sm md:text-lg leading-relaxed text-slate-200 space-y-3">
+                <p>1. Need to be in business for over 1 Year</p>
+                <p>2. Primary Owner of the business 100% or at least 50%</p>
+                <p>3. <span class="text-red-400 font-black">No</span> Trucking Companies &nbsp;·&nbsp; <span class="text-green-400 font-black">Vans OK</span> &nbsp;·&nbsp; <span class="text-red-400 font-black">No</span> Attorneys / Lawyers &nbsp;·&nbsp; <span class="text-red-400 font-black">No</span> Detachable Tractor</p>
+                <div style="margin-top:8px;border-radius:14px;overflow:hidden;border:1px solid rgba(34,197,94,0.3);">
+                    <div onclick="toggleRevenueDropdown()" style="background:rgba(34,197,94,0.1);padding:12px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;transition:background 0.2s;" onmouseover="this.style.background='rgba(34,197,94,0.16)'" onmouseout="this.style.background='rgba(34,197,94,0.1)'">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:1rem;">💰</span>
+                            <div>
+                                <div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#22c55e;">4. Last Year Revenue</div>
+                                <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-top:1px;">Tap to see how to ask &amp; what qualifies</div>
+                            </div>
+                        </div>
+                        <i id="revenue-arrow" class="fas fa-chevron-down" style="color:#22c55e;font-size:12px;transition:transform 0.3s;"></i>
+                    </div>
+                    <div id="revenue-body" style="max-height:0;overflow:hidden;transition:max-height 0.5s ease;">
+                        <div style="background:rgba(2,6,23,0.6);padding:16px;display:flex;flex-direction:column;gap:12px;">
+                            <div style="background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.2);border-radius:10px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;">
+                                <i class="fas fa-info-circle" style="color:#22c55e;flex-shrink:0;margin-top:2px;font-size:14px;"></i>
+                                <div>
+                                    <p style="font-size:12px;font-weight:900;text-transform:uppercase;color:#22c55e;letter-spacing:0.08em;margin-bottom:4px;">What You're Asking For</p>
+                                    <p style="font-size:14px;font-weight:600;color:#cbd5e1;line-height:1.6;">You need their <strong style="color:white;">2025 gross annual revenue</strong> — that's the total the business brought in before any taxes, deductions, or expenses. Not what they kept. The full top-line number.</p>
+                                </div>
+                            </div>
+                            <div style="border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
+                                <div style="background:rgba(255,255,255,0.04);padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:8px;">
+                                    <span style="background:rgba(59,130,246,0.25);color:#60a5fa;font-size:11px;font-weight:900;border-radius:20px;padding:2px 9px;letter-spacing:0.07em;">STEP A</span>
+                                    <p style="font-size:14px;font-weight:700;color:white;font-style:italic;">"Does your business generate at least $1 million a year in revenue?"</p>
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+                                    <div style="background:rgba(34,197,94,0.07);padding:12px 14px;border-right:1px solid rgba(255,255,255,0.07);">
+                                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;"><span style="background:rgba(34,197,94,0.25);color:#4ade80;font-size:11px;font-weight:900;border-radius:20px;padding:2px 8px;">YES</span></div>
+                                        <p style="font-size:13px;font-weight:700;color:#86efac;font-style:italic;line-height:1.5;">"Can you please provide a rough estimate of how much?"</p>
+                                        <div style="margin-top:8px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:8px 10px;text-align:center;">
+                                            <p style="font-size:12px;font-weight:900;text-transform:uppercase;color:#22c55e;">✓ QUALIFIED</p>
+                                            <p style="font-size:12px;font-weight:700;color:#86efac;margin-top:2px;">Transfer — Over $1M Line</p>
+                                        </div>
+                                    </div>
+                                    <div style="background:rgba(239,68,68,0.05);padding:12px 14px;">
+                                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;"><span style="background:rgba(239,68,68,0.2);color:#f87171;font-size:11px;font-weight:900;border-radius:20px;padding:2px 8px;">NO</span></div>
+                                        <p style="font-size:13px;font-weight:700;color:#fca5a5;line-height:1.5;">No problem — continue to <strong style="color:white;">Step B</strong> below.</p>
+                                        <div style="margin-top:8px;display:flex;align-items:center;gap:6px;"><i class="fas fa-arrow-down" style="color:#475569;font-size:12px;"></i><p style="font-size:12px;font-weight:900;text-transform:uppercase;color:#475569;">Move to next question</p></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
+                                <div style="background:rgba(255,255,255,0.04);padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:8px;">
+                                    <span style="background:rgba(234,179,8,0.25);color:#facc15;font-size:11px;font-weight:900;border-radius:20px;padding:2px 9px;letter-spacing:0.07em;">STEP B</span>
+                                    <p style="font-size:14px;font-weight:700;color:white;font-style:italic;">"Does your business generate at least $200K in revenue per year?"</p>
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+                                    <div style="background:rgba(34,197,94,0.07);padding:12px 14px;border-right:1px solid rgba(255,255,255,0.07);">
+                                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;"><span style="background:rgba(34,197,94,0.25);color:#4ade80;font-size:11px;font-weight:900;border-radius:20px;padding:2px 8px;">YES</span></div>
+                                        <p style="font-size:13px;font-weight:700;color:#86efac;font-style:italic;line-height:1.5;">"Can you please provide a rough estimate of how much?"</p>
+                                        <div style="margin-top:8px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:8px 10px;text-align:center;">
+                                            <p style="font-size:12px;font-weight:900;text-transform:uppercase;color:#22c55e;">✓ QUALIFIED</p>
+                                            <p style="font-size:12px;font-weight:700;color:#86efac;margin-top:2px;">Transfer — Under $1M Line</p>
+                                        </div>
+                                    </div>
+                                    <div style="background:rgba(239,68,68,0.05);padding:12px 14px;">
+                                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;"><span style="background:rgba(239,68,68,0.2);color:#f87171;font-size:11px;font-weight:900;border-radius:20px;padding:2px 8px;">NO</span></div>
+                                        <p style="font-size:13px;font-weight:700;color:#fca5a5;line-height:1.5;">Revenue is below minimum. <strong style="color:white;">Does not qualify.</strong></p>
+                                        <div style="margin-top:8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:6px;padding:6px 10px;text-align:center;">
+                                            <p style="font-size:12px;font-weight:900;text-transform:uppercase;color:#ef4444;">✗ DNQ — End Call</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:12px;">
+                                <p style="font-size:12px;font-weight:900;text-transform:uppercase;color:#64748b;letter-spacing:0.08em;margin-bottom:8px;">If They're Unsure of Their Annual Number</p>
+                                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 13px;display:flex;align-items:flex-start;gap:8px;">
+                                    <span style="background:rgba(234,179,8,0.2);color:#facc15;font-size:11px;font-weight:900;border-radius:4px;padding:2px 6px;flex-shrink:0;margin-top:1px;">IF UNSURE</span>
+                                    <div>
+                                        <p style="font-size:14px;font-weight:700;color:white;font-style:italic;">"No problem — roughly how much does the business bring in each month?"</p>
+                                        <p style="font-size:12px;color:#64748b;margin-top:3px;">Multiply their monthly number by 12 to get an annual estimate.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.3);border-radius:10px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;">
+                                <i class="fas fa-exclamation-triangle" style="color:#f97316;flex-shrink:0;margin-top:2px;font-size:13px;"></i>
+                                <div>
+                                    <p style="font-size:12px;font-weight:900;text-transform:uppercase;color:#f97316;letter-spacing:0.08em;margin-bottom:5px;">⚠️ If They Say "It Should Be Around the Same as Last Year"</p>
+                                    <p style="font-size:14px;font-weight:600;color:#fed7aa;line-height:1.6;">Do <strong style="color:white;">not</strong> accept this. You need the actual 2025 number, not an assumption based on a prior year.</p>
+                                    <div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.2);border-radius:8px;padding:9px 12px;margin-top:10px;">
+                                        <p style="font-size:12px;font-weight:900;text-transform:uppercase;color:#f97316;margin-bottom:5px;">Push Back With:</p>
+                                        <p style="font-size:14px;font-weight:700;color:white;font-style:italic;line-height:1.6;">"I understand — but revenue can change quite a bit year to year. Do you have a rough idea of what 2025 actually came in at, or what a typical month looks like for you?"</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;">
+                                <i class="fas fa-times-circle" style="color:#ef4444;flex-shrink:0;margin-top:2px;font-size:13px;"></i>
+                                <div>
+                                    <p style="font-size:12px;font-weight:900;text-transform:uppercase;color:#ef4444;letter-spacing:0.08em;margin-bottom:4px;">They Only Know 2024 — Cannot Work</p>
+                                    <p style="font-size:14px;font-weight:600;color:#fca5a5;line-height:1.6;">If they can only give 2024 — <strong style="color:white;">do not proceed.</strong> Schedule a callback.</p>
+                                    <div style="background:rgba(239,68,68,0.08);border-radius:6px;padding:7px 10px;margin-top:8px;display:flex;align-items:center;gap:6px;">
+                                        <i class="fas fa-calendar-alt" style="color:#ef4444;font-size:12px;flex-shrink:0;"></i>
+                                        <p style="font-size:12px;font-weight:900;text-transform:uppercase;color:#f87171;">"Let me schedule a follow-up for when you have that number ready."</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p class="text-red-400 font-black italic mt-6 border-t border-red-900/50 pt-4 uppercase text-center text-sm">If qualifiers are not met you cannot transfer!!!</p>
+        </div>
 
-function toggleRebuttal(header) {
-    const card = header.closest('.rebuttal-card');
-    const body = card.querySelector('.rebuttal-body');
-    const arrow = card.querySelector('.rebuttal-arrow');
-    const isOpen = body.classList.contains('open');
-    document.querySelectorAll('.rebuttal-body.open').forEach(b => b.classList.remove('open'));
-    document.querySelectorAll('.rebuttal-arrow.open').forEach(a => a.classList.remove('open'));
-    if (!isOpen) { body.classList.add('open'); arrow.classList.add('open'); }
-}
+        <div>
+            <div class="flex items-center gap-3 mb-4 px-1">
+                <div style="width:36px;height:36px;border-radius:10px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);display:flex;align-items:center;justify-content:center;">
+                    <i class="fas fa-industry text-yellow-400 text-sm"></i>
+                </div>
+                <div>
+                    <div class="header-font text-xs text-yellow-500 uppercase tracking-widest italic mb-0.5">Know Before You Transfer</div>
+                    <div class="header-font text-base font-black text-white uppercase italic">Industry Drill-Down</div>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <div class="industry-card" style="border-color:rgba(249,115,22,0.25);">
+                    <div class="industry-header" onclick="toggleIndustry(this)" style="background:linear-gradient(90deg,rgba(249,115,22,0.08),transparent);">
+                        <div class="flex items-center gap-3"><span style="font-size:1.3rem;">🚜</span><div><div class="font-black text-white text-sm uppercase tracking-wide">Tractor</div><div style="font-size:10px;font-weight:700;color:#f97316;text-transform:uppercase;letter-spacing:0.08em;">Depends on tractor type</div></div></div>
+                        <div class="flex items-center gap-2"><span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#f97316;background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.25);border-radius:20px;padding:2px 8px;">Ask First</span><i class="fas fa-chevron-down industry-arrow"></i></div>
+                    </div>
+                    <div class="industry-body"><div class="industry-body-inner">
+                        <div style="background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.15);border-radius:10px;padding:10px 14px;margin-bottom:12px;"><p style="font-size:10px;font-weight:900;text-transform:uppercase;color:#f97316;letter-spacing:0.08em;margin-bottom:4px;">Key Question to Ask</p><p style="font-size:13px;font-weight:700;color:white;font-style:italic;">"Is it a detachable tractor?"</p></div>
+                        <div class="verdict-no"><i class="fas fa-times-circle" style="color:#ef4444;flex-shrink:0;"></i><div><p style="font-size:11px;font-weight:900;text-transform:uppercase;color:#ef4444;">Detachable Tractor = Truck — Cannot Work</p><p style="font-size:11px;color:#fca5a5;margin-top:2px;">A detachable tractor is classified as a truck. This falls under the No Trucking rule — end and move on.</p></div></div>
+                        <div class="verdict-yes" style="margin-top:8px;"><i class="fas fa-check-circle" style="color:#22c55e;flex-shrink:0;"></i><div><p style="font-size:11px;font-weight:900;text-transform:uppercase;color:#22c55e;">Non-Detachable (Farm / Equipment) — Can Work</p><p style="font-size:11px;color:#86efac;margin-top:2px;">Farm tractors or heavy equipment that are not detachable semis can qualify.</p></div></div>
+                    </div></div>
+                </div>
+                <div class="industry-card" style="border-color:rgba(34,197,94,0.25);">
+                    <div class="industry-header" onclick="toggleIndustry(this)" style="background:linear-gradient(90deg,rgba(34,197,94,0.08),transparent);">
+                        <div class="flex items-center gap-3"><span style="font-size:1.3rem;">🌲</span><div><div class="font-black text-white text-sm uppercase tracking-wide">Logging</div><div style="font-size:10px;font-weight:700;color:#22c55e;text-transform:uppercase;letter-spacing:0.08em;">Must operate all 12 months — no exceptions</div></div></div>
+                        <div class="flex items-center gap-2"><span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#22c55e;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.25);border-radius:20px;padding:2px 8px;">Ask First</span><i class="fas fa-chevron-down industry-arrow"></i></div>
+                    </div>
+                    <div class="industry-body"><div class="industry-body-inner">
+                        <div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.18);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;"><i class="fas fa-snowflake" style="color:#22c55e;flex-shrink:0;margin-top:2px;font-size:12px;"></i><div><p style="font-size:10px;font-weight:900;text-transform:uppercase;color:#22c55e;letter-spacing:0.08em;margin-bottom:4px;">Why This Matters</p><p style="font-size:12px;font-weight:600;color:#cbd5e1;line-height:1.55;">Logging is a seasonal industry. Many operators shut down in winter. To qualify, they must be operating <strong style="color:white;">all 12 months of the year</strong>.</p></div></div>
+                        <div class="drill-step neutral-step mb-2"><div class="drill-step-num" style="background:rgba(34,197,94,0.2);color:#4ade80;">1</div><div><p style="font-size:10px;font-weight:900;text-transform:uppercase;color:#4ade80;letter-spacing:0.07em;margin-bottom:3px;">Confirm the Industry</p><p style="font-size:13px;font-weight:700;color:white;font-style:italic;">"Is this a logging or timber business?"</p></div></div>
+                        <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:10px;padding:12px 14px;margin-bottom:14px;"><p style="font-size:10px;font-weight:900;text-transform:uppercase;color:#22c55e;letter-spacing:0.08em;margin-bottom:6px;">Step 2 — The Critical Question</p><p style="font-size:14px;font-weight:700;color:white;font-style:italic;line-height:1.5;">"How many months out of the year is your business actively operating?"</p></div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+                            <div class="verdict-no" style="margin-top:0;flex-direction:column;align-items:flex-start;gap:6px;"><div style="display:flex;align-items:center;gap:6px;"><i class="fas fa-times-circle" style="color:#ef4444;flex-shrink:0;font-size:13px;"></i><p style="font-size:11px;font-weight:900;text-transform:uppercase;color:#ef4444;">Under 12 Months — Cannot Work</p></div><p style="font-size:11px;color:#fca5a5;line-height:1.5;">Any seasonal shutdown disqualifies them.</p></div>
+                            <div class="verdict-yes" style="margin-top:0;flex-direction:column;align-items:flex-start;gap:6px;"><div style="display:flex;align-items:center;gap:6px;"><i class="fas fa-check-circle" style="color:#22c55e;flex-shrink:0;font-size:13px;"></i><p style="font-size:11px;font-weight:900;text-transform:uppercase;color:#22c55e;">Full 12 Months — Can Work</p></div><p style="font-size:11px;color:#86efac;line-height:1.5;">Year-round confirmed — proceed to transfer.</p></div>
+                        </div>
+                    </div></div>
+                </div>
+                <div class="industry-card" style="border-color:rgba(59,130,246,0.25);">
+                    <div class="industry-header" onclick="toggleIndustry(this)" style="background:linear-gradient(90deg,rgba(59,130,246,0.08),transparent);">
+                        <div class="flex items-center gap-3"><span style="font-size:1.3rem;">🏗️</span><div><div class="font-black text-white text-sm uppercase tracking-wide">Construction</div><div style="font-size:10px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:0.08em;">Depends on fund use</div></div></div>
+                        <div class="flex items-center gap-2"><span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#3b82f6;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:20px;padding:2px 8px;">Drill Down</span><i class="fas fa-chevron-down industry-arrow"></i></div>
+                    </div>
+                    <div class="industry-body"><div class="industry-body-inner">
+                        <div class="drill-step neutral-step mb-3"><div class="drill-step-num" style="background:rgba(59,130,246,0.2);color:#60a5fa;">1</div><div><p style="font-size:10px;font-weight:900;text-transform:uppercase;color:#60a5fa;letter-spacing:0.07em;margin-bottom:3px;">Ask</p><p style="font-size:13px;font-weight:700;color:white;font-style:italic;">"Does your construction business deal with trucking?"</p></div></div>
+                        <div style="border-left:2px solid rgba(249,115,22,0.4);padding-left:14px;margin-left:10px;margin-bottom:10px;">
+                            <p style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f97316;letter-spacing:0.08em;margin-bottom:8px;">If Yes — Trucking Involved:</p>
+                            <div class="drill-step neutral-step mb-3"><div class="drill-step-num" style="background:rgba(249,115,22,0.2);color:#fb923c;">2</div><div><p style="font-size:10px;font-weight:900;text-transform:uppercase;color:#fb923c;letter-spacing:0.07em;margin-bottom:3px;">Ask</p><p style="font-size:13px;font-weight:700;color:white;font-style:italic;">"Is trucking a major part of your business?"</p></div></div>
+                            <div style="border-left:2px solid rgba(239,68,68,0.4);padding-left:14px;margin-left:10px;margin-bottom:10px;">
+                                <p style="font-size:9px;font-weight:900;text-transform:uppercase;color:#ef4444;letter-spacing:0.08em;margin-bottom:8px;">If Yes — Major Part:</p>
+                                <div class="drill-step neutral-step mb-3"><div class="drill-step-num" style="background:rgba(239,68,68,0.2);color:#f87171;">3</div><div><p style="font-size:10px;font-weight:900;text-transform:uppercase;color:#f87171;letter-spacing:0.07em;margin-bottom:3px;">Ask</p><p style="font-size:13px;font-weight:700;color:white;font-style:italic;">"What will you be using the funds for?"</p></div></div>
+                                <div class="verdict-no"><i class="fas fa-times-circle" style="color:#ef4444;flex-shrink:0;"></i><div><p style="font-size:11px;font-weight:900;text-transform:uppercase;color:#ef4444;">Funds for Trucks — Cannot Work</p><p style="font-size:11px;color:#fca5a5;margin-top:2px;">If funds are going toward trucks or trucking equipment — cannot proceed.</p></div></div>
+                                <div class="verdict-yes" style="margin-top:8px;"><i class="fas fa-check-circle" style="color:#22c55e;flex-shrink:0;"></i><div><p style="font-size:11px;font-weight:900;text-transform:uppercase;color:#22c55e;">Funds for Crew / Payroll / Other — Can Work</p><p style="font-size:11px;color:#86efac;margin-top:2px;">If funds are for crew, payroll, materials, or anything besides trucking — transfer.</p></div></div>
+                            </div>
+                        </div>
+                        <div class="verdict-yes"><i class="fas fa-check-circle" style="color:#22c55e;flex-shrink:0;"></i><div><p style="font-size:11px;font-weight:900;text-transform:uppercase;color:#22c55e;">No Trucking Involved — Can Work</p><p style="font-size:11px;color:#86efac;margin-top:2px;">Construction with no trucking component qualifies. Proceed with transfer.</p></div></div>
+                    </div></div>
+                </div>
+                <div class="industry-card" style="border-color:rgba(168,85,247,0.25);">
+                    <div class="industry-header" onclick="toggleIndustry(this)" style="background:linear-gradient(90deg,rgba(168,85,247,0.08),transparent);">
+                        <div class="flex items-center gap-3"><span style="font-size:1.3rem;">⚖️</span><div><div class="font-black text-white text-sm uppercase tracking-wide">Lawyer / Attorney</div><div style="font-size:10px;font-weight:700;color:#a855f7;text-transform:uppercase;letter-spacing:0.08em;">Even if they own another business</div></div></div>
+                        <div class="flex items-center gap-2"><span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#a855f7;background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.25);border-radius:20px;padding:2px 8px;">Read This</span><i class="fas fa-chevron-down industry-arrow"></i></div>
+                    </div>
+                    <div class="industry-body"><div class="industry-body-inner">
+                        <div style="background:rgba(168,85,247,0.07);border:1px solid rgba(168,85,247,0.2);border-radius:10px;padding:10px 14px;margin-bottom:12px;"><p style="font-size:10px;font-weight:900;text-transform:uppercase;color:#a855f7;letter-spacing:0.08em;margin-bottom:4px;">Key Question to Ask</p><p style="font-size:13px;font-weight:700;color:white;font-style:italic;">"What is your profession or primary occupation?"</p></div>
+                        <div class="verdict-no"><i class="fas fa-times-circle" style="color:#ef4444;flex-shrink:0;"></i><div><p style="font-size:11px;font-weight:900;text-transform:uppercase;color:#ef4444;">Lawyer or Attorney — Cannot Work. Period.</p><p style="font-size:11px;color:#fca5a5;margin-top:2px;">Even if they also own a separate business — automatic disqualifier. Do not transfer under any circumstances.</p></div></div>
+                    </div></div>
+                </div>
+                <!-- TRANSPORTATION -->
+                <div class="industry-card" style="border-color:rgba(6,182,212,0.25);">
+                    <div class="industry-header" onclick="toggleIndustry(this)" style="background:linear-gradient(90deg,rgba(6,182,212,0.08),transparent);">
+                        <div class="flex items-center gap-3"><span style="font-size:1.3rem;">🚌</span><div><div class="font-black text-white text-sm uppercase tracking-wide">Transportation</div><div style="font-size:10px;font-weight:700;color:#06b6d4;text-transform:uppercase;letter-spacing:0.08em;">Depends on transport type</div></div></div>
+                        <div class="flex items-center gap-2"><span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#06b6d4;background:rgba(6,182,212,0.12);border:1px solid rgba(6,182,212,0.25);border-radius:20px;padding:2px 8px;">Ask First</span><i class="fas fa-chevron-down industry-arrow"></i></div>
+                    </div>
+                    <div class="industry-body"><div class="industry-body-inner">
+                        <!-- Intro question -->
+                        <div style="background:rgba(6,182,212,0.06);border:1px solid rgba(6,182,212,0.18);border-radius:10px;padding:10px 14px;margin-bottom:14px;">
+                            <p style="font-size:10px;font-weight:900;text-transform:uppercase;color:#06b6d4;letter-spacing:0.08em;margin-bottom:4px;">Key Question to Ask</p>
+                            <p style="font-size:13px;font-weight:700;color:white;font-style:italic;">"What type of transportation does your business operate?"</p>
+                        </div>
+                        <!-- Transport types grid -->
+                        <p style="font-size:10px;font-weight:900;text-transform:uppercase;color:#64748b;letter-spacing:0.08em;margin-bottom:10px;">Transportation Types — Select What Applies:</p>
+                        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                            <!-- Detachable Tractor -->
+                            <div class="cannot-work" style="border-radius:10px;padding:10px 14px;display:flex;align-items:flex-start;gap:10px;">
+                                <span style="font-size:1.1rem;flex-shrink:0;margin-top:1px;">🚛</span>
+                                <div style="flex:1;">
+                                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+                                        <span style="font-size:12px;font-weight:900;color:white;text-transform:uppercase;">Detachable Tractor (Semi / 18-Wheeler)</span>
+                                        <span style="background:rgba(239,68,68,0.25);color:#f87171;font-size:10px;font-weight:900;border-radius:20px;padding:2px 8px;letter-spacing:0.07em;">✗ CANNOT WORK</span>
+                                    </div>
+                                    <p style="font-size:11px;color:#fca5a5;line-height:1.5;">Classified as trucking — falls under the No Trucking rule. End and move on.</p>
+                                </div>
+                            </div>
+                            <!-- Truck -->
+                            <div class="cannot-work" style="border-radius:10px;padding:10px 14px;display:flex;align-items:flex-start;gap:10px;">
+                                <span style="font-size:1.1rem;flex-shrink:0;margin-top:1px;">🚚</span>
+                                <div style="flex:1;">
+                                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+                                        <span style="font-size:12px;font-weight:900;color:white;text-transform:uppercase;">Truck</span>
+                                        <span style="background:rgba(239,68,68,0.25);color:#f87171;font-size:10px;font-weight:900;border-radius:20px;padding:2px 8px;letter-spacing:0.07em;">✗ CANNOT WORK</span>
+                                    </div>
+                                    <p style="font-size:11px;color:#fca5a5;line-height:1.5;">Trucking business — does not qualify. Do not transfer.</p>
+                                </div>
+                            </div>
+                            <!-- Van -->
+                            <div style="border-radius:10px;padding:10px 14px;display:flex;align-items:flex-start;gap:10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);">
+                                <span style="font-size:1.1rem;flex-shrink:0;margin-top:1px;">🚐</span>
+                                <div style="flex:1;">
+                                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+                                        <span style="font-size:12px;font-weight:900;color:white;text-transform:uppercase;">Van</span>
+                                        <span style="background:rgba(34,197,94,0.2);color:#22c55e;font-size:10px;font-weight:900;border-radius:20px;padding:2px 8px;letter-spacing:0.07em;">✓ CAN WORK</span>
+                                    </div>
+                                    <p style="font-size:11px;color:#86efac;line-height:1.5;">Vans are acceptable — ask the client what they use the van for (e.g. transporting crew, tools, equipment, or supplies for their business). As long as it is not a dedicated trucking or cargo delivery operation, proceed with transfer.</p>
+                                </div>
+                            </div>
+                            <!-- Freight Carrier -->
+                            <div class="cannot-work" style="border-radius:10px;padding:10px 14px;display:flex;align-items:flex-start;gap:10px;">
+                                <span style="font-size:1.1rem;flex-shrink:0;margin-top:1px;">📦</span>
+                                <div style="flex:1;">
+                                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+                                        <span style="font-size:12px;font-weight:900;color:white;text-transform:uppercase;">Freight Carrier</span>
+                                        <span style="background:rgba(239,68,68,0.25);color:#f87171;font-size:10px;font-weight:900;border-radius:20px;padding:2px 8px;letter-spacing:0.07em;">✗ CANNOT WORK</span>
+                                    </div>
+                                    <p style="font-size:11px;color:#fca5a5;line-height:1.5;">Freight and cargo carriers are classified under trucking/transport restrictions. Do not transfer.</p>
+                                </div>
+                            </div>
+                            <!-- Other transport types that CAN qualify -->
+                            <div class="can-work" style="border-radius:10px;padding:10px 14px;display:flex;align-items:flex-start;gap:10px;">
+                                <span style="font-size:1.1rem;flex-shrink:0;margin-top:1px;">🚌</span>
+                                <div style="flex:1;">
+                                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+                                        <span style="font-size:12px;font-weight:900;color:white;text-transform:uppercase;">Bus / Coach / Shuttle / Taxi / Rideshare</span>
+                                        <span style="background:rgba(34,197,94,0.25);color:#4ade80;font-size:10px;font-weight:900;border-radius:20px;padding:2px 8px;letter-spacing:0.07em;">✓ CAN WORK</span>
+                                    </div>
+                                    <p style="font-size:11px;color:#86efac;line-height:1.5;">Passenger transport (buses, shuttles, taxis, rideshare fleets) are not under the trucking restriction — proceed to qualify.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Bottom warning -->
+                        <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;padding:10px 14px;display:flex;align-items:flex-start;gap:8px;">
+                            <i class="fas fa-exclamation-circle" style="color:#ef4444;flex-shrink:0;margin-top:2px;font-size:13px;"></i>
+                            <div>
+                                <p style="font-size:10px;font-weight:900;text-transform:uppercase;color:#ef4444;letter-spacing:0.08em;margin-bottom:3px;">Bottom Line</p>
+                                <p style="font-size:12px;font-weight:700;color:#fca5a5;line-height:1.55;">If they operate a <strong style="color:white;">detachable tractor, truck, or freight carrier</strong> — do not transfer. <strong style="color:#86efac;">Vans are OK</strong> — ask what they use it for and confirm it is not a dedicated trucking or delivery operation before proceeding.</p>
+                            </div>
+                        </div>
+                    </div></div>
+                </div>
+                <div style="border-radius:12px;border:1px dashed rgba(255,255,255,0.08);padding:14px 18px;text-align:center;"><p style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#334155;">More industries can be added here</p></div>
+            </div>
+        </div>
 
-function resetRebuttalButton(btn) {
-    if (!btn) return;
-    btn.style.background = 'rgba(255,255,255,0.04)';
-    btn.style.borderColor = 'rgba(255,255,255,0.1)';
-    btn.style.color = '#64748b';
-}
-
-function activateRebuttalButton(btn) {
-    if (!btn) return;
-    btn.style.background = 'rgba(20,184,166,0.2)';
-    btn.style.borderColor = '#14b8a6';
-    btn.style.color = '#2dd4bf';
-    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-}
-
-function closeAllRebuttals() {
-    document.querySelectorAll('.rb-panel').forEach(panel => {
-        panel.style.display = 'none';
-    });
-    document.querySelectorAll('#rb-btn-row button').forEach(resetRebuttalButton);
-}
-
-function showRebuttal(idx) {
-    closeAllRebuttals();
-
-    const panel = document.getElementById('rb-panel-' + idx);
-    const btn = document.getElementById('rb-btn-' + idx);
-
-    if (panel) {
-        panel.style.display = 'block';
-        panel.style.animation = 'none';
-        panel.offsetHeight;
-        panel.style.animation = 'fadeSlideIn 0.2s ease';
-    }
-
-    activateRebuttalButton(btn);
-}
-
-function filterRebuttalSearch(val) {
-    const q = val.trim().toLowerCase();
-    const noResults = document.getElementById('rebuttal-no-results');
-    const buttons = Array.from(document.querySelectorAll('#rb-btn-row button'));
-    let visibleCount = 0;
-
-    buttons.forEach(button => {
-        const matches = !q || button.textContent.toLowerCase().includes(q);
-        button.style.display = matches ? 'block' : 'none';
-        if (matches) visibleCount++;
-    });
-
-    if (noResults) noResults.style.display = visibleCount === 0 && q ? 'block' : 'none';
-
-    const activeButton = buttons.find(button => button.style.display !== 'none' && button.style.color === 'rgb(45, 212, 191)');
-    if (activeButton || !q) return;
-
-    closeAllRebuttals();
-}
-
-window.RebuttalManager = {
-    showRebuttal,
-    filterSearch: filterRebuttalSearch,
-    reset: closeAllRebuttals
-};
-
-function toggleRevenueDropdown() {
-    const body = document.getElementById('revenue-body');
-    const arrow = document.getElementById('revenue-arrow');
-    const isOpen = body.style.maxHeight && body.style.maxHeight !== '0px';
-    if (isOpen) { body.style.maxHeight = '0px'; arrow.style.transform = 'rotate(0deg)'; }
-    else { body.style.maxHeight = '800px'; arrow.style.transform = 'rotate(180deg)'; }
-}
+        <div class="glass p-6 rounded-3xl border-l-8 border-l-blue-500 bg-blue-500/5">
+            <h3 class="header-font text-sm font-black text-blue-500 uppercase mb-4 italic">Micro-Trust Tips</h3>
+            <div class="text-xs leading-relaxed text-slate-200">
+                <p class="mb-4 italic">After every 2 questions, give a short acknowledgment phrase like:</p>
+                <div class="flex flex-col gap-3 text-blue-300 font-black italic text-center">
+                    <p class="glass p-3 rounded-xl">"Perfect, thank you."</p>
+                    <p class="glass p-3 rounded-xl">"Got it, that helps."</p>
+                    <p class="glass p-3 rounded-xl">"That's great to know."</p>
+                </div>
+                <p class="mt-6 text-xs text-slate-500 uppercase font-black tracking-widest text-center">Keep the rhythm human and build micro-trust.</p>
+            </div>
+        </div>
