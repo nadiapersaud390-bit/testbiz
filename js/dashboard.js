@@ -5,12 +5,14 @@
  * UPDATED: Only show completed days (Monday-Friday) with short names (Mon, Tue, Wed, Thu, Fri)
  * FIXED: Properly initialize and update _prevDailyLeadsMap for +X badges
  * FIXED: Only show data for TODAY - no old reports on current day
+ * ADDED: Weekly cumulative totals across all days of the week
  */
 
 let isDashboardSubscribed = false;
 let fullRoster = []; // Store the full agent roster
 let _lastSeenLeadCounts = {}; // Track real-time lead changes for +X badges
 let _initialPrevMapLoaded = false; // Track if we've loaded initial previous map
+let weeklyAccumulatedData = {}; // Store cumulative weekly leads per agent
 
 // Full week days array (Monday to Friday only - Saturday excluded from history)
 const FULL_WEEK_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
@@ -350,6 +352,36 @@ function updateRealTimeLeadTracking(newAgents) {
     }
 }
 
+// 🔥 NEW: Calculate weekly cumulative totals from all uploaded days this week
+function calculateWeeklyCumulativeTotals() {
+    if (!dayHistory || dayHistory.length === 0) return {};
+    
+    const weeklyTotals = {};
+    
+    // Only include days that are completed (Monday-Friday that have passed)
+    const completedDays = dayHistory.filter(day => day.completed && !day.empty);
+    
+    // Accumulate leads across all completed days
+    completedDays.forEach(day => {
+        if (day.agents && day.agents.length > 0) {
+            day.agents.forEach(agent => {
+                const agentKey = agent.ytelId || agent.name.toUpperCase();
+                if (!weeklyTotals[agentKey]) {
+                    weeklyTotals[agentKey] = {
+                        name: agent.name,
+                        ytelId: agent.ytelId,
+                        team: agent.team,
+                        leads: 0
+                    };
+                }
+                weeklyTotals[agentKey].leads += agent.leads || 0;
+            });
+        }
+    });
+    
+    return weeklyTotals;
+}
+
 function _subscribeLiveDashboard() {
     if (!isDashboardSubscribed && typeof window.listenForLiveDashboardState === 'function') {
         window.listenForLiveDashboardState((state) => {
@@ -361,7 +393,7 @@ function _subscribeLiveDashboard() {
                 return;
             }
             
-            // 🔥 FIXED: Check if this state is from today
+            // Check if this state is from today
             const isTodayData = isStateFromToday(state);
             
             const now = new Date();
@@ -432,7 +464,7 @@ function _subscribeLiveDashboard() {
                 const ts = document.getElementById('timestamp');
                 if (ts) ts.innerText = 'Loading roster from Firestore…';
             } else {
-                // 🔥 FIXED: Only use state data if it's from today
+                // Only use state data if it's from today
                 if (isTodayData && state.agents && state.agents.length > 0) {
                     agents = buildAgentsFromRoster(state);
                     if (agents && agents.length > 0) {
@@ -453,7 +485,7 @@ function _subscribeLiveDashboard() {
                     const ts = document.getElementById('timestamp');
                     if (ts) ts.innerText = `Roster: ${agents.length} agents | Synced: ${new Date().toLocaleTimeString()}`;
                 } else {
-                    // 🔥 FIXED: No data for today - clear agents array
+                    // No data for today - clear agents array
                     agents = [];
                     console.log('[Dashboard] No data for today - waiting for upload');
                     const ts = document.getElementById('timestamp');
@@ -634,7 +666,17 @@ function _subscribeLiveDashboard() {
                 
                 console.log('Day history built:', dayHistory.map(d => ({ day: d.dayName, completed: d.completed, hasData: !d.empty, agentCount: d.agents.length })));
                 
+                // 🔥 NEW: Calculate cumulative weekly totals after day history is built
+                const weeklyTotals = calculateWeeklyCumulativeTotals();
+                window._weeklyCumulativeTotals = weeklyTotals;
+                weeklyAccumulatedData = weeklyTotals;
+                
                 renderDaySubTabs();
+                
+                // If currently on weekly tab or viewing a historical day, re-render
+                if (currentTab === 'weekly') {
+                    render();
+                }
                 
                 if (currentDayView !== 'today') {
                     render();
@@ -758,6 +800,31 @@ function render() {
                 activeReps++;
             });
         }
+    } else if (isWeekly) {
+        // 🔥 NEW: Use cumulative weekly totals for the Weekly tab
+        const weeklyTotals = window._weeklyCumulativeTotals || weeklyAccumulatedData || {};
+        const weeklyAgentsList = Object.values(weeklyTotals);
+        
+        fullList = weeklyAgentsList
+            .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH '))
+            .map(a => ({
+                name: a.name,
+                leads: a.leads || 0,
+                team: a.team,
+                ytelId: a.ytelId,
+                rawName: a.name
+            }))
+            .sort((a, b) => b.leads - a.leads);
+        
+        fullList.forEach(a => {
+            const leads = a.leads || 0;
+            if (a.team === 'PR') prTotal += leads;
+            else if (a.team === 'BB') bbTotal += leads;
+            else if (a.team === 'RM') rmTotal += leads;
+            totalLeads += leads;
+            if (leads >= 12) masters++;
+            activeReps++;
+        });
     } else {
         const guyanaTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
         const currentDay = guyanaTime.getDay();
@@ -815,11 +882,13 @@ function render() {
     const leaderboardEl = document.getElementById('leaderboard');
     if (!leaderboardEl) return;
     
-    // 🔥 FIXED: Show "no data" message when agents array is empty (no upload for today)
-    if (fullList.length === 0 && !isHistory && !isWeekly && !isPrevWeek && agents.length === 0) {
-        leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-cloud-upload-alt text-4xl mb-3 block"></i> No data uploaded for today. Please upload a report to see live rankings.</div>';
-    } else if (fullList.length === 0 && isHistory) {
+    // Show appropriate messages based on data availability
+    if (fullList.length === 0 && isHistory) {
         leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-calendar-day text-4xl mb-3 block"></i> No data available for this day. The day may not be completed yet or no report was uploaded.</div>';
+    } else if (fullList.length === 0 && isWeekly) {
+        leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-chart-line text-4xl mb-3 block"></i> No weekly data available yet. Upload reports for Monday-Friday to see cumulative totals.</div>';
+    } else if (fullList.length === 0 && !isWeekly && !isPrevWeek && !isHistory && agents.length === 0) {
+        leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-cloud-upload-alt text-4xl mb-3 block"></i> No data uploaded for today. Please upload a report to see live rankings.</div>';
     } else if (fullList.length === 0 && !isWeekly && !isPrevWeek && !isHistory) {
         leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-calendar-week text-4xl mb-3 block"></i> The new week has started. Waiting for the live board to be updated...</div>';
     } else {
@@ -857,7 +926,7 @@ function render() {
                     </div>
                     <div class="lb-score">
                         <div class="lb-score-num">${agent.leads}</div>
-                        <div class="lb-score-label">TRANSFERS</div>
+                        <div class="lb-score-label">${isWeekly ? 'WEEKLY' : 'TRANSFERS'}</div>
                     </div>
                 </div>`;
         }).join('');
