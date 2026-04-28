@@ -470,14 +470,14 @@ async function loadWeeklyDataForWeek(weekKey) {
             // Skip PH training accounts that slipped into old Firebase records
             if (/^PH(?![A-Za-z])/i.test(rawName)) return;
 
-            const statusVal = String(
-                row.status || row.currentStatus || row['Current Status'] ||
-                row.currentstatus || row.Status || ''
-            ).toUpperCase().trim();
-            const isXfer = statusVal === 'XFER';
-
-            // 1 per confirmed XFER, or fall back to dailyLeads for live data rows
-            const leadCount = isXfer ? 1 : (Number(row.dailyLeads) || 0);
+            // 🔥 FIX: Use the SAME lead-count rule as the dashboard's Weekly tab so
+            // both views show identical totals.  Live-pushed rows carry dailyLeads;
+            // raw CSV rows carry duration (in seconds) and are counted as a lead
+            // when duration >= 120s (matching js/dashboard.js).
+            let leadCount = Number(row.dailyLeads) || 0;
+            if (leadCount === 0 && row.duration !== undefined && row.duration !== null && row.duration !== '') {
+                leadCount = Number(row.duration) >= 120 ? 1 : 0;
+            }
             if (leadCount <= 0) return;
 
             const resolved = resolveAgent({
