@@ -5,7 +5,7 @@
  * UPDATED: Only show completed days (Monday-Friday) with short names (Mon, Tue, Wed, Thu, Fri)
  * FIXED: Properly initialize and update _prevDailyLeadsMap for +X badges
  * FIXED: Only show data for TODAY - no old reports on current day
- * ADDED: Weekly cumulative totals across all days of the week
+ * FIXED: Weekly tab shows cumulative totals across ALL uploaded days (Mon-Fri)
  */
 
 let isDashboardSubscribed = false;
@@ -46,16 +46,12 @@ function isStateFromToday(state) {
     const guyanaNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
     const todayStr = guyanaNow.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     
-    // Check dateLabel
     if (state.dateLabel === todayStr) return true;
-    
-    // Check pushedAt
     if (state.pushedAt) {
         const pushDate = new Date(state.pushedAt);
         const pushDateStr = pushDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         if (pushDateStr === todayStr) return true;
     }
-    
     return false;
 }
 
@@ -72,24 +68,12 @@ function isDayCompleted(dayKey) {
     const currentDayIndex = getCurrentGuyanaDay();
     const dayMap = { 'MON': 1, 'TUE': 2, 'WED': 3, 'THU': 4, 'FRI': 5 };
     const targetDayIndex = dayMap[dayKey];
-    
     if (!targetDayIndex) return false;
-    
     const now = new Date();
     const guyanaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
     const currentHour = guyanaTime.getHours();
-    
-    if (targetDayIndex > currentDayIndex) {
-        return false;
-    }
-    
-    if (targetDayIndex === currentDayIndex) {
-        if (currentHour >= 20) {
-            return true;
-        }
-        return false;
-    }
-    
+    if (targetDayIndex > currentDayIndex) return false;
+    if (targetDayIndex === currentDayIndex) return currentHour >= 20;
     return true;
 }
 
@@ -352,17 +336,19 @@ function updateRealTimeLeadTracking(newAgents) {
     }
 }
 
-// 🔥 NEW: Calculate weekly cumulative totals from all uploaded days this week
+// 🔥 FIXED: Calculate weekly cumulative totals from ALL uploaded days this week
 function calculateWeeklyCumulativeTotals() {
     if (!dayHistory || dayHistory.length === 0) return {};
     
     const weeklyTotals = {};
     
-    // Only include days that are completed (Monday-Friday that have passed)
-    const completedDays = dayHistory.filter(day => day.completed && !day.empty);
+    // Get ALL days that have data (Monday-Friday) - NOT just completed days
+    const daysWithData = dayHistory.filter(day => day.agents && day.agents.length > 0);
     
-    // Accumulate leads across all completed days
-    completedDays.forEach(day => {
+    console.log('[Weekly] Days with data:', daysWithData.map(d => `${d.dayName}: ${d.agents.length} agents`));
+    
+    // Accumulate leads across ALL days that have data
+    daysWithData.forEach(day => {
         if (day.agents && day.agents.length > 0) {
             day.agents.forEach(agent => {
                 const agentKey = agent.ytelId || agent.name.toUpperCase();
@@ -379,6 +365,7 @@ function calculateWeeklyCumulativeTotals() {
         }
     });
     
+    console.log('[Weekly] Cumulative totals calculated for', Object.keys(weeklyTotals).length, 'agents');
     return weeklyTotals;
 }
 
@@ -603,29 +590,32 @@ function _subscribeLiveDashboard() {
                     }
                 });
                 
+                // 🔥 FIXED: Build dayHistory for ALL days Monday-Friday (not just completed)
                 dayHistory = FULL_WEEK_DAYS.map(day => {
                     const r = weekMap[day];
-                    const isCompleted = isDayCompleted(day);
                     
-                    if (!r || !isCompleted) {
+                    if (!r) {
                         return { 
                             day: day, 
                             empty: true, 
                             dayName: DAY_NAMES[day],
                             fullDayName: FULL_DAY_NAMES[day],
                             fullDate: null,
-                            completed: false,
+                            completed: isDayCompleted(day),
                             agents: [] 
                         };
                     }
                     
-                    console.log(`Processing ${day} report: ${r.reportDate} (completed: ${isCompleted})`);
+                    console.log(`Processing ${day} report: ${r.reportDate} - Found ${r.data ? r.data.length : 0} rows`);
                     
                     const agg = {};
                     (r.data || []).forEach(d => {
                         const id = d.agentId || d.ytelId || d.name;
                         const name = d.agentName || d.name;
                         const rawName = d.rawName || name;
+                        
+                        // Skip PH training accounts
+                        if (rawName && /^PH(?![A-Za-z])/i.test(rawName)) return;
                         
                         if (id) {
                             if (!agg[id]) {
@@ -638,10 +628,8 @@ function _subscribeLiveDashboard() {
                             }
                             
                             let leadCount = d.dailyLeads || 0;
-                            if (d.duration !== undefined && d.duration >= 120) {
-                                leadCount = 1;
-                            } else if (d.duration !== undefined && d.duration < 120) {
-                                leadCount = 0;
+                            if (leadCount === 0 && d.duration !== undefined) {
+                                leadCount = Number(d.duration) >= 120 ? 1 : 0;
                             }
                             agg[id].leads += leadCount;
                         }
@@ -653,7 +641,7 @@ function _subscribeLiveDashboard() {
                         fullDayName: FULL_DAY_NAMES[day],
                         fullDate: r.reportDate,
                         fullDateObj: new Date(r.uploadedAt),
-                        completed: isCompleted,
+                        completed: isDayCompleted(day),
                         agents: Object.values(agg).map(a => ({
                             name: a.name,
                             leads: a.leads,
@@ -666,15 +654,18 @@ function _subscribeLiveDashboard() {
                 
                 console.log('Day history built:', dayHistory.map(d => ({ day: d.dayName, completed: d.completed, hasData: !d.empty, agentCount: d.agents.length })));
                 
-                // 🔥 NEW: Calculate cumulative weekly totals after day history is built
+                // 🔥 FIXED: Calculate cumulative weekly totals using ALL days that have data
                 const weeklyTotals = calculateWeeklyCumulativeTotals();
                 window._weeklyCumulativeTotals = weeklyTotals;
                 weeklyAccumulatedData = weeklyTotals;
                 
+                console.log('[Weekly] Cumulative totals - Number of agents:', Object.keys(weeklyTotals).length);
+                
                 renderDaySubTabs();
                 
-                // If currently on weekly tab or viewing a historical day, re-render
+                // If currently on weekly tab, re-render immediately
                 if (currentTab === 'weekly') {
+                    console.log('[Weekly] Refreshing weekly tab');
                     render();
                 }
                 
@@ -801,9 +792,11 @@ function render() {
             });
         }
     } else if (isWeekly) {
-        // 🔥 NEW: Use cumulative weekly totals for the Weekly tab
+        // 🔥 FIXED: Use cumulative weekly totals for the Weekly tab
         const weeklyTotals = window._weeklyCumulativeTotals || weeklyAccumulatedData || {};
         const weeklyAgentsList = Object.values(weeklyTotals);
+        
+        console.log('[Weekly Tab] Rendering with', weeklyAgentsList.length, 'agents from cumulative totals');
         
         fullList = weeklyAgentsList
             .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH '))
@@ -825,6 +818,8 @@ function render() {
             if (leads >= 12) masters++;
             activeReps++;
         });
+        
+        console.log('[Weekly Tab] Total leads:', totalLeads, 'PR:', prTotal, 'BB:', bbTotal, 'RM:', rmTotal);
     } else {
         const guyanaTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
         const currentDay = guyanaTime.getDay();
