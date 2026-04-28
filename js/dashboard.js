@@ -4,6 +4,7 @@
  * The logged-in agent's own row is highlighted automatically.
  * UPDATED: Only show completed days (Monday-Friday) with short names (Mon, Tue, Wed, Thu, Fri)
  * FIXED: Properly initialize and update _prevDailyLeadsMap for +X badges
+ * FIXED: Only show data for TODAY - no old reports on current day
  */
 
 let isDashboardSubscribed = false;
@@ -27,6 +28,34 @@ const FULL_DAY_NAMES = {
     'THU': 'Thursday',
     'FRI': 'Friday'
 };
+
+// Function to get current date in Guyana time (YYYY-MM-DD)
+function getCurrentGuyanaDate() {
+    const now = new Date();
+    const guyanaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+    return guyanaTime.toISOString().split('T')[0];
+}
+
+// Function to check if a state is from today
+function isStateFromToday(state) {
+    if (!state) return false;
+    
+    const now = new Date();
+    const guyanaNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+    const todayStr = guyanaNow.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    
+    // Check dateLabel
+    if (state.dateLabel === todayStr) return true;
+    
+    // Check pushedAt
+    if (state.pushedAt) {
+        const pushDate = new Date(state.pushedAt);
+        const pushDateStr = pushDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        if (pushDateStr === todayStr) return true;
+    }
+    
+    return false;
+}
 
 // Function to get current day in Guyana time
 function getCurrentGuyanaDay() {
@@ -243,7 +272,7 @@ function startRosterPoller() {
     }, 60000);
 }
 
-// 🔥 FIXED: Initialize previous leads map from current state
+// Initialize previous leads map from current state
 function initializePrevLeadsMap(agentsList) {
     if (!agentsList || agentsList.length === 0) return;
     
@@ -253,7 +282,6 @@ function initializePrevLeadsMap(agentsList) {
         const nameKey = (agent.name || '').toUpperCase().trim();
         if (id) prevMap[id] = agent.dailyLeads || 0;
         if (nameKey) prevMap[nameKey] = agent.dailyLeads || 0;
-        // Also store by raw name
         if (agent.rawName) {
             const rawKey = (agent.rawName || '').toUpperCase().trim();
             if (rawKey) prevMap[rawKey] = agent.dailyLeads || 0;
@@ -264,7 +292,6 @@ function initializePrevLeadsMap(agentsList) {
     localStorage.setItem('biz_prev_leads_map', JSON.stringify(prevMap));
     console.log('[Init] Previous leads map initialized with', Object.keys(prevMap).length, 'entries');
     
-    // Also initialize tracking map
     _lastSeenLeadCounts = {};
     agentsList.forEach(agent => {
         const id = String(agent.ytelId || agent.name || '').trim();
@@ -272,17 +299,15 @@ function initializePrevLeadsMap(agentsList) {
     });
 }
 
-// 🔥 FIXED: Update real-time lead tracking for +X badges
+// Update real-time lead tracking for +X badges
 function updateRealTimeLeadTracking(newAgents) {
     if (!newAgents || !newAgents.length) return;
     
-    // If we don't have a previous map yet, initialize it
     if (!window._prevDailyLeadsMap || Object.keys(window._prevDailyLeadsMap).length === 0) {
         initializePrevLeadsMap(newAgents);
         return;
     }
     
-    // If we haven't loaded initial map from localStorage, try that
     if (!_initialPrevMapLoaded) {
         const savedMap = localStorage.getItem('biz_prev_leads_map');
         if (savedMap) {
@@ -294,14 +319,12 @@ function updateRealTimeLeadTracking(newAgents) {
         _initialPrevMapLoaded = true;
     }
     
-    // Track changes
     const changes = {};
     newAgents.forEach(agent => {
         const id = String(agent.ytelId || agent.name || '').trim();
         const nameKey = (agent.name || '').toUpperCase().trim();
         const currentLeads = agent.dailyLeads || 0;
         
-        // Try to find previous using multiple keys
         let previousLeads = 0;
         if (window._prevDailyLeadsMap[id] !== undefined) {
             previousLeads = window._prevDailyLeadsMap[id];
@@ -313,19 +336,16 @@ function updateRealTimeLeadTracking(newAgents) {
         
         if (currentLeads !== previousLeads && previousLeads > 0) {
             changes[id] = { from: previousLeads, to: currentLeads, diff: currentLeads - previousLeads };
-            // Update the stored previous map
             if (id) window._prevDailyLeadsMap[id] = previousLeads;
             if (nameKey) window._prevDailyLeadsMap[nameKey] = previousLeads;
         }
         
-        // Update tracking
         if (id) _lastSeenLeadCounts[id] = currentLeads;
         if (nameKey) _lastSeenLeadCounts[nameKey] = currentLeads;
     });
     
     if (Object.keys(changes).length > 0) {
         console.log('[Lead Tracking] Changes detected:', changes);
-        // Save updated map
         localStorage.setItem('biz_prev_leads_map', JSON.stringify(window._prevDailyLeadsMap));
     }
 }
@@ -336,25 +356,23 @@ function _subscribeLiveDashboard() {
             if (!state) {
                 const ts = document.getElementById('timestamp');
                 if (ts) ts.innerText = 'System Offline: No Live Data';
+                agents = [];
+                if (typeof render === 'function') render();
                 return;
             }
             
+            // 🔥 FIXED: Check if this state is from today
+            const isTodayData = isStateFromToday(state);
+            
             const now = new Date();
             const pushDate = state.pushedAt ? new Date(state.pushedAt) : null;
-            
-            const todayStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            const labelMatches = state.dateLabel && state.dateLabel.includes(todayStr);
-            
-            const isToday = pushDate && 
-                            pushDate.toLocaleDateString('en-GB') === now.toLocaleDateString('en-GB') &&
-                            labelMatches;
 
             // Track diff changes inside localStorage across pushes
             const lastPushedAt = localStorage.getItem('biz_last_pushed_at');
             const statePushedAt = state.pushedAt || '';
             let prevMap = JSON.parse(localStorage.getItem('biz_prev_leads_map') || '{}');
             
-            if (statePushedAt && statePushedAt !== lastPushedAt) {
+            if (statePushedAt && statePushedAt !== lastPushedAt && isTodayData) {
                  // Push is actually new! Save the OLD state as previous
                  const lastStateStr = localStorage.getItem('biz_last_state_obj');
                  if (lastStateStr) {
@@ -370,7 +388,6 @@ function _subscribeLiveDashboard() {
                          localStorage.setItem('biz_prev_leads_map', JSON.stringify(prevMap));
                          console.log('[Push] Saved previous leads map from last state');
                          
-                         // Reset real-time tracker
                          _lastSeenLeadCounts = {};
                          if (state.agents) {
                              state.agents.forEach(a => {
@@ -379,24 +396,20 @@ function _subscribeLiveDashboard() {
                              });
                          }
                      } catch(e) {}
-                 } else {
-                     // First push of the day - initialize map from current state
-                     if (state.agents) {
-                         prevMap = {};
-                         state.agents.forEach(a => {
-                             const id = String(a.ytelId || a.name || '').trim();
-                             if (id) prevMap[id] = a.dailyLeads || 0;
-                             const nameKey = (a.name || '').toUpperCase().trim();
-                             if (nameKey) prevMap[nameKey] = a.dailyLeads || 0;
-                         });
-                         localStorage.setItem('biz_prev_leads_map', JSON.stringify(prevMap));
-                         console.log('[Push] Initialized previous leads map from current state');
-                     }
+                 } else if (state.agents && isTodayData) {
+                     prevMap = {};
+                     state.agents.forEach(a => {
+                         const id = String(a.ytelId || a.name || '').trim();
+                         if (id) prevMap[id] = a.dailyLeads || 0;
+                         const nameKey = (a.name || '').toUpperCase().trim();
+                         if (nameKey) prevMap[nameKey] = a.dailyLeads || 0;
+                     });
+                     localStorage.setItem('biz_prev_leads_map', JSON.stringify(prevMap));
+                     console.log('[Push] Initialized previous leads map from current state');
                  }
                  localStorage.setItem('biz_last_pushed_at', statePushedAt);
                  localStorage.setItem('biz_last_state_obj', JSON.stringify(state));
-            } else if (!_initialPrevMapLoaded && state.agents) {
-                // No push yet, initialize map from current state
+            } else if (!_initialPrevMapLoaded && state.agents && isTodayData) {
                 if (Object.keys(prevMap).length === 0) {
                     state.agents.forEach(a => {
                         const id = String(a.ytelId || a.name || '').trim();
@@ -411,8 +424,6 @@ function _subscribeLiveDashboard() {
             }
             
             window._prevDailyLeadsMap = prevMap;
-
-            // Cache the latest live state
             window._asLastLiveState = state;
             
             if (fullRoster.length === 0) {
@@ -421,27 +432,33 @@ function _subscribeLiveDashboard() {
                 const ts = document.getElementById('timestamp');
                 if (ts) ts.innerText = 'Loading roster from Firestore…';
             } else {
-                agents = buildAgentsFromRoster(state);
-                
-                // Update real-time tracking for +X badges
-                if (agents && agents.length > 0) {
-                    updateRealTimeLeadTracking(agents);
+                // 🔥 FIXED: Only use state data if it's from today
+                if (isTodayData && state.agents && state.agents.length > 0) {
+                    agents = buildAgentsFromRoster(state);
+                    if (agents && agents.length > 0) {
+                        updateRealTimeLeadTracking(agents);
+                    }
+                    if (agents.length > 0) {
+                        agents[0].todayName = (state && state.dateLabel) || getGuyanaToday();
+                        let pr = 0, bb = 0, rm = 0;
+                        agents.forEach(a => {
+                            if (a.team === 'PR') pr += (a.dailyLeads || 0);
+                            else if (a.team === 'BB') bb += (a.dailyLeads || 0);
+                            else if (a.team === 'RM') rm += (a.dailyLeads || 0);
+                        });
+                        agents[0].prTotal = pr;
+                        agents[0].bbTotal = bb;
+                        agents[0].rmTotal = rm;
+                    }
+                    const ts = document.getElementById('timestamp');
+                    if (ts) ts.innerText = `Roster: ${agents.length} agents | Synced: ${new Date().toLocaleTimeString()}`;
+                } else {
+                    // 🔥 FIXED: No data for today - clear agents array
+                    agents = [];
+                    console.log('[Dashboard] No data for today - waiting for upload');
+                    const ts = document.getElementById('timestamp');
+                    if (ts) ts.innerText = 'No data uploaded for today. Please upload a report.';
                 }
-                
-                if (agents.length > 0) {
-                    agents[0].todayName = (state && state.dateLabel) || getGuyanaToday();
-                    let pr = 0, bb = 0, rm = 0;
-                    agents.forEach(a => {
-                        if (a.team === 'PR') pr += (a.dailyLeads || 0);
-                        else if (a.team === 'BB') bb += (a.dailyLeads || 0);
-                        else if (a.team === 'RM') rm += (a.dailyLeads || 0);
-                    });
-                    agents[0].prTotal = pr;
-                    agents[0].bbTotal = bb;
-                    agents[0].rmTotal = rm;
-                }
-                const ts = document.getElementById('timestamp');
-                if (ts) ts.innerText = `Roster: ${agents.length} agents | Synced: ${new Date().toLocaleTimeString()}`;
             }
             
             checkLeadAlerts(agents);
@@ -798,7 +815,10 @@ function render() {
     const leaderboardEl = document.getElementById('leaderboard');
     if (!leaderboardEl) return;
     
-    if (fullList.length === 0 && isHistory) {
+    // 🔥 FIXED: Show "no data" message when agents array is empty (no upload for today)
+    if (fullList.length === 0 && !isHistory && !isWeekly && !isPrevWeek && agents.length === 0) {
+        leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-cloud-upload-alt text-4xl mb-3 block"></i> No data uploaded for today. Please upload a report to see live rankings.</div>';
+    } else if (fullList.length === 0 && isHistory) {
         leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-calendar-day text-4xl mb-3 block"></i> No data available for this day. The day may not be completed yet or no report was uploaded.</div>';
     } else if (fullList.length === 0 && !isWeekly && !isPrevWeek && !isHistory) {
         leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-calendar-week text-4xl mb-3 block"></i> The new week has started. Waiting for the live board to be updated...</div>';
