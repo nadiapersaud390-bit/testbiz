@@ -1,6 +1,7 @@
 /**
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
  * PRESERVES EXACT CSV ORDER - NO SORTING WHATSOEVER
+ * FIXED: Allows momo (admin) to access Agent Stats
  * FIXED: Counts leads based ONLY on duration >= 120 seconds (Status column ignored for counting)
  */
 
@@ -13,6 +14,25 @@ let asSubscribed = false;
 let lastAutoPushedReportId = null;
 let previousReportData = null;
 let _asLastUploadedDateLabel = null;
+
+// Helper function to check if current user can access Agent Stats
+// 🔥 FIXED: Allows rose (super admin) AND momo (admin)
+function canAccessAgentStats() {
+    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const email = String(currentAdmin.email || '').toLowerCase();
+    
+    // Super Admin (rose) has access
+    if (email === 'rose') return true;
+    
+    // Admin (momo) has access
+    if (email === 'momo') return true;
+    
+    // Also check role property
+    if (currentAdmin.role === 'super_admin') return true;
+    if (currentAdmin.isSuper === true) return true;
+    
+    return false;
+}
 
 // Returns true if a CSV agent-name represents a PH (Philippines) training account.
 function isPhTrainingName(rawName) {
@@ -53,13 +73,13 @@ function normalizeReportDateLabel(input) {
 }
 
 window.renderAgentStatsHistory = function() {
-    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
+    // 🔥 FIXED: Use the new access check function
+    const hasAccess = canAccessAgentStats();
     
-    if (!isSuper) {
+    if (!hasAccess) {
         const container = document.getElementById('ah-sect-stats');
         if (container) {
-            container.innerHTML = '<div class="p-20 text-center"><i class="fas fa-lock text-5xl text-red-500 mb-4"></i><p class="text-slate-400 font-bold uppercase tracking-widest">Access Denied</p><p class="text-slate-500 text-sm mt-2">Agent Stats is only available for Super Admin.</p></div>';
+            container.innerHTML = '<div class="p-20 text-center"><i class="fas fa-lock text-5xl text-red-500 mb-4"></i><p class="text-slate-400 font-bold uppercase tracking-widest">Access Denied</p><p class="text-slate-500 text-sm mt-2">Agent Stats is only available for Authorized Admins.</p></div>';
         }
         return;
     }
@@ -497,8 +517,9 @@ function renderHistoryList() {
         const uploadDateTime = new Date(r.uploadedAt).toLocaleString();
         const niceDate = normalizeReportDateLabel(r.reportDate);
         const _ca = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-        const isSuper = _ca.role === 'super_admin' || _ca.isSuper;
-        const delBtn = isSuper ? `<button onclick="event.stopPropagation(); window.asDeleteReport('${r.id}')" class="text-[10px] text-red-400 hover:text-red-300 ml-2 px-2 py-1 rounded-md hover:bg-red-500/10" title="Delete this report"><i class="fas fa-trash"></i></button>` : '';
+        // 🔥 FIXED: Allow momo to see delete button
+        const canDelete = _ca.email === 'rose' || _ca.email === 'momo' || _ca.role === 'super_admin' || _ca.isSuper;
+        const delBtn = canDelete ? `<button onclick="event.stopPropagation(); window.asDeleteReport('${r.id}')" class="text-[10px] text-red-400 hover:text-red-300 ml-2 px-2 py-1 rounded-md hover:bg-red-500/10" title="Delete this report"><i class="fas fa-trash"></i></button>` : '';
         return `
             <div onclick="window.viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl cursor-pointer flex items-center justify-between gap-2 ${isActive ? 'active' : ''}">
                 <div class="min-w-0">
@@ -531,7 +552,9 @@ window.viewReport = function(id) {
     const delBtns = document.querySelectorAll('#as-delete-btn');
     delBtns.forEach(delBtn => {
         const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-        if (cAdmin.role === 'super_admin' || cAdmin.isSuper) {
+        // 🔥 FIXED: Allow momo to delete reports
+        const canDelete = cAdmin.email === 'rose' || cAdmin.email === 'momo' || cAdmin.role === 'super_admin' || cAdmin.isSuper;
+        if (canDelete) {
             delBtn.classList.remove('hidden');
             delBtn.onclick = () => {
                 if (confirm('Delete this report?')) {
@@ -549,7 +572,9 @@ window.viewReport = function(id) {
     const pushBtns = document.querySelectorAll('#as-push-btn');
     pushBtns.forEach(pushBtn => {
         const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-        if (cAdmin.role === 'super_admin' || cAdmin.isSuper) {
+        // 🔥 FIXED: Allow momo to push reports
+        const canPush = cAdmin.email === 'rose' || cAdmin.email === 'momo' || cAdmin.role === 'super_admin' || cAdmin.isSuper;
+        if (canPush) {
             pushBtn.classList.remove('hidden');
             pushBtn.onclick = async () => {
                 if (confirm(`Push ${report.reportDate} to Live Dashboard?`)) {
@@ -617,7 +642,7 @@ function renderActiveReportTable() {
     
     const tbodies = document.querySelectorAll('#as-table-body');
     if (displayRows.length === 0) {
-        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500">No matches found.基督</td>`);
+        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500">No matches found.基督</tr>`);
         return;
     }
     
