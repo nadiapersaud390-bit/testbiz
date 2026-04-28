@@ -451,9 +451,23 @@ async function apSaveCurrentToHistory() {
   const existing = apGetDashboardData();
   if (!existing || !existing.agents || !Object.keys(existing.agents).length) return;
 
+  // 🔥 FIX: Derive dayOfWeek from the data's actual date (existing.dateLabel),
+  // not from "today". Previously this stamped saved reports with today's day,
+  // so e.g. Monday's pushed data got tagged as "TUE" when Tuesday's push saved
+  // it to history — making the Weekly tab drop Monday's totals entirely.
+  const reportDateStr = existing.dateLabel || (typeof getFormattedDate === 'function' ? getFormattedDate() : new Date().toLocaleDateString());
+  const _dayMap = { 0:'SUN', 1:'MON', 2:'TUE', 3:'WED', 4:'THU', 5:'FRI', 6:'SAT' };
+  let derivedDay = null;
+  try {
+    const cleanDate = String(reportDateStr).replace(/\s*\([^)]*\)\s*$/, '').trim();
+    const dObj = new Date(cleanDate);
+    if (!isNaN(dObj.getTime())) derivedDay = _dayMap[dObj.getDay()];
+  } catch (e) {}
+  const reportDayOfWeek = derivedDay || (typeof getGuyanaDayName === 'function' ? getGuyanaDayName() : 'MON');
+
   const reportObj = {
-    reportDate: existing.dateLabel || (typeof getFormattedDate === 'function' ? getFormattedDate() : new Date().toLocaleDateString()),
-    dayOfWeek: typeof getGuyanaDayName === 'function' ? getGuyanaDayName() : 'MON',
+    reportDate: reportDateStr,
+    dayOfWeek: reportDayOfWeek,
     uploadedAt: new Date().toISOString(),
     pushedAt: existing.pushedAt,
     expiresAt: existing.expiresAt,
