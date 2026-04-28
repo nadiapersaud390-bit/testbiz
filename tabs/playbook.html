@@ -5,14 +5,13 @@
     .playbook-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
     .live-badge { background: linear-gradient(135deg, #10b981, #059669); display: inline-block; padding: 4px 12px; border-radius: 50px; font-size: 10px; font-weight: 900; letter-spacing: 1px; margin-bottom: 15px; }
 
-    /* Guidelines Card - GREEN left border as in screenshot */
+    /* Guidelines Card - neutral styling to match other sections */
     .guidelines-card {
-        background: rgba(0, 20, 10, 0.7);
-        border-left: 4px solid #10b981;
-        border-radius: 12px;
+        background: rgba(15, 20, 40, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
         padding: 20px;
         margin-bottom: 24px;
-        backdrop-filter: blur(10px);
     }
     .guidelines-title {
         font-size: 18px;
@@ -34,11 +33,11 @@
     .no-text { color: #ef4444; font-weight: 700; }
     .ok-text { color: #06b6d4; font-weight: 700; }
 
-    /* Revenue Dropdown - sits inside guidelines card area */
+    /* Revenue Dropdown - neutral styling to match other sections */
     .revenue-card {
-        background: rgba(0, 40, 20, 0.85);
+        background: rgba(15, 20, 40, 0.85);
         border-radius: 10px;
-        border: 1px solid rgba(16, 185, 129, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         margin-top: 12px;
         overflow: hidden;
     }
@@ -49,7 +48,7 @@
         align-items: center;
         cursor: pointer;
     }
-    .revenue-header:hover { background: rgba(16, 185, 129, 0.08); }
+    .revenue-header:hover { background: rgba(255, 255, 255, 0.03); }
     .revenue-icon { font-size: 18px; margin-right: 10px; }
     .revenue-title-wrap { display: flex; align-items: center; }
     .revenue-title { color: #fbbf24; font-weight: 900; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; }
@@ -213,23 +212,6 @@
 <body>
 
 <div class="playbook-container">
-
-    <!-- Live Status -->
-    <div style="text-align: center;">
-        <div class="live-badge">🟢 LIVE SYSTEM PERFORMANCE</div>
-    </div>
-
-    <!-- Title -->
-    <h1 style="text-align: center; font-size: 24px; font-weight: 900; margin-bottom: 8px; background: linear-gradient(135deg, #facc15, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-        BIZ LEVEL UP DASHBOARD
-    </h1>
-
-    <!-- Time Display -->
-    <div class="time-header" id="playbook-time-header">
-        <div id="playbook-day">DAY 1</div>
-        <div id="playbook-guyana-time">--:--:-- --</div>
-        <div id="playbook-us-time">US --:--:-- --</div>
-    </div>
 
     <!-- QUALITY GUIDELINES Section -->
     <div class="guidelines-card">
