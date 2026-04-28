@@ -1,6 +1,7 @@
 /**
  * js/adminhub.js
  * Core logic for the Admin Panel Hub system - FULLY OPTIMIZED with Weekly Performance Dropdown
+ * FIXED: momo has full admin access, 0000 sees NO admin features
  */
 
 let ahCurrentSubTab = 'overview';
@@ -18,11 +19,11 @@ const ahTeamColors = {
 // IDs that can log in but receive ZERO admin features
 window._RESTRICTED_ADMIN_IDS = ['0000'];
 
-// Helper function to check permissions based on admin email
+// 🔥 FIXED: Helper function to check permissions based on admin email
 function getAdminPermissions(adminEmail) {
     const email = String(adminEmail || '').toLowerCase();
     
-    // Restricted IDs (e.g. 0000) can log in but see NO admin features
+    // 🔥 0000 is COMPLETELY RESTRICTED - sees NO admin features at all
     const restricted = (window._RESTRICTED_ADMIN_IDS || ['0000']).map(s => String(s).toLowerCase());
     if (restricted.includes(email)) {
         return {
@@ -34,6 +35,7 @@ function getAdminPermissions(adminEmail) {
         };
     }
     
+    // 🔥 ROSE is SUPER ADMIN - full access
     if (email === 'rose') {
         return {
             isSuper: true,
@@ -44,6 +46,7 @@ function getAdminPermissions(adminEmail) {
         };
     }
     
+    // 🔥 MOMO gets FULL ADMIN ACCESS - can see Agent Stats and Admin Tools
     if (email === 'momo') {
         return {
             isSuper: false,
@@ -54,6 +57,7 @@ function getAdminPermissions(adminEmail) {
         };
     }
     
+    // Any other email gets NO access
     return {
         isSuper: false,
         canSeeStats: false,
@@ -648,7 +652,7 @@ function renderTeamTable(title, agents, colorClass) {
                                 <td class="p-3 text-right">
                                     <span class="text-lg font-black text-${colorClass} italic">${agent.transfers}</span>
                                 </td>
-                            </tr>
+                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
@@ -938,7 +942,7 @@ function renderRebuttalIntel(usage) {
                                    <th class="py-1 px-2 text-center">Views</th>
                                    <th class="py-1 px-2 text-center">Uses</th>
                                    <th class="py-1 pl-2 text-center">Use Rate</th>
-                               </tr></thead>
+                                 </tr></thead>
                                <tbody class="divide-y divide-white/5">
                                ${rebuttalRows.map(([title, c]) => {
                                    const tot = c.views + c.uses;
@@ -949,10 +953,10 @@ function renderRebuttalIntel(usage) {
                                        <td class="py-2 px-2 text-center text-slate-300 tabular-nums">${c.views}</td>
                                        <td class="py-2 px-2 text-center text-emerald-400 font-black tabular-nums">${c.uses}</td>
                                        <td class="py-2 pl-2 text-center font-black tabular-nums ${rc}">${r}%</td>
-                                   </tr>`;
+                                     </tr>`;
                                }).join('')}
                                </tbody>
-                           </table>`}
+                            </table>`}
                 </div>`;
 
             return `
@@ -1167,7 +1171,7 @@ function renderDailyAttendance() {
     }
     
     if (sourceData.length === 0) {
-        list.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500 font-bold uppercase tracking-widest">No attendance records found. Please select a date or upload a report.复制</td>';
+        list.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500 font-bold uppercase tracking-widest">No attendance records found. Please select a date or upload a report.</td></tr>';
         return;
     }
 
@@ -1191,19 +1195,19 @@ function renderDailyAttendance() {
                 <td class="py-4">
                     <div class="text-[12px] font-black text-white uppercase tracking-tight">${a.name}</div>
                     <div class="text-[8px] text-slate-500 font-bold">${a.ytelId || '----'}</div>
-                </td>
+                 </td>
                 <td class="py-4">
                     <span class="px-2 py-1 rounded bg-${colorClass}/10 text-${colorClass} text-[8px] font-black uppercase tracking-widest border border-${colorClass}/20">${team}</span>
-                </td>
+                 </td>
                 <td class="py-4 text-[10px] text-slate-300 font-bold">${a.shift || '10AM-7PM'}</td>
                 <td class="py-4">
                     <span class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${a.status === 'Present' ? 'text-green-400' : 'text-yellow-400'}">
                         <span class="w-1.5 h-1.5 rounded-full ${a.status === 'Present' ? 'bg-green-500' : 'bg-yellow-500'}"></span>
                         ${a.status || 'Present'}
                     </span>
-                </td>
+                 </td>
                 <td class="py-4 text-right tabular-nums text-[10px] text-slate-400 font-bold">${a.loginTime || '--:--'}</td>
-            </tr>
+             </tr>
         `;
     }).join('');
 }
@@ -1248,6 +1252,7 @@ function handleLiveStateUpdate(state) {
     let bbXfers = 0;
     let prXfers = 0;
     let rmXfers = 0;
+    let masters12 = 0;
     
     window.agents.forEach(a => {
         const x = Number(a.dailyLeads) || 0;
@@ -1256,6 +1261,7 @@ function handleLiveStateUpdate(state) {
         if (team === 'BB') bbXfers += x;
         else if (team === 'PR') prXfers += x;
         else if (team === 'RM') rmXfers += x;
+        if (x >= 12) masters12++;
     });
     
     const totalEl = document.getElementById('ah-total-transfers');
@@ -1266,18 +1272,46 @@ function handleLiveStateUpdate(state) {
         document.getElementById('ah-goal-progress').style.width = `${percent}%`;
     }
     
-    if (document.getElementById('ah-bb-count')) document.getElementById('ah-bb-count').innerHTML = `${bbXfers} <span class="text-xs text-slate-500">Transfers</span>`;
-    if (document.getElementById('ah-pr-count')) document.getElementById('ah-pr-count').innerHTML = `${prXfers} <span class="text-xs text-slate-500">Transfers</span>`;
-    if (document.getElementById('ah-rm-count')) document.getElementById('ah-rm-count').innerHTML = `${rmXfers} <span class="text-xs text-slate-500">Transfers</span>`;
+    // Update Today's Transfers
+    const todayTransfersEl = document.getElementById('ah-total-transfers');
+    if (todayTransfersEl) {
+        console.log(`[Overview] Today's Transfers: ${totalXfers}`);
+    }
     
+    // Update 12+ Masters count
+    const mastersEl = document.getElementById('ah-master-count');
+    if (mastersEl) {
+        mastersEl.textContent = masters12;
+        console.log(`[Overview] 12+ Masters: ${masters12}`);
+    }
+    
+    // Update Team counts
+    const bbCountEl = document.getElementById('ah-bb-count');
+    const prCountEl = document.getElementById('ah-pr-count');
+    const rmCountEl = document.getElementById('ah-rm-count');
+    
+    if (bbCountEl) bbCountEl.innerHTML = `${bbXfers} <span class="text-xs text-slate-500">Transfers</span>`;
+    if (prCountEl) prCountEl.innerHTML = `${prXfers} <span class="text-xs text-slate-500">Transfers</span>`;
+    if (rmCountEl) rmCountEl.innerHTML = `${rmXfers} <span class="text-xs text-slate-500">Transfers</span>`;
+    
+    // Update Total Agents count from roster
+    const roster = window.allAgentProfiles || [];
+    const rosterTotalEl = document.getElementById('ah-roster-total');
+    if (rosterTotalEl) rosterTotalEl.textContent = roster.length;
+    
+    // Update Goal display
+    const goalCurrentEl = document.getElementById('ah-goal-current');
+    if (goalCurrentEl) {
+        goalCurrentEl.innerHTML = `${totalXfers} <span class="text-lg text-slate-600">/ 300</span>`;
+    }
+    
+    console.log(`[Overview] Stats updated - Total: ${totalXfers}, BB: ${bbXfers}, PR: ${prXfers}, RM: ${rmXfers}, Masters: ${masters12}`);
+    
+    // Update Online/Offline grids
     const onlineGrid = document.getElementById('ah-online-grid');
     const offlineGrid = document.getElementById('ah-offline-grid');
     
     if (onlineGrid && offlineGrid) {
-        const roster = window.allAgentProfiles || [];
-        const rosterTotalEl = document.getElementById('ah-roster-total');
-        if (rosterTotalEl) rosterTotalEl.textContent = roster.length;
-
         const presence = window.ahOnlinePresences || {};
         const liveAgents = window.agents || [];
         
@@ -1319,6 +1353,10 @@ function handleLiveStateUpdate(state) {
 
         const onlineAgents = fullAgentList.filter(a => a.isOnline);
         const offlineAgents = fullAgentList.filter(a => !a.isOnline && a.inRoster);
+        
+        // Update online count
+        const onlineCountEl = document.getElementById('ah-online-count');
+        if (onlineCountEl) onlineCountEl.textContent = onlineAgents.length;
 
         onlineGrid.innerHTML = onlineAgents.map(a => {
             const team = normalizeTeam(a.team, a.name);
@@ -1356,9 +1394,10 @@ function handleLiveStateUpdate(state) {
         }).join('');
     }
 
-    if (document.getElementById('ah-broadcast-audience')) {
+    const audienceEl = document.getElementById('ah-broadcast-audience');
+    if (audienceEl) {
         const onlineCount = window.agents.filter(a => (window.ahOnlinePresences || {})[a.ytelId]).length;
-        document.getElementById('ah-broadcast-audience').innerText = onlineCount;
+        audienceEl.innerText = onlineCount;
     }
 }
 
@@ -1404,34 +1443,41 @@ window.ahShowTeamBreakdown = function(team) {
     const filtered = window.agents.filter(a => normalizeTeam(a.team, a.name) === team);
     const totalXfers = filtered.reduce((sum, a) => sum + (Number(a.dailyLeads) || 0), 0);
     
-    document.getElementById('ah-team-modal-agents').innerText = filtered.length;
-    document.getElementById('ah-team-modal-xfers').innerText = totalXfers;
-    document.getElementById('ah-team-modal-avg').innerText = filtered.length ? (totalXfers / filtered.length).toFixed(1) : '0.0';
+    const agentsCount = document.getElementById('ah-team-modal-agents');
+    const xfersTotal = document.getElementById('ah-team-modal-xfers');
+    const avgDisplay = document.getElementById('ah-team-modal-avg');
+    
+    if (agentsCount) agentsCount.innerText = filtered.length;
+    if (xfersTotal) xfersTotal.innerText = totalXfers;
+    if (avgDisplay) avgDisplay.innerText = filtered.length ? (totalXfers / filtered.length).toFixed(1) : '0.0';
 
-    list.innerHTML = filtered.sort((a,b) => (Number(b.dailyLeads)||0) - (Number(a.dailyLeads)||0)).map(a => `
-        <tr class="hover:bg-white/5 transition border-b border-white/5 last:border-0 text-[11px]">
-            <td class="py-3">
-                <div class="font-black text-white uppercase">${a.name}</div>
-            </td>
-            <td class="py-3">
-                <span class="flex items-center gap-1.5 text-[9px] font-black uppercase text-green-400">
-                    <span class="w-1 h-1 rounded-full bg-green-500"></span>
-                    Online
-                </span>
-             </td>
-            <td class="py-3 text-right">
-                <div class="font-black text-white italic">${a.dailyLeads || 0}</div>
-             </td>
-         </tr>
-    `).join('') || '<tr><td colspan="3" class="py-10 text-center text-slate-600 font-bold uppercase tracking-widest text-[9px]">No agents found</td></tr>';
+    if (list) {
+        list.innerHTML = filtered.sort((a,b) => (Number(b.dailyLeads)||0) - (Number(a.dailyLeads)||0)).map(a => `
+            <tr class="hover:bg-white/5 transition border-b border-white/5 last:border-0 text-[11px]">
+                <td class="py-3">
+                    <div class="font-black text-white uppercase">${a.name}</div>
+                 </td>
+                <td class="py-3">
+                    <span class="flex items-center gap-1.5 text-[9px] font-black uppercase text-green-400">
+                        <span class="w-1 h-1 rounded-full bg-green-500"></span>
+                        Online
+                    </span>
+                 </td>
+                <td class="py-3 text-right">
+                    <div class="font-black text-white italic">${a.dailyLeads || 0}</div>
+                 </td>
+             </tr>
+        `).join('') || '<tr><td colspan="3" class="py-10 text-center text-slate-600 font-bold uppercase tracking-widest text-[9px]">No agents found</td></tr>';
+    }
 
     detailSect.classList.remove('hidden');
-    detailSect.dataset.currentTeam = team;
-    detailSect.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (detailSect) detailSect.dataset.currentTeam = team;
+    if (detailSect) detailSect.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 window.ahCloseTeamDetail = function() {
-    document.getElementById('ah-sect-team-detail').classList.add('hidden');
+    const detailSect = document.getElementById('ah-sect-team-detail');
+    if (detailSect) detailSect.classList.add('hidden');
 };
 
 window.ahEditGoal = function() {
@@ -2080,8 +2126,8 @@ window.ahToolsLoadPerformance = function() {
                         <td class="py-4 px-2 text-center text-[10px] font-bold ${m.Sat>0?'text-white':'text-slate-700'}">${m.Sat || '—'}</td>
                         <td class="py-4 px-2 text-right">
                             <span class="text-sm font-black text-cyan-400 italic">${m.total}</span>
-                        </td>
-                     </tr>
+                         </td>
+                      </tr>
                 `;
             }).join('');
         });
