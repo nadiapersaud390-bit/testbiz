@@ -736,9 +736,12 @@ function initPrankNumbersListener() {
     }
 }
 
-// Sync new numbers from Sheet to Firebase
+// Sync new numbers from Sheet to Firebase efficiently via bulk update
 window.syncSheetToFirebase = async function(sheetNumbers) {
     if (!database || !sheetNumbers || !Array.isArray(sheetNumbers)) return;
+    
+    // Import update function dynamically if not already imported at top
+    const { update } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
     
     const prankRef = ref(database, 'prank_numbers');
     const snapshot = await get(prankRef);
@@ -746,22 +749,26 @@ window.syncSheetToFirebase = async function(sheetNumbers) {
     
     const existingNumbers = Object.keys(existing).map(key => existing[key].number);
     
+    const updates = {};
     let addedCount = 0;
+    
     for (const num of sheetNumbers) {
         if (!existingNumbers.includes(num)) {
-            const newRef = push(prankRef);
-            await set(newRef, {
+            const newKey = push(prankRef).key;
+            updates[`prank_numbers/${newKey}`] = {
                 number: num,
-                loggedBy: 'Sheet Sync',
+                loggedBy: 'Sheet Bulk Sync',
                 loggedAt: Date.now(),
                 timestamp: new Date().toISOString()
-            });
+            };
             addedCount++;
         }
     }
     
     if (addedCount > 0) {
-        console.log(`✅ Synced ${addedCount} new numbers from Sheet to Firebase`);
+        // Bulk update in a single network request (fast for 1600+ numbers)
+        await update(ref(database), updates);
+        console.log(`✅ Synced ${addedCount} new numbers from Sheet to Firebase in bulk!`);
     }
 };
 
