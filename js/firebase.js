@@ -3,7 +3,7 @@
 
 // Import Firebase modules
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, set, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, onValue, set, push, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, doc, setDoc, getDocs, collection, query, orderBy, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -604,12 +604,102 @@ function listenForLeadAlerts() {
     });
 }
 
+// ========== PRANK NUMBERS SYNC (Firebase + Google Sheet) ==========
+
+// Listen for prank numbers from Firebase (real-time)
+window.listenForPrankNumbers = function(callback) {
+    if (!database) return;
+    const prankRef = ref(database, 'prank_numbers');
+    onValue(prankRef, (snapshot) => {
+        const data = snapshot.val() || {};
+        // Convert object to array
+        const prankArray = Object.keys(data).map(key => data[key].number);
+        window._cachedPrankNumbers = prankArray;
+        if (callback) callback(prankArray);
+    });
+};
+
+// Save prank number to Firebase AND Google Sheet
+window.savePrankNumber = async function(number, loggedBy) {
+    if (!database) return { success: false, error: 'Database not initialized' };
+    
+    const cleanNumber = String(number).replace(/\D/g, '').slice(-10);
+    if (cleanNumber.length < 7) return { success: false, error: 'Invalid number' };
+    
+    try {
+        // Step 1: Save to Firebase
+        const prankRef = ref(database, 'prank_numbers');
+        const snapshot = await get(prankRef);
+        const existing = snapshot.val() || {};
+        
+        let alreadyExists = false;
+        let existingKey = null;
+        Object.keys(existing).forEach(key => {
+            if (existing[key].number === cleanNumber) {
+                alreadyExists = true;
+                existingKey = key;
+            }
+        });
+        
+        if (!alreadyExists) {
+            const newRef = push(prankRef);
+            await set(newRef, {
+                number: cleanNumber,
+                loggedBy: loggedBy || 'system',
+                loggedAt: Date.now(),
+                timestamp: new Date().toISOString()
+            });
+            console.log('✅ Saved to Firebase:', cleanNumber);
+        } else {
+            console.log('Number already exists in Firebase');
+        }
+        
+        // Step 2: Also sync to Google Sheet (backup)
+        if (typeof API_URL !== 'undefined') {
+            const sheetUrl = API_URL + '?action=syncPrankToSheet&number=' + encodeURIComponent(cleanNumber) + '&loggedBy=' + encodeURIComponent(loggedBy);
+            await fetch(sheetUrl, { method: 'GET', mode: 'no-cors' });
+            console.log('✅ Synced to Google Sheet:', cleanNumber);
+        }
+        
+        return { success: true };
+    } catch(e) {
+        console.error('Save failed:', e);
+        return { success: false, error: e.message };
+    }
+};
+
+// Get cached prank numbers
+window.getPrankNumbers = function() {
+    return window._cachedPrankNumbers || [];
+};
+
+// Force refresh prank numbers from Firebase
+window.refreshPrankNumbers = async function() {
+    if (!database) return [];
+    const prankRef = ref(database, 'prank_numbers');
+    const snapshot = await get(prankRef);
+    const data = snapshot.val() || {};
+    const prankArray = Object.keys(data).map(key => data[key].number);
+    window._cachedPrankNumbers = prankArray;
+    return prankArray;
+};
+
+// Initialize prank numbers listener
+function initPrankNumbersListener() {
+    if (typeof window.listenForPrankNumbers === 'function') {
+        window.listenForPrankNumbers((prankArray) => {
+            console.log(`🔥 Firebase prank numbers updated: ${prankArray.length} total`);
+        });
+    }
+}
+
 // ========== INITIALIZATION ==========
 
 // Initialize all listeners
 function initFirebaseListeners() {
     listenForBroadcasts();
     listenForLeadAlerts();
+    initPrankNumbersListener();
     
     if (typeof window.listenForAdmins === 'function') {
         window.listenForAdmins(); // auto-sync admins from Firebase on load
