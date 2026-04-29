@@ -144,7 +144,11 @@ function showPrankResult(prank){
 
 function onLookupInput(val){
     const q=val.trim(),digits=normalizePhone(q);
-    if(digits.length===10){
+   // BEFORE
+if(digits.length===10){
+
+// AFTER — trigger check for 7–11 digit numbers
+if(digits.length>=7){
         const bad=checkKnownBadNumber(q);
         if(bad){showKnownBadAlert(bad,q);return;}
     }
@@ -216,19 +220,21 @@ async function logPrankCall() {
         }
         
         // Step 2: Save to Google Sheet via POST
-        try {
-            const sheetResponse = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    action: 'syncPrankToSheet',
-                    number: cleanNumber,
-                    loggedBy: loggedBy,
-                    source: 'Lookup Tab'
-                })
-            });
+      const sheetResponse = await fetch(API_URL, {
+    method: 'POST',
+    mode: 'no-cors',           // ← required for Apps Script
+    headers: {
+        'Content-Type': 'text/plain',  // ← must be text/plain with no-cors
+    },
+    body: JSON.stringify({
+        action: 'syncPrankToSheet',
+        number: cleanNumber,
+        loggedBy: loggedBy,
+        source: 'Lookup Tab'
+    })
+});
+// With no-cors you can't read the response — just assume success if no error thrown
+sheetSuccess = true;
             
             const sheetData = await sheetResponse.json();
             if (sheetData && (sheetData.status === 'ok' || sheetData.success === true)) {
