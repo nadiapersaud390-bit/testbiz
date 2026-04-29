@@ -3,6 +3,7 @@
  * PRESERVES EXACT CSV ORDER - NO SORTING WHATSOEVER
  * FIXED: Allows momo (admin) to access Agent Stats
  * FIXED: Counts leads based ONLY on duration >= 120 seconds (Status column ignored for counting)
+ * FIXED: Auto-detects semicolon (;), comma (,), tab, or pipe delimiters in CSV files
  */
 
 let allReports = [];
@@ -52,6 +53,43 @@ function isLead(row) {
     
     // Count as lead if duration >= 120 seconds
     return duration >= 120;
+}
+
+// 🔥 NEW: Detects delimiter (comma, semicolon, tab, or pipe) from CSV header line
+function detectDelimiter(line) {
+    const delimiters = [',', ';', '\t', '|'];
+    for (const delim of delimiters) {
+        // Split by this delimiter and check if we get at least 2 columns with content
+        const parts = line.split(delim);
+        if (parts.length >= 2 && parts[0].trim().length > 0 && parts[1].trim().length > 0) {
+            return delim;
+        }
+    }
+    return ','; // default to comma
+}
+
+// 🔥 NEW: CSV row parser that handles quotes and any delimiter
+function parseCSVRow(row, delimiter) {
+    const result = [];
+    let inQuote = false;
+    let current = '';
+    
+    for (let i = 0; i < row.length; i++) {
+        const char = row[i];
+        
+        if (char === '"') {
+            inQuote = !inQuote;
+        } else if (char === delimiter && !inQuote) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    result.push(current.trim());
+    
+    // Remove surrounding quotes from each value
+    return result.map(v => v.replace(/^"|"$/g, ''));
 }
 
 function normalizeReportDateLabel(input) {
@@ -350,6 +388,7 @@ window.asConfirmUpload = async function() {
     }
 };
 
+// 🔥 FIXED: Completely rewritten handleFileUpload with delimiter auto-detection
 async function handleFileUpload(file) {
     if (!file.name.endsWith('.csv')) {
         updateStatsStatus('❌ Please upload a CSV file', true);
@@ -368,71 +407,103 @@ async function handleFileUpload(file) {
     const text = await file.text();
     let lines = text.split(/\r?\n/);
     
-    let headerIdx = -1;
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].toLowerCase();
-        if (line.includes('agent id') && line.includes('agent name')) {
-            headerIdx = i;
-            break;
-        }
-        if (line.includes('agent name')) {
-            headerIdx = i;
-            break;
-        }
-    }
+    // Filter out empty lines
+    lines = lines.filter(line => line.trim().length > 0);
     
-    if (headerIdx === -1) {
-        updateStatsStatus('❌ Could not find "Agent Name" header in CSV', true);
+    if (lines.length === 0) {
+        updateStatsStatus('❌ File is empty', true);
         return;
     }
     
-    const headers = lines[headerIdx].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+    // Detect delimiter from first non-empty line
+    const firstLine = lines[0];
+    const delimiter = detectDelimiter(firstLine);
+    
+    console.log(`[Upload] Detected delimiter: "${delimiter}"`);
+    
+    // Parse headers using detected delimiter
+    let headers = parseCSVRow(firstLine, delimiter);
+    
+    // Find header row - look for Agent Name column
+    let headerIdx = 0;
+    for (let i = 0; i < Math.min(lines.length, 5); i++) {
+        const testHeaders = parseCSVRow(lines[i], delimiter);
+        const hasAgentName = testHeaders.some(h => 
+            h.toLowerCase().includes('agent name') || 
+            h.toLowerCase().includes('agentname') ||
+            h.toLowerCase().includes('rep name') ||
+            h.toLowerCase().includes('representative')
+        );
+        if (hasAgentName) {
+            headerIdx = i;
+            headers = testHeaders;
+            console.log(`[Upload] Found header row at line ${i}:`, headers);
+            break;
+        }
+    }
+    
+    // Map column indices
+    let agentIdIdx = -1;
+    let agentNameIdx = -1;
+    let statusIdx = -1;
+    let durationIdx = -1;
+    let teamIdx = -1;
+    
+    headers.forEach((h, idx) => {
+        const lower = h.toLowerCase().replace(/[\s_-]/g, '');
+        if (lower.includes('agentid') || lower === 'agentid' || lower === 'userid' || lower === 'id') agentIdIdx = idx;
+        if (lower.includes('agentname') || lower === 'agentname' || lower === 'name' || lower === 'agent') agentNameIdx = idx;
+        if (lower.includes('currentstatus') || lower === 'currentstatus' || lower === 'status' || lower === 'disposition') statusIdx = idx;
+        if (lower.includes('duration') || lower === 'duration' || lower === 'dur' || lower === 'talktime') durationIdx = idx;
+        if (lower.includes('team') || lower === 'team' || lower.includes('prefix')) teamIdx = idx;
+    });
+    
+    // Fallbacks if not found
+    if (agentNameIdx === -1) agentNameIdx = 0;
+    if (statusIdx === -1 && headers.length > 2) statusIdx = 2;
+    if (durationIdx === -1 && headers.length > 3) durationIdx = 3;
+    
+    console.log(`[Upload] Column mapping - Name:${agentNameIdx}, Status:${statusIdx}, Duration:${durationIdx}, AgentId:${agentIdIdx}, Team:${teamIdx}`);
     
     const parsedData = [];
+    
     for (let i = headerIdx + 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
         
-        const values = [];
-        let inQuote = false;
-        let current = '';
-        for (let j = 0; j < line.length; j++) {
-            const char = line[j];
-            if (char === '"') {
-                inQuote = !inQuote;
-            } else if (char === ',' && !inQuote) {
-                values.push(current.replace(/^"|"$/g, '').trim());
-                current = '';
-            } else {
-                current += char;
-            }
-        }
-        values.push(current.replace(/^"|"$/g, '').trim());
+        const values = parseCSVRow(line, delimiter);
+        if (values.length < 3) continue;
         
-        if (values.length < 5) continue;
+        const agentId = agentIdIdx >= 0 ? (values[agentIdIdx] || '') : '';
+        const agentNameRaw = agentNameIdx >= 0 ? (values[agentNameIdx] || '') : '';
         
-        const row = {};
-        headers.forEach((h, idx) => {
-            row[h] = values[idx] || '';
-        });
-        
-        const agentId = row['Agent Id'] || '';
-        const agentNameRaw = row['Agent Name'] || '';
-        const status = row['Current Status'] || '';
-        const durationRaw = row['Duration'] || '0';
-        
-        if (isPhTrainingName(agentNameRaw)) continue;
+        // Skip PH training accounts
+        if (agentNameRaw && /^PH(?![A-Za-z])/i.test(agentNameRaw)) continue;
         if (!agentNameRaw.trim() || agentNameRaw.trim() === 'UNKNOWN') continue;
         
+        const status = statusIdx >= 0 ? (values[statusIdx] || '').toUpperCase() : '';
+        const durationRaw = durationIdx >= 0 ? (values[durationIdx] || '0') : '0';
+        
+        // Determine team from agent name prefix if not provided
         let team = 'PR';
         const upperRaw = agentNameRaw.toUpperCase().trim();
         if (upperRaw.startsWith('GYB ') || upperRaw.startsWith('GYB\t')) team = 'BB';
         else if (upperRaw.startsWith('GYP ') || upperRaw.startsWith('GYP\t')) team = 'PR';
         else if (upperRaw.startsWith('GTM ') || upperRaw.startsWith('GTM\t')) team = 'RM';
         else if (upperRaw.startsWith('RM ') || upperRaw.startsWith('RM\t')) team = 'RM';
-
+        
+        // If team column exists and has value, use it
+        if (teamIdx >= 0 && values[teamIdx] && values[teamIdx].trim()) {
+            const teamVal = values[teamIdx].trim().toUpperCase();
+            if (teamVal === 'BB' || teamVal === 'BERB' || teamVal === 'BERBICE') team = 'BB';
+            else if (teamVal === 'RM' || teamVal === 'REMOTE') team = 'RM';
+            else if (teamVal === 'PR' || teamVal === 'PROV' || teamVal === 'PROVIDENCE') team = 'PR';
+        }
+        
+        // Clean agent name
         const agentName = agentNameRaw.replace(/^(GYP|GYB|GTM|RM)\s+/i, '').trim();
         
+        // Parse duration (handles both seconds and MM:SS format)
         let duration = 0;
         if (durationRaw.includes(':')) {
             const parts = durationRaw.split(':').map(Number);
@@ -447,13 +518,13 @@ async function handleFileUpload(file) {
             agentName: agentName,
             rawName: agentNameRaw,
             team: team,
-            status: status.toUpperCase(),
+            status: status,
             duration: duration
         });
     }
     
     if (parsedData.length === 0) {
-        updateStatsStatus('❌ No valid data rows found in CSV', true);
+        updateStatsStatus('❌ No valid data rows found in CSV. Check that columns are correctly detected.', true);
         return;
     }
     
@@ -490,6 +561,7 @@ async function handleFileUpload(file) {
     
     updateStatsStatus(`✅ Ready: ${parsedData.length} rows, ${leadCount} qualified leads (duration >= 120 sec). ${agentSummary}${Object.keys(agentLeadMap).length > 5 ? '...' : ''}. This will REPLACE previous data.`, false);
     
+    console.log('[File Upload] Delimiter used:', delimiter);
     console.log('[File Upload] Per-agent lead counts:', agentLeadMap);
 }
 
