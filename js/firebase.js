@@ -30,6 +30,14 @@ try {
     database = getDatabase(app);
     firestore = getFirestore(app);
     auth = getAuth(app);
+    
+    // Export to window for non-module scripts (like broadcast.js)
+    window.firebaseApp = app;
+    window.database = database;
+    window.firestore = firestore;
+    window.db = firestore; // legacy alias
+    window.firebaseAuth = auth;
+    
     console.log("Firebase & Firestore initialized successfully");
 } catch (error) {
     console.error("Firebase initialization error:", error);
@@ -597,12 +605,57 @@ function listenForLeadAlerts() {
     onValue(leadsRef, (snapshot) => {
         const data = snapshot.val();
         if (data && data.agentName && data.leadCount) {
-            showLeadAlert(data.agentName, data.leadCount);
+            const name = data.agentName;
+            const count = data.leadCount;
+            const isFirst = count === 1;
+            
+            // If the leadalerts.js sophisticated system is present, use it
+            if (typeof window._renderLeadAlert === 'function') {
+                const quotes = [
+                    "Keep up the great work!",
+                    "Relentless effort pays off!",
+                    "Another one for the scoreboard!",
+                    "Momentum is building!",
+                    "The floor is yours!"
+                ];
+                const quote = quotes[Math.floor(Math.random() * quotes.length)];
+                const msg = isFirst 
+                    ? `${name} just got their FIRST lead of the day! 🥇`
+                    : `${name} just transferred — now at ${count} leads today! 🔥`;
+                
+                window._renderLeadAlert({
+                    icon: isFirst ? '🥇' : '🔥',
+                    name: `${name} — New Lead!`,
+                    msg: msg,
+                    quote: quote,
+                    firstLead: isFirst
+                });
+            } else {
+                showLeadAlert(name, count);
+            }
         }
     }, (error) => {
         console.error("Lead alert listener error:", error);
     });
 }
+
+// Global function to trigger a lead alert from anywhere (e.g. tracker)
+window.triggerLeadAlert = async function(agentName, leadCount) {
+    if (!database) return;
+    try {
+        await set(ref(database, 'leads/alerts'), {
+            agentName: agentName,
+            leadCount: leadCount,
+            timestamp: Date.now()
+        });
+        // Clear it after a short delay so the same count can be triggered again later
+        setTimeout(async () => {
+            await set(ref(database, 'leads/alerts'), null);
+        }, 2000);
+    } catch (e) {
+        console.error("Failed to trigger lead alert", e);
+    }
+};
 
 // ========== PRANK NUMBERS SYNC (Firebase + Google Sheet) ==========
 
