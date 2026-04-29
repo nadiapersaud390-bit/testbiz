@@ -16,6 +16,29 @@ const AP_STORAGE_KEY   = 'biz_ap_session_v1';
 const AP_HISTORY_KEY   = 'biz_ap_history_v1';
 const AP_DASHBOARD_KEY = 'biz_ap_dashboard_v1'; // what dashboard reads
 
+// ── Helper: Parse CSV row with proper quote handling and any delimiter ─────────
+function apParseCSVRow(row, delimiter) {
+  const result = [];
+  let inQuote = false;
+  let current = '';
+  
+  for (let i = 0; i < row.length; i++) {
+    const char = row[i];
+    if (char === '"') {
+      inQuote = !inQuote;
+    } else if (char === delimiter && !inQuote) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  
+  // Remove surrounding quotes from each value
+  return result.map(v => v.replace(/^"|"$/g, ''));
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 function initAdminPanel() {
   const role = sessionStorage.getItem('bizUserRole');
@@ -71,23 +94,47 @@ function apLoadSheetJS(cb) {
   document.head.appendChild(s);
 }
 
+// 🔥 FIXED: Completely rewritten CSV parser with delimiter auto-detection and proper quote handling
 function apParseCSV(text, filename) {
-  const lines = text.trim().split(/\r?\n/);
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
   if (lines.length < 2) { apShowDropError('File appears empty.'); return; }
 
-  // Detect delimiter (comma or tab or semicolon or pipe)
-  const delim = [',', '\t', ';', '|'].find(d => lines[0].split(d).length > 2) || ',';
-  const headers = lines[0].split(delim).map(h => h.trim().replace(/^"|"$/g, ''));
-  const rows = lines.slice(1).map(line => {
-    const vals = line.split(delim).map(v => v.trim().replace(/^"|"$/g, ''));
+  // Detect delimiter (comma, semicolon, tab, or pipe)
+  let delimiter = ',';
+  const delimiters = [',', ';', '\t', '|'];
+  for (const d of delimiters) {
+    const parts = lines[0].split(d);
+    if (parts.length >= 2 && parts[0].trim().length > 0 && parts[1].trim().length > 0) {
+      delimiter = d;
+      break;
+    }
+  }
+  
+  console.log('[AdminPanel] Detected delimiter:', delimiter);
+  
+  // Parse headers using detected delimiter
+  const headers = apParseCSVRow(lines[0], delimiter).map(h => h.trim());
+  
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    
+    const vals = apParseCSVRow(line, delimiter);
     const obj = {};
-    headers.forEach((h, i) => { obj[h] = vals[i] !== undefined ? vals[i] : ''; });
-    return obj;
-  }).filter(r => Object.values(r).some(v => v !== ''));
-
-  apRawRows  = rows;
+    headers.forEach((h, idx) => { 
+      obj[h] = vals[idx] !== undefined ? vals[idx] : ''; 
+    });
+    rows.push(obj);
+  }
+  
+  const filteredRows = rows.filter(r => Object.values(r).some(v => v !== ''));
+  
+  apRawRows  = filteredRows;
   apHeaders  = headers;
-  apShowMapper(filename, rows.length);
+  apShowMapper(filename, filteredRows.length);
+  
+  console.log('[AdminPanel] Parsed', filteredRows.length, 'rows with', headers.length, 'columns');
 }
 
 function apParseExcel(buffer, filename) {
