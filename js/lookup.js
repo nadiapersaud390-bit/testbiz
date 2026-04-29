@@ -226,25 +226,26 @@ async function logPrankCall() {
         }
         
         // Step 2: Save to Google Sheet via POST
-        const sheetResponse = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'text/plain;charset=utf-8',
-            },
-            body: JSON.stringify({
-                action: 'syncPrankToSheet',
-                number: cleanNumber,
-                loggedBy: loggedBy,
-                source: 'Lookup Tab'
-            })
-        });
-        
-        const sheetData = await sheetResponse.json();
-        if (sheetData && (sheetData.status === 'ok' || sheetData.success === true)) {
-            sheetSuccess = true;
-        } else {
-            errorMsg = sheetData?.message || 'Sheet returned error';
-        }
+        try {
+            const sheetResponse = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8',
+                },
+                body: JSON.stringify({
+                    action: 'syncPrankToSheet',
+                    number: cleanNumber,
+                    loggedBy: loggedBy,
+                    source: 'Lookup Tab'
+                })
+            });
+            
+            const sheetData = await sheetResponse.json();
+            if (sheetData && (sheetData.status === 'ok' || sheetData.success === true)) {
+                sheetSuccess = true;
+            } else {
+                errorMsg = sheetData?.message || 'Sheet returned error';
+            }
         } catch (sheetErr) {
             console.error('Sheet sync POST error:', sheetErr);
             errorMsg = sheetErr.message;
