@@ -152,11 +152,9 @@ function showPrankResult(prank){
 
 function onLookupInput(val){
     const q=val.trim(),digits=normalizePhone(q);
-   // BEFORE
-if(digits.length===10){
 
-// AFTER — trigger check for 7–11 digit numbers
-if(digits.length>=7){
+    // AFTER — trigger check for 7–11 digit numbers
+    if(digits.length>=7){
         const bad=checkKnownBadNumber(q);
         if(bad){showKnownBadAlert(bad,q);return;}
     }
