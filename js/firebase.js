@@ -619,25 +619,26 @@ window.listenForPrankNumbers = function(callback) {
     });
 };
 
-// Save prank number to Firebase AND Google Sheet
+// 🔥 FIXED: Save prank number to Firebase AND Google Sheet with proper POST
 window.savePrankNumber = async function(number, loggedBy) {
     if (!database) return { success: false, error: 'Database not initialized' };
     
     const cleanNumber = String(number).replace(/\D/g, '').slice(-10);
     if (cleanNumber.length < 7) return { success: false, error: 'Invalid number' };
     
+    let firebaseSuccess = false;
+    let sheetSuccess = false;
+    
     try {
-        // Step 1: Save to Firebase
+        // Step 1: Save to Firebase RTDB
         const prankRef = ref(database, 'prank_numbers');
         const snapshot = await get(prankRef);
         const existing = snapshot.val() || {};
         
         let alreadyExists = false;
-        let existingKey = null;
         Object.keys(existing).forEach(key => {
             if (existing[key].number === cleanNumber) {
                 alreadyExists = true;
-                existingKey = key;
             }
         });
         
@@ -649,19 +650,61 @@ window.savePrankNumber = async function(number, loggedBy) {
                 loggedAt: Date.now(),
                 timestamp: new Date().toISOString()
             });
-            console.log('✅ Saved to Firebase:', cleanNumber);
+            console.log('✅ Saved to Firebase RTDB:', cleanNumber);
+            firebaseSuccess = true;
         } else {
-            console.log('Number already exists in Firebase');
+            console.log('Number already exists in Firebase RTDB');
+            firebaseSuccess = true; // Already there, consider it success
         }
         
-        // Step 2: Also sync to Google Sheet (backup)
-        if (typeof API_URL !== 'undefined') {
-            const sheetUrl = API_URL + '?action=syncPrankToSheet&number=' + encodeURIComponent(cleanNumber) + '&loggedBy=' + encodeURIComponent(loggedBy);
-            await fetch(sheetUrl, { method: 'GET', mode: 'no-cors' });
-            console.log('✅ Synced to Google Sheet:', cleanNumber);
+        // Step 2: Sync to Google Sheet via POST (no 'no-cors' for proper request)
+        if (typeof API_URL !== 'undefined' && API_URL) {
+            try {
+                const sheetResponse = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'syncPrankToSheet',
+                        number: cleanNumber,
+                        loggedBy: loggedBy,
+                        source: 'Firebase'
+                    })
+                });
+                
+                if (sheetResponse.ok) {
+                    sheetSuccess = true;
+                    console.log('✅ Synced to Google Sheet via POST:', cleanNumber);
+                } else {
+                    console.warn('Sheet POST response not OK:', sheetResponse.status);
+                    // Fallback to GET
+                    const fallbackUrl = API_URL + '?action=syncPrankToSheet&number=' + encodeURIComponent(cleanNumber) + '&loggedBy=' + encodeURIComponent(loggedBy);
+                    const fallbackRes = await fetch(fallbackUrl, { method: 'GET' });
+                    if (fallbackRes.ok) {
+                        sheetSuccess = true;
+                        console.log('✅ Synced to Google Sheet via GET fallback:', cleanNumber);
+                    }
+                }
+            } catch (sheetErr) {
+                console.warn('Sheet sync failed (non-critical):', sheetErr);
+                // Try GET fallback
+                try {
+                    const fallbackUrl = API_URL + '?action=syncPrankToSheet&number=' + encodeURIComponent(cleanNumber) + '&loggedBy=' + encodeURIComponent(loggedBy);
+                    const fallbackRes = await fetch(fallbackUrl, { method: 'GET' });
+                    if (fallbackRes.ok) {
+                        sheetSuccess = true;
+                        console.log('✅ Synced to Google Sheet via GET fallback:', cleanNumber);
+                    }
+                } catch (fallbackErr) {
+                    console.warn('GET fallback also failed:', fallbackErr);
+                }
+            }
+        } else {
+            console.warn('API_URL not defined, skipping sheet sync');
         }
         
-        return { success: true };
+        return { success: true, firebaseSuccess, sheetSuccess };
     } catch(e) {
         console.error('Save failed:', e);
         return { success: false, error: e.message };
@@ -729,7 +772,6 @@ function initFirebaseListeners() {
 window.showBroadcastBar = showBroadcastBar;
 window.hideBroadcastBar = hideBroadcastBar;
 window.sendBroadcastMessage = sendBroadcastMessage;
-window.adminLogin = adminLogin;
 window.adminLogin = adminLogin;
 window.adminLogout = adminLogout;
 window.showLeadAlert = showLeadAlert;
