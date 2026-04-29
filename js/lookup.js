@@ -42,6 +42,20 @@ async function loadLivePrankNumbers(force){
             try{
                 localStorage.setItem('bizlookup_live_prank',JSON.stringify({numbers:LIVE_PRANK_NUMBERS,time:lastLivePrankFetch}));
             }catch(e){}
+        }else if(Array.isArray(data)&&data[0]&&Array.isArray(data[0].prankNumbers)){
+            const sheetNumbers = data[0].prankNumbers.map(v=>String(v||'').replace(/\D/g,'').slice(-10)).filter(v=>v.length>=7);
+            
+            // Sync any new numbers from Sheet to Firebase
+            if (typeof window.syncSheetToFirebase === 'function') {
+                window.syncSheetToFirebase(sheetNumbers);
+            }
+            
+            // Combine with existing numbers
+            LIVE_PRANK_NUMBERS = [...new Set([...LIVE_PRANK_NUMBERS, ...sheetNumbers])];
+            lastLivePrankFetch=Date.now();
+            try{
+                localStorage.setItem('bizlookup_live_prank',JSON.stringify({numbers:LIVE_PRANK_NUMBERS,time:lastLivePrankFetch}));
+            }catch(e){}
         }
     }catch(e){}
     return LIVE_PRANK_NUMBERS;
