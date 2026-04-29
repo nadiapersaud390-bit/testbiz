@@ -663,7 +663,7 @@ window.savePrankNumber = async function(number, loggedBy) {
                 const sheetResponse = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'text/plain;charset=utf-8',
                     },
                     body: JSON.stringify({
                         action: 'syncPrankToSheet',
@@ -735,6 +735,35 @@ function initPrankNumbersListener() {
         });
     }
 }
+
+// Sync new numbers from Sheet to Firebase
+window.syncSheetToFirebase = async function(sheetNumbers) {
+    if (!database || !sheetNumbers || !Array.isArray(sheetNumbers)) return;
+    
+    const prankRef = ref(database, 'prank_numbers');
+    const snapshot = await get(prankRef);
+    const existing = snapshot.val() || {};
+    
+    const existingNumbers = Object.keys(existing).map(key => existing[key].number);
+    
+    let addedCount = 0;
+    for (const num of sheetNumbers) {
+        if (!existingNumbers.includes(num)) {
+            const newRef = push(prankRef);
+            await set(newRef, {
+                number: num,
+                loggedBy: 'Sheet Sync',
+                loggedAt: Date.now(),
+                timestamp: new Date().toISOString()
+            });
+            addedCount++;
+        }
+    }
+    
+    if (addedCount > 0) {
+        console.log(`✅ Synced ${addedCount} new numbers from Sheet to Firebase`);
+    }
+};
 
 // ========== INITIALIZATION ==========
 
