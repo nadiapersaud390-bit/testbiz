@@ -3,7 +3,7 @@
 
 // Import Firebase modules
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, set, push, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, onValue, set, push, get, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, doc, setDoc, getDocs, collection, query, orderBy, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -691,9 +691,6 @@ function initPrankNumbersListener() {
 // Sync new numbers from Sheet to Firebase efficiently via bulk update
 window.syncSheetToFirebase = async function(sheetNumbers) {
     if (!database || !sheetNumbers || !Array.isArray(sheetNumbers)) return;
-    
-    // Import update function dynamically if not already imported at top
-    const { update } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
     
     const prankRef = ref(database, 'prank_numbers');
     const snapshot = await get(prankRef);
