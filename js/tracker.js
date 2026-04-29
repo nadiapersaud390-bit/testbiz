@@ -133,6 +133,16 @@ window.trackerAddLead = async function() {
     trackerWeeks[trackerCurrentWeekId].leads.push(newLead);
     await saveTrackerData(ytelId, trackerCurrentWeekId, trackerWeeks[trackerCurrentWeekId]);
     
+    // 🔥 Real-time Lead Alert Trigger
+    if (typeof window.triggerLeadAlert === 'function') {
+        const todayLeads = trackerWeeks[trackerCurrentWeekId].leads.filter(l => {
+            const leadDate = new Date(l.addedAt).toDateString();
+            const todayDate = new Date().toDateString();
+            return leadDate === todayDate;
+        }).length;
+        window.triggerLeadAlert(profile.name || profile.fullName || 'An Agent', todayLeads);
+    }
+    
     // Clear inputs
     document.getElementById('tl-fname').value = '';
     document.getElementById('tl-lname').value = '';
