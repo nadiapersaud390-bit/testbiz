@@ -37,4 +37,26 @@ updateClocks();
 setInterval(updateClocks,1000);
 
 // ============================================================
+// TAB BLINK UTILITY
+// ============================================================
+let tabBlinkInterval = null;
+let originalTitle = document.title || 'Biz Level Up Dashboard';
+
+function startTabBlink(msg) {
+  if (tabBlinkInterval) clearInterval(tabBlinkInterval);
+  originalTitle = document.title;
+  let showAlt = false;
+  tabBlinkInterval = setInterval(() => {
+    document.title = showAlt ? msg : originalTitle;
+    showAlt = !showAlt;
+  }, 1000);
+}
+
+function stopTabBlink() {
+  if (tabBlinkInterval) clearInterval(tabBlinkInterval);
+  tabBlinkInterval = null;
+  if (originalTitle) document.title = originalTitle;
+}
+
+// ============================================================
 // TRIVIA QUESTION BANK
