@@ -23,9 +23,9 @@ try{
 async function loadLivePrankNumbers(force){
     const now=Date.now();
     if(!force&&LIVE_PRANK_NUMBERS.length&&(now-lastLivePrankFetch)<LIVE_PRANK_CACHE_MS)return LIVE_PRANK_NUMBERS;
-    if(typeof API_URL==='undefined'||!API_URL)return LIVE_PRANK_NUMBERS;
+    if(typeof PRANK_API_URL==='undefined'||!PRANK_API_URL)return LIVE_PRANK_NUMBERS;
     try{
-        const url=API_URL+(API_URL.indexOf('?')>=0?'&':'?')+'action=getPrankNumbers&_='+now;
+        const url=PRANK_API_URL+(PRANK_API_URL.indexOf('?')>=0?'&':'?')+'action=getPrankNumbers&_='+now;
         const res=await fetch(url,{cache:'no-store'});
         const data=await res.json();
         if(data&&Array.isArray(data.prankNumbers)){
@@ -227,7 +227,7 @@ async function logPrankCall() {
         
         // Step 2: Save to Google Sheet via POST
         try {
-            const sheetResponse = await fetch(API_URL, {
+            const sheetResponse = await fetch(PRANK_API_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'text/plain;charset=utf-8',
@@ -252,7 +252,7 @@ async function logPrankCall() {
             
             // Fallback: Try GET request
             try {
-                const fallbackUrl = API_URL + '?action=syncPrankToSheet&number=' + encodeURIComponent(cleanNumber) + '&loggedBy=' + encodeURIComponent(loggedBy);
+                const fallbackUrl = PRANK_API_URL + '?action=syncPrankToSheet&number=' + encodeURIComponent(cleanNumber) + '&loggedBy=' + encodeURIComponent(loggedBy);
                 const fallbackRes = await fetch(fallbackUrl, { method: 'GET' });
                 if (fallbackRes.ok) {
                     sheetSuccess = true;
@@ -330,7 +330,7 @@ function initFirebasePrankListener() {
 // Start Firebase listener
 initFirebasePrankListener();
 
-let lookupHistory = [];
+var lookupHistory = [];
 try { lookupHistory = JSON.parse(localStorage.getItem('bizlookup_history') || '[]'); } catch(e) {}
 
 function clearLookup(){
