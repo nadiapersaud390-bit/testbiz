@@ -279,6 +279,8 @@ async function logPrankCall() {
             statusEl.style.border = '1px solid rgba(234,179,8,0.35)';
             statusEl.style.color = '#facc15';
             statusEl.innerHTML = '⚠️ Saved to Firebase, but sheet sync failed.<br><span style="font-size:10px;">Error: ' + escapeHtml(errorMsg) + '</span>';
+            addLocalPrankNumber(q);
+            document.getElementById('lookup-input').value = '';
             
         } else if (!firebaseSuccess && sheetSuccess) {
             statusEl.style.background = 'rgba(234,179,8,0.12)';
