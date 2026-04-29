@@ -656,55 +656,7 @@ window.savePrankNumber = async function(number, loggedBy) {
             console.log('Number already exists in Firebase RTDB');
             firebaseSuccess = true; // Already there, consider it success
         }
-        
-        // Step 2: Sync to Google Sheet via POST (no 'no-cors' for proper request)
-        if (typeof API_URL !== 'undefined' && API_URL) {
-            try {
-                const sheetResponse = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'text/plain;charset=utf-8',
-                    },
-                    body: JSON.stringify({
-                        action: 'syncPrankToSheet',
-                        number: cleanNumber,
-                        loggedBy: loggedBy,
-                        source: 'Firebase'
-                    })
-                });
-                
-                if (sheetResponse.ok) {
-                    sheetSuccess = true;
-                    console.log('✅ Synced to Google Sheet via POST:', cleanNumber);
-                } else {
-                    console.warn('Sheet POST response not OK:', sheetResponse.status);
-                    // Fallback to GET
-                    const fallbackUrl = API_URL + '?action=syncPrankToSheet&number=' + encodeURIComponent(cleanNumber) + '&loggedBy=' + encodeURIComponent(loggedBy);
-                    const fallbackRes = await fetch(fallbackUrl, { method: 'GET' });
-                    if (fallbackRes.ok) {
-                        sheetSuccess = true;
-                        console.log('✅ Synced to Google Sheet via GET fallback:', cleanNumber);
-                    }
-                }
-            } catch (sheetErr) {
-                console.warn('Sheet sync failed (non-critical):', sheetErr);
-                // Try GET fallback
-                try {
-                    const fallbackUrl = API_URL + '?action=syncPrankToSheet&number=' + encodeURIComponent(cleanNumber) + '&loggedBy=' + encodeURIComponent(loggedBy);
-                    const fallbackRes = await fetch(fallbackUrl, { method: 'GET' });
-                    if (fallbackRes.ok) {
-                        sheetSuccess = true;
-                        console.log('✅ Synced to Google Sheet via GET fallback:', cleanNumber);
-                    }
-                } catch (fallbackErr) {
-                    console.warn('GET fallback also failed:', fallbackErr);
-                }
-            }
-        } else {
-            console.warn('API_URL not defined, skipping sheet sync');
-        }
-        
-        return { success: true, firebaseSuccess, sheetSuccess };
+        return { success: true, firebaseSuccess: firebaseSuccess, sheetSuccess: false };
     } catch(e) {
         console.error('Save failed:', e);
         return { success: false, error: e.message };
