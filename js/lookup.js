@@ -38,15 +38,27 @@ async function logPrankCall(){
   statusEl.style.border='1px solid rgba(59,130,246,0.3)';
   statusEl.style.color='#60a5fa';
   statusEl.textContent='Sending to sheet...';
+  
+  const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+  const loggedBy = currentAdmin.name || currentAdmin.email || sessionStorage.getItem('currentAgentName') || 'rep';
+  
   try{
-    const body=JSON.stringify({action:'logPrank',number:q,timestamp:new Date().toISOString(),loggedBy:'rep'});
+    // Try to save to Firebase first (if available)
+    if (typeof window.savePrankNumber === 'function') {
+      const cleanNumber = normalizePhone(q).slice(-10);
+      await window.savePrankNumber(cleanNumber, loggedBy);
+      statusEl.textContent='✅ Saved to Firebase! Syncing to sheet...';
+    }
+    
+    // Also save to Google Sheet as backup
+    const body=JSON.stringify({action:'logPrank',number:q,timestamp:new Date().toISOString(),loggedBy:loggedBy});
     await fetch(API_URL,{method:'POST',body:body});
     statusEl.style.background='rgba(34,197,94,0.12)';
     statusEl.style.border='1px solid rgba(34,197,94,0.35)';
     statusEl.style.color='#4ade80';
-    statusEl.textContent='✅ Prank number logged to sheet!';
+    statusEl.textContent='✅ Prank number logged to Firebase + Google Sheet!';
     addLocalPrankNumber(q);
-    loadLivePrankNumbers(true);
+    await loadLivePrankNumbers(true);
     document.getElementById('lookup-input').value='';
     setTimeout(()=>{statusEl.style.display='none';},4000);
   }catch(e){
@@ -57,8 +69,33 @@ async function logPrankCall(){
     setTimeout(()=>{statusEl.style.display='none';},4000);
   }
   btn.disabled=false;
-  btn.innerHTML='<i class="fas fa-ban"></i>&nbsp;Log Prank Call &#8594; Sheet';
+  btn.innerHTML='<i class="fas fa-ban"></i>&nbsp;Log Prank Call → Firebase + Sheet';
 }
+
+// Initialize Firebase listener for prank numbers (real-time sync)
+function initFirebasePrankListener() {
+    if (typeof window.listenForPrankNumbers === 'function') {
+        window.listenForPrankNumbers((prankArray) => {
+            // Merge Firebase numbers with local cache
+            if (prankArray && prankArray.length > 0) {
+                const newNumbers = prankArray.filter(n => !LIVE_PRANK_NUMBERS.includes(n));
+                if (newNumbers.length > 0) {
+                    LIVE_PRANK_NUMBERS = [...new Set([...LIVE_PRANK_NUMBERS, ...prankArray])];
+                    try {
+                        localStorage.setItem('bizlookup_live_prank', JSON.stringify({
+                            numbers: LIVE_PRANK_NUMBERS,
+                            time: Date.now()
+                        }));
+                    } catch(e) {}
+                    console.log(`🔥 Firebase sync: ${newNumbers.length} new prank numbers added`);
+                }
+            }
+        });
+    }
+}
+
+// Start Firebase listener
+initFirebasePrankListener();
 
 function clearLookup(){document.getElementById('lookup-input').value='';const pr=document.getElementById('lookup-prank-result');if(pr){pr.classList.add('hidden');pr.innerHTML='';}document.getElementById('lookup-input').focus();}
 function renderLookupHistory(){const sec=document.getElementById('lookup-history-section'),con=document.getElementById('lookup-history');if(!lookupHistory.length){sec.classList.add('hidden');return;}sec.classList.remove('hidden');con.innerHTML=lookupHistory.map((h,i)=>{const ago=timeAgo(new Date(h.timestamp)),s=h.prankScore||0;const badge=s>=80?'<span style="font-size:9px;font-weight:900;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:20px;padding:2px 7px;margin-left:6px;">🚨 PRANK</span>':s>=56?'<span style="font-size:9px;font-weight:900;background:rgba(249,115,22,0.15);color:#f97316;border:1px solid rgba(249,115,22,0.3);border-radius:20px;padding:2px 7px;margin-left:6px;">⚠️ SUSPECT</span>':s>=26?'<span style="font-size:9px;font-weight:900;background:rgba(234,179,8,0.15);color:#eab308;border:1px solid rgba(234,179,8,0.3);border-radius:20px;padding:2px 7px;margin-left:6px;">👀 CHECK</span>':'';return'<div class="search-history-item" onclick="reloadHistory('+i+')"><div><div class="font-black text-sm text-white">'+escapeHtml(h.query)+badge+'</div><div class="text-[10px] text-slate-600 font-bold mt-0.5 uppercase tracking-wide">'+ago+'</div></div><i class="fas fa-chevron-right text-slate-700 text-xs"></i></div>';}).join('');}
