@@ -29,7 +29,15 @@ async function loadLivePrankNumbers(force){
         const res=await fetch(url,{cache:'no-store'});
         const data=await res.json();
         if(data&&Array.isArray(data.prankNumbers)){
-            LIVE_PRANK_NUMBERS=data.prankNumbers.map(v=>String(v||'').replace(/\D/g,'').slice(-10)).filter(v=>v.length>=7);
+            const sheetNumbers = data.prankNumbers.map(v=>String(v||'').replace(/\D/g,'').slice(-10)).filter(v=>v.length>=7);
+            
+            // Sync any new numbers from Sheet to Firebase
+            if (typeof window.syncSheetToFirebase === 'function') {
+                window.syncSheetToFirebase(sheetNumbers);
+            }
+            
+            // Combine with existing numbers
+            LIVE_PRANK_NUMBERS = [...new Set([...LIVE_PRANK_NUMBERS, ...sheetNumbers])];
             lastLivePrankFetch=Date.now();
             try{
                 localStorage.setItem('bizlookup_live_prank',JSON.stringify({numbers:LIVE_PRANK_NUMBERS,time:lastLivePrankFetch}));
@@ -220,28 +228,25 @@ async function logPrankCall() {
         }
         
         // Step 2: Save to Google Sheet via POST
-      const sheetResponse = await fetch(API_URL, {
-    method: 'POST',
-    mode: 'no-cors',           // ← required for Apps Script
-    headers: {
-        'Content-Type': 'text/plain',  // ← must be text/plain with no-cors
-    },
-    body: JSON.stringify({
-        action: 'syncPrankToSheet',
-        number: cleanNumber,
-        loggedBy: loggedBy,
-        source: 'Lookup Tab'
-    })
-});
-// With no-cors you can't read the response — just assume success if no error thrown
-sheetSuccess = true;
-            
-            const sheetData = await sheetResponse.json();
-            if (sheetData && (sheetData.status === 'ok' || sheetData.success === true)) {
-                sheetSuccess = true;
-            } else {
-                errorMsg = sheetData?.message || 'Sheet returned error';
-            }
+        const sheetResponse = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8',
+            },
+            body: JSON.stringify({
+                action: 'syncPrankToSheet',
+                number: cleanNumber,
+                loggedBy: loggedBy,
+                source: 'Lookup Tab'
+            })
+        });
+        
+        const sheetData = await sheetResponse.json();
+        if (sheetData && (sheetData.status === 'ok' || sheetData.success === true)) {
+            sheetSuccess = true;
+        } else {
+            errorMsg = sheetData?.message || 'Sheet returned error';
+        }
         } catch (sheetErr) {
             console.error('Sheet sync POST error:', sheetErr);
             errorMsg = sheetErr.message;
