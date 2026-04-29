@@ -31,8 +31,7 @@ function getGuyanaToday() {
   const valid = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   return valid.includes(dayName) ? dayName : 'Monday';
 }
-let lookupHistory = [];
-try { lookupHistory = JSON.parse(localStorage.getItem('bizlookup_history') || '[]'); } catch(e) {}
+const PRANK_API_URL = 'https://script.google.com/macros/s/AKfycbxWKiLsRSpxOkes8wgArJ0fa6Ww4hA6EYqgik_lithTNeVrG9Qec3tOHeLRgecfcH6SVA/exec';
 
 function normalizeTeam(team, name) {
   const rawTeam = String(team || '').trim().toUpperCase();
