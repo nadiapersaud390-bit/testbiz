@@ -233,7 +233,7 @@ async function logPrankCall() {
                     'Content-Type': 'text/plain;charset=utf-8',
                 },
                 body: JSON.stringify({
-                    action: 'syncPrankToSheet',
+                    action: 'logPrank',
                     number: cleanNumber,
                     loggedBy: loggedBy,
                     source: 'Lookup Tab'
@@ -252,7 +252,7 @@ async function logPrankCall() {
             
             // Fallback: Try GET request
             try {
-                const fallbackUrl = PRANK_API_URL + '?action=syncPrankToSheet&number=' + encodeURIComponent(cleanNumber) + '&loggedBy=' + encodeURIComponent(loggedBy);
+                const fallbackUrl = PRANK_API_URL + '?action=logPrank&number=' + encodeURIComponent(cleanNumber) + '&loggedBy=' + encodeURIComponent(loggedBy);
                 const fallbackRes = await fetch(fallbackUrl, { method: 'GET' });
                 if (fallbackRes.ok) {
                     sheetSuccess = true;
