@@ -2,6 +2,8 @@
 // Firebase-powered Broadcast System (replaces old broadcast.js)
 
 let bcUnlocked = false;
+let tapCount = 0;
+let lastTap = 0;
 
 // Listen for real-time broadcast messages
 function initBroadcastListener() {
@@ -88,6 +90,72 @@ async function clearBroadcastFirebase() {
     }
 }
 
+// ========== ADMIN TRIGGER LOGIC ==========
+
+window.handleTitleTap = function() {
+    const now = Date.now();
+    if (now - lastTap > 2000) tapCount = 0; // reset if too slow
+    tapCount++;
+    lastTap = now;
+    
+    if (tapCount >= 5) {
+        tapCount = 0;
+        window.toggleBcPanel();
+    }
+};
+
+window.toggleBcPanel = function() {
+    const panel = document.getElementById('bc-panel');
+    if (!panel) return;
+    
+    if (panel.style.display === 'block') {
+        panel.style.display = 'none';
+    } else {
+        // If not already unlocked and not logged in as admin, show login modal
+        const isAuth = (typeof isFirebaseAdminLoggedIn === 'function' && isFirebaseAdminLoggedIn()) || 
+                       (typeof isAdminLoggedIn === 'function' && isAdminLoggedIn()) ||
+                       sessionStorage.getItem('bizUserRole') === 'admin';
+                       
+        if (bcUnlocked || isAuth) {
+            panel.style.display = 'block';
+        } else {
+            const modal = document.getElementById('bc-login-modal');
+            if (modal) modal.classList.remove('hidden');
+        }
+    }
+};
+
+window.checkBcPassword = function() {
+    const input = document.getElementById('bc-pw-input');
+    const error = document.getElementById('bc-pw-error');
+    const pw = input ? input.value : '';
+    
+    // Check against common passwords in the system
+    const validPasswords = [
+        typeof WEEKLY_PASSWORD !== 'undefined' ? WEEKLY_PASSWORD : 'bizlevelup2025',
+        'PopoDarling',
+        '2424',
+        'admin'
+    ];
+    
+    if (validPasswords.includes(pw)) {
+        bcUnlocked = true;
+        document.getElementById('bc-login-modal').classList.add('hidden');
+        document.getElementById('bc-panel').style.display = 'block';
+        if (input) input.value = '';
+        if (error) error.textContent = '';
+    } else {
+        if (error) error.textContent = '❌ Invalid administrative password';
+        if (input) input.value = '';
+    }
+};
+
+function isFirebaseAdminLoggedIn() {
+    return sessionStorage.getItem('firebaseAdminLoggedIn') === 'true' || 
+           sessionStorage.getItem('adminLoggedIn') === 'true' ||
+           sessionStorage.getItem('bizUserRole') === 'admin';
+}
+
 // Override original functions if they exist
 window.sendBroadcast = () => {
     const msg = document.getElementById('bc-input')?.value;
@@ -101,7 +169,7 @@ window.dismissBroadcast = () => {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
-    if (typeof firebase !== 'undefined' && db) {
+    if (typeof firebase !== 'undefined' && typeof db !== 'undefined' && db) {
         initBroadcastListener();
     }
 });
