@@ -6,6 +6,7 @@
  * FIXED: Properly initialize and update _prevDailyLeadsMap for +X badges
  * FIXED: Only show data for TODAY - no old reports on current day
  * FIXED: Weekly tab shows cumulative totals across ALL uploaded days (Mon-Fri)
+ * FIXED: PREVWK tab now properly displays previous week totals from reports
  */
 
 let isDashboardSubscribed = false;
@@ -30,6 +31,22 @@ const FULL_DAY_NAMES = {
     'THU': 'Thursday',
     'FRI': 'Friday'
 };
+
+// Helper function to get actual report date
+function getReportActualDate(report) {
+    if (report && report.reportDate) {
+        const d = new Date(report.reportDate);
+        if (!isNaN(d.getTime())) return d;
+    }
+    if (report && report.filename) {
+        const m = report.filename.match(/(\d{2})[_-](\d{2})[_-](\d{4})/);
+        if (m) {
+            const d = new Date(`${m[3]}-${m[1]}-${m[2]}`);
+            if (!isNaN(d.getTime())) return d;
+        }
+    }
+    return new Date(report && report.uploadedAt);
+}
 
 // Function to get current date in Guyana time (YYYY-MM-DD)
 function getCurrentGuyanaDate() {
@@ -336,7 +353,7 @@ function updateRealTimeLeadTracking(newAgents) {
     }
 }
 
-// 🔥 FIXED: Calculate weekly cumulative totals from ALL uploaded days this week
+// Calculate weekly cumulative totals from ALL uploaded days this week
 function calculateWeeklyCumulativeTotals() {
     if (!dayHistory || dayHistory.length === 0) return {};
     
@@ -533,10 +550,6 @@ function _subscribeLiveDashboard() {
                 FULL_WEEK_DAYS.forEach(day => { lastWeekMap[day] = null; });
 
                 lastWeekReports.forEach(r => {
-                    // 🔥 FIX: Always derive day-of-week from the report's actual date.
-                    // r.dayOfWeek can be wrong (e.g. apSaveCurrentToHistory used to stamp
-                    // it with today's day even when saving an older day's data), which
-                    // caused multiple days to overwrite each other in the weekMap.
                     let dayKey = _dayKeyFromIndex(_actualDate(r).getDay());
                     if (!dayKey && FULL_WEEK_DAYS.includes(r.dayOfWeek)) {
                         dayKey = r.dayOfWeek;
@@ -569,6 +582,7 @@ function _subscribeLiveDashboard() {
                     });
                 });
                 window._lastWeekTotals = lastWeekAgg;
+                console.log('[PREVWK] Calculated previous week totals for', Object.keys(lastWeekAgg).length, 'agents');
 
                 const thisWeekReports = data.filter(r => {
                     const d = _actualDate(r);
@@ -582,10 +596,6 @@ function _subscribeLiveDashboard() {
                 });
 
                 thisWeekReports.forEach(r => {
-                    // 🔥 FIX: Always derive day-of-week from the report's actual date.
-                    // The stored r.dayOfWeek can be wrong, which made reports for different
-                    // days collide on the same dayKey and silently overwrite each other —
-                    // that's why Monday's data was disappearing from the Weekly tab.
                     let dayKey = _dayKeyFromIndex(_actualDate(r).getDay());
                     if (!dayKey && FULL_WEEK_DAYS.includes(r.dayOfWeek)) {
                         dayKey = r.dayOfWeek;
@@ -598,7 +608,7 @@ function _subscribeLiveDashboard() {
                     }
                 });
                 
-                // 🔥 FIXED: Build dayHistory for ALL days Monday-Friday (not just completed)
+                // Build dayHistory for ALL days Monday-Friday (not just completed)
                 dayHistory = FULL_WEEK_DAYS.map(day => {
                     const r = weekMap[day];
                     
@@ -662,7 +672,7 @@ function _subscribeLiveDashboard() {
                 
                 console.log('Day history built:', dayHistory.map(d => ({ day: d.dayName, completed: d.completed, hasData: !d.empty, agentCount: d.agents.length })));
                 
-                // 🔥 FIXED: Calculate cumulative weekly totals using ALL days that have data
+                // Calculate cumulative weekly totals using ALL days that have data
                 const weeklyTotals = calculateWeeklyCumulativeTotals();
                 window._weeklyCumulativeTotals = weeklyTotals;
                 weeklyAccumulatedData = weeklyTotals;
@@ -800,7 +810,7 @@ function render() {
             });
         }
     } else if (isWeekly) {
-        // 🔥 FIXED: Use cumulative weekly totals for the Weekly tab
+        // Use cumulative weekly totals for the Weekly tab
         const weeklyTotals = window._weeklyCumulativeTotals || weeklyAccumulatedData || {};
         const weeklyAgentsList = Object.values(weeklyTotals);
         
@@ -828,6 +838,54 @@ function render() {
         });
         
         console.log('[Weekly Tab] Total leads:', totalLeads, 'PR:', prTotal, 'BB:', bbTotal, 'RM:', rmTotal);
+    } else if (isPrevWeek) {
+        // 🔥 FIXED: Previous Week logic - use window._lastWeekTotals directly
+        console.log('[PREVWK] Rendering previous week with window._lastWeekTotals');
+        
+        const prevWeekTotals = window._lastWeekTotals || {};
+        const prevWeekAgentsList = Object.entries(prevWeekTotals).map(([key, leads]) => {
+            // Try to find agent info from roster
+            const rosterMatch = fullRoster.find(r => {
+                const rId = String(r.userId || r.ytelId || '').trim();
+                const rName = (r.fullName || r.name || '').toUpperCase().trim();
+                return rId === key || rName === key || rName === (key || '').toUpperCase();
+            });
+            
+            let agentName = key;
+            let agentTeam = 'PR';
+            let agentYtelId = '';
+            
+            if (rosterMatch) {
+                agentName = rosterMatch.fullName || rosterMatch.name || key;
+                agentTeam = rosterMatch.team || normalizeTeam('', agentName);
+                agentYtelId = rosterMatch.userId || rosterMatch.ytelId || '';
+            }
+            
+            return {
+                name: agentName,
+                leads: leads,
+                team: agentTeam,
+                ytelId: agentYtelId,
+                rawName: agentName
+            };
+        }).filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH '))
+          .sort((a, b) => b.leads - a.leads);
+        
+        fullList = prevWeekAgentsList;
+        
+        console.log('[PREVWK] Found', fullList.length, 'agents with previous week leads');
+        
+        fullList.forEach(a => {
+            const leads = a.leads || 0;
+            if (a.team === 'PR') prTotal += leads;
+            else if (a.team === 'BB') bbTotal += leads;
+            else if (a.team === 'RM') rmTotal += leads;
+            totalLeads += leads;
+            if (leads >= 12) masters++;
+            activeReps++;
+        });
+        
+        console.log('[PREVWK] Total leads:', totalLeads, 'PR:', prTotal, 'BB:', bbTotal, 'RM:', rmTotal);
     } else {
         const guyanaTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
         const currentDay = guyanaTime.getDay();
@@ -851,11 +909,7 @@ function render() {
         fullList = agents
             .filter(a => !(a.name && String(a.name).toUpperCase().startsWith('PH ')))
             .map(a => {
-                let leads = isWeekly ? (a.weeklyLeads || 0) : (a.dailyLeads || 0);
-                if (isPrevWeek && window._lastWeekTotals) {
-                    const idLookup = String(a.ytelId || a.name || '').trim();
-                    leads = window._lastWeekTotals[idLookup] || 0;
-                }
+                let leads = a.dailyLeads || 0;
                 if (forceHideDaily) leads = 0;
                 return {
                     name: typeof stripPrefix === 'function' ? stripPrefix(a.name).toUpperCase() : a.name,
@@ -870,11 +924,12 @@ function render() {
         if (forceHideDaily) fullList = [];
 
         fullList.forEach(a => {
-            if (a.team === 'PR') prTotal += a.leads;
-            else if (a.team === 'BB') bbTotal += a.leads;
-            else if (a.team === 'RM') rmTotal += a.leads;
-            totalLeads += a.leads;
-            if (a.leads >= 12) masters++;
+            const leads = a.leads || 0;
+            if (a.team === 'PR') prTotal += leads;
+            else if (a.team === 'BB') bbTotal += leads;
+            else if (a.team === 'RM') rmTotal += leads;
+            totalLeads += leads;
+            if (leads >= 12) masters++;
             activeReps++;
         });
     }
@@ -890,6 +945,8 @@ function render() {
         leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-calendar-day text-4xl mb-3 block"></i> No data available for this day. The day may not be completed yet or no report was uploaded.</div>';
     } else if (fullList.length === 0 && isWeekly) {
         leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-chart-line text-4xl mb-3 block"></i> No weekly data available yet. Upload reports for Monday-Friday to see cumulative totals.</div>';
+    } else if (fullList.length === 0 && isPrevWeek) {
+        leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-calendar-week text-4xl mb-3 block"></i> No previous week data found. Upload reports for last week to see historical performance.</div>';
     } else if (fullList.length === 0 && !isWeekly && !isPrevWeek && !isHistory && agents.length === 0) {
         leaderboardEl.innerHTML = '<div class="glass p-8 rounded-2xl text-center text-slate-500" style="grid-column:1/-1;"><i class="fas fa-cloud-upload-alt text-4xl mb-3 block"></i> No data uploaded for today. Please upload a report to see live rankings.</div>';
     } else if (fullList.length === 0 && !isWeekly && !isPrevWeek && !isHistory) {
@@ -929,7 +986,7 @@ function render() {
                     </div>
                     <div class="lb-score">
                         <div class="lb-score-num">${agent.leads}</div>
-                        <div class="lb-score-label">${isWeekly ? 'WEEKLY' : 'TRANSFERS'}</div>
+                        <div class="lb-score-label">${isWeekly || isPrevWeek ? 'WEEKLY' : 'TRANSFERS'}</div>
                     </div>
                 </div>`;
         }).join('');
