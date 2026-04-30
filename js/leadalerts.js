@@ -588,6 +588,29 @@ function _renderAlert({icon, name, msg, quote, firstLead = false}) {
   banner.classList.add('show');
   document.body.style.paddingTop = '72px';
   startTabBlink(icon + ' ' + name + (firstLead ? ' — First Lead Today!' : ' — New Lead!'));
+  
+  // Add event listeners to stop blinking when user interacts
+  const stopBlinkingHandler = function() {
+    stopTabBlink();
+    // Remove listeners after stopping to prevent multiple adds
+    document.removeEventListener('click', stopBlinkingHandler);
+    document.removeEventListener('visibilitychange', visibilityHandler);
+    window.removeEventListener('focus', stopBlinkingHandler);
+  };
+  
+  const visibilityHandler = function() {
+    if (!document.hidden) {
+      stopTabBlink();
+      document.removeEventListener('click', stopBlinkingHandler);
+      document.removeEventListener('visibilitychange', visibilityHandler);
+      window.removeEventListener('focus', stopBlinkingHandler);
+    }
+  };
+  
+  // Add one-time event listeners
+  document.addEventListener('click', stopBlinkingHandler, { once: true });
+  document.addEventListener('visibilitychange', visibilityHandler);
+  window.addEventListener('focus', stopBlinkingHandler, { once: true });
 }
 
 function dismissLeadAlert() {
