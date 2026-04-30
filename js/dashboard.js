@@ -7,6 +7,7 @@
  * FIXED: Only show data for TODAY - no old reports on current day
  * FIXED: Weekly tab shows cumulative totals across ALL uploaded days (Mon-Fri)
  * FIXED: PREVWK tab now properly displays previous week totals from reports without duplicates
+ * FIXED: Prevents numeric IDs from showing as agent names
  */
 
 let isDashboardSubscribed = false;
@@ -48,6 +49,23 @@ function getReportActualDate(report) {
         }
     }
     return new Date(report && report.uploadedAt);
+}
+
+// Helper function to check if a string looks like a numeric ID (not a real name)
+function isNumericIdOnly(str) {
+    if (!str) return true;
+    const s = String(str).trim();
+    // If it's all digits and length is 2-5 digits (typical Ytel ID), treat as ID not name
+    return /^\d{2,5}$/.test(s);
+}
+
+// Helper function to get a valid agent name (never return numeric ID)
+function getValidAgentName(originalName, fallbackName = '') {
+    const name = String(originalName || fallbackName || '').trim();
+    if (isNumericIdOnly(name)) {
+        return fallbackName || 'Unknown Agent';
+    }
+    return name;
 }
 
 // Function to get current date in Guyana time (YYYY-MM-DD)
@@ -802,7 +820,7 @@ function render() {
                 const rawName = a.rawName || a.name;
                 return {
                     ...a,
-                    name: cleanName || a.name,
+                    name: getValidAgentName(cleanName || a.name, a.name),
                     rawName: rawName,
                     leads: a.leads || 0,
                     team: normalizeTeam(a.team, rawName)
@@ -827,9 +845,9 @@ function render() {
         console.log('[Weekly Tab] Rendering with', weeklyAgentsList.length, 'agents from cumulative totals');
         
         fullList = weeklyAgentsList
-            .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH '))
+            .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH ') && !isNumericIdOnly(a.name))
             .map(a => ({
-                name: a.name,
+                name: getValidAgentName(a.name, a.name),
                 leads: a.leads || 0,
                 team: a.team,
                 ytelId: a.ytelId,
@@ -865,16 +883,24 @@ function render() {
         Object.entries(prevWeekTotals).forEach(([key, leads]) => {
             if (leads <= 0) return;
             
+            // Skip if key is a numeric ID (no valid name)
+            if (isNumericIdOnly(key)) {
+                console.log('[PREVWK] Skipping numeric ID key:', key);
+                return;
+            }
+            
             // Try to find matching agent in roster
             let rosterMatch = null;
+            let bestMatchName = key;
             
-            // Search by key (could be ytelId or name)
+            // Search by key (could be normalized name or ytelId)
             for (const r of fullRoster) {
                 const rId = String(r.userId || r.ytelId || '').trim();
                 const rName = (r.fullName || r.name || '').toUpperCase().trim();
                 const keyUpper = String(key).toUpperCase().trim();
+                const rNameClean = rName.replace(/^(GYB|GYP|GTM|RM)\s+/i, '').trim();
                 
-                if (rId === keyUpper || rName === keyUpper) {
+                if (rId === keyUpper || rName === keyUpper || rNameClean === keyUpper) {
                     rosterMatch = r;
                     break;
                 }
@@ -888,6 +914,17 @@ function render() {
                 agentName = rosterMatch.fullName || rosterMatch.name || key;
                 agentTeam = rosterMatch.team || normalizeTeam('', agentName);
                 agentYtelId = rosterMatch.userId || rosterMatch.ytelId || '';
+            } else {
+                // If no roster match, ensure the name is not a numeric ID
+                if (isNumericIdOnly(agentName)) {
+                    console.log('[PREVWK] Skipping unmapped numeric ID:', agentName);
+                    return;
+                }
+                // Clean the name from any prefix
+                agentName = agentName.replace(/^(GYB|GYP|GTM|RM)\s+/i, '').trim();
+                if (isNumericIdOnly(agentName)) {
+                    return;
+                }
             }
             
             const agentKey = agentYtelId || agentName.toUpperCase();
@@ -906,7 +943,7 @@ function render() {
         });
         
         fullList = prevWeekAgentsList
-            .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH '))
+            .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH ') && !isNumericIdOnly(a.name))
             .sort((a, b) => b.leads - a.leads);
         
         console.log('[PREVWK] Found', fullList.length, 'unique agents with previous week leads');
@@ -948,7 +985,7 @@ function render() {
                 let leads = a.dailyLeads || 0;
                 if (forceHideDaily) leads = 0;
                 return {
-                    name: typeof stripPrefix === 'function' ? stripPrefix(a.name).toUpperCase() : a.name,
+                    name: getValidAgentName(typeof stripPrefix === 'function' ? stripPrefix(a.name).toUpperCase() : a.name, a.name),
                     leads: leads,
                     team: normalizeTeam(a.team, a.name),
                     ytelId: a.ytelId || '',
