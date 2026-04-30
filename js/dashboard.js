@@ -6,7 +6,7 @@
  * FIXED: Properly initialize and update _prevDailyLeadsMap for +X badges
  * FIXED: Only show data for TODAY - no old reports on current day
  * FIXED: Weekly tab shows cumulative totals across ALL uploaded days (Mon-Fri)
- * FIXED: PREVWK tab now properly displays previous week totals from reports
+ * FIXED: PREVWK tab now properly displays previous week totals from reports without duplicates
  */
 
 let isDashboardSubscribed = false;
@@ -14,6 +14,8 @@ let fullRoster = []; // Store the full agent roster
 let _lastSeenLeadCounts = {}; // Track real-time lead changes for +X badges
 let _initialPrevMapLoaded = false; // Track if we've loaded initial previous map
 let weeklyAccumulatedData = {}; // Store cumulative weekly leads per agent
+let _cachedPrevWeekTotals = null; // Cache for previous week totals
+let _cachedPrevWeekTimestamp = 0; // Cache timestamp
 
 // Full week days array (Monday to Friday only - Saturday excluded from history)
 const FULL_WEEK_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
@@ -541,9 +543,13 @@ function _subscribeLiveDashboard() {
                     i === 4 ? 'THU' : i === 5 ? 'FRI' : null
                 );
 
+                // Get previous week reports (Monday to Sunday of last week)
                 const lastWeekReports = data.filter(r => {
                     const d = _actualDate(r);
-                    return d >= lastMonday && d < monday;
+                    // Use lastMonday as start, lastMonday+7 as end (exclusive)
+                    const weekEnd = new Date(lastMonday);
+                    weekEnd.setDate(lastMonday.getDate() + 7);
+                    return d >= lastMonday && d < weekEnd;
                 });
 
                 const lastWeekMap = {};
@@ -562,6 +568,7 @@ function _subscribeLiveDashboard() {
                     }
                 });
 
+                // Build previous week totals - ONLY from last week's reports
                 const lastWeekAgg = {};
                 Object.values(lastWeekMap).forEach(r => {
                     if (!r) return;
@@ -573,17 +580,20 @@ function _subscribeLiveDashboard() {
                         if (d.duration !== undefined && Number(d.duration) >= 120) lc = 1;
                         else if (d.duration !== undefined && Number(d.duration) < 120) lc = 0;
                         
-                        if (ytelId) {
-                            lastWeekAgg[ytelId] = (lastWeekAgg[ytelId] || 0) + lc;
-                        }
-                        if (cleanName) {
-                            lastWeekAgg[cleanName] = (lastWeekAgg[cleanName] || 0) + lc;
+                        if (lc > 0) {
+                            const key = ytelId || cleanName;
+                            lastWeekAgg[key] = (lastWeekAgg[key] || 0) + lc;
                         }
                     });
                 });
+                
+                // Store previous week totals separately (not overwriting with current week)
                 window._lastWeekTotals = lastWeekAgg;
+                _cachedPrevWeekTotals = lastWeekAgg;
+                _cachedPrevWeekTimestamp = Date.now();
                 console.log('[PREVWK] Calculated previous week totals for', Object.keys(lastWeekAgg).length, 'agents');
 
+                // Get current week reports (Monday to today)
                 const thisWeekReports = data.filter(r => {
                     const d = _actualDate(r);
                     return d >= monday;
@@ -839,17 +849,36 @@ function render() {
         
         console.log('[Weekly Tab] Total leads:', totalLeads, 'PR:', prTotal, 'BB:', bbTotal, 'RM:', rmTotal);
     } else if (isPrevWeek) {
-        // 🔥 FIXED: Previous Week logic - use window._lastWeekTotals directly
-        console.log('[PREVWK] Rendering previous week with window._lastWeekTotals');
+        // 🔥 FIXED: Previous Week logic - use cached previous week totals only
+        console.log('[PREVWK] Rendering previous week');
         
-        const prevWeekTotals = window._lastWeekTotals || {};
-        const prevWeekAgentsList = Object.entries(prevWeekTotals).map(([key, leads]) => {
-            // Try to find agent info from roster
-            const rosterMatch = fullRoster.find(r => {
+        // Use the cached previous week totals
+        const prevWeekTotals = _cachedPrevWeekTotals || window._lastWeekTotals || {};
+        
+        // Create a Set of agent identifiers that already have leads to avoid duplicates
+        const agentsAdded = new Set();
+        
+        // Build list from previous week totals
+        const prevWeekAgentsList = [];
+        
+        // First, add all agents from the previous week totals
+        Object.entries(prevWeekTotals).forEach(([key, leads]) => {
+            if (leads <= 0) return;
+            
+            // Try to find matching agent in roster
+            let rosterMatch = null;
+            
+            // Search by key (could be ytelId or name)
+            for (const r of fullRoster) {
                 const rId = String(r.userId || r.ytelId || '').trim();
                 const rName = (r.fullName || r.name || '').toUpperCase().trim();
-                return rId === key || rName === key || rName === (key || '').toUpperCase();
-            });
+                const keyUpper = String(key).toUpperCase().trim();
+                
+                if (rId === keyUpper || rName === keyUpper) {
+                    rosterMatch = r;
+                    break;
+                }
+            }
             
             let agentName = key;
             let agentTeam = 'PR';
@@ -861,19 +890,26 @@ function render() {
                 agentYtelId = rosterMatch.userId || rosterMatch.ytelId || '';
             }
             
-            return {
+            const agentKey = agentYtelId || agentName.toUpperCase();
+            
+            // Skip if already added (prevents duplicates)
+            if (agentsAdded.has(agentKey)) return;
+            agentsAdded.add(agentKey);
+            
+            prevWeekAgentsList.push({
                 name: agentName,
                 leads: leads,
                 team: agentTeam,
                 ytelId: agentYtelId,
                 rawName: agentName
-            };
-        }).filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH '))
-          .sort((a, b) => b.leads - a.leads);
+            });
+        });
         
-        fullList = prevWeekAgentsList;
+        fullList = prevWeekAgentsList
+            .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH '))
+            .sort((a, b) => b.leads - a.leads);
         
-        console.log('[PREVWK] Found', fullList.length, 'agents with previous week leads');
+        console.log('[PREVWK] Found', fullList.length, 'unique agents with previous week leads');
         
         fullList.forEach(a => {
             const leads = a.leads || 0;
