@@ -7,7 +7,7 @@
  * FIXED: Only show data for TODAY - no old reports on current day
  * FIXED: Weekly tab shows cumulative totals across ALL uploaded days (Mon-Fri)
  * FIXED: PREVWK tab now properly displays previous week totals from reports without duplicates
- * FIXED: Prevents numeric IDs from showing as agent names
+ * FIXED: Prevents orphaned numeric IDs from showing, but keeps valid agents
  */
 
 let isDashboardSubscribed = false;
@@ -49,23 +49,6 @@ function getReportActualDate(report) {
         }
     }
     return new Date(report && report.uploadedAt);
-}
-
-// Helper function to check if a string looks like a numeric ID (not a real name)
-function isNumericIdOnly(str) {
-    if (!str) return true;
-    const s = String(str).trim();
-    // If it's all digits and length is 2-5 digits (typical Ytel ID), treat as ID not name
-    return /^\d{2,5}$/.test(s);
-}
-
-// Helper function to get a valid agent name (never return numeric ID)
-function getValidAgentName(originalName, fallbackName = '') {
-    const name = String(originalName || fallbackName || '').trim();
-    if (isNumericIdOnly(name)) {
-        return fallbackName || 'Unknown Agent';
-    }
-    return name;
 }
 
 // Function to get current date in Guyana time (YYYY-MM-DD)
@@ -605,11 +588,14 @@ function _subscribeLiveDashboard() {
                     });
                 });
                 
-                // Store previous week totals separately (not overwriting with current week)
+                // Store previous week totals separately
                 window._lastWeekTotals = lastWeekAgg;
                 _cachedPrevWeekTotals = lastWeekAgg;
                 _cachedPrevWeekTimestamp = Date.now();
                 console.log('[PREVWK] Calculated previous week totals for', Object.keys(lastWeekAgg).length, 'agents');
+                
+                // Also store in localStorage for persistence
+                localStorage.setItem('biz_prev_week_totals', JSON.stringify(lastWeekAgg));
 
                 // Get current week reports (Monday to today)
                 const thisWeekReports = data.filter(r => {
@@ -636,7 +622,7 @@ function _subscribeLiveDashboard() {
                     }
                 });
                 
-                // Build dayHistory for ALL days Monday-Friday (not just completed)
+                // Build dayHistory for ALL days Monday-Friday
                 dayHistory = FULL_WEEK_DAYS.map(day => {
                     const r = weekMap[day];
                     
@@ -700,7 +686,7 @@ function _subscribeLiveDashboard() {
                 
                 console.log('Day history built:', dayHistory.map(d => ({ day: d.dayName, completed: d.completed, hasData: !d.empty, agentCount: d.agents.length })));
                 
-                // Calculate cumulative weekly totals using ALL days that have data
+                // Calculate cumulative weekly totals
                 const weeklyTotals = calculateWeeklyCumulativeTotals();
                 window._weeklyCumulativeTotals = weeklyTotals;
                 weeklyAccumulatedData = weeklyTotals;
@@ -820,7 +806,7 @@ function render() {
                 const rawName = a.rawName || a.name;
                 return {
                     ...a,
-                    name: getValidAgentName(cleanName || a.name, a.name),
+                    name: cleanName || a.name,
                     rawName: rawName,
                     leads: a.leads || 0,
                     team: normalizeTeam(a.team, rawName)
@@ -845,9 +831,9 @@ function render() {
         console.log('[Weekly Tab] Rendering with', weeklyAgentsList.length, 'agents from cumulative totals');
         
         fullList = weeklyAgentsList
-            .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH ') && !isNumericIdOnly(a.name))
+            .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH '))
             .map(a => ({
-                name: getValidAgentName(a.name, a.name),
+                name: a.name,
                 leads: a.leads || 0,
                 team: a.team,
                 ytelId: a.ytelId,
@@ -867,86 +853,88 @@ function render() {
         
         console.log('[Weekly Tab] Total leads:', totalLeads, 'PR:', prTotal, 'BB:', bbTotal, 'RM:', rmTotal);
     } else if (isPrevWeek) {
-        // 🔥 FIXED: Previous Week logic - use cached previous week totals only
+        // FIXED: Previous Week logic - use cached previous week totals
         console.log('[PREVWK] Rendering previous week');
         
-        // Use the cached previous week totals
-        const prevWeekTotals = _cachedPrevWeekTotals || window._lastWeekTotals || {};
-        
-        // Create a Set of agent identifiers that already have leads to avoid duplicates
-        const agentsAdded = new Set();
-        
-        // Build list from previous week totals
-        const prevWeekAgentsList = [];
-        
-        // First, add all agents from the previous week totals
-        Object.entries(prevWeekTotals).forEach(([key, leads]) => {
-            if (leads <= 0) return;
-            
-            // Skip if key is a numeric ID (no valid name)
-            if (isNumericIdOnly(key)) {
-                console.log('[PREVWK] Skipping numeric ID key:', key);
-                return;
+        // Try to load from localStorage if not in memory
+        let prevWeekTotals = _cachedPrevWeekTotals || window._lastWeekTotals;
+        if (!prevWeekTotals || Object.keys(prevWeekTotals).length === 0) {
+            const saved = localStorage.getItem('biz_prev_week_totals');
+            if (saved) {
+                try {
+                    prevWeekTotals = JSON.parse(saved);
+                    console.log('[PREVWK] Loaded totals from localStorage:', Object.keys(prevWeekTotals).length);
+                } catch(e) {}
             }
+        }
+        
+        if (!prevWeekTotals || Object.keys(prevWeekTotals).length === 0) {
+            fullList = [];
+            console.log('[PREVWK] No previous week totals found');
+        } else {
+            // Create a Set to track unique agent identifiers
+            const agentsAdded = new Set();
+            const prevWeekAgentsList = [];
             
-            // Try to find matching agent in roster
-            let rosterMatch = null;
-            let bestMatchName = key;
-            
-            // Search by key (could be normalized name or ytelId)
-            for (const r of fullRoster) {
-                const rId = String(r.userId || r.ytelId || '').trim();
-                const rName = (r.fullName || r.name || '').toUpperCase().trim();
-                const keyUpper = String(key).toUpperCase().trim();
-                const rNameClean = rName.replace(/^(GYB|GYP|GTM|RM)\s+/i, '').trim();
+            Object.entries(prevWeekTotals).forEach(([key, leads]) => {
+                if (leads <= 0) return;
                 
-                if (rId === keyUpper || rName === keyUpper || rNameClean === keyUpper) {
-                    rosterMatch = r;
-                    break;
+                // Try to find matching agent in roster
+                let rosterMatch = null;
+                let bestMatchName = key;
+                
+                for (const r of fullRoster) {
+                    const rId = String(r.userId || r.ytelId || '').trim();
+                    const rName = (r.fullName || r.name || '').toUpperCase().trim();
+                    const keyUpper = String(key).toUpperCase().trim();
+                    const rNameClean = rName.replace(/^(GYB|GYP|GTM|RM)\s+/i, '').trim();
+                    
+                    if (rId === keyUpper || rName === keyUpper || rNameClean === keyUpper) {
+                        rosterMatch = r;
+                        break;
+                    }
                 }
-            }
-            
-            let agentName = key;
-            let agentTeam = 'PR';
-            let agentYtelId = '';
-            
-            if (rosterMatch) {
-                agentName = rosterMatch.fullName || rosterMatch.name || key;
-                agentTeam = rosterMatch.team || normalizeTeam('', agentName);
-                agentYtelId = rosterMatch.userId || rosterMatch.ytelId || '';
-            } else {
-                // If no roster match, ensure the name is not a numeric ID
-                if (isNumericIdOnly(agentName)) {
-                    console.log('[PREVWK] Skipping unmapped numeric ID:', agentName);
-                    return;
+                
+                let agentName = key;
+                let agentTeam = 'PR';
+                let agentYtelId = '';
+                
+                if (rosterMatch) {
+                    agentName = rosterMatch.fullName || rosterMatch.name || key;
+                    agentTeam = rosterMatch.team || normalizeTeam('', agentName);
+                    agentYtelId = rosterMatch.userId || rosterMatch.ytelId || '';
+                } else {
+                    // If no roster match, clean the name but don't filter out numeric
+                    agentName = key.replace(/^(GYB|GYP|GTM|RM)\s+/i, '').trim();
+                    // Only skip if it's a standalone number AND less than 1000 (likely an ID)
+                    // But keep it if it's a valid looking name
+                    if (/^\d+$/.test(agentName) && agentName.length <= 4 && parseInt(agentName) < 10000) {
+                        console.log('[PREVWK] Skipping orphaned numeric key:', key);
+                        return;
+                    }
                 }
-                // Clean the name from any prefix
-                agentName = agentName.replace(/^(GYB|GYP|GTM|RM)\s+/i, '').trim();
-                if (isNumericIdOnly(agentName)) {
-                    return;
-                }
-            }
-            
-            const agentKey = agentYtelId || agentName.toUpperCase();
-            
-            // Skip if already added (prevents duplicates)
-            if (agentsAdded.has(agentKey)) return;
-            agentsAdded.add(agentKey);
-            
-            prevWeekAgentsList.push({
-                name: agentName,
-                leads: leads,
-                team: agentTeam,
-                ytelId: agentYtelId,
-                rawName: agentName
+                
+                const agentKey = agentYtelId || agentName.toUpperCase();
+                
+                // Skip duplicates
+                if (agentsAdded.has(agentKey)) return;
+                agentsAdded.add(agentKey);
+                
+                prevWeekAgentsList.push({
+                    name: agentName,
+                    leads: leads,
+                    team: agentTeam,
+                    ytelId: agentYtelId,
+                    rawName: agentName
+                });
             });
-        });
-        
-        fullList = prevWeekAgentsList
-            .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH ') && !isNumericIdOnly(a.name))
-            .sort((a, b) => b.leads - a.leads);
-        
-        console.log('[PREVWK] Found', fullList.length, 'unique agents with previous week leads');
+            
+            fullList = prevWeekAgentsList
+                .filter(a => a.name && !String(a.name).toUpperCase().startsWith('PH '))
+                .sort((a, b) => b.leads - a.leads);
+            
+            console.log('[PREVWK] Found', fullList.length, 'unique agents with previous week leads');
+        }
         
         fullList.forEach(a => {
             const leads = a.leads || 0;
@@ -985,7 +973,7 @@ function render() {
                 let leads = a.dailyLeads || 0;
                 if (forceHideDaily) leads = 0;
                 return {
-                    name: getValidAgentName(typeof stripPrefix === 'function' ? stripPrefix(a.name).toUpperCase() : a.name, a.name),
+                    name: typeof stripPrefix === 'function' ? stripPrefix(a.name).toUpperCase() : a.name,
                     leads: leads,
                     team: normalizeTeam(a.team, a.name),
                     ytelId: a.ytelId || '',
