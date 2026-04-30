@@ -124,7 +124,27 @@ function dismissLeadAlert() {
     const banner = document.getElementById('lead-alert-banner');
     if (banner) banner.style.display = 'none';
     document.body.style.paddingTop = '0px';
+    // Also stop tab blinking when dismissing alert
+    if (typeof window.stopTabBlink === 'function') {
+        window.stopTabBlink();
+    }
 }
+
+// Function to stop tab blinking on any user interaction
+function stopBlinkingOnInteraction() {
+    if (typeof window.stopTabBlink === 'function') {
+        window.stopTabBlink();
+    }
+}
+
+// Add global event listeners to stop blinking when user interacts
+document.addEventListener('click', stopBlinkingOnInteraction);
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden && typeof window.stopTabBlink === 'function') {
+        window.stopTabBlink();
+    }
+});
+window.addEventListener('focus', stopBlinkingOnInteraction);
 
 // Function to show/hide tabs based on user role
 function setupRoleBasedTabs() {
@@ -383,6 +403,11 @@ async function loadTab(tabId) {
 const _origSwitchTab = window.switchTab;
 
 window.switchTab = async function(tab) {
+    // Stop tab blinking when user switches tabs
+    if (typeof window.stopTabBlink === 'function') {
+        window.stopTabBlink();
+    }
+    
     const tabViewMap = {
         daily: 'leaderboard-view',
         lookup: 'lookup-view',
