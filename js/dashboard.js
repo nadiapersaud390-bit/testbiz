@@ -1181,6 +1181,11 @@ function switchDayView(key) {
 }
 
 function switchTab(tab) {
+    // Stop tab blinking when user switches tabs
+    if (typeof window.stopTabBlink === 'function') {
+        window.stopTabBlink();
+    }
+    
     if (tab === 'weekly') { requestWeekly(); return; }
 
     currentTab = tab;
