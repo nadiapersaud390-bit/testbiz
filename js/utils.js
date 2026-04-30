@@ -53,9 +53,48 @@ function startTabBlink(msg) {
 }
 
 function stopTabBlink() {
-  if (tabBlinkInterval) clearInterval(tabBlinkInterval);
-  tabBlinkInterval = null;
+  if (tabBlinkInterval) {
+    clearInterval(tabBlinkInterval);
+    tabBlinkInterval = null;
+  }
   if (originalTitle) document.title = originalTitle;
+}
+
+// Auto-stop tab blinking when user interacts with the page
+function setupAutoStopBlink() {
+  // Stop blinking on click anywhere
+  document.addEventListener('click', function() {
+    stopTabBlink();
+  });
+  
+  // Stop blinking when tab becomes visible again
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+      stopTabBlink();
+    }
+  });
+  
+  // Stop blinking when window gains focus
+  window.addEventListener('focus', function() {
+    stopTabBlink();
+  });
+  
+  // Stop blinking on key press
+  document.addEventListener('keydown', function() {
+    stopTabBlink();
+  });
+  
+  // Stop blinking on scroll
+  window.addEventListener('scroll', function() {
+    stopTabBlink();
+  });
+}
+
+// Initialize auto-stop on page load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupAutoStopBlink);
+} else {
+  setupAutoStopBlink();
 }
 
 // ============================================================
