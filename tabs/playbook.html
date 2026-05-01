@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sales Playbook • Paralegal & Legal Disqualifiers (Drill-Down)</title>
+<title>Sales Playbook • Paralegal Drill-Down (Toggle)</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: radial-gradient(circle at 10% 20%, #0a0f1e, #03060c); font-family: system-ui, -apple-system, 'Segoe UI', 'Inter', sans-serif; line-height: 1.4; }
@@ -67,7 +67,6 @@
     .revenue-body { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
     .revenue-body.open { max-height: 850px; }
 
-    /* warning note */
     .warning-note {
         background: transparent;
         border: none;
@@ -128,6 +127,7 @@
         align-items: center;
         cursor: pointer;
     }
+    .industry-header:hover { background: rgba(255, 255, 255, 0.02); }
     .industry-left { display: flex; align-items: center; gap: 14px; }
     .industry-emoji { font-size: 28px; }
     .industry-name { color: #f1f5f9; font-weight: 900; font-size: 16px; letter-spacing: 0.3px; }
@@ -152,15 +152,7 @@
     .success-box { background: rgba(255,255,255,0.02); border-left: 3px solid #10b981; padding: 12px; margin: 10px 0; border-radius: 12px; }
     .info-box { background: rgba(255,255,255,0.02); border-left: 3px solid #3b82f6; padding: 12px; margin: 10px 0; border-radius: 12px; }
 
-    /* custom paralegal drill-down card (matching image style) */
-    .paralegal-drill-card {
-        background: rgba(20, 10, 20, 0.85);
-        border-left: 6px solid #ef4444;
-        border-radius: 20px;
-        padding: 0;
-        overflow: hidden;
-        margin-bottom: 8px;
-    }
+    /* inside paralegal card (toggle body) */
     .paralegal-inner {
         padding: 20px;
     }
@@ -224,7 +216,7 @@
 
 <div class="playbook-container">
 
-    <!-- QUALITY GUIDELINES (with Paralegal added in rule line) -->
+    <!-- QUALITY GUIDELINES (Paralegal added to rule line) -->
     <div class="guidelines-card">
         <div class="guidelines-title">
             ⚡ QUALITY GUIDELINES
@@ -285,35 +277,50 @@
         </div>
 
         <div class="industry-list">
-            <!-- 🔥 PARALEGAL / LAW FIRM DRILL-DOWN (exactly matching image content + style - placed right inside drill-down) -->
-            <div class="paralegal-drill-card">
-                <div class="paralegal-inner">
-                    <div class="paralegal-title-main">
-                        🚫⛔ PARALEGAL / LAW FIRM WORKERS – AUTOMATIC DNO ⛔🚫
+            <!-- 🔥 PARALEGAL / LAW FIRM DRILL-DOWN (toggle card – opens/closes like others) -->
+            <div class="industry-card" id="paralegal-card">
+                <div class="industry-header" onclick="toggleIndustry(this)">
+                    <div class="industry-left">
+                        <span class="industry-emoji">⚖️🚫</span>
+                        <div>
+                            <div class="industry-name">PARALEGAL & LAW FIRM WORKERS</div>
+                            <div class="industry-rule">AUTOMATIC DNO — OPEN FOR DETAILS</div>
+                        </div>
                     </div>
-                    <div class="paralegal-quicktip">
-                        <strong>📌 Quick tip:</strong> We do NOT work with lawyers, attorneys, or anyone connected to legal practices.<br><br>
-                        <strong>❓ What is a ‘paralegal’?</strong> A paralegal is someone who works for a lawyer or law firm, helping with legal documents, cases, or research. 
-                        They are <strong style="color:#f87171;">NOT qualified</strong> for our program — regardless of revenue or ownership.
+                    <div class="industry-right">
+                        <span class="badge-read">⚠️ DRILL DOWN</span>
+                        <span class="industry-arrow">▼</span>
                     </div>
-                    <div><strong style="color:#facc15;">If a customer says any of these → DO NOT TRANSFER</strong></div>
-                    <div class="legal-badge-list">
-                        <span class="legal-badge-item">"I work at a law firm"</span>
-                        <span class="legal-badge-item">"I'm a paralegal"</span>
-                        <span class="legal-badge-item">"I offer paralegal services"</span>
-                        <span class="legal-badge-item">"Legal assistant"</span>
-                        <span class="legal-badge-item">"Law office"</span>
-                        <span class="legal-badge-item">"Legal services"</span>
-                        <span class="legal-badge-item">"Legal secretary"</span>
-                        <span class="legal-badge-item">"Court reporter"</span>
-                        <span class="legal-badge-item">"Notary public (if working for a law firm)"</span>
-                    </div>
-                    <div class="when-doubt-box">
-                        🔎 WHEN IN DOUBT, ASK: <em>“Do you work for a law firm or provide legal services?”</em> If <strong>YES</strong> → ❌ NO TRANSFER. DNO immediately.
-                    </div>
-                    <div class="micro-footer-card">
-                        <span class="badge-red-solid">⛔ DNO • END CALL</span>
-                        <span style="font-size: 12px; color: #94a3b8;">Keep quality clean — paralegal = automatic disqualifier</span>
+                </div>
+                <div class="industry-body" id="paralegal-body">
+                    <div class="paralegal-inner">
+                        <div class="paralegal-title-main">
+                            🚫⛔ PARALEGAL / LAW FIRM WORKERS – AUTOMATIC DNO ⛔🚫
+                        </div>
+                        <div class="paralegal-quicktip">
+                            <strong>📌 Quick tip:</strong> We do NOT work with lawyers, attorneys, or anyone connected to legal practices.<br><br>
+                            <strong>❓ What is a ‘paralegal’?</strong> A paralegal is someone who works for a lawyer or law firm, helping with legal documents, cases, or research. 
+                            They are <strong style="color:#f87171;">NOT qualified</strong> for our program — regardless of revenue or ownership.
+                        </div>
+                        <div><strong style="color:#facc15;">If a customer says any of these → DO NOT TRANSFER</strong></div>
+                        <div class="legal-badge-list">
+                            <span class="legal-badge-item">"I work at a law firm"</span>
+                            <span class="legal-badge-item">"I'm a paralegal"</span>
+                            <span class="legal-badge-item">"I offer paralegal services"</span>
+                            <span class="legal-badge-item">"Legal assistant"</span>
+                            <span class="legal-badge-item">"Law office"</span>
+                            <span class="legal-badge-item">"Legal services"</span>
+                            <span class="legal-badge-item">"Legal secretary"</span>
+                            <span class="legal-badge-item">"Court reporter"</span>
+                            <span class="legal-badge-item">"Notary public (if working for a law firm)"</span>
+                        </div>
+                        <div class="when-doubt-box">
+                            🔎 WHEN IN DOUBT, ASK: <em>“Do you work for a law firm or provide legal services?”</em> If <strong>YES</strong> → ❌ NO TRANSFER. DNO immediately.
+                        </div>
+                        <div class="micro-footer-card">
+                            <span class="badge-red-solid">⛔ DNO • END CALL</span>
+                            <span style="font-size: 12px; color: #94a3b8;">Keep quality clean — paralegal = automatic disqualifier</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -356,7 +363,7 @@
 </div>
 
 <script>
-    // Toggle Industry function (only one open at a time, exclude the static paralegal card which doesn't need toggling)
+    // Toggle Industry function (works for all .industry-card including paralegal)
     function toggleIndustry(header) {
         const card = header.closest('.industry-card');
         if (!card) return;
@@ -364,7 +371,7 @@
         const arrow = header.querySelector('.industry-arrow');
         const isOpen = body.classList.contains('open');
 
-        // close all other open bodies
+        // close all other open industry bodies (so only one open at a time)
         document.querySelectorAll('.industry-card .industry-body.open').forEach(b => {
             if (b !== body) b.classList.remove('open');
         });
@@ -372,6 +379,7 @@
             if (a !== arrow) a.classList.remove('open');
         });
 
+        // toggle current
         if (!isOpen) {
             body.classList.add('open');
             if (arrow) arrow.classList.add('open');
@@ -396,7 +404,7 @@
         }
     }
 
-    // Live time updates (optional - decorative)
+    // optional live timers (just for consistency)
     function updatePlaybookTimes() {
         const dayElem = document.getElementById('playbook-day');
         const guyanaElem = document.getElementById('playbook-guyana-time');
