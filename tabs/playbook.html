@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sales Playbook • Paralegal Drill-Down (Toggle Fixed)</title>
+<title>Sales Playbook • Full Industry Drill-Down + Paralegal</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: radial-gradient(circle at 10% 20%, #0a0f1e, #03060c); font-family: system-ui, -apple-system, 'Segoe UI', 'Inter', sans-serif; line-height: 1.4; }
@@ -17,7 +17,6 @@
         border-radius: 24px;
         padding: 24px;
         margin-bottom: 28px;
-        transition: all 0.2s;
     }
     .guidelines-title {
         font-size: 20px;
@@ -76,7 +75,6 @@
         color: #f97316;
         font-style: italic;
         font-size: 14px;
-        letter-spacing: 0.5px;
     }
 
     /* Industry Section Header */
@@ -126,7 +124,6 @@
         justify-content: space-between;
         align-items: center;
         cursor: pointer;
-        transition: background 0.2s;
     }
     .industry-header:hover { background: rgba(255, 255, 255, 0.03); }
     .industry-left { display: flex; align-items: center; gap: 14px; }
@@ -134,19 +131,9 @@
     .industry-name { color: #f1f5f9; font-weight: 900; font-size: 16px; letter-spacing: 0.3px; }
     .industry-rule { font-size: 11px; color: #f97316; font-weight: 700; text-transform: uppercase; margin-top: 3px; }
     .industry-right { display: flex; gap: 12px; align-items: center; }
-    .industry-arrow { 
-        color: #94a3b8; 
-        font-size: 14px; 
-        transition: transform 0.2s ease;
-        display: inline-block;
-    }
+    .industry-arrow { color: #94a3b8; font-size: 14px; transition: transform 0.2s ease; display: inline-block; }
     .industry-arrow.open { transform: rotate(180deg); }
-    .industry-body { 
-        max-height: 0; 
-        overflow: hidden; 
-        transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
-        border-top: 1px solid rgba(255,255,255,0.05);
-    }
+    .industry-body { max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1); border-top: 1px solid rgba(255,255,255,0.05); }
     .industry-body.open { max-height: 800px; }
 
     .badge-ask { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; padding: 4px 14px; border-radius: 40px; font-size: 10px; font-weight: 800; white-space: nowrap; }
@@ -163,60 +150,14 @@
     .success-box { background: rgba(255,255,255,0.02); border-left: 3px solid #10b981; padding: 12px; margin: 10px 0; border-radius: 12px; }
     .info-box { background: rgba(255,255,255,0.02); border-left: 3px solid #3b82f6; padding: 12px; margin: 10px 0; border-radius: 12px; }
 
-    /* inside paralegal card (toggle body) */
-    .paralegal-inner {
-        padding: 20px;
-    }
-    .paralegal-title-main {
-        font-size: 18px;
-        font-weight: 900;
-        color: #ff8c8c;
-        margin-bottom: 16px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        letter-spacing: -0.2px;
-    }
-    .paralegal-quicktip {
-        background: rgba(0,0,0,0.4);
-        border-radius: 14px;
-        padding: 12px 16px;
-        margin: 12px 0;
-        font-size: 14px;
-        color: #e2e8f0;
-        border: 1px solid rgba(239,68,68,0.25);
-    }
-    .legal-badge-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin: 15px 0 12px 0;
-    }
-    .legal-badge-item {
-        background: rgba(239,68,68,0.2);
-        border: 1px solid rgba(239,68,68,0.5);
-        padding: 6px 16px;
-        border-radius: 60px;
-        font-size: 12px;
-        font-weight: 700;
-        color: #fca5a5;
-    }
-    .when-doubt-box {
-        margin: 16px 0 12px;
-        padding: 12px;
-        background: rgba(0,0,0,0.3);
-        border-radius: 14px;
-        font-style: italic;
-        font-weight: 600;
-        border-left: 3px solid #f97316;
-    }
-    .micro-footer-card {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        margin-top: 16px;
-        flex-wrap: wrap;
-    }
+    /* paralegal inner content */
+    .paralegal-inner { padding: 20px; }
+    .paralegal-title-main { font-size: 18px; font-weight: 900; color: #ff8c8c; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .paralegal-quicktip { background: rgba(0,0,0,0.4); border-radius: 14px; padding: 12px 16px; margin: 12px 0; font-size: 14px; color: #e2e8f0; border: 1px solid rgba(239,68,68,0.25); }
+    .legal-badge-list { display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0 12px 0; }
+    .legal-badge-item { background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.5); padding: 6px 16px; border-radius: 60px; font-size: 12px; font-weight: 700; color: #fca5a5; }
+    .when-doubt-box { margin: 16px 0 12px; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 14px; font-style: italic; font-weight: 600; border-left: 3px solid #f97316; }
+    .micro-footer-card { display: flex; gap: 12px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
     .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent); margin: 28px 0; }
     .phrase-bubbles { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 20px 0; }
     .phrase { background: rgba(51, 65, 85, 0.7); padding: 8px 20px; border-radius: 60px; font-size: 13px; font-style: italic; color: #e2e8f0; backdrop-filter: blur(4px);}
@@ -227,32 +168,18 @@
 
 <div class="playbook-container">
 
-    <!-- QUALITY GUIDELINES (Paralegal added to rule line) -->
+    <!-- QUALITY GUIDELINES -->
     <div class="guidelines-card">
-        <div class="guidelines-title">
-            ⚡ QUALITY GUIDELINES
-        </div>
+        <div class="guidelines-title">⚡ QUALITY GUIDELINES</div>
         <ol class="guidelines-list">
             <li>Need to be in business for over 1 Year</li>
             <li>Primary Owner of the business 100% or at least 50%</li>
-            <li>
-                <span class="no-text">No</span> Trucking Companies &nbsp;·&nbsp;
-                <span class="ok-text">Vans OK</span> &nbsp;·&nbsp;
-                <span class="no-text">No</span> Attorneys / Lawyers / <strong class="no-text">Paralegal</strong> &nbsp;·&nbsp;
-                <span class="no-text">No</span> Detachable Tractor
-            </li>
+            <li><span class="no-text">No</span> Trucking Companies &nbsp;·&nbsp; <span class="ok-text">Vans OK</span> &nbsp;·&nbsp; <span class="no-text">No</span> Attorneys / Lawyers / <strong class="no-text">Paralegal</strong> &nbsp;·&nbsp; <span class="no-text">No</span> Detachable Tractor</li>
         </ol>
 
-        <!-- Revenue Dropdown -->
         <div class="revenue-card">
             <div class="revenue-header" onclick="toggleRevenueDropdown()">
-                <div class="revenue-title-wrap">
-                    <span class="revenue-icon">🟡</span>
-                    <div>
-                        <div class="revenue-title">4. LAST YEAR REVENUE</div>
-                        <div class="revenue-sub">Tap to see how to ask &amp; what qualifies</div>
-                    </div>
-                </div>
+                <div class="revenue-title-wrap"><span class="revenue-icon">🟡</span><div><div class="revenue-title">4. LAST YEAR REVENUE</div><div class="revenue-sub">Tap to see how to ask &amp; what qualifies</div></div></div>
                 <span class="revenue-arrow" id="revenue-arrow">▼</span>
             </div>
             <div class="revenue-body" id="revenue-body">
@@ -261,7 +188,7 @@
                     <div class="details-text">You need their <strong>2025 gross annual revenue</strong> — total top-line number before taxes, deductions, or expenses.</div>
                     <div class="details-title">🎯 STEP A</div>
                     <div class="details-text">"Does your business generate at least $1 million a year in revenue?"</div>
-                    <div class="success-box"><strong>✅ YES</strong><br>"Can you please provide a rough estimate of how much?"<br><span class="badge-green" style="margin-top: 6px;">QUALIFIED — Transfer (Over $1M Line)</span></div>
+                    <div class="success-box"><strong>✅ YES</strong><br>"Can you please provide a rough estimate of how much?"<br><span class="badge-green">QUALIFIED — Transfer (Over $1M Line)</span></div>
                     <div class="info-box"><strong>➡️ NO</strong><br>Continue to Step B below.</div>
                     <div class="details-title" style="margin-top: 16px;">🎯 STEP B</div>
                     <div class="details-text">"Does your business generate at least $200K in revenue per year?"</div>
@@ -277,85 +204,125 @@
     <div class="warning-note">⚠️ IF QUALIFIERS ARE NOT MET YOU CANNOT TRANSFER!!! (including paralegal / law firm roles)</div>
     <div class="divider"></div>
 
-    <!-- KNOW BEFORE YOU TRANSFER + INDUSTRY DRILL-DOWN -->
+    <!-- KNOW BEFORE YOU TRANSFER + FULL INDUSTRY DRILL-DOWN -->
     <div style="margin-bottom: 24px;">
         <div class="industry-section-header">
             <div class="industry-section-icon">🏆</div>
-            <div class="industry-section-text">
-                <div class="industry-section-sub">KNOW BEFORE YOU TRANSFER</div>
-                <div class="industry-section-title">INDUSTRY DRILL-DOWN</div>
-            </div>
+            <div><div class="industry-section-sub">KNOW BEFORE YOU TRANSFER</div><div class="industry-section-title">INDUSTRY DRILL-DOWN</div></div>
         </div>
 
         <div class="industry-list">
-            <!-- 🔥 PARALEGAL / LAW FIRM DRILL-DOWN (toggle card – opens/closes like others) -->
-            <div class="industry-card" id="paralegal-card">
+            <!-- PARALEGAL CARD (toggle-able) -->
+            <div class="industry-card">
                 <div class="industry-header" onclick="toggleIndustry(this)">
-                    <div class="industry-left">
-                        <span class="industry-emoji">⚖️🚫</span>
-                        <div>
-                            <div class="industry-name">PARALEGAL & LAW FIRM WORKERS</div>
-                            <div class="industry-rule">AUTOMATIC DNO — CLICK FOR DETAILS</div>
-                        </div>
-                    </div>
-                    <div class="industry-right">
-                        <span class="badge-read">⚠️ DRILL DOWN</span>
-                        <span class="industry-arrow">▼</span>
-                    </div>
+                    <div class="industry-left"><span class="industry-emoji">⚖️🚫</span><div><div class="industry-name">PARALEGAL & LAW FIRM WORKERS</div><div class="industry-rule">AUTOMATIC DNO — CLICK FOR DETAILS</div></div></div>
+                    <div class="industry-right"><span class="badge-read">⚠️ DRILL DOWN</span><span class="industry-arrow">▼</span></div>
                 </div>
-                <div class="industry-body" id="paralegal-body">
+                <div class="industry-body">
                     <div class="paralegal-inner">
-                        <div class="paralegal-title-main">
-                            🚫⛔ PARALEGAL / LAW FIRM WORKERS – AUTOMATIC DNO ⛔🚫
-                        </div>
-                        <div class="paralegal-quicktip">
-                            <strong>📌 Quick tip:</strong> We do NOT work with lawyers, attorneys, or anyone connected to legal practices.<br><br>
-                            <strong>❓ What is a 'paralegal'?</strong> A paralegal is someone who works for a lawyer or law firm, helping with legal documents, cases, or research. 
-                            They are <strong style="color:#f87171;">NOT qualified</strong> for our program — regardless of revenue or ownership.
-                        </div>
+                        <div class="paralegal-title-main">🚫⛔ PARALEGAL / LAW FIRM WORKERS – AUTOMATIC DNO ⛔🚫</div>
+                        <div class="paralegal-quicktip"><strong>📌 Quick tip:</strong> We do NOT work with lawyers, attorneys, or anyone connected to legal practices.<br><br><strong>❓ What is a 'paralegal'?</strong> A paralegal is someone who works for a lawyer or law firm, helping with legal documents, cases, or research. They are <strong style="color:#f87171;">NOT qualified</strong> for our program — regardless of revenue or ownership.</div>
                         <div><strong style="color:#facc15;">If a customer says any of these → DO NOT TRANSFER</strong></div>
-                        <div class="legal-badge-list">
-                            <span class="legal-badge-item">"I work at a law firm"</span>
-                            <span class="legal-badge-item">"I'm a paralegal"</span>
-                            <span class="legal-badge-item">"I offer paralegal services"</span>
-                            <span class="legal-badge-item">"Legal assistant"</span>
-                            <span class="legal-badge-item">"Law office"</span>
-                            <span class="legal-badge-item">"Legal services"</span>
-                            <span class="legal-badge-item">"Legal secretary"</span>
-                            <span class="legal-badge-item">"Court reporter"</span>
-                            <span class="legal-badge-item">"Notary public (if working for a law firm)"</span>
-                        </div>
-                        <div class="when-doubt-box">
-                            🔎 WHEN IN DOUBT, ASK: <em>"Do you work for a law firm or provide legal services?"</em> If <strong>YES</strong> → ❌ NO TRANSFER. DNO immediately.
-                        </div>
-                        <div class="micro-footer-card">
-                            <span class="badge-red-solid">⛔ DNO • END CALL</span>
-                            <span style="font-size: 12px; color: #94a3b8;">Keep quality clean — paralegal = automatic disqualifier</span>
-                        </div>
+                        <div class="legal-badge-list"><span class="legal-badge-item">"I work at a law firm"</span><span class="legal-badge-item">"I'm a paralegal"</span><span class="legal-badge-item">"I offer paralegal services"</span><span class="legal-badge-item">"Legal assistant"</span><span class="legal-badge-item">"Law office"</span><span class="legal-badge-item">"Legal services"</span><span class="legal-badge-item">"Legal secretary"</span><span class="legal-badge-item">"Court reporter"</span><span class="legal-badge-item">"Notary public (if working for a law firm)"</span></div>
+                        <div class="when-doubt-box">🔎 WHEN IN DOUBT, ASK: <em>"Do you work for a law firm or provide legal services?"</em> If <strong>YES</strong> → ❌ NO TRANSFER. DNO immediately.</div>
+                        <div class="micro-footer-card"><span class="badge-red-solid">⛔ DNO • END CALL</span><span style="font-size: 12px; color: #94a3b8;">Keep quality clean — paralegal = automatic disqualifier</span></div>
                     </div>
                 </div>
             </div>
 
-            <!-- TRACTOR -->
+            <!-- TRACTOR - FULL DRILL DOWN -->
             <div class="industry-card">
                 <div class="industry-header" onclick="toggleIndustry(this)">
                     <div class="industry-left"><span class="industry-emoji">🚜</span><div><div class="industry-name">TRACTOR</div><div class="industry-rule">DEPENDS ON TRACTOR TYPE</div></div></div>
                     <div class="industry-right"><span class="badge-ask">ASK FIRST</span><span class="industry-arrow">▼</span></div>
                 </div>
-                <div class="industry-body"><div class="details-content"><div class="details-title">🔑 KEY QUESTION</div><div class="details-text">"Is it a detachable tractor?"</div><div class="warning-box"><strong>❌ DETACHABLE TRACTOR = TRUCK — CANNOT WORK</strong></div><div class="success-box"><strong>✅ NON-DETACHABLE (FARM/EQUIPMENT) — CAN WORK</strong></div></div></div>
+                <div class="industry-body">
+                    <div class="details-content">
+                        <div class="details-title">🔑 KEY QUESTION TO ASK</div>
+                        <div class="details-text">"Is it a detachable tractor?"</div>
+                        <div class="warning-box"><strong>❌ DETACHABLE TRACTOR = TRUCK — CANNOT WORK</strong><br>A detachable tractor is classified as a truck. This falls under the No Trucking rule — end and move on.</div>
+                        <div class="success-box"><strong>✅ NON-DETACHABLE (FARM / EQUIPMENT) — CAN WORK</strong><br>Farm tractors or heavy equipment that are not detachable semis can qualify.</div>
+                        <div><span class="badge-green">ASK FIRST</span></div>
+                    </div>
+                </div>
             </div>
 
-            <!-- LOGGING -->
-            <div class="industry-card"><div class="industry-header" onclick="toggleIndustry(this)"><div class="industry-left"><span class="industry-emoji">🌲</span><div><div class="industry-name">LOGGING</div><div class="industry-rule">MUST OPERATE ALL 12 MONTHS</div></div></div><div class="industry-right"><span class="badge-ask">ASK FIRST</span><span class="industry-arrow">▼</span></div></div><div class="industry-body"><div class="details-content"><div class="details-text">"How many months out of the year is your business actively operating?"</div><div class="warning-box">❌ UNDER 12 MONTHS — CANNOT WORK</div><div class="success-box">✅ FULL 12 MONTHS — CAN WORK</div></div></div></div>
+            <!-- LOGGING - FULL DRILL DOWN -->
+            <div class="industry-card">
+                <div class="industry-header" onclick="toggleIndustry(this)">
+                    <div class="industry-left"><span class="industry-emoji">🌲</span><div><div class="industry-name">LOGGING</div><div class="industry-rule">MUST OPERATE ALL 12 MONTHS — NO EXCEPTIONS</div></div></div>
+                    <div class="industry-right"><span class="badge-ask">ASK FIRST</span><span class="industry-arrow">▼</span></div>
+                </div>
+                <div class="industry-body">
+                    <div class="details-content">
+                        <div class="details-title">📋 WHY THIS MATTERS</div>
+                        <div class="details-text">Logging is a seasonal industry. Many operators shut down in winter. To qualify, they must be operating all 12 months of the year.</div>
+                        <div class="details-title">🎯 STEP 1</div>
+                        <div class="details-text">"Is this a logging or timber business?"</div>
+                        <div class="details-title">🎯 STEP 2 — THE CRITICAL QUESTION</div>
+                        <div class="details-text">"How many months out of the year is your business actively operating?"</div>
+                        <div class="warning-box"><strong>🔴 UNDER 12 MONTHS — CANNOT WORK</strong><br>Any seasonal shutdown disqualifies them.</div>
+                        <div class="success-box"><strong>🟢 FULL 12 MONTHS — CAN WORK</strong><br>Year-round confirmed — proceed to transfer.</div>
+                    </div>
+                </div>
+            </div>
 
-            <!-- CONSTRUCTION -->
-            <div class="industry-card"><div class="industry-header" onclick="toggleIndustry(this)"><div class="industry-left"><span class="industry-emoji">🏗️</span><div><div class="industry-name">CONSTRUCTION</div><div class="industry-rule">DEPENDS ON FUND USE</div></div></div><div class="industry-right"><span class="badge-drill">DRILL DOWN</span><span class="industry-arrow">▼</span></div></div><div class="industry-body"><div class="details-content"><div class="details-text">"Does your construction business deal with trucking?" If yes, drill on fund usage. Funds for trucks = NO. Funds for crew/payroll = YES.</div><div class="success-box">✅ NO TRUCKING INVOLVED — CAN WORK</div><div class="warning-box">❌ FUNDS FOR TRUCKS = disqualify</div></div></div></div>
+            <!-- CONSTRUCTION - FULL DRILL DOWN -->
+            <div class="industry-card">
+                <div class="industry-header" onclick="toggleIndustry(this)">
+                    <div class="industry-left"><span class="industry-emoji">🏗️</span><div><div class="industry-name">CONSTRUCTION</div><div class="industry-rule">DEPENDS ON FUND USE</div></div></div>
+                    <div class="industry-right"><span class="badge-drill">DRILL DOWN</span><span class="industry-arrow">▼</span></div>
+                </div>
+                <div class="industry-body">
+                    <div class="details-content">
+                        <div class="details-title">🎯 STEP 1</div>
+                        <div class="details-text">"Does your construction business deal with trucking?"</div>
+                        <div class="details-title">🎯 STEP 2 — IF YES – TRUCKING INVOLVED</div>
+                        <div class="details-text">"Is trucking a major part of your business?"</div>
+                        <div class="details-title">🎯 STEP 3 — IF YES – MAJOR PART</div>
+                        <div class="details-text">"What will you be using the funds for?"</div>
+                        <div class="warning-box"><strong>❌ FUNDS FOR TRUCKS — CANNOT WORK</strong><br>If funds are going toward trucks or trucking equipment — cannot proceed.</div>
+                        <div class="success-box"><strong>✅ FUNDS FOR CREW / PAYROLL / OTHER — CAN WORK</strong><br>If funds are for crew, payroll, materials, or anything besides trucking — transfer.</div>
+                        <div class="success-box"><strong>✅ NO TRUCKING INVOLVED — CAN WORK</strong><br>Construction with no trucking component qualifies. Proceed with transfer.</div>
+                    </div>
+                </div>
+            </div>
 
             <!-- LAWYER / ATTORNEY -->
-            <div class="industry-card"><div class="industry-header" onclick="toggleIndustry(this)"><div class="industry-left"><span class="industry-emoji">⚖️</span><div><div class="industry-name">LAWYER / ATTORNEY</div><div class="industry-rule">AUTOMATIC DQ</div></div></div><div class="industry-right"><span class="badge-read">READ THIS</span><span class="industry-arrow">▼</span></div></div><div class="industry-body"><div class="details-content"><div class="warning-box"><strong>⚖️ LAWYER OR ATTORNEY — CANNOT WORK. PERIOD.</strong><br>Even if they also own a separate business. Automatic disqualifier. (Paralegals detailed in section above)</div></div></div></div>
+            <div class="industry-card">
+                <div class="industry-header" onclick="toggleIndustry(this)">
+                    <div class="industry-left"><span class="industry-emoji">⚖️</span><div><div class="industry-name">LAWYER / ATTORNEY</div><div class="industry-rule">EVEN IF THEY OWN ANOTHER BUSINESS</div></div></div>
+                    <div class="industry-right"><span class="badge-read">READ THIS</span><span class="industry-arrow">▼</span></div>
+                </div>
+                <div class="industry-body">
+                    <div class="details-content">
+                        <div class="details-title">🔑 KEY QUESTION TO ASK</div>
+                        <div class="details-text">"What is your profession or primary occupation?"</div>
+                        <div class="warning-box"><strong>⚖️ LAWYER OR ATTORNEY — CANNOT WORK. PERIOD.</strong><br>Even if they also own a separate business — automatic disqualifier. Do not transfer under any circumstances.</div>
+                        <div><span class="badge-red">READ THIS</span></div>
+                    </div>
+                </div>
+            </div>
 
-            <!-- TRANSPORTATION -->
-            <div class="industry-card"><div class="industry-header" onclick="toggleIndustry(this)"><div class="industry-left"><span class="industry-emoji">🚐</span><div><div class="industry-name">TRANSPORTATION</div><div class="industry-rule">DEPENDS ON TYPE</div></div></div><div class="industry-right"><span class="badge-ask">ASK FIRST</span><span class="industry-arrow">▼</span></div></div><div class="industry-body"><div class="details-content"><div class="details-text">Detachable tractor, truck, freight carrier = NO. Vans, buses, shuttles, taxi = YES (with confirmation).</div><div class="success-box">✅ VAN / PASSENGER TRANSPORT — OK</div><div class="warning-box">❌ SEMI / DETACHABLE / FREIGHT — NO TRANSFER</div></div></div></div>
+            <!-- TRANSPORTATION - FULL DRILL DOWN -->
+            <div class="industry-card">
+                <div class="industry-header" onclick="toggleIndustry(this)">
+                    <div class="industry-left"><span class="industry-emoji">🚐</span><div><div class="industry-name">TRANSPORTATION</div><div class="industry-rule">DEPENDS ON TRANSPORT TYPE</div></div></div>
+                    <div class="industry-right"><span class="badge-ask">ASK FIRST</span><span class="industry-arrow">▼</span></div>
+                </div>
+                <div class="industry-body">
+                    <div class="details-content">
+                        <div class="details-title">🔑 KEY QUESTION TO ASK</div>
+                        <div class="details-text">"What type of transportation does your business operate?"</div>
+                        <div class="warning-box"><strong>❌ DETACHABLE TRACTOR (SEMI / 18-WHEELER)</strong><br>CANNOT WORK — Classified as trucking.</div>
+                        <div class="warning-box"><strong>❌ TRUCK</strong><br>CANNOT WORK — Trucking business.</div>
+                        <div class="success-box"><strong>✅ VAN</strong><br>CAN WORK — Vans are acceptable. Ask what they use it for.</div>
+                        <div class="warning-box"><strong>❌ FREIGHT CARRIER</strong><br>CANNOT WORK — Freight/cargo restrictions apply.</div>
+                        <div class="success-box"><strong>✅ BUS / COACH / SHUTTLE / TAXI / RIDESHARE</strong><br>CAN WORK — Passenger transport is acceptable.</div>
+                        <div class="warning-box"><strong>📌 BOTTOM LINE</strong><br>Detachable tractor, truck, or freight carrier = NO TRANSFER. Vans = OK with confirmation.</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -363,49 +330,34 @@
     <div class="micro-tips">
         <h3 style="font-size: 17px; font-weight: 900; margin-bottom: 12px; color: #f1f5f9;">🎯 MICRO-TRUST & LEGAL SCREENING</h3>
         <p style="font-size: 13px; color: #facc15; margin-bottom: 8px;">⚡ Double-check for paralegal / law firm red flags: <strong>"Do you work in any legal capacity or law firm?"</strong> If yes → DNO.</p>
-        <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 12px;">After every 2 questions, give short acknowledgment phrases to keep the call human:</p>
-        <div class="phrase-bubbles">
-            <span class="phrase">"Perfect, thank you."</span>
-            <span class="phrase">"Got it, that helps."</span>
-            <span class="phrase">"That's great to know."</span>
-        </div>
-        <p style="font-size: 10px; color: #a855f7; margin-top: 16px; font-style: italic;">KEEP THE RHYTHM CLEAN — NO PARALEGALS, NO LAW FIRM EMPLOYEES. QUALITY OVER QUANTITY.</p>
+        <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 12px;">After every 2 questions, give short acknowledgment phrases:</p>
+        <div class="phrase-bubbles"><span class="phrase">"Perfect, thank you."</span><span class="phrase">"Got it, that helps."</span><span class="phrase">"That's great to know."</span></div>
+        <p style="font-size: 10px; color: #a855f7; font-style: italic;">KEEP THE RHYTHM CLEAN — NO PARALEGALS, NO LAW FIRM EMPLOYEES. QUALITY OVER QUANTITY.</p>
     </div>
 </div>
 
 <script>
-    // FIXED: Robust toggle function that works on all industry cards
+    // Toggle function for industry cards (opens/closes with smooth animation)
     function toggleIndustry(headerElement) {
-        // Find the parent industry card
         let card = headerElement.closest('.industry-card');
         if (!card) return;
         
-        // Find the body and arrow within this card
         let body = card.querySelector('.industry-body');
         let arrow = card.querySelector('.industry-arrow');
         
         if (!body) return;
         
-        // Check if current body is open
         let isOpen = body.classList.contains('open');
         
-        // Close all OTHER industry bodies (so only one open at a time)
-        let allBodies = document.querySelectorAll('.industry-card .industry-body');
-        let allArrows = document.querySelectorAll('.industry-card .industry-arrow');
-        
-        allBodies.forEach(b => {
-            if (b !== body && b.classList.contains('open')) {
-                b.classList.remove('open');
-            }
+        // Close all other open bodies
+        document.querySelectorAll('.industry-card .industry-body.open').forEach(b => {
+            if (b !== body) b.classList.remove('open');
+        });
+        document.querySelectorAll('.industry-card .industry-arrow.open').forEach(a => {
+            if (a !== arrow) a.classList.remove('open');
         });
         
-        allArrows.forEach(a => {
-            if (a !== arrow && a.classList.contains('open')) {
-                a.classList.remove('open');
-            }
-        });
-        
-        // Toggle the current one
+        // Toggle current one
         if (!isOpen) {
             body.classList.add('open');
             if (arrow) arrow.classList.add('open');
@@ -430,7 +382,7 @@
         }
     }
 
-    // optional live timers (just for consistency)
+    // Live timers (decorative)
     function updatePlaybookTimes() {
         const dayElem = document.getElementById('playbook-day');
         const guyanaElem = document.getElementById('playbook-guyana-time');
@@ -452,12 +404,8 @@
     updatePlaybookTimes();
     setInterval(updatePlaybookTimes, 1000);
 
-    // Make functions globally available
     window.toggleIndustry = toggleIndustry;
     window.toggleRevenueDropdown = toggleRevenueDropdown;
-    
-    // Optional: log that script is loaded
-    console.log('Playbook loaded - toggle functions ready');
 </script>
 </body>
 </html>
