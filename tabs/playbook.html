@@ -3,12 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sales Playbook • Paralegal & Legal Disqualifiers</title>
+<title>Sales Playbook • Paralegal & Legal Disqualifiers (Drill-Down)</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: radial-gradient(circle at 10% 20%, #0a0f1e, #03060c); font-family: system-ui, -apple-system, 'Segoe UI', 'Inter', sans-serif; line-height: 1.4; }
     .playbook-container { max-width: 1280px; margin: 0 auto; padding: 24px 20px 48px; }
-    .live-badge { background: linear-gradient(135deg, #10b981, #059669); display: inline-block; padding: 4px 12px; border-radius: 50px; font-size: 10px; font-weight: 900; letter-spacing: 1px; margin-bottom: 15px; }
 
     /* guidelines + cards unified */
     .guidelines-card {
@@ -42,59 +41,6 @@
     .guidelines-list li { margin-bottom: 14px; }
     .no-text { color: #f97316; font-weight: 800; }
     .ok-text { color: #2dd4bf; font-weight: 800; }
-
-    /* paralegal warning card (neutral background, strong red border) */
-    .paralegal-alert-card {
-        background: rgba(20, 10, 20, 0.9);
-        border-left: 6px solid #ef4444;
-        border-radius: 20px;
-        padding: 18px 22px;
-        margin: 18px 0 22px 0;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-    }
-    .paralegal-title {
-        font-size: 18px;
-        font-weight: 900;
-        color: #ff8c8c;
-        letter-spacing: -0.2px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 12px;
-    }
-    .paralegal-definition {
-        background: rgba(0,0,0,0.4);
-        padding: 12px 16px;
-        border-radius: 14px;
-        margin: 12px 0;
-        color: #f1f5f9;
-        font-size: 14px;
-        border: 1px solid rgba(239,68,68,0.3);
-    }
-    .legal-badge-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 12px;
-        margin-bottom: 10px;
-    }
-    .legal-badge-item {
-        background: rgba(239,68,68,0.2);
-        border: 1px solid rgba(239,68,68,0.5);
-        padding: 6px 14px;
-        border-radius: 60px;
-        font-size: 12px;
-        font-weight: 700;
-        color: #fca5a5;
-    }
-    .when-in-doubt {
-        margin-top: 14px;
-        padding: 8px 0 0;
-        font-style: italic;
-        border-top: 1px dashed rgba(255,255,255,0.1);
-        font-weight: 600;
-        color: #facc15;
-    }
 
     /* Revenue Dropdown */
     .revenue-card {
@@ -190,7 +136,7 @@
     .industry-arrow { color: #94a3b8; font-size: 14px; transition: transform 0.2s; }
     .industry-arrow.open { transform: rotate(180deg); }
     .industry-body { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; border-top: 1px solid rgba(255,255,255,0.05); }
-    .industry-body.open { max-height: 650px; }
+    .industry-body.open { max-height: 750px; }
 
     .badge-ask { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; padding: 4px 14px; border-radius: 40px; font-size: 10px; font-weight: 800; }
     .badge-drill { background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 4px 14px; border-radius: 40px; font-size: 10px; font-weight: 800; }
@@ -206,17 +152,79 @@
     .success-box { background: rgba(255,255,255,0.02); border-left: 3px solid #10b981; padding: 12px; margin: 10px 0; border-radius: 12px; }
     .info-box { background: rgba(255,255,255,0.02); border-left: 3px solid #3b82f6; padding: 12px; margin: 10px 0; border-radius: 12px; }
 
-    .micro-tips { background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 28px; padding: 28px; margin-top: 32px; text-align: center; border: 1px solid rgba(255,255,255,0.03);}
+    /* custom paralegal drill-down card (matching image style) */
+    .paralegal-drill-card {
+        background: rgba(20, 10, 20, 0.85);
+        border-left: 6px solid #ef4444;
+        border-radius: 20px;
+        padding: 0;
+        overflow: hidden;
+        margin-bottom: 8px;
+    }
+    .paralegal-inner {
+        padding: 20px;
+    }
+    .paralegal-title-main {
+        font-size: 18px;
+        font-weight: 900;
+        color: #ff8c8c;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        letter-spacing: -0.2px;
+    }
+    .paralegal-quicktip {
+        background: rgba(0,0,0,0.4);
+        border-radius: 14px;
+        padding: 12px 16px;
+        margin: 12px 0;
+        font-size: 14px;
+        color: #e2e8f0;
+        border: 1px solid rgba(239,68,68,0.25);
+    }
+    .legal-badge-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 15px 0 12px 0;
+    }
+    .legal-badge-item {
+        background: rgba(239,68,68,0.2);
+        border: 1px solid rgba(239,68,68,0.5);
+        padding: 6px 16px;
+        border-radius: 60px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #fca5a5;
+    }
+    .when-doubt-box {
+        margin: 16px 0 12px;
+        padding: 12px;
+        background: rgba(0,0,0,0.3);
+        border-radius: 14px;
+        font-style: italic;
+        font-weight: 600;
+        border-left: 3px solid #f97316;
+    }
+    .micro-footer-card {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-top: 16px;
+        flex-wrap: wrap;
+    }
+    .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent); margin: 28px 0; }
     .phrase-bubbles { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 20px 0; }
     .phrase { background: rgba(51, 65, 85, 0.7); padding: 8px 20px; border-radius: 60px; font-size: 13px; font-style: italic; color: #e2e8f0; backdrop-filter: blur(4px);}
-    .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent); margin: 28px 0; }
+    .micro-tips { background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 28px; padding: 28px; margin-top: 32px; text-align: center; border: 1px solid rgba(255,255,255,0.03);}
 </style>
 </head>
 <body>
 
 <div class="playbook-container">
 
-    <!-- QUALITY GUIDELINES with enhanced Paralegal block at TOP -->
+    <!-- QUALITY GUIDELINES (with Paralegal added in rule line) -->
     <div class="guidelines-card">
         <div class="guidelines-title">
             ⚡ QUALITY GUIDELINES
@@ -227,43 +235,12 @@
             <li>
                 <span class="no-text">No</span> Trucking Companies &nbsp;·&nbsp;
                 <span class="ok-text">Vans OK</span> &nbsp;·&nbsp;
-                <span class="no-text">No</span> Attorneys / Lawyers &nbsp;·&nbsp;
+                <span class="no-text">No</span> Attorneys / Lawyers / <strong class="no-text">Paralegal</strong> &nbsp;·&nbsp;
                 <span class="no-text">No</span> Detachable Tractor
             </li>
         </ol>
 
-        <!-- 🔥 NEW PARALEGAL / LAW FIRM DISQUALIFIER SECTION (top highlight) -->
-        <div class="paralegal-alert-card">
-            <div class="paralegal-title">
-                🚫⛔ PARALEGAL / LAW FIRM WORKERS – AUTOMATIC DNO ⛔🚫
-            </div>
-            <div class="paralegal-definition">
-                <strong>📌 Quick tip:</strong> We do NOT work with lawyers, attorneys, or anyone connected to legal practices.<br><br>
-                <strong>❓ What is a 'paralegal'?</strong> A paralegal is someone who works for a lawyer or law firm, helping with legal documents, cases, or research. 
-                They are <strong style="color:#f87171;">NOT qualified</strong> for our program — regardless of revenue or ownership.
-            </div>
-            <div><strong style="color:#facc15;">If a customer says any of these → DO NOT TRANSFER</strong></div>
-            <div class="legal-badge-list">
-                <span class="legal-badge-item">"I work at a law firm"</span>
-                <span class="legal-badge-item">"I'm a paralegal"</span>
-                <span class="legal-badge-item">"I offer paralegal services"</span>
-                <span class="legal-badge-item">"Legal assistant"</span>
-                <span class="legal-badge-item">"Law office"</span>
-                <span class="legal-badge-item">"Legal services"</span>
-                <span class="legal-badge-item">"Legal secretary"</span>
-                <span class="legal-badge-item">"Court reporter"</span>
-                <span class="legal-badge-item">"Notary public (if working for a law firm)"</span>
-            </div>
-            <div class="when-in-doubt">
-                🔎 WHEN IN DOUBT, ASK: <em>"Do you work for a law firm or provide legal services?"</em> If YES → ❌ NO TRANSFER. DNO immediately.
-            </div>
-            <div style="margin-top: 12px; display: flex; gap: 12px; align-items: center;">
-                <span class="badge-red-solid">⛔ DNO • END CALL</span>
-                <span style="font-size: 11px; color:#94a3b8;">Keep quality clean — paralegal = automatic disqualifier</span>
-            </div>
-        </div>
-
-        <!-- Revenue Dropdown stays inside guidelines card -->
+        <!-- Revenue Dropdown -->
         <div class="revenue-card">
             <div class="revenue-header" onclick="toggleRevenueDropdown()">
                 <div class="revenue-title-wrap">
@@ -294,10 +271,10 @@
         </div>
     </div>
 
-    <div class="warning-note">⚠️ IF QUALIFIERS ARE NOT MET YOU CANNOT TRANSFER!!! (including paralegal/law firm affiliation)</div>
+    <div class="warning-note">⚠️ IF QUALIFIERS ARE NOT MET YOU CANNOT TRANSFER!!! (including paralegal / law firm roles)</div>
     <div class="divider"></div>
 
-    <!-- KNOW BEFORE YOU TRANSFER + INDUSTRY DRILL-DOWN (with added PARALEGAL + LEGAL ROLES as separate industry block) -->
+    <!-- KNOW BEFORE YOU TRANSFER + INDUSTRY DRILL-DOWN -->
     <div style="margin-bottom: 24px;">
         <div class="industry-section-header">
             <div class="industry-section-icon">🏆</div>
@@ -308,49 +285,40 @@
         </div>
 
         <div class="industry-list">
-            <!-- 🧑‍⚖️ NEW: PARALEGAL / LAW FIRM / LEGAL ROLE (comprehensive drill-down) -->
-            <div class="industry-card">
-                <div class="industry-header" onclick="toggleIndustry(this)">
-                    <div class="industry-left">
-                        <span class="industry-emoji">⚖️🧑‍💼</span>
-                        <div>
-                            <div class="industry-name">PARALEGAL & LAW FIRM ROLES</div>
-                            <div class="industry-rule">AUTOMATIC DISQUALIFIER — NO EXCEPTIONS</div>
-                        </div>
+            <!-- 🔥 PARALEGAL / LAW FIRM DRILL-DOWN (exactly matching image content + style - placed right inside drill-down) -->
+            <div class="paralegal-drill-card">
+                <div class="paralegal-inner">
+                    <div class="paralegal-title-main">
+                        🚫⛔ PARALEGAL / LAW FIRM WORKERS – AUTOMATIC DNO ⛔🚫
                     </div>
-                    <div class="industry-right">
-                        <span class="badge-read">⚠️ READ THIS</span>
-                        <span class="industry-arrow">▼</span>
+                    <div class="paralegal-quicktip">
+                        <strong>📌 Quick tip:</strong> We do NOT work with lawyers, attorneys, or anyone connected to legal practices.<br><br>
+                        <strong>❓ What is a ‘paralegal’?</strong> A paralegal is someone who works for a lawyer or law firm, helping with legal documents, cases, or research. 
+                        They are <strong style="color:#f87171;">NOT qualified</strong> for our program — regardless of revenue or ownership.
                     </div>
-                </div>
-                <div class="industry-body">
-                    <div class="details-content">
-                        <div class="details-title">🚫 ZERO TOLERANCE: LEGAL PROFESSIONALS / PARALEGALS</div>
-                        <div class="details-text"><strong>If the prospect works in any legal capacity — even as support staff — we cannot move forward.</strong> This includes but is not limited to:</div>
-                        <ul style="color:#cbd5e6; font-size:13px; margin: 10px 0 10px 20px;">
-                            <li>Paralegal / legal assistant / legal secretary</li>
-                            <li>Works at a law firm (receptionist, file clerk, paralegal, lawyer, attorney)</li>
-                            <li>Offers paralegal services or virtual legal support</li>
-                            <li>Court reporter, notary public (affiliated with law firm), legal researcher</li>
-                            <li>Anyone who says “I provide legal services”, “I work in a law office”</li>
-                        </ul>
-                        <div class="warning-box">
-                            <strong>❌❌ WHY?</strong><br>Our program strictly prohibits lawyers, attorneys, and any law firm employees. Paralegals and legal assistants fall under the same compliance restriction. Even if they own another business separately — if their primary profession is legal or they are employed at a law firm → DNO.
-                        </div>
-                        <div class="details-title">🔎 VERIFICATION QUESTION</div>
-                        <div class="details-text"><strong>Ask directly:</strong> <em>“Do you currently work for a law firm, as a paralegal, or provide any legal support services?”</em><br>
-                        ✅ If they say YES → <span class="badge-red-solid">DNO, END CALL</span><br>
-                        ✅ If they say “I’m a paralegal” → immediate disposition.<br>
-                        ✅ If they mention “law office” or “legal assistant” → disqualify.</div>
-                        <div class="success-box" style="border-left-color:#ef4444; background: rgba(220,38,38,0.05);">
-                            <strong>📌 FINAL REMINDER:</strong> Keep quality clean — Paralegal, legal secretary, law firm employee = DO NOT TRANSFER. Move on.
-                        </div>
-                        <div style="margin-top: 12px;"><span class="badge-red">AUTO-DISQUALIFY</span> <span class="badge-red">DNO</span></div>
+                    <div><strong style="color:#facc15;">If a customer says any of these → DO NOT TRANSFER</strong></div>
+                    <div class="legal-badge-list">
+                        <span class="legal-badge-item">"I work at a law firm"</span>
+                        <span class="legal-badge-item">"I'm a paralegal"</span>
+                        <span class="legal-badge-item">"I offer paralegal services"</span>
+                        <span class="legal-badge-item">"Legal assistant"</span>
+                        <span class="legal-badge-item">"Law office"</span>
+                        <span class="legal-badge-item">"Legal services"</span>
+                        <span class="legal-badge-item">"Legal secretary"</span>
+                        <span class="legal-badge-item">"Court reporter"</span>
+                        <span class="legal-badge-item">"Notary public (if working for a law firm)"</span>
+                    </div>
+                    <div class="when-doubt-box">
+                        🔎 WHEN IN DOUBT, ASK: <em>“Do you work for a law firm or provide legal services?”</em> If <strong>YES</strong> → ❌ NO TRANSFER. DNO immediately.
+                    </div>
+                    <div class="micro-footer-card">
+                        <span class="badge-red-solid">⛔ DNO • END CALL</span>
+                        <span style="font-size: 12px; color: #94a3b8;">Keep quality clean — paralegal = automatic disqualifier</span>
                     </div>
                 </div>
             </div>
 
-            <!-- TRACTOR (unchanged but keeping structure) -->
+            <!-- TRACTOR -->
             <div class="industry-card">
                 <div class="industry-header" onclick="toggleIndustry(this)">
                     <div class="industry-left"><span class="industry-emoji">🚜</span><div><div class="industry-name">TRACTOR</div><div class="industry-rule">DEPENDS ON TRACTOR TYPE</div></div></div>
@@ -365,17 +333,15 @@
             <!-- CONSTRUCTION -->
             <div class="industry-card"><div class="industry-header" onclick="toggleIndustry(this)"><div class="industry-left"><span class="industry-emoji">🏗️</span><div><div class="industry-name">CONSTRUCTION</div><div class="industry-rule">DEPENDS ON FUND USE</div></div></div><div class="industry-right"><span class="badge-drill">DRILL DOWN</span><span class="industry-arrow">▼</span></div></div><div class="industry-body"><div class="details-content"><div class="details-text">"Does your construction business deal with trucking?" If yes, drill on fund usage. Funds for trucks = NO. Funds for crew/payroll = YES.</div><div class="success-box">✅ NO TRUCKING INVOLVED — CAN WORK</div><div class="warning-box">❌ FUNDS FOR TRUCKS = disqualify</div></div></div></div>
 
-            <!-- LAWYER/ATTORNEY already covered, but we keep as quick block -->
-            <div class="industry-card"><div class="industry-header" onclick="toggleIndustry(this)"><div class="industry-left"><span class="industry-emoji">⚖️</span><div><div class="industry-name">LAWYER / ATTORNEY</div><div class="industry-rule">AUTOMATIC DQ</div></div></div><div class="industry-right"><span class="badge-read">READ THIS</span><span class="industry-arrow">▼</span></div></div><div class="industry-body"><div class="details-content"><div class="warning-box"><strong>⚖️ LAWYER OR ATTORNEY — CANNOT WORK. PERIOD.</strong><br>Even if they own another business. Automatic disqualifier. (Paralegal also separate category above)</div></div></div></div>
+            <!-- LAWYER / ATTORNEY -->
+            <div class="industry-card"><div class="industry-header" onclick="toggleIndustry(this)"><div class="industry-left"><span class="industry-emoji">⚖️</span><div><div class="industry-name">LAWYER / ATTORNEY</div><div class="industry-rule">AUTOMATIC DQ</div></div></div><div class="industry-right"><span class="badge-read">READ THIS</span><span class="industry-arrow">▼</span></div></div><div class="industry-body"><div class="details-content"><div class="warning-box"><strong>⚖️ LAWYER OR ATTORNEY — CANNOT WORK. PERIOD.</strong><br>Even if they also own a separate business. Automatic disqualifier. (Paralegals detailed in section above)</div></div></div></div>
 
             <!-- TRANSPORTATION -->
             <div class="industry-card"><div class="industry-header" onclick="toggleIndustry(this)"><div class="industry-left"><span class="industry-emoji">🚐</span><div><div class="industry-name">TRANSPORTATION</div><div class="industry-rule">DEPENDS ON TYPE</div></div></div><div class="industry-right"><span class="badge-ask">ASK FIRST</span><span class="industry-arrow">▼</span></div></div><div class="industry-body"><div class="details-content"><div class="details-text">Detachable tractor, truck, freight carrier = NO. Vans, buses, shuttles, taxi = YES (with confirmation).</div><div class="success-box">✅ VAN / PASSENGER TRANSPORT — OK</div><div class="warning-box">❌ SEMI / DETACHABLE / FREIGHT — NO TRANSFER</div></div></div></div>
-
-            <!-- (extra) quick mention for law firm roles again: but already top & dedicated card -->
         </div>
     </div>
 
-    <!-- additional micro section that includes paralegal reminder as quick tip rephrase -->
+    <!-- MICRO-TRUST TIPS -->
     <div class="micro-tips">
         <h3 style="font-size: 17px; font-weight: 900; margin-bottom: 12px; color: #f1f5f9;">🎯 MICRO-TRUST & LEGAL SCREENING</h3>
         <p style="font-size: 13px; color: #facc15; margin-bottom: 8px;">⚡ Double-check for paralegal / law firm red flags: <strong>"Do you work in any legal capacity or law firm?"</strong> If yes → DNO.</p>
@@ -390,18 +356,19 @@
 </div>
 
 <script>
-    // Toggle Industry function (ensures only one open at a time, but fine)
+    // Toggle Industry function (only one open at a time, exclude the static paralegal card which doesn't need toggling)
     function toggleIndustry(header) {
         const card = header.closest('.industry-card');
+        if (!card) return;
         const body = card.querySelector('.industry-body');
         const arrow = header.querySelector('.industry-arrow');
         const isOpen = body.classList.contains('open');
 
         // close all other open bodies
-        document.querySelectorAll('.industry-body.open').forEach(b => {
+        document.querySelectorAll('.industry-card .industry-body.open').forEach(b => {
             if (b !== body) b.classList.remove('open');
         });
-        document.querySelectorAll('.industry-arrow.open').forEach(a => {
+        document.querySelectorAll('.industry-card .industry-arrow.open').forEach(a => {
             if (a !== arrow) a.classList.remove('open');
         });
 
@@ -429,7 +396,7 @@
         }
     }
 
-    // Live time updates (optional for day counter)
+    // Live time updates (optional - decorative)
     function updatePlaybookTimes() {
         const dayElem = document.getElementById('playbook-day');
         const guyanaElem = document.getElementById('playbook-guyana-time');
@@ -454,7 +421,5 @@
     window.toggleIndustry = toggleIndustry;
     window.toggleRevenueDropdown = toggleRevenueDropdown;
 </script>
-
-<!-- extra inline tiny style for live badge if needed (optional) doesn't break anything -->
 </body>
 </html>
