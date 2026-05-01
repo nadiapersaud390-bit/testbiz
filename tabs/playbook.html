@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sales Playbook • Paralegal Drill-Down (Toggle)</title>
+<title>Sales Playbook • Paralegal Drill-Down (Toggle Fixed)</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: radial-gradient(circle at 10% 20%, #0a0f1e, #03060c); font-family: system-ui, -apple-system, 'Segoe UI', 'Inter', sans-serif; line-height: 1.4; }
@@ -126,21 +126,32 @@
         justify-content: space-between;
         align-items: center;
         cursor: pointer;
+        transition: background 0.2s;
     }
-    .industry-header:hover { background: rgba(255, 255, 255, 0.02); }
+    .industry-header:hover { background: rgba(255, 255, 255, 0.03); }
     .industry-left { display: flex; align-items: center; gap: 14px; }
     .industry-emoji { font-size: 28px; }
     .industry-name { color: #f1f5f9; font-weight: 900; font-size: 16px; letter-spacing: 0.3px; }
     .industry-rule { font-size: 11px; color: #f97316; font-weight: 700; text-transform: uppercase; margin-top: 3px; }
     .industry-right { display: flex; gap: 12px; align-items: center; }
-    .industry-arrow { color: #94a3b8; font-size: 14px; transition: transform 0.2s; }
+    .industry-arrow { 
+        color: #94a3b8; 
+        font-size: 14px; 
+        transition: transform 0.2s ease;
+        display: inline-block;
+    }
     .industry-arrow.open { transform: rotate(180deg); }
-    .industry-body { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; border-top: 1px solid rgba(255,255,255,0.05); }
-    .industry-body.open { max-height: 750px; }
+    .industry-body { 
+        max-height: 0; 
+        overflow: hidden; 
+        transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+        border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .industry-body.open { max-height: 800px; }
 
-    .badge-ask { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; padding: 4px 14px; border-radius: 40px; font-size: 10px; font-weight: 800; }
-    .badge-drill { background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 4px 14px; border-radius: 40px; font-size: 10px; font-weight: 800; }
-    .badge-read { background: linear-gradient(135deg, #ec4899, #db2777); padding: 4px 14px; border-radius: 40px; font-size: 10px; font-weight: 800; }
+    .badge-ask { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; padding: 4px 14px; border-radius: 40px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+    .badge-drill { background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 4px 14px; border-radius: 40px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+    .badge-read { background: linear-gradient(135deg, #ec4899, #db2777); padding: 4px 14px; border-radius: 40px; font-size: 10px; font-weight: 800; white-space: nowrap; }
     .badge-red-solid { background: #b91c1c; color: white; padding: 4px 12px; border-radius: 30px; font-size: 10px; font-weight: 800; }
     .badge-green { background: rgba(16, 185, 129, 0.2); color: #2dd4bf; padding: 3px 10px; border-radius: 30px; font-size: 10px; font-weight: 700; }
     .badge-red { background: rgba(239, 68, 68, 0.25); color: #f87171; padding: 3px 10px; border-radius: 30px; font-size: 10px; font-weight: 700; }
@@ -284,7 +295,7 @@
                         <span class="industry-emoji">⚖️🚫</span>
                         <div>
                             <div class="industry-name">PARALEGAL & LAW FIRM WORKERS</div>
-                            <div class="industry-rule">AUTOMATIC DNO — OPEN FOR DETAILS</div>
+                            <div class="industry-rule">AUTOMATIC DNO — CLICK FOR DETAILS</div>
                         </div>
                     </div>
                     <div class="industry-right">
@@ -299,7 +310,7 @@
                         </div>
                         <div class="paralegal-quicktip">
                             <strong>📌 Quick tip:</strong> We do NOT work with lawyers, attorneys, or anyone connected to legal practices.<br><br>
-                            <strong>❓ What is a ‘paralegal’?</strong> A paralegal is someone who works for a lawyer or law firm, helping with legal documents, cases, or research. 
+                            <strong>❓ What is a 'paralegal'?</strong> A paralegal is someone who works for a lawyer or law firm, helping with legal documents, cases, or research. 
                             They are <strong style="color:#f87171;">NOT qualified</strong> for our program — regardless of revenue or ownership.
                         </div>
                         <div><strong style="color:#facc15;">If a customer says any of these → DO NOT TRANSFER</strong></div>
@@ -315,7 +326,7 @@
                             <span class="legal-badge-item">"Notary public (if working for a law firm)"</span>
                         </div>
                         <div class="when-doubt-box">
-                            🔎 WHEN IN DOUBT, ASK: <em>“Do you work for a law firm or provide legal services?”</em> If <strong>YES</strong> → ❌ NO TRANSFER. DNO immediately.
+                            🔎 WHEN IN DOUBT, ASK: <em>"Do you work for a law firm or provide legal services?"</em> If <strong>YES</strong> → ❌ NO TRANSFER. DNO immediately.
                         </div>
                         <div class="micro-footer-card">
                             <span class="badge-red-solid">⛔ DNO • END CALL</span>
@@ -363,23 +374,38 @@
 </div>
 
 <script>
-    // Toggle Industry function (works for all .industry-card including paralegal)
-    function toggleIndustry(header) {
-        const card = header.closest('.industry-card');
+    // FIXED: Robust toggle function that works on all industry cards
+    function toggleIndustry(headerElement) {
+        // Find the parent industry card
+        let card = headerElement.closest('.industry-card');
         if (!card) return;
-        const body = card.querySelector('.industry-body');
-        const arrow = header.querySelector('.industry-arrow');
-        const isOpen = body.classList.contains('open');
-
-        // close all other open industry bodies (so only one open at a time)
-        document.querySelectorAll('.industry-card .industry-body.open').forEach(b => {
-            if (b !== body) b.classList.remove('open');
+        
+        // Find the body and arrow within this card
+        let body = card.querySelector('.industry-body');
+        let arrow = card.querySelector('.industry-arrow');
+        
+        if (!body) return;
+        
+        // Check if current body is open
+        let isOpen = body.classList.contains('open');
+        
+        // Close all OTHER industry bodies (so only one open at a time)
+        let allBodies = document.querySelectorAll('.industry-card .industry-body');
+        let allArrows = document.querySelectorAll('.industry-card .industry-arrow');
+        
+        allBodies.forEach(b => {
+            if (b !== body && b.classList.contains('open')) {
+                b.classList.remove('open');
+            }
         });
-        document.querySelectorAll('.industry-card .industry-arrow.open').forEach(a => {
-            if (a !== arrow) a.classList.remove('open');
+        
+        allArrows.forEach(a => {
+            if (a !== arrow && a.classList.contains('open')) {
+                a.classList.remove('open');
+            }
         });
-
-        // toggle current
+        
+        // Toggle the current one
         if (!isOpen) {
             body.classList.add('open');
             if (arrow) arrow.classList.add('open');
@@ -426,8 +452,12 @@
     updatePlaybookTimes();
     setInterval(updatePlaybookTimes, 1000);
 
+    // Make functions globally available
     window.toggleIndustry = toggleIndustry;
     window.toggleRevenueDropdown = toggleRevenueDropdown;
+    
+    // Optional: log that script is loaded
+    console.log('Playbook loaded - toggle functions ready');
 </script>
 </body>
 </html>
