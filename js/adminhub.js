@@ -2,7 +2,6 @@
  * js/adminhub.js
  * Core logic for the Admin Panel Hub system - FULLY OPTIMIZED with Weekly Performance Dropdown
  * FIXED: momo has full admin access, 0000 sees NO admin features
- * ADDED: Agent Performance Stats tab handler (GY vs PH comparison)
  */
 
 let ahCurrentSubTab = 'overview';
@@ -111,11 +110,6 @@ window.switchAdminHubTab = function(tabId) {
     if (tabId === 'rebuttals') initRebuttalIntel();
     if (tabId === 'performance') initWeeklyPerformance();
     if (tabId === 'admintools') ahAdminToolsInit();
-    
-    // Initialize Agent Performance Stats tab (GY vs PH comparison)
-    if (tabId === 'agentstats' && typeof window.initAgentPerformanceStats === 'function') {
-        window.initAgentPerformanceStats();
-    }
     
     // Only initialize Zero Performance when the tab is actually clicked
     if (tabId === 'zero' && !ahZeroPerfInitialized) {
@@ -644,7 +638,7 @@ function renderTeamTable(title, agents, colorClass) {
                             <th class="p-3">Agent Name</th>
                             <th class="p-3 text-center">Team</th>
                             <th class="p-3 text-right">Weekly Xfers</th>
-                        <tr>
+                        </tr>
                     </thead>
                     <tbody class="divide-y divide-white/5">
                         ${agents.map((agent, idx) => `
@@ -658,7 +652,7 @@ function renderTeamTable(title, agents, colorClass) {
                                 <td class="p-3 text-right">
                                     <span class="text-lg font-black text-${colorClass} italic">${agent.transfers}</span>
                                 </td>
-                              </tr>
+                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
@@ -677,39 +671,6 @@ function escapeHtml(str) {
         return m;
     });
 }
-
-// ============================================================================
-// AGENT PERFORMANCE STATS (GY vs PH Comparison)
-// ============================================================================
-// NEW: Initialize the Agent Performance Stats tab (GY vs PH comparison)
-// This function loads the tabs/agentstats.html content and initializes the logic
-
-window.initAgentPerformanceStats = function() {
-    console.log('[AdminHub] Initializing Agent Performance Stats tab...');
-    
-    // Check if the container already has content
-    const container = document.getElementById('ah-sect-agentstats');
-    if (!container) {
-        console.warn('[AdminHub] Agent stats section not found');
-        return;
-    }
-    
-    // If the container is empty or only has placeholder text, load the content
-    if (container.innerHTML.trim() === '' || container.innerHTML.includes('Loading')) {
-        // The content should already be loaded via the tab's data-tab-src attribute in index.html
-        // But if not, we can try to load it
-        if (typeof window.loadTabContent === 'function') {
-            window.loadTabContent('ah-sect-agentstats', 'tabs/agentstats.html');
-        }
-    }
-    
-    // Initialize the performance stats module if the function exists
-    if (typeof window.initPerformanceStats === 'function') {
-        setTimeout(() => {
-            window.initPerformanceStats();
-        }, 100);
-    }
-};
 
 // ============================================================================
 // REBUTTAL USAGE TRACKING
@@ -981,7 +942,7 @@ function renderRebuttalIntel(usage) {
                                    <th class="py-1 px-2 text-center">Views</th>
                                    <th class="py-1 px-2 text-center">Uses</th>
                                    <th class="py-1 pl-2 text-center">Use Rate</th>
-                                  </tr></thead>
+                                 </tr></thead>
                                <tbody class="divide-y divide-white/5">
                                ${rebuttalRows.map(([title, c]) => {
                                    const tot = c.views + c.uses;
@@ -992,10 +953,10 @@ function renderRebuttalIntel(usage) {
                                        <td class="py-2 px-2 text-center text-slate-300 tabular-nums">${c.views}</td>
                                        <td class="py-2 px-2 text-center text-emerald-400 font-black tabular-nums">${c.uses}</td>
                                        <td class="py-2 pl-2 text-center font-black tabular-nums ${rc}">${r}%</td>
-                                      </tr>`;
+                                     </tr>`;
                                }).join('')}
                                </tbody>
-                             </table>`}
+                            </table>`}
                 </div>`;
 
             return `
@@ -1234,19 +1195,19 @@ function renderDailyAttendance() {
                 <td class="py-4">
                     <div class="text-[12px] font-black text-white uppercase tracking-tight">${a.name}</div>
                     <div class="text-[8px] text-slate-500 font-bold">${a.ytelId || '----'}</div>
-                  </td>
+                 </td>
                 <td class="py-4">
                     <span class="px-2 py-1 rounded bg-${colorClass}/10 text-${colorClass} text-[8px] font-black uppercase tracking-widest border border-${colorClass}/20">${team}</span>
-                  </td>
+                 </td>
                 <td class="py-4 text-[10px] text-slate-300 font-bold">${a.shift || '10AM-7PM'}</td>
                 <td class="py-4">
                     <span class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${a.status === 'Present' ? 'text-green-400' : 'text-yellow-400'}">
                         <span class="w-1.5 h-1.5 rounded-full ${a.status === 'Present' ? 'bg-green-500' : 'bg-yellow-500'}"></span>
                         ${a.status || 'Present'}
                     </span>
-                  </td>
+                 </td>
                 <td class="py-4 text-right tabular-nums text-[10px] text-slate-400 font-bold">${a.loginTime || '--:--'}</td>
-              </tr>
+             </tr>
         `;
     }).join('');
 }
@@ -1495,17 +1456,17 @@ window.ahShowTeamBreakdown = function(team) {
             <tr class="hover:bg-white/5 transition border-b border-white/5 last:border-0 text-[11px]">
                 <td class="py-3">
                     <div class="font-black text-white uppercase">${a.name}</div>
-                  </td>
+                 </td>
                 <td class="py-3">
                     <span class="flex items-center gap-1.5 text-[9px] font-black uppercase text-green-400">
                         <span class="w-1 h-1 rounded-full bg-green-500"></span>
                         Online
                     </span>
-                  </td>
+                 </td>
                 <td class="py-3 text-right">
                     <div class="font-black text-white italic">${a.dailyLeads || 0}</div>
-                  </td>
-              </tr>
+                 </td>
+             </tr>
         `).join('') || '<tr><td colspan="3" class="py-10 text-center text-slate-600 font-bold uppercase tracking-widest text-[9px]">No agents found</td></tr>';
     }
 
