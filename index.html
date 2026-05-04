@@ -165,30 +165,35 @@ function setupRoleBasedTabs() {
         prank: document.getElementById('tab-prank'),
         weekly: document.getElementById('tab-weekly'),
         trivia: document.getElementById('tab-trivia'),
+        agentstats: document.getElementById('tab-agentstats'),
         tracker: document.getElementById('tab-tracker'),
         adminpanel: document.getElementById('tab-adminpanel'),
         superadminpanel: document.getElementById('tab-superadminpanel')
     };
     
-    // For Restricted Admin (e.g. 0000) - hide Admin Tools, Super Admin AND Tracker
+    // For Restricted Admin (e.g. 0000) - hide Admin Tools, Super Admin, Agent Stats AND Tracker
     if (isRestrictedAdmin) {
         if (tabs.adminpanel) tabs.adminpanel.classList.add('hidden');
         if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
+        if (tabs.agentstats) tabs.agentstats.classList.add('hidden');
         if (tabs.tracker) tabs.tracker.classList.add('hidden');
     }
-    // For Regular Admin (momo) - show Admin Tools but NOT Super Admin
+    // For Regular Admin (momo) - show Admin Tools and Agent Stats but NOT Super Admin
     else if (isRegularAdmin) {
         if (tabs.adminpanel) tabs.adminpanel.classList.remove('hidden');
+        if (tabs.agentstats) tabs.agentstats.classList.remove('hidden');
         if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
     }
-    // For Super Admin (rose) - show both Admin Tools AND Super Admin
+    // For Super Admin (rose) - show Admin Tools, Agent Stats AND Super Admin
     else if (isSuper) {
         if (tabs.adminpanel) tabs.adminpanel.classList.remove('hidden');
+        if (tabs.agentstats) tabs.agentstats.classList.remove('hidden');
         if (tabs.superadminpanel) tabs.superadminpanel.classList.remove('hidden');
     }
     // For non-admin users - hide admin tabs
     else {
         if (tabs.adminpanel) tabs.adminpanel.classList.add('hidden');
+        if (tabs.agentstats) tabs.agentstats.classList.add('hidden');
         if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
     }
     
@@ -323,12 +328,13 @@ document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
         <button onclick="switchTab('prank')"     id="tab-prank"     class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#a855f7;">🚨 Prank</button>
         <button onclick="requestWeekly()"        id="tab-weekly"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-lock text-[9px] mr-1 opacity-60"></i>Weekly</button>
         
-        <button onclick="switchTab('trivia')"    id="tab-trivia"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);grid-column:1/-1;">🎯 Trivia Blitz</button>
+        <button onclick="switchTab('trivia')"    id="tab-trivia"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);">🎯 Trivia Blitz</button>
+        <button onclick="switchTab('agentstats')" id="tab-agentstats" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#818cf8;border-color:rgba(129,140,248,0.3);">📊 Agent Stats</button>
         
         <!-- ADMIN/TRACKER TABS (Hidden by default, unlocked by setupRoleBasedTabs) -->
-        <button onclick="switchTab('tracker')" id="tab-tracker" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#818cf8;border-color:rgba(129,140,248,0.3);grid-column:1/-1;">📋 My Tracker</button>
-        <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#ef4444;border-color:rgba(239,68,68,0.35);grid-column:1/-1;">🛡️ Admin Tools</button>
-        <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#eab308;border-color:rgba(234,179,8,0.35);grid-column:1/-1;">👑 Super Admin</button>
+        <button onclick="switchTab('tracker')" id="tab-tracker" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#818cf8;border-color:rgba(129,140,248,0.3);">📋 My Tracker</button>
+        <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#ef4444;border-color:rgba(239,68,68,0.35);">🛡️ Admin Tools</button>
+        <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#eab308;border-color:rgba(234,179,8,0.35);">👑 Super Admin</button>
     </div>
 
     <div id="day-sub-tabs-wrapper" class="hidden px-2 mb-5 max-w-2xl mx-auto">
@@ -415,9 +421,9 @@ window.switchTab = async function(tab) {
         rebuttals: 'rebuttals-view',
         prank: 'prank-view',
         trivia: 'trivia-view',
+        agentstats: 'agentstats-view',
         adminpanel: 'adminpanel-view',
         superadminpanel: 'superadminpanel-view',
-        agentstats: 'agentstats-view',
         agentprofiles: 'agentprofiles-view',
         tracker: 'tracker-view',
         weekly: 'leaderboard-view',
@@ -448,40 +454,51 @@ document.addEventListener('DOMContentLoaded', () => {
     // Get tab elements
     const adminTab = document.getElementById('tab-adminpanel');
     const superAdminTab = document.getElementById('tab-superadminpanel');
+    const agentStatsTab = document.getElementById('tab-agentstats');
     const trackerTab = document.getElementById('tab-tracker');
     
-    // For Restricted Admin (e.g. 0000) - hide Admin Tools, Super Admin, AND Tracker
+    // For Restricted Admin (e.g. 0000) - hide Admin Tools, Super Admin, Agent Stats AND Tracker
     if (isRestrictedAdmin) {
         if (adminTab) adminTab.classList.add('hidden');
         if (superAdminTab) superAdminTab.classList.add('hidden');
+        if (agentStatsTab) agentStatsTab.classList.add('hidden');
         if (trackerTab) trackerTab.classList.add('hidden');
-        console.log('Restricted Admin - Hiding Admin Tools, Super Admin and Tracker');
+        console.log('Restricted Admin - Hiding Admin Tools, Agent Stats, Super Admin and Tracker');
     }
-    // For Regular Admin (momo) - show Admin Tools only
+    // For Regular Admin (momo) - show Admin Tools and Agent Stats but NOT Super Admin
     else if (isRegularAdmin) {
         if (adminTab) {
             adminTab.classList.remove('hidden');
             console.log('Regular Admin - Showing Admin Tools');
+        }
+        if (agentStatsTab) {
+            agentStatsTab.classList.remove('hidden');
+            console.log('Regular Admin - Showing Agent Stats');
         }
         if (superAdminTab) {
             superAdminTab.classList.add('hidden');
             console.log('Regular Admin - Hiding Super Admin');
         }
     }
-    // For Super Admin (rose) - show both
+    // For Super Admin (rose) - show Admin Tools, Agent Stats AND Super Admin
     else if (isSuper) {
         if (adminTab) {
             adminTab.classList.remove('hidden');
             console.log('Super Admin - Showing Admin Tools');
+        }
+        if (agentStatsTab) {
+            agentStatsTab.classList.remove('hidden');
+            console.log('Super Admin - Showing Agent Stats');
         }
         if (superAdminTab) {
             superAdminTab.classList.remove('hidden');
             console.log('Super Admin - Showing Super Admin');
         }
     }
-    // For non-admin users - hide both
+    // For non-admin users - hide admin tabs
     else {
         if (adminTab) adminTab.classList.add('hidden');
+        if (agentStatsTab) agentStatsTab.classList.add('hidden');
         if (superAdminTab) superAdminTab.classList.add('hidden');
     }
 
