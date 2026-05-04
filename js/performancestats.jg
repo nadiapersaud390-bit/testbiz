@@ -1,0 +1,675 @@
+// js/performancestats.js
+// Agent Performance Stats - GY vs PH Comparison
+// Dual upload, Firebase storage, 30-day auto-delete
+
+// ============================================================
+// GLOBAL STATE
+// ============================================================
+let stagedGYData = null;
+let stagedPHData = null;
+let currentRetentionDays = 30;
+let allReports = [];
+let isSubscribed = false;
+
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+function getCurrentAdminName() {
+    try {
+        const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        return currentAdmin.name || currentAdmin.email || 'Admin';
+    } catch(e) {
+        return 'Admin';
+    }
+}
+
+function formatDateForDisplay(dateStr) {
+    if (!dateStr) return 'Unknown';
+    // Handle MM/DD/YYYY format
+    if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}/)) {
+        return dateStr;
+    }
+    // Try to parse as date
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString();
+    }
+    return dateStr;
+}
+
+// Parse duration (handles seconds or MM:SS format)
+function parseDuration(val) {
+    if (!val) return 0;
+    const s = String(val).trim();
+    if (s.includes(':')) {
+        const parts = s.split(':').map(Number);
+        if (parts.length === 2) return parts[0] * 60 + parts[1];
+        if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    }
+    return parseInt(s, 10) || 0;
+}
+
+// Detect delimiter from CSV line
+function detectDelimiter(line) {
+    const delimiters = [',', ';', '\t', '|'];
+    for (const delim of delimiters) {
+        const parts = line.split(delim);
+        if (parts.length >= 2 && parts[0].trim().length > 0 && parts[1].trim().length > 0) {
+            return delim;
+        }
+    }
+    return ',';
+}
+
+// Parse CSV row with quote handling
+function parseCSVRow(row, delimiter) {
+    const result = [];
+    let inQuote = false;
+    let current = '';
+    for (let i = 0; i < row.length; i++) {
+        const char = row[i];
+        if (char === '"') {
+            inQuote = !inQuote;
+        } else if (char === delimiter && !inQuote) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    result.push(current.trim());
+    return result.map(v => v.replace(/^"|"$/g, ''));
+}
+
+// Parse Agent Status Report CSV
+async function parseAgentStatusCSV(file, region) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target.result;
+            let lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+            if (lines.length === 0) {
+                reject('Empty file');
+                return;
+            }
+            
+            const delimiter = detectDelimiter(lines[0]);
+            const headers = parseCSVRow(lines[0], delimiter);
+            
+            // Find column indices
+            let agentNameIdx = -1, callsIdx = -1, xferIdx = -1;
+            headers.forEach((h, idx) => {
+                const lower = h.toLowerCase().replace(/[\s_-]/g, '');
+                if (lower.includes('username') || lower === 'username' || 
+                    lower.includes('agentname') || lower === 'agentname' ||
+                    lower.includes('name') && idx === 0) {
+                    agentNameIdx = idx;
+                }
+                if (lower === 'calls' || lower.includes('calls')) callsIdx = idx;
+                if (lower === 'xfer' || lower === 'xfer' || 
+                    (lower.includes('xfer') && !lower.includes('ci'))) {
+                    xferIdx = idx;
+                }
+            });
+            
+            // Fallbacks
+            if (agentNameIdx === -1) agentNameIdx = 0;
+            if (callsIdx === -1) callsIdx = 1;
+            if (xferIdx === -1 && headers.length > 2) xferIdx = 2;
+            
+            console.log(`[${region}] Column mapping - Name:${agentNameIdx}, Calls:${callsIdx}, XFER:${xferIdx}`);
+            
+            const agents = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = parseCSVRow(lines[i], delimiter);
+                if (values.length < 3) continue;
+                
+                let agentName = values[agentNameIdx] || '';
+                if (!agentName.trim()) continue;
+                
+                // Skip total/header rows
+                const upperName = agentName.trim().toUpperCase();
+                if (upperName.includes('TOTAL AGENTS') || 
+                    upperName.includes('AGENT STATUS DETAIL') ||
+                    upperName.includes('TIME RANGE') ||
+                    upperName.includes('USER NAME')) {
+                    continue;
+                }
+                
+                // Clean agent name (remove any prefix like GYB/, GYP/, etc.)
+                agentName = agentName.replace(/^(GYB|GYP|GYB\/|GYP\/|GTM\/?)\s*/i, '').trim();
+                
+                const calls = parseInt(values[callsIdx], 10) || 0;
+                const xfers = parseInt(values[xferIdx], 10) || 0;
+                
+                agents.push({
+                    name: agentName,
+                    calls: calls,
+                    xfers: xfers
+                });
+            }
+            
+            if (agents.length === 0) {
+                reject('No agent data found. Check column mapping.');
+                return;
+            }
+            
+            // Extract date from filename
+            let reportDate = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+            const dateMatch = file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})/);
+            if (dateMatch) {
+                reportDate = `${dateMatch[1]}/${dateMatch[2]}/${dateMatch[3]}`;
+            }
+            
+            // Calculate totals
+            const totalAgents = agents.length;
+            const totalCalls = agents.reduce((sum, a) => sum + a.calls, 0);
+            const totalXfers = agents.reduce((sum, a) => sum + a.xfers, 0);
+            const avgCalls = totalAgents > 0 ? (totalCalls / totalAgents).toFixed(1) : 0;
+            const avgXfers = totalAgents > 0 ? (totalXfers / totalAgents).toFixed(2) : 0;
+            const conversionRate = totalCalls > 0 ? ((totalXfers / totalCalls) * 100).toFixed(2) : 0;
+            
+            console.log(`[${region}] Parsed ${totalAgents} agents, ${totalCalls} calls, ${totalXfers} xfers`);
+            
+            resolve({
+                region: region,
+                filename: file.name,
+                reportDate: reportDate,
+                agents: agents,
+                totalAgents: totalAgents,
+                totalCalls: totalCalls,
+                totalXfers: totalXfers,
+                avgCalls: avgCalls,
+                avgXfers: avgXfers,
+                conversionRate: conversionRate
+            });
+        };
+        reader.onerror = () => reject('File read error');
+        reader.readAsText(file);
+    });
+}
+
+// ============================================================
+// FIREBASE FUNCTIONS (to be added to firebase.js)
+// ============================================================
+
+// Save report to Firebase
+async function saveReportToFirebase(region, data) {
+    const statusDiv = document.getElementById(`as-${region.toLowerCase()}-status`);
+    if (statusDiv) {
+        statusDiv.innerHTML = '<span class="text-blue-400"><i class="fas fa-spinner fa-spin mr-1"></i> Saving to Firebase...</span>';
+    }
+    
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + currentRetentionDays);
+    
+    const adminName = getCurrentAdminName();
+    
+    const reportObj = {
+        region: region,
+        filename: data.filename,
+        reportDate: data.reportDate,
+        uploadedAt: new Date().toISOString(),
+        expiresAt: expiryDate.toISOString(),
+        uploadedBy: adminName,
+        retentionDays: currentRetentionDays,
+        data: {
+            totalAgents: data.totalAgents,
+            totalCalls: data.totalCalls,
+            totalXfers: data.totalXfers,
+            avgCalls: data.avgCalls,
+            avgXfers: data.avgXfers,
+            conversionRate: data.conversionRate,
+            agents: data.agents
+        }
+    };
+    
+    // Check if Firebase function is available
+    if (typeof window.saveAgentStatsReport === 'function') {
+        const result = await window.saveAgentStatsReport(reportObj);
+        if (result && result.success) {
+            if (statusDiv) {
+                statusDiv.innerHTML = '<span class="text-green-400">✅ Saved to Firebase! Report will auto-delete after ' + currentRetentionDays + ' days.</span>';
+            }
+            if (region === 'GY') {
+                stagedGYData = null;
+                const gyPanel = document.getElementById('as-gy-panel');
+                if (gyPanel) gyPanel.classList.add('hidden');
+            } else {
+                stagedPHData = null;
+                const phPanel = document.getElementById('as-ph-panel');
+                if (phPanel) phPanel.classList.add('hidden');
+            }
+            // Refresh the history list
+            if (typeof loadReportsHistory === 'function') {
+                loadReportsHistory();
+            }
+            setTimeout(() => {
+                if (statusDiv) statusDiv.innerHTML = '';
+            }, 3000);
+            return { success: true };
+        } else {
+            if (statusDiv) {
+                statusDiv.innerHTML = `<span class="text-red-400">❌ Save failed: ${result?.error || 'Unknown error'}</span>`;
+            }
+            return { success: false, error: result?.error };
+        }
+    } else {
+        // Fallback to localStorage for testing
+        console.warn('Firebase save function not available, using localStorage fallback');
+        try {
+            let reports = JSON.parse(localStorage.getItem('biz_agent_stats_reports') || '[]');
+            reportObj.id = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+            reports.unshift(reportObj);
+            // Keep only last 50 reports
+            if (reports.length > 50) reports = reports.slice(0, 50);
+            localStorage.setItem('biz_agent_stats_reports', JSON.stringify(reports));
+            
+            if (statusDiv) {
+                statusDiv.innerHTML = '<span class="text-green-400">✅ Saved to localStorage (Firebase not available)</span>';
+            }
+            loadReportsHistory();
+            setTimeout(() => {
+                if (statusDiv) statusDiv.innerHTML = '';
+            }, 3000);
+            return { success: true };
+        } catch(e) {
+            if (statusDiv) {
+                statusDiv.innerHTML = `<span class="text-red-400">❌ Save failed: ${e.message}</span>`;
+            }
+            return { success: false, error: e.message };
+        }
+    }
+}
+
+// Listen for reports from Firebase
+function listenForReports() {
+    if (isSubscribed) return;
+    
+    if (typeof window.listenForAgentStatsReports === 'function') {
+        window.listenForAgentStatsReports((reports) => {
+            allReports = reports || [];
+            renderHistoryList();
+            
+            // Find latest GY and PH reports to display comparison
+            const latestGY = allReports.filter(r => r.region === 'GY').sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))[0];
+            const latestPH = allReports.filter(r => r.region === 'PH').sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))[0];
+            
+            if (latestGY || latestPH) {
+                updateComparisonTable(latestGY, latestPH);
+            }
+        });
+        isSubscribed = true;
+    } else {
+        // Fallback to localStorage
+        console.log('Firebase listener not available, using localStorage');
+        try {
+            const stored = localStorage.getItem('biz_agent_stats_reports');
+            if (stored) {
+                allReports = JSON.parse(stored);
+                renderHistoryList();
+                
+                const latestGY = allReports.filter(r => r.region === 'GY').sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))[0];
+                const latestPH = allReports.filter(r => r.region === 'PH').sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))[0];
+                
+                if (latestGY || latestPH) {
+                    updateComparisonTable(latestGY, latestPH);
+                }
+            }
+        } catch(e) {
+            console.error('Error loading localStorage reports:', e);
+        }
+    }
+}
+
+// ============================================================
+// UI RENDERING FUNCTIONS
+// ============================================================
+
+function renderHistoryList() {
+    const container = document.getElementById('as-history-list');
+    if (!container) return;
+    
+    if (allReports.length === 0) {
+        container.innerHTML = '<div class="text-center text-slate-500 py-8 text-xs">No reports uploaded yet. Upload GY and PH CSVs above.</div>';
+        return;
+    }
+    
+    const sorted = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+    
+    container.innerHTML = sorted.map(r => {
+        const uploadDate = new Date(r.uploadedAt).toLocaleString();
+        const expiryDate = r.expiresAt ? new Date(r.expiresAt).toLocaleDateString() : 'Never';
+        const regionColor = r.region === 'GY' ? 'text-green-400 border-green-500/30' : 'text-purple-400 border-purple-500/30';
+        const regionBg = r.region === 'GY' ? 'bg-green-500/10' : 'bg-purple-500/10';
+        const regionIcon = r.region === 'GY' ? '🇬🇾' : '🇵🇭';
+        
+        return `
+            <div class="${regionBg} border ${regionColor} rounded-xl p-3 hover:bg-white/5 transition">
+                <div class="flex justify-between items-start flex-wrap gap-2">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-[14px]">${regionIcon}</span>
+                            <span class="text-[11px] font-black text-white">${escapeHtml(r.filename || r.reportDate)}</span>
+                            <span class="text-[9px] px-2 py-0.5 rounded-full ${r.region === 'GY' ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'}">${r.region}</span>
+                        </div>
+                        <div class="text-[9px] text-slate-500 mt-1">📅 Report Date: ${escapeHtml(r.reportDate)} | Uploaded: ${uploadDate}</div>
+                        <div class="text-[9px] text-slate-500">👤 Uploaded by: ${escapeHtml(r.uploadedBy || 'Admin')}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] font-bold text-cyan-400">📊 Avg Calls: ${r.data?.avgCalls || 0}</div>
+                        <div class="text-[10px] font-bold text-yellow-400">📊 Avg XFER: ${r.data?.avgXfers || 0}</div>
+                        <div class="text-[9px] text-slate-600 mt-1">🗑 Expires: ${expiryDate}</div>
+                    </div>
+                </div>
+                <div class="mt-2 flex gap-2 justify-end">
+                    <button onclick="deleteReport('${r.id}')" class="text-red-400 text-[9px] hover:text-red-300 transition px-2 py-1 rounded bg-red-500/10">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateComparisonTable(gyReport, phReport) {
+    const gy = gyReport?.data || { totalAgents: 0, totalCalls: 0, totalXfers: 0, avgCalls: 0, avgXfers: 0, conversionRate: 0 };
+    const ph = phReport?.data || { totalAgents: 0, totalCalls: 0, totalXfers: 0, avgCalls: 0, avgXfers: 0, conversionRate: 0 };
+    
+    // Helper to format difference
+    const formatDiff = (gyVal, phVal, isPositive = true) => {
+        const diff = gyVal - phVal;
+        if (diff === 0) return '<span class="text-slate-500">0</span>';
+        if (diff > 0) {
+            return `<span class="text-green-400">+${diff.toFixed(isPositive ? 0 : 2)}</span>`;
+        }
+        return `<span class="text-red-400">${diff.toFixed(isPositive ? 0 : 2)}</span>`;
+    };
+    
+    // Update table cells
+    document.getElementById('compare-gy-agents').textContent = gy.totalAgents;
+    document.getElementById('compare-ph-agents').textContent = ph.totalAgents;
+    document.getElementById('compare-diff-agents').innerHTML = formatDiff(gy.totalAgents, ph.totalAgents, true);
+    
+    document.getElementById('compare-gy-calls').textContent = gy.totalCalls;
+    document.getElementById('compare-ph-calls').textContent = ph.totalCalls;
+    document.getElementById('compare-diff-calls').innerHTML = formatDiff(gy.totalCalls, ph.totalCalls, true);
+    
+    document.getElementById('compare-gy-xfers').textContent = gy.totalXfers;
+    document.getElementById('compare-ph-xfers').textContent = ph.totalXfers;
+    document.getElementById('compare-diff-xfers').innerHTML = formatDiff(gy.totalXfers, ph.totalXfers, true);
+    
+    document.getElementById('compare-gy-avg-calls').textContent = gy.avgCalls;
+    document.getElementById('compare-ph-avg-calls').textContent = ph.avgCalls;
+    document.getElementById('compare-diff-avg-calls').innerHTML = formatDiff(parseFloat(gy.avgCalls), parseFloat(ph.avgCalls), false);
+    
+    document.getElementById('compare-gy-avg-xfers').textContent = gy.avgXfers;
+    document.getElementById('compare-ph-avg-xfers').textContent = ph.avgXfers;
+    document.getElementById('compare-diff-avg-xfers').innerHTML = formatDiff(parseFloat(gy.avgXfers), parseFloat(ph.avgXfers), false);
+    
+    document.getElementById('compare-gy-rate').textContent = gy.conversionRate ? `${gy.conversionRate}%` : '0%';
+    document.getElementById('compare-ph-rate').textContent = ph.conversionRate ? `${ph.conversionRate}%` : '0%';
+    document.getElementById('compare-diff-rate').innerHTML = formatDiff(parseFloat(gy.conversionRate), parseFloat(ph.conversionRate), false) + '%';
+    
+    // Set date label
+    const dateLabel = gyReport?.reportDate || phReport?.reportDate || 'Latest';
+    const dateEl = document.getElementById('as-compare-date');
+    if (dateEl) dateEl.textContent = `(${dateLabel})`;
+}
+
+// ============================================================
+// FILE UPLOAD HANDLERS
+// ============================================================
+
+async function handleGYFile(file) {
+    const statusDiv = document.getElementById('as-gy-status');
+    if (!file.name.endsWith('.csv')) {
+        statusDiv.innerHTML = '<span class="text-red-400">❌ Please upload a CSV file</span>';
+        return;
+    }
+    
+    statusDiv.innerHTML = '<span class="text-blue-400"><i class="fas fa-spinner fa-spin mr-1"></i> Parsing GY file...</span>';
+    try {
+        const data = await parseAgentStatusCSV(file, 'GY');
+        stagedGYData = data;
+        
+        // Update preview panel
+        document.getElementById('as-gy-filename').textContent = data.filename;
+        document.getElementById('as-gy-date').textContent = data.reportDate;
+        document.getElementById('as-gy-agents').textContent = data.totalAgents;
+        document.getElementById('as-gy-calls').textContent = data.totalCalls;
+        document.getElementById('as-gy-xfers').textContent = data.totalXfers;
+        document.getElementById('as-gy-avg-calls').textContent = data.avgCalls;
+        document.getElementById('as-gy-avg-xfers').textContent = data.avgXfers;
+        
+        document.getElementById('as-gy-panel').classList.remove('hidden');
+        statusDiv.innerHTML = '<span class="text-green-400">✅ GY file ready. Click "Confirm Upload" to save.</span>';
+    } catch (err) {
+        console.error('GY parse error:', err);
+        statusDiv.innerHTML = `<span class="text-red-400">❌ Parse error: ${err}</span>`;
+        stagedGYData = null;
+    }
+}
+
+async function handlePHFile(file) {
+    const statusDiv = document.getElementById('as-ph-status');
+    if (!file.name.endsWith('.csv')) {
+        statusDiv.innerHTML = '<span class="text-red-400">❌ Please upload a CSV file</span>';
+        return;
+    }
+    
+    statusDiv.innerHTML = '<span class="text-blue-400"><i class="fas fa-spinner fa-spin mr-1"></i> Parsing PH file...</span>';
+    try {
+        const data = await parseAgentStatusCSV(file, 'PH');
+        stagedPHData = data;
+        
+        // Update preview panel
+        document.getElementById('as-ph-filename').textContent = data.filename;
+        document.getElementById('as-ph-date').textContent = data.reportDate;
+        document.getElementById('as-ph-agents').textContent = data.totalAgents;
+        document.getElementById('as-ph-calls').textContent = data.totalCalls;
+        document.getElementById('as-ph-xfers').textContent = data.totalXfers;
+        document.getElementById('as-ph-avg-calls').textContent = data.avgCalls;
+        document.getElementById('as-ph-avg-xfers').textContent = data.avgXfers;
+        
+        document.getElementById('as-ph-panel').classList.remove('hidden');
+        statusDiv.innerHTML = '<span class="text-green-400">✅ PH file ready. Click "Confirm Upload" to save.</span>';
+    } catch (err) {
+        console.error('PH parse error:', err);
+        statusDiv.innerHTML = `<span class="text-red-400">❌ Parse error: ${err}</span>`;
+        stagedPHData = null;
+    }
+}
+
+async function confirmGYUpload() {
+    if (!stagedGYData) {
+        document.getElementById('as-gy-status').innerHTML = '<span class="text-red-400">❌ No GY data staged. Please upload a file first.</span>';
+        return;
+    }
+    await saveReportToFirebase('GY', stagedGYData);
+}
+
+async function confirmPHUpload() {
+    if (!stagedPHData) {
+        document.getElementById('as-ph-status').innerHTML = '<span class="text-red-400">❌ No PH data staged. Please upload a file first.</span>';
+        return;
+    }
+    await saveReportToFirebase('PH', stagedPHData);
+}
+
+// ============================================================
+// RETENTION SETTINGS
+// ============================================================
+
+function asSetRetention(days) {
+    currentRetentionDays = days;
+    [7, 30, 60, 90].forEach(d => {
+        const btn = document.getElementById(`as-ret-${d}`);
+        if (btn) {
+            if (d === days) {
+                btn.classList.add('active-ret');
+                btn.style.background = 'linear-gradient(90deg, rgba(6,182,212,0.25), rgba(59,130,246,0.25))';
+                btn.style.borderColor = 'rgba(6,182,212,0.7)';
+                btn.style.color = '#67e8f9';
+            } else {
+                btn.classList.remove('active-ret');
+                btn.style.background = '';
+                btn.style.borderColor = '';
+                btn.style.color = '';
+            }
+        }
+    });
+    
+    const customInput = document.getElementById('as-ret-custom');
+    if (customInput && days !== 7 && days !== 30 && days !== 60 && days !== 90) {
+        customInput.value = days;
+    }
+    
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + days);
+    const expiryEl = document.getElementById('as-expiry-display');
+    if (expiryEl) expiryEl.innerText = expiryDate.toLocaleDateString();
+    
+    const retentionSpan = document.getElementById('as-current-retention');
+    if (retentionSpan) retentionSpan.textContent = days;
+}
+
+function asSetCustomRetention() {
+    const customInput = document.getElementById('as-ret-custom');
+    if (customInput) {
+        let days = parseInt(customInput.value);
+        if (isNaN(days) || days < 1) days = 30;
+        if (days > 365) days = 365;
+        asSetRetention(days);
+    }
+}
+
+// ============================================================
+// DELETE FUNCTIONS
+// ============================================================
+
+async function deleteReport(id) {
+    if (!confirm('Delete this report permanently? This action cannot be undone.')) return;
+    
+    if (typeof window.deleteAgentStatsReport === 'function') {
+        const result = await window.deleteAgentStatsReport(id);
+        if (result && result.success) {
+            loadReportsHistory();
+        } else {
+            alert('Failed to delete report: ' + (result?.error || 'Unknown error'));
+        }
+    } else {
+        // Fallback for localStorage
+        try {
+            let reports = JSON.parse(localStorage.getItem('biz_agent_stats_reports') || '[]');
+            reports = reports.filter(r => r.id !== id);
+            localStorage.setItem('biz_agent_stats_reports', JSON.stringify(reports));
+            loadReportsHistory();
+        } catch(e) {
+            alert('Failed to delete: ' + e.message);
+        }
+    }
+}
+
+async function deleteAllPreviousReports() {
+    if (!confirm('⚠️ WARNING: This will delete ALL reports for both GY and PH. This cannot be undone. Are you absolutely sure?')) return;
+    
+    if (typeof window.deleteAllAgentStatsReports === 'function') {
+        const result = await window.deleteAllAgentStatsReports();
+        if (result && result.success) {
+            loadReportsHistory();
+        } else {
+            alert('Failed to delete all reports: ' + (result?.error || 'Unknown error'));
+        }
+    } else {
+        // Fallback for localStorage
+        try {
+            localStorage.setItem('biz_agent_stats_reports', '[]');
+            loadReportsHistory();
+        } catch(e) {
+            alert('Failed to delete: ' + e.message);
+        }
+    }
+}
+
+function refreshHistory() {
+    loadReportsHistory();
+}
+
+// ============================================================
+// DROPZONE SETUP
+// ============================================================
+
+function setupDropZones() {
+    // GY Dropzone
+    const gyDrop = document.getElementById('as-gy-dropzone');
+    const gyFile = document.getElementById('as-gy-file');
+    if (gyDrop && gyFile) {
+        gyDrop.onclick = () => gyFile.click();
+        gyDrop.ondragover = (e) => { e.preventDefault(); gyDrop.classList.add('border-green-400', 'bg-green-500/10'); };
+        gyDrop.ondragleave = () => gyDrop.classList.remove('border-green-400', 'bg-green-500/10');
+        gyDrop.ondrop = async (e) => {
+            e.preventDefault();
+            gyDrop.classList.remove('border-green-400', 'bg-green-500/10');
+            if (e.dataTransfer.files.length) await handleGYFile(e.dataTransfer.files[0]);
+        };
+        gyFile.onchange = async (e) => { if (e.target.files.length) await handleGYFile(e.target.files[0]); };
+    }
+    
+    // PH Dropzone
+    const phDrop = document.getElementById('as-ph-dropzone');
+    const phFile = document.getElementById('as-ph-file');
+    if (phDrop && phFile) {
+        phDrop.onclick = () => phFile.click();
+        phDrop.ondragover = (e) => { e.preventDefault(); phDrop.classList.add('border-purple-400', 'bg-purple-500/10'); };
+        phDrop.ondragleave = () => phDrop.classList.remove('border-purple-400', 'bg-purple-500/10');
+        phDrop.ondrop = async (e) => {
+            e.preventDefault();
+            phDrop.classList.remove('border-purple-400', 'bg-purple-500/10');
+            if (e.dataTransfer.files.length) await handlePHFile(e.dataTransfer.files[0]);
+        };
+        phFile.onchange = async (e) => { if (e.target.files.length) await handlePHFile(e.target.files[0]); };
+    }
+}
+
+function loadReportsHistory() {
+    listenForReports();
+}
+
+// ============================================================
+// EXPORT GLOBALLY
+// ============================================================
+
+// Make functions available globally
+window.handleGYFile = handleGYFile;
+window.handlePHFile = handlePHFile;
+window.confirmGYUpload = confirmGYUpload;
+window.confirmPHUpload = confirmPHUpload;
+window.asSetRetention = asSetRetention;
+window.asSetCustomRetention = asSetCustomRetention;
+window.deleteReport = deleteReport;
+window.deleteAllPreviousReports = deleteAllPreviousReports;
+window.refreshHistory = refreshHistory;
+window.loadReportsHistory = loadReportsHistory;
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('[PerformanceStats] Initializing...');
+    setupDropZones();
+    asSetRetention(30);
+    loadReportsHistory();
+});
