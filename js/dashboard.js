@@ -181,7 +181,7 @@ function buildAgentsFromRoster(state) {
             if (a.ytelId) leadMap.set(String(a.ytelId), a.dailyLeads || 0);
         });
     }
-    return fullRoster.filter(rosterAgent => !rosterAgent.hidden).map(rosterAgent => {
+    return fullRoster.filter(rosterAgent => !rosterAgent.hiddenFromDisplay).map(rosterAgent => {
         const agentName = rosterAgent.fullName || rosterAgent.name || '';
         const agentNameUpper = agentName.toUpperCase().trim();
         const ytelId = rosterAgent.userId || rosterAgent.ytelId || '';
@@ -473,7 +473,6 @@ function _subscribeLiveDashboard() {
                 }
             }
             
-            checkLeadAlerts(agents);
             render();
             renderDaySubTabs();
         });
