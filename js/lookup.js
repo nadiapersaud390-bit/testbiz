@@ -75,6 +75,7 @@ function addLocalPrankNumber(q){
 loadLivePrankNumbers();
 
 function checkKnownBadNumber(q){
+    if(!_prankLookupEnabled) return null;
     const digits=normalizePhone(q);
     if(digits.length<7)return null;
     const d10=digits.slice(-10);
@@ -127,7 +128,7 @@ function runLookup(){
         try{localStorage.setItem('bizlookup_history',JSON.stringify(lookupHistory));}catch(e){}
         renderLookupHistory();
         return;}
-    const prank=detectPrank(q);
+    const prank=_prankLookupEnabled ? detectPrank(q) : {prankScore:0,prankReasons:[],prankVerdict:'clean'};
     showPrankResult(prank);
     const entry={query:q,prankScore:prank.prankScore,prankVerdict:prank.prankVerdict,prankReasons:prank.prankReasons,timestamp:new Date().toISOString()};
     lookupHistory.unshift(entry);
@@ -345,6 +346,26 @@ function initFirebasePrankListener() {
 
 // Start Firebase listener
 initFirebasePrankListener();
+
+// ── Prank visibility flag (controlled by Super Admin toggle) ──
+let _prankLookupEnabled = true;
+function _initPrankVisibilitySync() {
+    if (typeof window.listenForPrankVisibility === 'function') {
+        window.listenForPrankVisibility(function(visible) {
+            _prankLookupEnabled = !!visible;
+            // If just turned off, hide any currently-showing prank result
+            if (!_prankLookupEnabled) {
+                const pr = document.getElementById('lookup-prank-result');
+                if (pr) { pr.classList.add('hidden'); pr.innerHTML = ''; }
+            }
+        });
+    }
+}
+// Try now, and also once DOM is ready (in case firebase.js loads after this)
+_initPrankVisibilitySync();
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initPrankVisibilitySync);
+}
 
 var lookupHistory = [];
 try { lookupHistory = JSON.parse(localStorage.getItem('bizlookup_history') || '[]'); } catch(e) {}
