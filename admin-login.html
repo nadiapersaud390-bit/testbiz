@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login | BIZ Level Up</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #020617 0%, #0f172a 100%);
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="max-w-md w-full">
+        <div class="text-center mb-8">
+            <div class="text-6xl mb-4">🔐</div>
+            <h1 class="text-3xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent uppercase">
+                Admin Login
+            </h1>
+            <p class="text-slate-400 text-sm mt-2">Multi-admin system with role-based access</p>
+        </div>
+        
+        <div class="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-yellow-400 mb-2">
+                        <i class="fas fa-user mr-1"></i> Username / Email
+                    </label>
+                    <input type="text" id="login-email" placeholder="momo or admin@example.com" 
+                           class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-yellow-400 transition"
+                           onkeypress="if(event.key==='Enter') login()">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-yellow-400 mb-2">
+                        <i class="fas fa-lock mr-1"></i> Password
+                    </label>
+                    <input type="password" id="login-password" placeholder="••••••••" 
+                           class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-yellow-400 transition"
+                           onkeypress="if(event.key==='Enter') login()">
+                </div>
+                
+                <button onclick="login()" 
+                        class="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-black py-3 rounded-xl uppercase tracking-wider transition hover:scale-105">
+                    <i class="fas fa-sign-in-alt mr-2"></i> Login
+                </button>
+                
+                <div id="error-message" class="hidden">
+                    <div class="bg-red-500/20 border border-red-500/30 rounded-xl p-3 text-center">
+                        <p id="error-text" class="text-red-400 text-sm"></p>
+                    </div>
+                </div>
+                
+                <div class="text-center text-xs text-slate-500 mt-4">
+                    <i class="fas fa-shield-alt mr-1"></i>
+                    First time? <a href="setup-super-admin.html" class="text-yellow-400 underline">Create Super Admin</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/super-admin.js"></script>
+    <!-- Firebase RTDB sync so admin credentials work from any machine -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA5u7B8UJQOFG8yhE0YKWCiWCHQgaNu1mY",
+            authDomain: "biz-dashboard-4396c.firebaseapp.com",
+            databaseURL: "https://biz-dashboard-4396c-default-rtdb.firebaseio.com",
+            projectId: "biz-dashboard-4396c",
+            storageBucket: "biz-dashboard-4396c.firebasestorage.app",
+            messagingSenderId: "394155720592",
+            appId: "1:394155720592:web:b85a142cf8c885726b3d15"
+        };
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            const db = getDatabase(app);
+
+            // Expose Firebase save functions so super-admin.js can push credentials
+            window.saveAdminsListToFirebase = async function(adminsObj) {
+                await set(ref(db, 'admins_list'), adminsObj);
+            };
+            window.saveSuperAdminToFirebase = async function(superAdminObj) {
+                await set(ref(db, 'super_admin'), superAdminObj);
+            };
+
+            // Sync admin accounts from Firebase RTDB
+            onValue(ref(db, 'admins_list'), (snapshot) => {
+                const firebaseData = snapshot.val() || {};
+                const localData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+                const merged = Object.assign({}, localData, firebaseData);
+                localStorage.setItem('biz_admins_list_v1', JSON.stringify(merged));
+                // Re-seed defaults to ensure momo/rose credentials are correct,
+                // then push the authoritative list back to Firebase
+                if (typeof window.seedDefaultAdmins === 'function') window.seedDefaultAdmins();
+                console.log('✅ Admin list synced from Firebase');
+            });
+
+            // Sync super admin from Firebase RTDB
+            onValue(ref(db, 'super_admin'), (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    localStorage.setItem('biz_super_admin_v1', JSON.stringify(data));
+                    console.log('✅ Super admin synced from Firebase');
+                }
+                // Ensure default super admin is initialized and pushed to Firebase
+                if (typeof window.initializeDefaultSuperAdmin === 'function') window.initializeDefaultSuperAdmin();
+            });
+
+            window._firebaseSynced = true;
+        } catch (e) {
+            console.warn("Firebase sync failed on admin-login", e);
+        }
+    </script>
+    <script>
+        function login() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const errorDiv = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            
+            if (!email || !password) {
+                errorText.textContent = 'Please enter email and password';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            const result = superAdminLogin(email, password);
+            
+            if (result.success) {
+                // ── Live Tracker: start heartbeat, force-logout watcher, concurrent session ──
+                setTimeout(function () {
+                    if (typeof window.startAdminHeartbeat === 'function')        window.startAdminHeartbeat();
+                    if (typeof window.watchForForcedLogout === 'function')       window.watchForForcedLogout();
+                    if (typeof window.startConcurrentSessionTrack === 'function') window.startConcurrentSessionTrack();
+                }, 600);
+                // ─────────────────────────────────────────────────────────────────────────────
+                window.location.href = 'admin-management.html';
+            } else {
+                errorText.textContent = result.error || 'Invalid credentials';
+                errorDiv.classList.remove('hidden');
+                setTimeout(() => {
+                    errorDiv.classList.add('hidden');
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>

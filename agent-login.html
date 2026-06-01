@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BIZ Level Up — Clock In</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700;900&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #020617; --border: rgba(255,255,255,0.10);
+      --gold: #facc15; --gold-dark: #ca8a04;
+      --green: #22c55e; --red: #ef4444; --purple: #a855f7;
+      --text: #f1f5f9; --muted: #64748b;
+    }
+    body {
+      background: var(--bg); font-family: 'Inter', sans-serif;
+      color: var(--text); min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      animation: pageFadeIn 0.7s ease-out;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; pointer-events: none;
+      background:
+        repeating-linear-gradient(0deg, transparent, transparent 49px, rgba(255,255,255,0.015) 49px, rgba(255,255,255,0.015) 50px),
+        repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(255,255,255,0.015) 49px, rgba(255,255,255,0.015) 50px),
+        radial-gradient(circle at 20% 10%, rgba(250,204,21,0.08), transparent 45%),
+        radial-gradient(circle at 80% 80%, rgba(56,189,248,0.08), transparent 40%);
+      animation: bgPan 18s ease-in-out infinite alternate;
+    }
+    @keyframes pageFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes bgPan { from { transform: scale(1) translateX(0); } to { transform: scale(1.03) translateX(-10px); } }
+    .card {
+      position: relative; z-index: 1; width: 100%; max-width: 400px;
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 28px; padding: 40px 30px 36px;
+      box-shadow: 0 0 80px rgba(250,204,21,0.05), 0 32px 64px rgba(0,0,0,0.4);
+      animation: cardRise 0.65s ease-out;
+      backdrop-filter: blur(4px);
+    }
+    @keyframes cardRise { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .logo-ring {
+      width: 70px; height: 70px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(250,204,21,0.15), rgba(249,115,22,0.15));
+      border: 2px solid rgba(250,204,21,0.3);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 18px; font-size: 30px;
+      animation: ringPulse 2.8s ease-in-out infinite;
+    }
+    @keyframes ringPulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(250,204,21,0.25); transform: translateY(0); }
+      50% { box-shadow: 0 0 0 10px rgba(250,204,21,0); transform: translateY(-2px); }
+    }
+    .brand {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 900;
+      text-transform: uppercase; letter-spacing: 0.22em; color: var(--muted);
+      text-align: center; margin-bottom: 4px;
+    }
+    h1 {
+      font-family: 'Orbitron', sans-serif; font-size: clamp(17px,5vw,21px);
+      font-weight: 900; text-align: center;
+      background: linear-gradient(90deg, var(--gold), #fb923c, var(--gold));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;
+    }
+    .subtitle { text-align: center; font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 26px; font-family: 'Poppins', sans-serif; }
+
+    #live-clock {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 12px; padding: 10px 16px; text-align: center;
+      margin-bottom: 22px; display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    .clock-flag { font-size: 18px; }
+    .clock-time { font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: 900; color: var(--gold); letter-spacing: 0.06em; }
+    #late-badge {
+      display: none; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em;
+      background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4);
+      color: var(--red); border-radius: 20px; padding: 3px 8px;
+    }
+
+    label { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 8px; font-family: 'Poppins', sans-serif; }
+    #ytel-input, #admin-password-input {
+      width: 100%; background: rgba(255,255,255,0.05); border: 2px solid var(--border);
+      border-radius: 16px; color: var(--text);
+      font-family: 'Poppins', sans-serif; font-weight: 700;
+      padding: 18px 20px; outline: none; text-align: center;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      margin-bottom: 6px;
+    }
+    #ytel-input { font-size: 2rem; letter-spacing: 0.16em; -moz-appearance: textfield; font-weight: 800; }
+    #ytel-input::-webkit-outer-spin-button, #ytel-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    #admin-password-input { font-size: 1rem; letter-spacing: 0.08em; margin-bottom: 10px; }
+    #ytel-input:focus, #admin-password-input:focus { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(250,204,21,0.10); }
+    #ytel-input.shake, #admin-password-input.shake { border-color: var(--red); animation: shake 0.4s ease; }
+    @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
+    .err { color: var(--red); font-size: 11px; font-weight: 700; text-align: center; min-height: 16px; margin-bottom: 14px; }
+
+    #submit-btn {
+      width: 100%; padding: 18px; border-radius: 16px;
+      font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 13px;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      background: linear-gradient(90deg, var(--gold-dark), var(--gold), #fb923c);
+      color: #020617; border: none; cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s, box-shadow 0.2s; box-shadow: 0 0 30px rgba(250,204,21,0.25);
+    }
+    #submit-btn:hover:not(:disabled) { opacity: 0.95; box-shadow: 0 0 34px rgba(250,204,21,0.35); }
+    #submit-btn:active:not(:disabled) { transform: scale(0.97); }
+    #submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    #result-panel { display: none; animation: fadeUp 0.35s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+
+    .result-box { border-radius: 20px; overflow: hidden; margin-bottom: 14px; }
+    .result-header { padding: 24px 22px 18px; text-align: center; }
+    .result-header.is-present {
+      background: linear-gradient(135deg, rgba(34,197,94,0.14), rgba(21,128,61,0.20));
+      border: 2px solid rgba(34,197,94,0.40); border-bottom: none; border-radius: 20px 20px 0 0;
+    }
+    .result-header.is-late {
+      background: linear-gradient(135deg, rgba(239,68,68,0.14), rgba(185,28,28,0.20));
+      border: 2px solid rgba(239,68,68,0.40); border-bottom: none; border-radius: 20px 20px 0 0;
+    }
+    .result-emoji { font-size: 42px; margin-bottom: 8px; }
+    .result-name { font-family: 'Orbitron', sans-serif; font-size: clamp(14px,4vw,17px); font-weight: 900; color: white; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .result-tag { display: inline-block; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; border-radius: 20px; padding: 4px 14px; }
+    .result-tag.present { background: rgba(34,197,94,0.2); color: var(--green); border: 1px solid rgba(34,197,94,0.4); }
+    .result-tag.late    { background: rgba(239,68,68,0.2);  color: var(--red);   border: 1px solid rgba(239,68,68,0.4); }
+
+    .result-info { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: rgba(255,255,255,0.06); }
+    .result-header.is-present + .result-info { border: 2px solid rgba(34,197,94,0.40); border-top: none; border-radius: 0 0 20px 20px; overflow: hidden; }
+    .result-header.is-late   + .result-info { border: 2px solid rgba(239,68,68,0.40);  border-top: none; border-radius: 0 0 20px 20px; overflow: hidden; }
+    .info-cell { background: rgba(2,6,23,0.7); padding: 12px 14px; }
+    .info-cell.full { grid-column: 1 / -1; }
+    .info-label { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 3px; }
+    .info-value { font-size: 13px; font-weight: 700; color: white; }
+    .info-value.leads { font-family: 'Orbitron', sans-serif; font-size: 20px; color: #c084fc; }
+    .info-value.ok   { color: var(--green); }
+    .info-value.warn { color: var(--red); }
+
+    .stamp { text-align: center; font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 16px; letter-spacing: 0.04em; line-height: 1.6; }
+
+    #reset-btn {
+      width: 100%; padding: 13px; border-radius: 14px;
+      font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 10px;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+      color: var(--muted); cursor: pointer; transition: all 0.2s;
+    }
+    #reset-btn:hover { background: rgba(255,255,255,0.08); color: white; }
+  </style>
+</head>
+<body>
+<div class="card">
+
+  <div class="logo-ring">🏢</div>
+  <div class="brand">BIZ Level Up</div>
+  <h1>Clock In</h1>
+  <p class="subtitle">Enter your Ytel ID — or use admin access</p>
+  <p class="subtitle" id="redirect-note" style="display:none;margin-top:-14px;margin-bottom:20px;color:#22c55e;">Login confirmed. Redirecting to dashboard…</p>
+
+  <div id="live-clock">
+    <span class="clock-flag">🇬🇾</span>
+    <span class="clock-time" id="clock-display">--:-- --</span>
+    <span id="late-badge">⏰ Late Window</span>
+  </div>
+
+  <div id="login-form">
+    <label for="ytel-input">Your Ytel ID / Super Admin</label>
+    <input type="text" id="ytel-input" placeholder="e.g. 1055 or ROSE" autocomplete="off" onkeydown="if(event.key==='Enter') doSubmit()" oninput="onYtelIdInput(this.value)" />
+    <div id="admin-password-wrap" style="display:none;">
+      <label for="admin-password-input">Super Admin Password</label>
+      <input type="password" id="admin-password-input" placeholder="Enter super admin password" autocomplete="off" onkeydown="if(event.key==='Enter') doSubmit()" />
+    </div>
+    <p class="err" id="err-msg"></p>
+    <!-- AGENT PASSWORD UI -->
+    <div id="agent-pw-hint" style="display:none;margin-top:-6px;margin-bottom:10px;font-size:11px;font-weight:800;color:#facc15;letter-spacing:0.04em;animation:fadeSlideIn 0.35s ease;text-align:center;">
+        💡 Add a password for faster login next time
+    </div>
+    <div id="agent-pw-wrap" style="display:none;animation:fadeSlideIn 0.35s ease;">
+        <label id="agent-pw-label" for="agent-pw-input" style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#94a3b8;margin-bottom:6px;display:block;">Enter Password</label>
+        <input type="password" id="agent-pw-input" placeholder="••••••••" autocomplete="new-password"
+               onkeydown="if(event.key==='Enter') doSubmit()"
+               style="width:100%;background:rgba(0,0,0,0.5);border:1.5px solid rgba(255,255,255,0.12);border-radius:14px;padding:12px 16px;color:#fff;font-size:15px;outline:none;margin-bottom:8px;box-sizing:border-box;transition:border-color 0.2s;" />
+        <div id="agent-pw-confirm-wrap" style="display:none;">
+            <label for="agent-pw-confirm" style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#94a3b8;margin-bottom:6px;display:block;">Confirm Password</label>
+            <input type="password" id="agent-pw-confirm" placeholder="Repeat password" autocomplete="new-password"
+                   onkeydown="if(event.key==='Enter') doSubmit()"
+                   style="width:100%;background:rgba(0,0,0,0.5);border:1.5px solid rgba(255,255,255,0.12);border-radius:14px;padding:12px 16px;color:#fff;font-size:15px;outline:none;margin-bottom:8px;box-sizing:border-box;transition:border-color 0.2s;" />
+            <p style="font-size:10px;color:#64748b;text-align:center;margin:0 0 8px;">Leave blank to skip — password is optional</p>
+        </div>
+    </div>
+    <button id="submit-btn" onclick="doSubmit()">Clock In →</button>
+  </div>
+
+  <div id="result-panel">
+    <div class="result-box">
+      <div class="result-header" id="result-header">
+        <div class="result-emoji" id="result-emoji"></div>
+        <div class="result-name" id="result-name"></div>
+        <span class="result-tag" id="result-tag"></span>
+      </div>
+      <div class="result-info" id="result-info"></div>
+    </div>
+    <p class="stamp" id="stamp"></p>
+    <button id="reset-btn" onclick="doReset()">← Clock In Another Agent</button>
+  </div>
+
+</div>
+<script src="js/super-admin.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue, set, get, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  
+  const firebaseConfig = {
+    apiKey: "AIzaSyA5u7B8UJQOFG8yhE0YKWCiWCHQgaNu1mY",
+    authDomain: "biz-dashboard-4396c.firebaseapp.com",
+    databaseURL: "https://biz-dashboard-4396c-default-rtdb.firebaseio.com",
+    projectId: "biz-dashboard-4396c",
+    storageBucket: "biz-dashboard-4396c.firebasestorage.app",
+    messagingSenderId: "394155720592",
+    appId: "1:394155720592:web:b85a142cf8c885726b3d15"
+  };
+
+  try {
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const firestore = getFirestore(app);
+
+    // Sync admin accounts from Firebase RTDB
+    onValue(ref(db, 'admins_list'), (snapshot) => {
+      const firebaseData = snapshot.val() || {};
+      const localData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+      const merged = Object.assign({}, localData, firebaseData);
+      localStorage.setItem('biz_admins_list_v1', JSON.stringify(merged));
+      if (typeof window.seedDefaultAdmins === 'function') window.seedDefaultAdmins();
+    });
+
+    // Sync super admin from Firebase RTDB
+    onValue(ref(db, 'super_admin'), (snapshot) => {
+      const data = snapshot.val();
+      if (data) localStorage.setItem('biz_super_admin_v1', JSON.stringify(data));
+    });
+
+    // Load agent profiles from Firestore (contains shift, lunchTime, etc.)
+    const loadAgentProfiles = async () => {
+      try {
+        const profilesRef = collection(firestore, 'agent_profiles');
+        const snapshot = await getDocs(profilesRef);
+        const profiles = [];
+        snapshot.forEach(doc => {
+          profiles.push({ id: doc.id, ...doc.data() });
+        });
+        if (profiles.length > 0) {
+          window.allAgentProfiles = profiles;
+          try { localStorage.setItem('biz_master_roster', JSON.stringify(profiles)); } catch(e) {}
+          console.log(`[login] Loaded ${profiles.length} agent profiles from Firestore`);
+        }
+      } catch (e) {
+        console.warn("Failed to load agent profiles from Firestore", e);
+      }
+    };
+    
+    loadAgentProfiles();
+
+    // Sync master roster from RTDB so fresh agent data is always available
+    onValue(ref(db, 'biz_master_roster'), (snap) => {
+      const roster = snap.val();
+      if (roster) {
+        const arr = Array.isArray(roster) ? roster : Object.values(roster);
+        if (arr.length > 0) {
+          window.allAgentProfiles = arr;
+          try { localStorage.setItem('biz_master_roster', JSON.stringify(arr)); } catch(e2) {}
+          console.log('[login] RTDB roster synced:', arr.length, 'agents');
+        }
+      }
+    });
+
+    // ── AGENT PASSWORD HELPERS ──
+    window._rtdbGetAgentPassword = async function(ytelId) {
+      try {
+        const snap = await get(ref(db, 'agent_passwords/' + String(ytelId)));
+        return snap.exists() ? snap.val() : null;
+      } catch(e) { return null; }
+    };
+
+    window._rtdbSetAgentPassword = async function(ytelId, name, password) {
+      if (!ytelId || !password) return false;
+      try {
+        await set(ref(db, 'agent_passwords/' + String(ytelId)), {
+          ytelId: String(ytelId),
+          name: name || 'Agent',
+          password: btoa(unescape(encodeURIComponent(password))),
+          setAt: Date.now()
+        });
+        return true;
+      } catch(e) { return false; }
+    };
+
+    // Read today's Firebase attendance record without writing (used by login flow)
+    window._rtdbGetAttendance = async function(agentId) {
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guyana' });
+      try {
+        const snap = await get(ref(db, 'attendance/' + today + '/' + String(agentId)));
+        return snap.exists() ? snap.val() : null;
+      } catch(e) {
+        console.warn('[attendance] RTDB read failed:', e);
+        return null;
+      }
+    };
+
+    // Only writes when NO record exists today — never overwrites existing or admin-edited records
+    window._rtdbSaveAttendance = async function(agentId, agentName, team, status, clockedAt) {
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guyana' });
+      try {
+        const existing = await get(ref(db, 'attendance/' + today + '/' + String(agentId)));
+        if (existing.exists()) {
+          console.log('[attendance] Record already exists — skipping write for', agentId);
+          return;
+        }
+        await set(ref(db, 'attendance/' + today + '/' + String(agentId)), {
+          agentId: String(agentId), agentName: agentName || '',
+          team: team || '', status: status || 'Present',
+          clockedAt: clockedAt || '', timestamp: Date.now()
+        });
+        console.log('[attendance] Saved to RTDB:', agentId, status);
+      } catch(e3) {
+        console.warn('[attendance] RTDB write failed:', e3);
+      }
+    };
+
+  } catch (e) {
+    console.warn("Firebase sync failed", e);
+  }
+
+</script>
+<script>
+  const SHIFT_HOUR = 10;
+  const SHIFT_MINUTE = 0;
+  const GRACE_MINUTES = 15;
+
+  function getTodayISO() {
+    return formatGuyanaDateISO(guyanaTime());
+  }
+
+  function getStoredAttendance(ytelId) {
+    const key = 'biz_att_' + ytelId + '_' + getTodayISO();
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function storeAttendance(ytelId, status, clockedAt) {
+    const key = 'biz_att_' + ytelId + '_' + getTodayISO();
+    try {
+      localStorage.setItem(key, JSON.stringify({ status, clockedAt }));
+    } catch (e) {}
+  }
+
+  function guyanaTime() {
+    return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+  }
+
+  function pad(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function formatGuyanaDateISO(d) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Guyana',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(d).reduce((acc, part) => {
+      if (part.type !== 'literal') acc[part.type] = part.value;
+      return acc;
+    }, {});
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+
+  function getGuyanaWeekday(d) {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Guyana',
+      weekday: 'short'
+    }).format(d);
+  }
+
+  function isWorkday(weekday) {
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
+  }
+
+  function toUTCDate(dateStr) {
+    return new Date(`${dateStr}T00:00:00Z`);
+  }
+
+  function nextWorkday(dateStr) {
+    const d = toUTCDate(dateStr);
+    d.setUTCDate(d.getUTCDate() + 1);
+    while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function updateAgentStreak(profile) {
+    const today = guyanaTime();
+    const todayISO = formatGuyanaDateISO(today);
+    const weekday = getGuyanaWeekday(today);
+    const allStreaks = JSON.parse(localStorage.getItem('biz_agent_streaks_v1') || '{}');
+    const current = allStreaks[profile.ytelId] || { streak: 0, lastLoginDate: '' };
+
+    if (isWorkday(weekday)) {
+      if (current.lastLoginDate !== todayISO) {
+        const shouldIncrement = current.lastLoginDate && nextWorkday(current.lastLoginDate) === todayISO;
+        current.streak = shouldIncrement ? (current.streak || 0) + 1 : 1;
+        current.lastLoginDate = todayISO;
+      }
+    } else if (!current.streak) {
+      current.streak = 1;
+    }
+
+    allStreaks[profile.ytelId] = current;
+    localStorage.setItem('biz_agent_streaks_v1', JSON.stringify(allStreaks));
+    return current.streak || 1;
+  }
+
+  function fmtTime(d) {
+    const h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
+    return pad(h % 12 || 12) + ':' + pad(m) + ':' + pad(s) + ' ' + (h >= 12 ? 'PM' : 'AM');
+  }
+
+  function checkLate() {
+    const g = guyanaTime();
+    const now = g.getHours() * 60 + g.getMinutes();
+    const gate = SHIFT_HOUR * 60 + SHIFT_MINUTE + GRACE_MINUTES;
+    return now > gate;
+  }
+
+  function tickClock() {
+    document.getElementById('clock-display').textContent = fmtTime(guyanaTime());
+    document.getElementById('late-badge').style.display = checkLate() ? 'inline-block' : 'none';
+  }
+
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  // Helper to get agent profile from Firebase roster by Ytel ID (for shift/lunch fallback)
+  function getAgentProfileFromRoster(ytelId) {
+    const roster = window.allAgentProfiles || [];
+    try {
+      const localRoster = JSON.parse(localStorage.getItem('biz_master_roster') || '[]');
+      if (localRoster.length > 0) {
+        const match = localRoster.find(p => String(p.userId || p.ytelId || p.id || '').trim() === String(ytelId).trim());
+        if (match) return match;
+      }
+    } catch(e) {}
+    
+    const match = roster.find(p => String(p.userId || p.ytelId || p.id || '').trim() === String(ytelId).trim());
+    return match || null;
+  }
+
+  // ── AGENT PASSWORD STATE ──
+  let _agentPwState = null; // null | 'required' | 'optional'
+  let _agentPwDebounce = null;
+  let _agentPwCheckedId = '';
+
+  function onYtelIdInput(value) {
+    const hint   = document.getElementById('agent-pw-hint');
+    const wrap   = document.getElementById('agent-pw-wrap');
+    const label  = document.getElementById('agent-pw-label');
+    const conf   = document.getElementById('agent-pw-confirm-wrap');
+
+    const raw = String(value || '').replace(/\D/g, '');
+    if (!raw || raw.length < 3) {
+      hint.style.display = 'none';
+      wrap.style.display = 'none';
+      _agentPwState = null;
+      _agentPwCheckedId = '';
+      return;
+    }
+
+    clearTimeout(_agentPwDebounce);
+    _agentPwDebounce = setTimeout(async () => {
+      if (_agentPwCheckedId === raw) return; // already checked
+      _agentPwCheckedId = raw;
+
+      // Only show if valid agent
+      const profile = getAgentProfileFromRoster(raw);
+      if (!profile) { hint.style.display = 'none'; wrap.style.display = 'none'; _agentPwState = null; return; }
+
+      // Check Firebase for existing password
+      const existing = typeof window._rtdbGetAgentPassword === 'function'
+        ? await window._rtdbGetAgentPassword(raw)
+        : null;
+
+      if (existing && existing.password) {
+        _agentPwState = 'required';
+        hint.style.display = 'none';
+        label.textContent = 'Enter Your Password';
+        conf.style.display = 'none';
+        wrap.style.display = 'block';
+        document.getElementById('agent-pw-input').placeholder = '••••••••';
+        document.getElementById('agent-pw-input').focus();
+      } else {
+        _agentPwState = 'optional';
+        hint.style.display = 'block';
+        label.textContent = 'Create a Password (optional)';
+        conf.style.display = 'block';
+        wrap.style.display = 'block';
+      }
+    }, 420);
+  }
+
+  async function doSubmit() {
+    const input = document.getElementById('ytel-input');
+    const adminPasswordInput = document.getElementById('admin-password-input');
+    const adminPasswordWrap = document.getElementById('admin-password-wrap');
+    const errEl = document.getElementById('err-msg');
+    const btn = document.getElementById('submit-btn');
+    const loginId = normalizeLoginId(input.value);
+    const ytelId = normalizeYtelId(input.value);
+    const inAdminMode = btn.dataset.mode === 'admin';
+
+    if (inAdminMode) {
+      doAdminLogin(adminPasswordInput, errEl, btn);
+      return;
+    }
+
+    // 🔥 FIXED: Check for ROSE (case-insensitive) to trigger admin mode
+    const adminData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+    const loginIdLower = loginId.toLowerCase();
+    const isPotentialAdmin = (loginIdLower === 'rose' || loginId === '0000' || !!adminData[loginIdLower]);
+
+    if (isPotentialAdmin) {
+      btn.dataset.mode = 'admin';
+      adminPasswordWrap.style.display = 'block';
+      btn.dataset.adminId = loginId;
+      btn.textContent = 'Admin Log In →';
+      adminPasswordInput.focus();
+      return;
+    }
+
+    if (!ytelId) {
+      flashError(input, errEl, btn, 'Please enter your Ytel ID.');
+      return;
+    }
+
+    errEl.textContent = '';
+    btn.disabled = true;
+    btn.textContent = '⏳ Clocking In...';
+
+    const existingRecord = getStoredAttendance(ytelId);
+    const localProfile = getAgentProfileFromRoster(ytelId);
+
+    // Build sData from Firebase profile (no Google Sheets needed)
+    let sData = null;
+    if (localProfile) {
+      sData = {
+        found: true,
+        name: localProfile.fullName || localProfile.name || 'Agent',
+        shift: localProfile.shift || '',
+        lunch: localProfile.lunchTime || '',
+        team: localProfile.team || ''
+      };
+    }
+
+    if (!sData || !sData.found) {
+      flashError(input, errEl, btn, 'Ytel ID not found — double-check your number or contact your supervisor.');
+      return;
+    }
+
+    // Block hidden agents from logging in
+    if (localProfile && localProfile.hidden === true) {
+      flashError(input, errEl, btn, 'This account is not available. Please contact your supervisor.');
+      return;
+    }
+
+    // ── PASSWORD CHECK ──
+    if (_agentPwState === 'required') {
+      const entered = (document.getElementById('agent-pw-input').value || '').trim();
+      if (!entered) {
+        flashError(document.getElementById('agent-pw-input'), errEl, btn, 'Please enter your password.');
+        return;
+      }
+      const pwData = typeof window._rtdbGetAgentPassword === 'function' ? await window._rtdbGetAgentPassword(ytelId) : null;
+      if (pwData && pwData.password) {
+        const stored = pwData.password;
+        const enteredEncoded = btoa(unescape(encodeURIComponent(entered)));
+        if (stored !== enteredEncoded) {
+          flashError(document.getElementById('agent-pw-input'), errEl, btn, 'Incorrect password. Try again.');
+          return;
+        }
+      }
+    }
+
+    if (existingRecord) {
+      showResult(sData, existingRecord.status, ytelId, existingRecord.clockedAt);
+      return;
+    }
+
+    // Check Firebase for an existing record (covers re-login after cache clear / different device)
+    if (typeof window._rtdbGetAttendance === 'function') {
+      const firebaseRecord = await window._rtdbGetAttendance(ytelId);
+      if (firebaseRecord) {
+        const fbStatus = firebaseRecord.status || 'Present';
+        const fbClockedAt = firebaseRecord.clockedAt || '--:--';
+        storeAttendance(ytelId, fbStatus, fbClockedAt);
+        showResult(sData, fbStatus, ytelId, fbClockedAt);
+        return;
+      }
+    }
+
+    const status = checkLate() ? 'Late' : 'Present';
+    const clockedAt = fmtTime(guyanaTime());
+
+    // Save attendance to Firebase RTDB
+    if (typeof window._rtdbSaveAttendance === 'function') {
+      window._rtdbSaveAttendance(ytelId, sData.name, sData.team, status, clockedAt);
+    }
+
+    storeAttendance(ytelId, status, clockedAt);
+
+    // ── SAVE NEW PASSWORD (if optional set) ──
+    if (_agentPwState === 'optional') {
+      const newPw = (document.getElementById('agent-pw-input').value || '').trim();
+      const cfmPw = (document.getElementById('agent-pw-confirm').value || '').trim();
+      if (newPw && newPw === cfmPw && typeof window._rtdbSetAgentPassword === 'function') {
+        window._rtdbSetAgentPassword(ytelId, sData.name, newPw);
+      }
+    }
+
+    if (typeof window.ahUpdateAgentPresence === 'function') {
+      window.ahUpdateAgentPresence(ytelId, sData.name, status);
+    }
+    showResult(sData, status, ytelId, clockedAt);
+  }
+
+  async function doAdminLogin(adminPasswordInput, errEl, btn) {
+    const loginId = btn.dataset.adminId;
+    const password = adminPasswordInput.value;
+
+    const result = window.superAdminLogin(loginId, password);
+
+    if (!result.success) {
+      flashError(adminPasswordInput, errEl, btn, result.error || 'Incorrect admin password.');
+      return;
+    }
+
+    window.location.href = 'index.html';
+  }
+
+  function flashError(input, errEl, btn, msg) {
+    input.classList.add('shake');
+    errEl.textContent = msg;
+    btn.disabled = false;
+    btn.textContent = btn.dataset.mode === 'admin' ? 'Super Admin Log In →' : 'Clock In →';
+    setTimeout(() => input.classList.remove('shake'), 500);
+  }
+
+  function normalizeYtelId(value) {
+    return String(value || '').replace(/\D/g, '');
+  }
+
+  function normalizeLoginId(value) {
+    return String(value || '').trim().toUpperCase();
+  }
+
+  function resolveLunchValue(data) {
+    if (!data || typeof data !== 'object') return '—';
+    const candidates = [
+      data.lunch, data.lunchSlot, data.lunch_time, data.lunchTime,
+      data['Lunch Slot'], data['Lunch'], data['Lunch Time'],
+      data['lunch time'], data['LunchTime'], data['lunchbreak'],
+      data['LunchBreak'], data['lunch_break'], data['lunchBreak'],
+      data['break'], data['Break'], data['Break Time'], data['break_time']
+    ];
+    const match = candidates.find(v => v !== undefined && v !== null && String(v).trim() !== '');
+    if (match === undefined || match === null) return '—';
+    const val = String(match).trim();
+    if (!val) return '—';
+    const num = Number(val);
+    if (!isNaN(num) && num > 0 && num < 1) {
+      const totalMinutes = Math.round(num * 24 * 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const h = hours % 12 || 12;
+      return h + ':' + String(minutes).padStart(2, '0') + ' ' + ampm;
+    }
+    return val;
+  }
+
+  function showResult(data, status, ytelId, clockedAt) {
+    const late = status === 'Late';
+    const now = guyanaTime();
+    const displayTime = clockedAt || fmtTime(now);
+    const dateStr = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+
+    const header = document.getElementById('result-header');
+    header.className = 'result-header ' + (late ? 'is-late' : 'is-present');
+    document.getElementById('result-emoji').textContent = late ? '⏰' : '✅';
+    document.getElementById('result-name').textContent = data.name || 'Agent';
+    const tag = document.getElementById('result-tag');
+    tag.textContent = late ? 'Marked Late' : 'Marked Present';
+    tag.className = 'result-tag ' + (late ? 'late' : 'present');
+
+    const lunchValue = resolveLunchValue(data);
+
+    const cells = [
+      { label: 'Team', value: data.team || '—', cls: '' },
+      { label: 'Shift', value: data.shift || '—', cls: late ? 'warn' : 'ok' },
+      { label: 'Lunch Slot', value: lunchValue, cls: '' },
+      { label: 'Clocked In', value: displayTime, cls: late ? 'warn' : 'ok' },
+    ];
+
+    if (data.weekLead !== null && data.weekLead !== undefined) {
+      cells.push({ label: '⚡ Weekly Leads', value: data.weekLead, cls: 'leads', full: true });
+    }
+
+    document.getElementById('result-info').innerHTML = cells.map(c =>
+      `<div class="info-cell${c.full ? ' full' : ''}"><div class="info-label">${c.label}</div><div class="info-value ${c.cls}">${c.value}</div></div>`
+    ).join('');
+
+    document.getElementById('stamp').textContent = dateStr + ' · ' + displayTime + ' Guyana Time';
+
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('result-panel').style.display = 'block';
+    document.getElementById('redirect-note').style.display = 'block';
+
+    sessionStorage.setItem('agentLoggedIn', '1');
+    sessionStorage.setItem('bizUserRole', 'agent');
+    sessionStorage.setItem('currentAgentName', data.name || '');
+    
+    const profile = {
+      name: data.name || 'Agent',
+      ytelId: ytelId || '',
+      lunch: lunchValue,
+      shift: data.shift || '—',
+      team: data.team || '—'
+    };
+    
+    profile.streak = updateAgentStreak(profile);
+    sessionStorage.setItem('currentAgentProfile', JSON.stringify(profile));
+    
+    // Initialize goal system after successful agent login
+    setTimeout(() => {
+      if (typeof window.initGoalSystem === 'function') {
+        window.initGoalSystem();
+      }
+    }, 500);
+    
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 1200);
+  }
+
+  function doReset() {
+    document.getElementById('login-form').style.display = 'block';
+    document.getElementById('result-panel').style.display = 'none';
+    document.getElementById('redirect-note').style.display = 'none';
+    document.getElementById('ytel-input').value = '';
+    document.getElementById('admin-password-input').value = '';
+    document.getElementById('admin-password-wrap').style.display = 'none';
+    document.getElementById('agent-pw-input').value = '';
+    document.getElementById('agent-pw-confirm').value = '';
+    document.getElementById('agent-pw-wrap').style.display = 'none';
+    document.getElementById('agent-pw-hint').style.display = 'none';
+    document.getElementById('err-msg').textContent = '';
+    document.getElementById('submit-btn').disabled = false;
+    document.getElementById('submit-btn').dataset.mode = '';
+    document.getElementById('submit-btn').dataset.adminId = '';
+    document.getElementById('submit-btn').textContent = 'Clock In →';
+    _agentPwState = null;
+    _agentPwCheckedId = '';
+    document.getElementById('ytel-input').focus();
+  }
+
+  window.addEventListener('DOMContentLoaded', () => document.getElementById('ytel-input').focus());
+</script>
+</body>
+</html>

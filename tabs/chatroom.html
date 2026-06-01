@@ -1,0 +1,48 @@
+<!-- ═══════════════════════════════════════════════════════
+     SECURE CHATROOM TAB — E2E Encrypted Messaging
+     ═══════════════════════════════════════════════════════ -->
+
+<link rel="stylesheet" href="css/chatroom.css">
+
+<div style="max-width:1100px;margin:0 auto;padding:0 8px;">
+
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:clamp(14px,3vw,20px);font-weight:900;text-transform:uppercase;letter-spacing:0.08em;background:linear-gradient(90deg,#10b981,#34d399,#059669);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">
+                🔒 Secure Chat
+            </div>
+            <div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.12em;margin-top:4px;">
+                End-to-End Encrypted • Private Messaging
+            </div>
+        </div>
+        <div class="cr-e2e-badge" style="font-size:9px;">
+            🔐 E2E Encrypted
+        </div>
+    </div>
+
+    <!-- MAIN CHAT CONTAINER (populated by chatroom.js) -->
+    <div id="cr-main-container"></div>
+
+    <!-- CREATE ROOM MODAL -->
+    <div id="cr-create-room-modal" class="cr-modal-overlay hidden">
+        <div class="cr-modal-box">
+            <div class="cr-modal-title">➕ Create Chat Room</div>
+            <div class="cr-modal-subtitle">Create a private group chat for selected agents</div>
+
+            <label class="cr-modal-label">Room Name</label>
+            <input type="text" id="cr-room-name-input" class="cr-modal-input" placeholder="e.g. Team Prov Chat" maxlength="40" autocomplete="off" />
+
+            <label class="cr-modal-label">Select Agents</label>
+            <div id="cr-agent-checklist" class="cr-agent-checklist">
+                <!-- populated by JS -->
+            </div>
+
+            <div class="cr-modal-actions">
+                <button class="cr-modal-create-btn" onclick="window._crCreateRoom()">⚡ Create Room</button>
+                <button class="cr-modal-cancel-btn" onclick="window._crCloseModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+</div>
