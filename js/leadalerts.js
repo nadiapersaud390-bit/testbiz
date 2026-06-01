@@ -618,6 +618,15 @@ function playLeadAlertChime() {
   } catch(e) {}
 }
 
+// ── CSV Upload Hook ──
+// Call this after pushing CSV data to Firestore so the banner fires immediately.
+// Usage: window.forceLeadAlertRefresh()
+window.forceLeadAlertRefresh = function() {
+  prevLeadCounts       = {};
+  leadAlertInitialized = false;
+  updateDashboard();
+};
+
 window._renderLeadAlert = _renderAlert;
 function _renderAlert({icon, name, msg, quote, firstLead = false}) {
   const banner = document.getElementById('lead-alert-banner');
