@@ -380,10 +380,6 @@ window.asConfirmUpload = async function() {
                 window.writeAdminActivityLog('upload_stats', `Uploaded (replaced): ${_asStagedFile.name} (${totalRows} rows, ${totalLeads} leads)`);
             }
             
-            if (typeof window.forceLeadAlertRefresh === 'function') {
-                window.forceLeadAlertRefresh();
-            }
-            
             document.getElementById('as-upload-panel').classList.add('hidden');
             _asStagedFile = null;
             _asStagedParsed = null;
