@@ -572,9 +572,9 @@
       return;
     }
 
-    // Block hidden agents from logging in
-    if (localProfile && localProfile.hidden === true) {
-      flashError(input, errEl, btn, 'This account is not available. Please contact your supervisor.');
+    // Block agents with login disabled
+    if (localProfile && localProfile.loginDisabled === true) {
+      flashError(input, errEl, btn, 'Your login has been disabled. Please contact your supervisor.');
       return;
     }
 
