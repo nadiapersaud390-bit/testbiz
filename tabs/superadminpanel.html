@@ -1044,22 +1044,43 @@
                     </div>
                     <div></div>
                 </div>
-                <!-- Hide Agent Toggle (edit mode only) -->
-                <div id="agentHiddenSection" style="display:none;" class="mt-5 border border-orange-500/20 bg-orange-500/5 rounded-2xl p-4">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <span style="font-size:16px;">🚫</span>
-                            <div>
-                                <div style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#f97316;">Hide Agent</div>
-                                <div style="font-size:9px;color:#64748b;font-weight:700;margin-top:2px;">Name won't appear anywhere · Login disabled</div>
+                <!-- Agent Visibility & Login Toggles (edit mode only) -->
+                <div id="agentHiddenSection" style="display:none;" class="mt-5 space-y-3">
+                    <!-- Toggle 1: Hide from display -->
+                    <div class="border border-orange-500/20 bg-orange-500/5 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span style="font-size:16px;">👁️</span>
+                                <div>
+                                    <div style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#f97316;">Hide from Display</div>
+                                    <div style="font-size:9px;color:#64748b;font-weight:700;margin-top:2px;">Name won't show on daily, leaderboard, or anywhere</div>
+                                </div>
                             </div>
+                            <label style="position:relative;display:inline-flex;align-items:center;cursor:pointer;">
+                                <input type="checkbox" id="agentHideDisplayToggle" style="position:absolute;width:1px;height:1px;opacity:0;">
+                                <div id="agentHideDisplayTrack" style="width:44px;height:24px;background:#334155;border-radius:9999px;border:1px solid rgba(255,255,255,0.1);transition:background 0.2s;position:relative;">
+                                    <div id="agentHideDisplayThumb" style="position:absolute;top:2px;left:2px;width:20px;height:20px;background:white;border-radius:9999px;transition:transform 0.2s;"></div>
+                                </div>
+                            </label>
                         </div>
-                        <label style="position:relative;display:inline-flex;align-items:center;cursor:pointer;">
-                            <input type="checkbox" id="agentHiddenToggle" style="position:absolute;width:1px;height:1px;opacity:0;">
-                            <div id="agentHiddenTrack" style="width:44px;height:24px;background:#334155;border-radius:9999px;border:1px solid rgba(255,255,255,0.1);transition:background 0.2s;position:relative;">
-                                <div id="agentHiddenThumb" style="position:absolute;top:2px;left:2px;width:20px;height:20px;background:white;border-radius:9999px;transition:transform 0.2s;"></div>
+                    </div>
+                    <!-- Toggle 2: Disable login -->
+                    <div class="border border-red-500/20 bg-red-500/5 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span style="font-size:16px;">🔒</span>
+                                <div>
+                                    <div style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#ef4444;">Disable Login</div>
+                                    <div style="font-size:9px;color:#64748b;font-weight:700;margin-top:2px;">Agent cannot clock in — will see access denied</div>
+                                </div>
                             </div>
-                        </label>
+                            <label style="position:relative;display:inline-flex;align-items:center;cursor:pointer;">
+                                <input type="checkbox" id="agentLoginDisabledToggle" style="position:absolute;width:1px;height:1px;opacity:0;">
+                                <div id="agentLoginDisabledTrack" style="width:44px;height:24px;background:#334155;border-radius:9999px;border:1px solid rgba(255,255,255,0.1);transition:background 0.2s;position:relative;">
+                                    <div id="agentLoginDisabledThumb" style="position:absolute;top:2px;left:2px;width:20px;height:20px;background:white;border-radius:9999px;transition:transform 0.2s;"></div>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                 </div>
             </form>
@@ -1202,12 +1223,14 @@
             const statusClass = statusClassMap[status] || 'status-agent';
             const shiftTime = agent.shiftTime || agent.shift || 'Not set';
             
-            const hiddenBadge = agent.hidden ? '<span style="font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;background:rgba(249,115,22,0.15);color:#f97316;border:1px solid rgba(249,115,22,0.3);padding:2px 8px;border-radius:9999px;">🚫 Hidden</span>' : '';
+            const hiddenBadge = agent.hiddenFromDisplay ? '<span style="font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;background:rgba(249,115,22,0.15);color:#f97316;border:1px solid rgba(249,115,22,0.3);padding:2px 8px;border-radius:9999px;margin-left:4px;">👁️ Hidden</span>' : '';
+            const loginBadge = agent.loginDisabled ? '<span style="font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);padding:2px 8px;border-radius:9999px;margin-left:4px;">🔒 Login Off</span>' : '';
+            const dimmed = agent.hiddenFromDisplay || agent.loginDisabled;
             return `
-                <div onclick="openAgentModal('${escapeHtml(agent.userId)}')" class="agent-card" style="${agent.hidden ? 'opacity:0.55;' : ''}">
+                <div onclick="openAgentModal('${escapeHtml(agent.userId)}')" class="agent-card" style="${dimmed ? 'opacity:0.55;' : ''}">
                     <div class="flex justify-between items-start mb-3">
                         <div>
-                            <div class="font-black text-white text-base">${escapeHtml(agentName)} ${hiddenBadge}</div>
+                            <div class="font-black text-white text-base">${escapeHtml(agentName)}${hiddenBadge}${loginBadge}</div>
                             <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">📞 ${escapeHtml(ytelId)}</div>
                         </div>
                         <span class="${statusClass} text-[9px] font-black px-2 py-1 rounded-full">${status}</span>
@@ -1250,21 +1273,24 @@
                 document.getElementById('agentLunchTime').value = agent.lunchTime || '';
                 document.getElementById('agentStatus').value = agent.status || 'Agent';
                 deleteBtn.style.display = 'inline-flex';
-                // Show hidden toggle and set its state
+                // Show visibility/login toggles and set their state
                 const hiddenSection = document.getElementById('agentHiddenSection');
-                const hiddenToggle = document.getElementById('agentHiddenToggle');
-                const hiddenTrack = document.getElementById('agentHiddenTrack');
-                const hiddenThumb = document.getElementById('agentHiddenThumb');
                 if (hiddenSection) hiddenSection.style.display = 'block';
-                if (hiddenToggle) {
-                    hiddenToggle.checked = !!agent.hidden;
-                    if (hiddenTrack) hiddenTrack.style.background = agent.hidden ? '#f97316' : '#334155';
-                    if (hiddenThumb) hiddenThumb.style.transform = agent.hidden ? 'translateX(20px)' : 'translateX(0)';
-                    hiddenToggle.onchange = function() {
-                        if (hiddenTrack) hiddenTrack.style.background = this.checked ? '#f97316' : '#334155';
-                        if (hiddenThumb) hiddenThumb.style.transform = this.checked ? 'translateX(20px)' : 'translateX(0)';
+                function _initToggle(checkId, trackId, thumbId, val, onColor) {
+                    const chk = document.getElementById(checkId);
+                    const trk = document.getElementById(trackId);
+                    const thm = document.getElementById(thumbId);
+                    if (!chk) return;
+                    chk.checked = !!val;
+                    if (trk) trk.style.background = val ? onColor : '#334155';
+                    if (thm) thm.style.transform = val ? 'translateX(20px)' : 'translateX(0)';
+                    chk.onchange = function() {
+                        if (trk) trk.style.background = this.checked ? onColor : '#334155';
+                        if (thm) thm.style.transform = this.checked ? 'translateX(20px)' : 'translateX(0)';
                     };
                 }
+                _initToggle('agentHideDisplayToggle', 'agentHideDisplayTrack', 'agentHideDisplayThumb', agent.hiddenFromDisplay, '#f97316');
+                _initToggle('agentLoginDisabledToggle', 'agentLoginDisabledTrack', 'agentLoginDisabledThumb', agent.loginDisabled, '#ef4444');
             }
         } else {
             title.innerHTML = `<i class="fas fa-user-plus mr-2"></i> Add New Agent`;
@@ -1277,9 +1303,19 @@
             document.getElementById('agentStatus').value = 'Agent';
             deleteBtn.style.display = 'none';
             const hiddenSectionAdd = document.getElementById('agentHiddenSection');
-            const hiddenToggleAdd = document.getElementById('agentHiddenToggle');
             if (hiddenSectionAdd) hiddenSectionAdd.style.display = 'none';
-            if (hiddenToggleAdd) hiddenToggleAdd.checked = false;
+            ['agentHideDisplayToggle','agentLoginDisabledToggle'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.checked = false;
+            });
+            ['agentHideDisplayTrack','agentLoginDisabledTrack'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.background = '#334155';
+            });
+            ['agentHideDisplayThumb','agentLoginDisabledThumb'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.transform = 'translateX(0)';
+            });
         }
         
         modal.style.display = 'flex';
@@ -1308,8 +1344,10 @@
             userId = 'agent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
         }
         
-        const hiddenToggle = document.getElementById('agentHiddenToggle');
-        const isHidden = hiddenToggle ? hiddenToggle.checked : false;
+        const hideDisplayToggle = document.getElementById('agentHideDisplayToggle');
+        const loginDisabledToggle = document.getElementById('agentLoginDisabledToggle');
+        const isHiddenFromDisplay = hideDisplayToggle ? hideDisplayToggle.checked : false;
+        const isLoginDisabled = loginDisabledToggle ? loginDisabledToggle.checked : false;
 
         const agentData = {
             userId: userId,
@@ -1323,7 +1361,8 @@
             shift: shiftTime,
             lunchTime: lunchTime,
             status: status,
-            hidden: isHidden,
+            hiddenFromDisplay: isHiddenFromDisplay,
+            loginDisabled: isLoginDisabled,
             lastUpdated: new Date().toISOString()
         };
         
