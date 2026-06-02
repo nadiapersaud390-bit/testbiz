@@ -202,7 +202,7 @@ async function logPrankCall() {
     statusEl.style.background = 'rgba(59,130,246,0.1)';
     statusEl.style.border = '1px solid rgba(59,130,246,0.3)';
     statusEl.style.color = '#60a5fa';
-    statusEl.innerHTML = '📡 Sending to Firebase & Google Sheet...';
+    statusEl.innerHTML = '📡 Logging prank number...';
     
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const loggedBy = currentAdmin.name || currentAdmin.email || sessionStorage.getItem('currentAgentName') || 'rep';
@@ -215,7 +215,7 @@ async function logPrankCall() {
         statusEl.innerHTML = '❌ Invalid phone number (needs at least 7 digits)';
         setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-ban"></i>&nbsp;Log Prank Call → Firebase + Sheet';
+        btn.innerHTML = '<i class="fas fa-ban"></i>&nbsp;Log Prank Call → Firebase';
         return;
     }
     
@@ -229,7 +229,7 @@ async function logPrankCall() {
             const fbResult = await window.savePrankNumber(cleanNumber, loggedBy);
             if (fbResult && fbResult.success) {
                 firebaseSuccess = true;
-                statusEl.innerHTML = '✅ Saved to Firebase!<br><span style="font-size:10px;">Syncing to sheet...</span>';
+                statusEl.innerHTML = '✅ Saved!<br><span style="font-size:10px;">Syncing...</span>';
             } else {
                 console.warn('Firebase save returned:', fbResult);
                 errorMsg = fbResult?.error || 'Firebase save failed';
@@ -283,7 +283,7 @@ async function logPrankCall() {
             statusEl.style.background = 'rgba(34,197,94,0.12)';
             statusEl.style.border = '1px solid rgba(34,197,94,0.35)';
             statusEl.style.color = '#4ade80';
-            statusEl.innerHTML = '✅ Prank number logged to Firebase + Google Sheet!<br><span style="font-size:10px;">Number: ' + cleanNumber + '</span>';
+            statusEl.innerHTML = '✅ Prank number logged successfully!<br><span style="font-size:10px;">Number: ' + cleanNumber + '</span>';
             
             addLocalPrankNumber(q);
             await loadLivePrankNumbers(true);
@@ -293,7 +293,7 @@ async function logPrankCall() {
             statusEl.style.background = 'rgba(234,179,8,0.12)';
             statusEl.style.border = '1px solid rgba(234,179,8,0.35)';
             statusEl.style.color = '#facc15';
-            statusEl.innerHTML = '⚠️ Saved to Firebase, but sheet sync failed.<br><span style="font-size:10px;">Error: ' + escapeHtml(errorMsg) + '</span>';
+            statusEl.innerHTML = '⚠️ Saved to Firebase.<br><span style="font-size:10px;">Error: ' + escapeHtml(errorMsg) + '</span>';
             addLocalPrankNumber(q);
             document.getElementById('lookup-input').value = '';
             
@@ -301,7 +301,7 @@ async function logPrankCall() {
             statusEl.style.background = 'rgba(234,179,8,0.12)';
             statusEl.style.border = '1px solid rgba(234,179,8,0.35)';
             statusEl.style.color = '#facc15';
-            statusEl.innerHTML = '⚠️ Saved to Google Sheet, but Firebase sync failed.<br><span style="font-size:10px;">Number: ' + cleanNumber + '</span>';
+            statusEl.innerHTML = '⚠️ Saved, but Firebase sync failed.<br><span style="font-size:10px;">Number: ' + cleanNumber + '</span>';
             addLocalPrankNumber(q);
             
         } else {
