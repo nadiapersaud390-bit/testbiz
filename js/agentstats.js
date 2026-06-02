@@ -401,7 +401,7 @@ window.asConfirmUpload = async function() {
             }
 
             // Show lead banner to all connected clients with upload summary
-            if (typeof window.triggerCsvUploadAlert === 'function') {
+            if (newLeadsThisUpload > 0 && typeof window.triggerCsvUploadAlert === 'function') {
                 // Build per-agent delta list for the banner
                 const agentDeltaList = Object.entries(agentLeadMap)
                     .map(([name, count]) => ({ name, count, prev: prevLeadMap[name] || 0 }))
