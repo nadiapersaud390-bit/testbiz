@@ -963,7 +963,36 @@ function listenForLeadAlerts() {
     
     onValue(leadsRef, (snapshot) => {
         const data = snapshot.val();
-        if (data && data.agentName && data.leadCount) {
+        if (!data) return;
+
+        // CSV upload alert — triggered after admin uploads a new CSV in agent stats
+        if (data.csvAlert) {
+            const totalLeads = data.totalLeads || 0;
+            const agentCount = data.agentCount || 0;
+            const csvQuotes = [
+                "Fresh leads are in — let's go!",
+                "New opportunities await!",
+                "Time to make those calls count!",
+                "The pipeline is loaded — go!",
+                "New data, new wins!"
+            ];
+            const csvQuote = csvQuotes[Math.floor(Math.random() * csvQuotes.length)];
+            if (typeof window._renderLeadAlert === 'function') {
+                window._renderLeadAlert({
+                    icon: '📊',
+                    name: 'New Leads Uploaded!',
+                    msg: `${totalLeads} lead${totalLeads !== 1 ? 's' : ''} loaded for ${agentCount} agent${agentCount !== 1 ? 's' : ''}`,
+                    quote: csvQuote,
+                    firstLead: false
+                });
+            } else {
+                showLeadAlert('CSV Upload', totalLeads);
+            }
+            return;
+        }
+
+        // Per-agent lead alert (from tracker, etc.)
+        if (data.agentName && data.leadCount) {
             const name = data.agentName;
             const count = data.leadCount;
             const isFirst = count === 1;
@@ -1013,6 +1042,26 @@ window.triggerLeadAlert = async function(agentName, leadCount) {
         }, 2000);
     } catch (e) {
         console.error("Failed to trigger lead alert", e);
+    }
+};
+
+// Global function to trigger a CSV upload alert banner on all connected clients
+window.triggerCsvUploadAlert = async function(totalLeads, agentCount, uploadedBy) {
+    if (!database) return;
+    try {
+        await set(ref(database, 'leads/alerts'), {
+            csvAlert: true,
+            totalLeads: totalLeads,
+            agentCount: agentCount,
+            uploadedBy: uploadedBy || 'Admin',
+            timestamp: Date.now()
+        });
+        // Clear after short delay so re-uploading can trigger it again
+        setTimeout(async () => {
+            try { await set(ref(database, 'leads/alerts'), null); } catch(e) {}
+        }, 2000);
+    } catch (e) {
+        console.error("Failed to trigger CSV upload alert", e);
     }
 };
 
