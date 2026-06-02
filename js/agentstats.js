@@ -355,6 +355,20 @@ window.asConfirmUpload = async function() {
     
     const totalRows = _asStagedParsed.length;
     const totalLeads = Object.values(agentLeadMap).reduce((a, b) => a + b, 0);
+
+    // Calculate NEW leads vs previous report (delta only for banner)
+    const prevLeadMap = {};
+    if (previousReportData && previousReportData.data) {
+        previousReportData.data.forEach(row => {
+            const agentName = row.agentName;
+            if (!agentName) return;
+            if (!prevLeadMap[agentName]) prevLeadMap[agentName] = 0;
+            if (isLead(row)) prevLeadMap[agentName]++;
+        });
+    }
+    const newLeadsThisUpload = Object.entries(agentLeadMap).reduce((sum, [name, count]) => {
+        return sum + Math.max(0, count - (prevLeadMap[name] || 0));
+    }, 0);
     
     console.log('[Upload] Per-agent lead counts:', agentLeadMap);
     
@@ -382,7 +396,7 @@ window.asConfirmUpload = async function() {
 
             // Show lead banner to all connected clients with upload summary
             if (typeof window.triggerCsvUploadAlert === 'function') {
-                window.triggerCsvUploadAlert(totalLeads, Object.keys(agentLeadMap).length, adminName);
+                window.triggerCsvUploadAlert(newLeadsThisUpload, Object.keys(agentLeadMap).length, adminName);
             }
             
             document.getElementById('as-upload-panel').classList.add('hidden');
