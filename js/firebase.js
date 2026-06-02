@@ -965,12 +965,11 @@ function listenForLeadAlerts() {
         const data = snapshot.val();
         if (!data) return;
 
-        // CSV upload alert — show banner with rotating color
+        // CSV upload alert — show banner with agent names + rotating color
         if (data.csvAlert) {
             if (typeof window._renderLeadAlert === 'function') {
                 const n = Number(data.totalLeads) || 0;
-                const a = Number(data.agentCount) || 0;
-                const by = data.uploadedBy || 'Admin';
+                const agents = data.agents || [];
                 const quotes = [
                     "Numbers are in — let's get to work!",
                     "Fresh data on the board. Time to climb.",
@@ -979,12 +978,22 @@ function listenForLeadAlerts() {
                     "Board refreshed. Every dial counts now."
                 ];
                 const quote = quotes[Math.floor(Math.random() * quotes.length)];
+
+                // Build agent list string: "NAME (1st lead! 🏆)" or "NAME (X leads)"
+                const agentStr = agents.map(a => {
+                    const fn = (a.name || '').split(' ')[0].toUpperCase();
+                    const isFirst = (a.prev || 0) === 0;
+                    return isFirst
+                        ? fn + ' (1st lead! 🏆)'
+                        : fn + ' (' + a.count + ' leads)';
+                }).join(' • ');
+
                 window._renderLeadAlert({
-                    icon: '📊',
+                    icon: n > 0 ? '🔥' : '📊',
                     name: n + ' New Lead' + (n !== 1 ? 's' : '') + ' Just Hit the Floor!',
-                    msg: by + ' uploaded — ' + a + ' rep' + (a !== 1 ? 's' : '') + ' active',
+                    msg: agentStr || 'Board updated',
                     quote: quote,
-                    firstLead: false,
+                    firstLead: agents.some(a => (a.prev || 0) === 0),
                     isUploadAlert: true
                 });
             }
@@ -1046,14 +1055,13 @@ window.triggerLeadAlert = async function(agentName, leadCount) {
 };
 
 // Global function to trigger a CSV upload alert banner on all connected clients
-window.triggerCsvUploadAlert = async function(totalLeads, agentCount, uploadedBy) {
+window.triggerCsvUploadAlert = async function(totalLeads, agentList) {
     if (!database) return;
     try {
         await set(ref(database, 'leads/alerts'), {
             csvAlert: true,
             totalLeads: totalLeads,
-            agentCount: agentCount,
-            uploadedBy: uploadedBy || 'Admin',
+            agents: agentList || [],
             timestamp: Date.now()
         });
         // Clear after short delay so re-uploading can trigger it again
