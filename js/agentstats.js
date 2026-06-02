@@ -396,7 +396,12 @@ window.asConfirmUpload = async function() {
 
             // Show lead banner to all connected clients with upload summary
             if (typeof window.triggerCsvUploadAlert === 'function') {
-                window.triggerCsvUploadAlert(newLeadsThisUpload, Object.keys(agentLeadMap).length, adminName);
+                // Build per-agent delta list for the banner
+                const agentDeltaList = Object.entries(agentLeadMap)
+                    .map(([name, count]) => ({ name, count, prev: prevLeadMap[name] || 0 }))
+                    .filter(a => a.count > a.prev)
+                    .sort((a, b) => a.prev - b.prev || b.count - a.count); // first-timers first, then by count desc
+                window.triggerCsvUploadAlert(newLeadsThisUpload, agentDeltaList);
             }
             
             document.getElementById('as-upload-panel').classList.add('hidden');
