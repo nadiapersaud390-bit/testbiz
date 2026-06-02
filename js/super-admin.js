@@ -372,21 +372,27 @@ window.startAdminHeartbeat = function () {
     const sessionId = _tracker_genSessionId();
     sessionStorage.setItem('biz_tracker_session_id', sessionId);
 
-    // Fetch IP-based location then write the session record
-    _tracker_fetchLocation(function (locObj) {
-        sessionRef.update({
-            name:        cAdmin.name  || 'Unknown',
-            email:       cAdmin.email || '',
-            role:        cAdmin.role  || 'admin',
-            status:      'active',
-            loginAt:     Date.now(),
-            lastSeen:    Date.now(),
-            location:    locObj,
-            sessionId:   sessionId,
-            forceLogout: false
-        }).catch(err => console.warn('[AdminTracker] Session write failed:', err));
+    // Write session immediately so login is not blocked by location fetch
+    sessionRef.update({
+        name:        cAdmin.name  || 'Unknown',
+        email:       cAdmin.email || '',
+        role:        cAdmin.role  || 'admin',
+        status:      'active',
+        loginAt:     Date.now(),
+        lastSeen:    Date.now(),
+        location:    { ip: '', city: '', region: '', country: '', org: '', timezone: '' },
+        sessionId:   sessionId,
+        forceLogout: false
+    }).catch(err => console.warn('[AdminTracker] Session write failed:', err));
 
-        // Append to location history log
+    if (typeof window.writeAdminActivityLog === 'function') {
+        window.writeAdminActivityLog('admin_session_start', 'Session started');
+    }
+    console.log('[AdminTracker] Session started for', cAdmin.email);
+
+    // Fetch location async (fire-and-forget) without blocking login
+    _tracker_fetchLocation(function (locObj) {
+        sessionRef.update({ location: locObj }).catch(() => {});
         rtdb.ref('admin_location_history').push({
             adminName:  cAdmin.name  || 'Unknown',
             adminEmail: cAdmin.email || '',
@@ -394,15 +400,7 @@ window.startAdminHeartbeat = function () {
             loginAt:    Date.now(),
             location:   locObj,
             sessionId:  sessionId
-        }).catch(err => console.warn('[AdminTracker] Location history write failed:', err));
-
-        if (typeof window.writeAdminActivityLog === 'function') {
-            window.writeAdminActivityLog(
-                'admin_session_start',
-                'Session started from ' + (locObj.city || 'Unknown') + ', ' + (locObj.country || '')
-            );
-        }
-        console.log('[AdminTracker] Session started for', cAdmin.email);
+        }).catch(() => {});
     });
 
     // ── Pulse every 30 s to stay "active" ──
