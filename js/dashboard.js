@@ -449,6 +449,9 @@ function _subscribeLiveDashboard() {
                     agents = buildAgentsFromRoster(state);
                     if (agents && agents.length > 0) {
                         updateRealTimeLeadTracking(agents);
+                        if (typeof window.checkLeadAlerts === 'function') {
+                            window.checkLeadAlerts(agents);
+                        }
                     }
                     if (agents.length > 0) {
                         agents[0].todayName = (state && state.dateLabel) || getGuyanaToday();

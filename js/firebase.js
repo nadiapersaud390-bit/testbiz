@@ -965,29 +965,8 @@ function listenForLeadAlerts() {
         const data = snapshot.val();
         if (!data) return;
 
-        // CSV upload alert — triggered after admin uploads a new CSV in agent stats
+        // CSV upload alert — handled via dashboard live state checkLeadAlerts now
         if (data.csvAlert) {
-            const totalLeads = data.totalLeads || 0;
-            const agentCount = data.agentCount || 0;
-            const csvQuotes = [
-                "Fresh leads are in — let's go!",
-                "New opportunities await!",
-                "Time to make those calls count!",
-                "The pipeline is loaded — go!",
-                "New data, new wins!"
-            ];
-            const csvQuote = csvQuotes[Math.floor(Math.random() * csvQuotes.length)];
-            if (typeof window._renderLeadAlert === 'function') {
-                window._renderLeadAlert({
-                    icon: '📊',
-                    name: 'New Leads Uploaded!',
-                    msg: `${totalLeads} lead${totalLeads !== 1 ? 's' : ''} loaded for ${agentCount} agent${agentCount !== 1 ? 's' : ''}`,
-                    quote: csvQuote,
-                    firstLead: false
-                });
-            } else {
-                showLeadAlert('CSV Upload', totalLeads);
-            }
             return;
         }
 

@@ -494,22 +494,20 @@ function findViewerEntry(agentsArr) {
   return null;
 }
 
+window.checkLeadAlerts = checkLeadAlerts;
 function checkLeadAlerts(newAgents) {
   if (!newAgents || !newAgents.length) return;
 
   const viewerRole = sessionStorage.getItem('bizUserRole') || 'agent';
-  const isAdmin    = viewerRole === 'admin';
+  const isAdmin    = viewerRole === 'agent' ? false : true; // Keep admin logic simple
 
   resolveViewerIdentity();
 
-  // Build snapshot keyed by agent name
-  const tracker = (newAgents[0] && newAgents[0].berbiceTracker) || {};
-  let snapshot = Object.keys(tracker).length ? { ...tracker } : {};
+  // Build snapshot keyed by agent name - no longer using berbiceTracker (stops personal tracker sync)
+  let snapshot = {};
   newAgents.forEach(a => {
     if (!a || !a.name) return;
-    if (snapshot[a.name] === undefined || snapshot[a.name] === null) {
-      snapshot[a.name] = a.dailyLeads || 0;
-    }
+    snapshot[a.name] = a.dailyLeads || 0;
   });
   if (!Object.keys(snapshot).length) return;
 
@@ -563,19 +561,23 @@ function checkLeadAlerts(newAgents) {
   } else {
     const hasFirst  = newReps.some(r => r.isFirst);
     const icon      = hasFirst ? '🥇' : '⚡';
-    const title     = newReps.length + ' New Leads Just Hit the Floor!';
+    
+    // Calculate total daily leads count for reps in this upload
+    const totalDailyLeads = newReps.reduce((sum, r) => sum + r.count, 0);
+    const title = totalDailyLeads + ' lead' + (totalDailyLeads !== 1 ? 's' : '') + ' on board';
+    
+    // Format agent list: Name (Count) if count > 1, else just Name. Joined by commas.
     const agentList = newReps.map(r => {
-      const fn     = getFirstName(r.name);
-      const plural = r.count === 1 ? '' : 's';
-      return r.isFirst
-        ? fn + ' (1st lead! 🥇)'
-        : fn + ' (' + r.count + ' lead' + plural + ')';
-    }).join('  •  ');
+      const fn = getFirstName(r.name);
+      return r.count > 1 ? fn + ' (' + r.count + ')' : fn;
+    }).join(', ');
+    
     const maxCount = Math.max(...newReps.map(r => r.count));
     const quote    = pickQuote(maxCount, hasFirst);
     _renderAlert({ icon, name: title, msg: agentList, quote, firstLead: hasFirst });
   }
 }
+
 
 
 function playLeadAlertChime() {
