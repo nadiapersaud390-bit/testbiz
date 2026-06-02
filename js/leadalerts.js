@@ -620,10 +620,34 @@ function playLeadAlertChime() {
   } catch(e) {}
 }
 
+// Color themes that rotate on each CSV upload alert
+const BANNER_THEMES = [
+  { bg: 'linear-gradient(90deg,#b45309,#d97706)', border: '#f59e0b' },  // amber (default)
+  { bg: 'linear-gradient(90deg,#0e7490,#0891b2)', border: '#22d3ee' },  // cyan
+  { bg: 'linear-gradient(90deg,#7c3aed,#a855f7)', border: '#c084fc' },  // purple
+  { bg: 'linear-gradient(90deg,#065f46,#059669)', border: '#34d399' },  // green
+  { bg: 'linear-gradient(90deg,#be123c,#e11d48)', border: '#fb7185' },  // rose
+  { bg: 'linear-gradient(90deg,#1e40af,#3b82f6)', border: '#93c5fd' },  // blue
+];
+let _bannerThemeIndex = -1;
+
 window._renderLeadAlert = _renderAlert;
-function _renderAlert({icon, name, msg, quote, firstLead = false}) {
+function _renderAlert({icon, name, msg, quote, firstLead = false, isUploadAlert = false}) {
   const banner = document.getElementById('lead-alert-banner');
   const inner  = banner.querySelector('.lab-inner');
+
+  // Rotate color on every CSV upload alert
+  if (isUploadAlert) {
+    _bannerThemeIndex = (_bannerThemeIndex + 1) % BANNER_THEMES.length;
+    const theme = BANNER_THEMES[_bannerThemeIndex];
+    inner.style.background = theme.bg;
+    inner.style.borderColor = theme.border;
+  } else {
+    // Regular lead alerts: clear inline style (falls back to CSS / first-lead class)
+    inner.style.background = '';
+    inner.style.borderColor = '';
+  }
+
   if (firstLead) { inner.classList.add('first-lead'); } else { inner.classList.remove('first-lead'); }
   document.querySelector('.lab-icon').textContent = icon;
   document.getElementById('lab-text').innerHTML =
@@ -636,7 +660,6 @@ function _renderAlert({icon, name, msg, quote, firstLead = false}) {
   // Add event listeners to stop blinking when user interacts
   const stopBlinkingHandler = function() {
     stopTabBlink();
-    // Remove listeners after stopping to prevent multiple adds
     document.removeEventListener('click', stopBlinkingHandler);
     document.removeEventListener('visibilitychange', visibilityHandler);
     window.removeEventListener('focus', stopBlinkingHandler);
@@ -651,7 +674,6 @@ function _renderAlert({icon, name, msg, quote, firstLead = false}) {
     }
   };
   
-  // Add one-time event listeners
   document.addEventListener('click', stopBlinkingHandler, { once: true });
   document.addEventListener('visibilitychange', visibilityHandler);
   window.addEventListener('focus', stopBlinkingHandler, { once: true });
