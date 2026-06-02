@@ -107,12 +107,7 @@ window.trackerAddLead = async function() {
 
     await window.saveAgentLeadsToFirebase(ytelId, trackerCurrentWeekId, week);
 
-    // Real-time lead alert
-    if (typeof window.triggerLeadAlert === 'function') {
-        const profile = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}');
-        const todayLeads = week.leads.filter(l => new Date(l.addedAt).toDateString() === new Date().toDateString()).length;
-        window.triggerLeadAlert(profile.name || profile.fullName || 'An Agent', todayLeads);
-    }
+    // Lead alert removed — no banner for personal tracker
 
     document.getElementById('tl-fname').value = '';
     document.getElementById('tl-lname').value = '';
