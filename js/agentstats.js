@@ -337,8 +337,14 @@ window.asConfirmUpload = async function() {
     
     const normalizedFinalDate = normalizeReportDateLabel(finalDateStr);
     
-    // DELETE existing report for this date completely
+    // Snapshot existing report's lead counts NOW, before we delete it
+    // This ensures prevLeadMap is correct for delta calculation on re-uploads
     const existingReport = allReports.find(r => normalizeReportDateLabel(r.reportDate) === normalizedFinalDate);
+    if (existingReport && existingReport.data) {
+        previousReportData = existingReport;
+    }
+
+    // DELETE existing report for this date completely
     if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
         await window.deleteAgentReportFromFirebase(existingReport.id);
         console.log(`[Upload] Deleted existing report for ${normalizedFinalDate} - will replace with fresh data`);
