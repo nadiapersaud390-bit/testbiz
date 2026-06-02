@@ -965,8 +965,29 @@ function listenForLeadAlerts() {
         const data = snapshot.val();
         if (!data) return;
 
-        // CSV upload alert — handled via dashboard live state checkLeadAlerts now
+        // CSV upload alert — show banner with rotating color
         if (data.csvAlert) {
+            if (typeof window._renderLeadAlert === 'function') {
+                const n = Number(data.totalLeads) || 0;
+                const a = Number(data.agentCount) || 0;
+                const by = data.uploadedBy || 'Admin';
+                const quotes = [
+                    "Numbers are in — let's get to work!",
+                    "Fresh data on the board. Time to climb.",
+                    "New report uploaded. Make your mark.",
+                    "Stats updated. Who's rising today?",
+                    "Board refreshed. Every dial counts now."
+                ];
+                const quote = quotes[Math.floor(Math.random() * quotes.length)];
+                window._renderLeadAlert({
+                    icon: '📊',
+                    name: n + ' New Lead' + (n !== 1 ? 's' : '') + ' Just Hit the Floor!',
+                    msg: by + ' uploaded — ' + a + ' rep' + (a !== 1 ? 's' : '') + ' active',
+                    quote: quote,
+                    firstLead: false,
+                    isUploadAlert: true
+                });
+            }
             return;
         }
 
