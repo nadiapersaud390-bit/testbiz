@@ -2241,21 +2241,20 @@
             loadFromLocalStorage();
         }
     }
+    // Staggered init: spread Firebase calls to avoid network flood on load
     setTimeout(() => {
+        // Batch 1 (100ms): only what the Overview tab needs
         initAdminTracker();
         superSetupStatusDrop();
-        initAgentsWithRetry(10);
-        
-        if (typeof window.listenForActivityLogs === 'function') {
-            window.listenForActivityLogs(renderActivityLogs);
-        } else {
-            renderActivityLogs();
-        }
-        
-        superLoadAdmins();
-        
+    }, 100);
 
-        
+    setTimeout(() => {
+        // Batch 2 (400ms): agent profiles used across tabs
+        initAgentsWithRetry(10);
+    }, 400);
+
+    setTimeout(() => {
+        // Batch 3 (700ms): live state widget on Overview
         if(typeof window.listenForLiveDashboardState === 'function') {
             window.listenForLiveDashboardState(state => {
                 const d = document.getElementById('super-live-data');
@@ -2271,7 +2270,9 @@
                     <div class="text-[9px] text-yellow-400 uppercase font-black tracking-widest bg-yellow-500/10 border border-yellow-500/20 px-2 py-1 rounded-md">${totalLeads} Total Transfers</div>`;
             });
         }
-    }, 100);
+        // superLoadAdmins() and listenForActivityLogs() are lazy-loaded
+        // on first tab click via _supTabInited guard - no need to pre-load
+    }, 700);
 
     // ── PRANK NUMBERS LOOKUP ──────────────────────────────────────
     let _allPrankEntries = [];
