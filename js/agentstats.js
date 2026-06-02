@@ -379,6 +379,11 @@ window.asConfirmUpload = async function() {
             if (typeof window.writeAdminActivityLog === 'function') {
                 window.writeAdminActivityLog('upload_stats', `Uploaded (replaced): ${_asStagedFile.name} (${totalRows} rows, ${totalLeads} leads)`);
             }
+
+            // Show lead banner to all connected clients with upload summary
+            if (typeof window.triggerCsvUploadAlert === 'function') {
+                window.triggerCsvUploadAlert(totalLeads, Object.keys(agentLeadMap).length, adminName);
+            }
             
             document.getElementById('as-upload-panel').classList.add('hidden');
             _asStagedFile = null;
