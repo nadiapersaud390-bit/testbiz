@@ -970,14 +970,13 @@ function listenForLeadAlerts() {
             if (typeof window._renderLeadAlert === 'function') {
                 const n = Number(data.totalLeads) || 0;
                 const agents = data.agents || [];
-                const quotes = [
-                    "Numbers are in — let's get to work!",
-                    "Fresh data on the board. Time to climb.",
-                    "New report uploaded. Make your mark.",
-                    "Stats updated. Who's rising today?",
-                    "Board refreshed. Every dial counts now."
-                ];
-                const quote = quotes[Math.floor(Math.random() * quotes.length)];
+                const hasFirst = agents.some(a => (a.prev || 0) === 0);
+
+                // Use the highest single-agent total count to pick the right quote tier
+                const maxCount = agents.reduce((m, a) => Math.max(m, a.count || 0), 1);
+                const quote = typeof pickQuote === 'function'
+                    ? pickQuote(maxCount, hasFirst)
+                    : "Keep pushing — every dial counts!";
 
                 // Build agent list string: "NAME (1st lead! 🏆)" or "NAME (X leads)"
                 const agentStr = agents.map(a => {
@@ -989,11 +988,11 @@ function listenForLeadAlerts() {
                 }).join(' • ');
 
                 window._renderLeadAlert({
-                    icon: n > 0 ? '🔥' : '📊',
+                    icon: hasFirst ? '🏆' : '🔥',
                     name: n + ' New Lead' + (n !== 1 ? 's' : '') + ' Just Hit the Floor!',
-                    msg: agentStr || 'Board updated',
+                    msg: agentStr,
                     quote: quote,
-                    firstLead: agents.some(a => (a.prev || 0) === 0),
+                    firstLead: hasFirst,
                     isUploadAlert: true
                 });
             }
