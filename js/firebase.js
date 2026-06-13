@@ -477,15 +477,32 @@ window.writeAdminActivityLog = async function(action, details, specificAdmin = n
     }
 };
 
-// Flush any logs queued by super-admin.js before this module loaded
+// Flush any logs queued by super-admin.js (stored in sessionStorage to survive redirects)
 (function _flushPendingLogs() {
-    const queue = window._pendingFirebaseLogs;
-    if (!queue || !queue.length) return;
-    window._pendingFirebaseLogs = [];
-    queue.forEach(item => {
-        window.writeAdminActivityLog(item.action, item.details, item.admin);
-    });
-    console.log('[Firebase] Flushed', queue.length, 'pending activity log(s) to Firebase');
+    try {
+        const raw = sessionStorage.getItem('_fbPendingLogs');
+        if (!raw) return;
+        const queue = JSON.parse(raw);
+        if (!queue || !queue.length) return;
+        sessionStorage.removeItem('_fbPendingLogs');
+        // Push each queued entry directly to Firebase with its original timestamp
+        queue.forEach(entry => {
+            if (!database) return;
+            const logEntry = {
+                timestamp: entry.timestamp || new Date().toISOString(),
+                email: entry.email || 'unknown',
+                name: entry.name || 'unknown',
+                role: entry.role || 'unknown',
+                action: entry.action || 'unknown',
+                details: entry.details || '',
+                page: entry.page || ''
+            };
+            push(ref(database, 'activity_logs'), logEntry).catch(() => {});
+        });
+        console.log('[Firebase] Flushed', queue.length, 'pending activity log(s) to Firebase from sessionStorage queue');
+    } catch(e) {
+        console.warn('[Firebase] Failed to flush pending logs:', e);
+    }
 })();
 
 window.listenForActivityLogs = function(callback) {
