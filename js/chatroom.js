@@ -2,17 +2,12 @@
  * ═══════════════════════════════════════════════════════════════
  * SECURE CHATROOM — E2E Encrypted Agent ↔ Admin Messaging
  * ═══════════════════════════════════════════════════════════════
- *
- * Features:
- * - AES-GCM end-to-end encryption (Web Crypto API)
- * - GENERAL CHATROOM - always open in full tab, everyone can see messages
- * - FLOATING WIDGET - opens to list view (not General Chat by default)
- * - Users see their own messages immediately
- * - Admin shown with their actual names (JAMAL, ROSE, MOMO)
- * - Private 1-on-1 admin ↔ agent channels
- * - Quick action buttons (Come Quick, Help)
- * - Floating chat icon always visible
- * - TALL CHAT HEIGHT - takes full available space
+ * 
+ * FIXED: Server timestamps for correct message ordering across all devices
+ * FIXED: Messages always appear in chronological order (oldest first)
+ * FIXED: Time display uses consistent Guyana timezone
+ * FIXED: Floating chat displays messages instantly
+ * FIXED: Floating chat shows who you're chatting with
  */
 
 (function() {
@@ -24,9 +19,13 @@
     const CRYPTO_SALT = 'BIZ-LevelUp-E2E-2025';
     const CHAT_DB_PATH = 'secure_chat';
     const GENERAL_CHAT_PATH = 'general_chat';
-    const TYPING_DB_PATH = 'chat_typing';
+    const GROUP_CHAT_PATH = 'group_chats';
+    const PRESENCE_DB_PATH = 'chat_presence';
+    const PINS_DB_PATH = 'chat_pins';
+    const NOTIF_SETTINGS_KEY = 'chat_notification_settings';
+    const DRAFTS_KEY = 'chat_message_drafts';
 
-    // Quick action messages (removed listen_call)
+    // Quick action messages
     const QUICK_ACTIONS = {
         come_quick: { text: '🚨 COME QUICK', emoji: '🚨', message: '🚨 URGENT: Come quick! I need immediate assistance right now.' },
         help: { text: '🆘 HELP', emoji: '🆘', message: '🆘 HELP NEEDED: I need immediate assistance on this call!' }
@@ -34,40 +33,139 @@
 
     const REACTIONS_DB_PATH = 'chat_reactions';
 
+    // Common emojis
+    const COMMON_EMOJIS = [
+        '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊',
+        '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘',
+        '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪',
+        '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒',
+        '😞', '😔', '😟', '😕', '🙁', '😣', '😖', '😫',
+        '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬',
+        '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥',
+        '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐',
+        '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲',
+        '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢',
+        '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈',
+        '👿', '👹', '👺', '💀', '👻', '👽', '🤖', '💩'
+    ];
+
     let _crListeners = [];
     let _crCurrentChannel = null;
     let _crCurrentChannelType = 'general';
     let _crSidebarTab = 'general';
     let _crChannels = {};
+    let _crGroupChannels = {};
     let _crTypingTimers = {};
+    let _crCurrentTypingUsers = {};
     let _crAudioCtx = null;
     let _crOriginalTitle = document.title;
     let _crTitleBlinkInterval = null;
     let _crSearchQuery = '';
     let _crFloatSearchQuery = '';
+    let _crSearchActive = false;
+    let _crSearchResults = [];
+    let _crCurrentSearchIndex = -1;
     let _generalChatMessages = [];
     let _generalChatUnread = 0;
     let _localMessageIds = new Set();
     let _crReactions = {};
+    let _crPinnedMessages = {};
+    let _crNotificationSettings = {};
+    let _crMediaRecorder = null;
+    let _crAudioChunks = [];
+    let _crIsRecording = false;
+    let _crOnlineUsers = new Set();
+    let _crLastSeen = {};
 
-    // ── PERFORMANCE: key + message decrypt caches ──
-    const _keyCache = {};        // channelId → CryptoKey (derived once, reused)
-    const _decryptCache = {};    // msgId → plaintext (never re-decrypt same msg)
+    const _keyCache = {};
+    const _decryptCache = {};
 
     let _fbFunctions = null;
     let _initialized = false;
     let _isFirstLoad = true;
 
-    // Identity - Support multiple admins with their actual names
+    // ═══════════════════════════════════════════
+    // FIXED: Consistent timestamp handling
+    // ═══════════════════════════════════════════
+    
+    function _toMillis(timestamp) {
+        if (!timestamp) return 0;
+        if (typeof timestamp === 'object' && timestamp !== null) {
+            if (typeof timestamp.toDate === 'function') {
+                return timestamp.toDate().getTime();
+            }
+            if (timestamp._seconds !== undefined) {
+                return timestamp._seconds * 1000;
+            }
+        }
+        if (typeof timestamp === 'number') {
+            return timestamp;
+        }
+        const parsed = Date.parse(timestamp);
+        return isNaN(parsed) ? 0 : parsed;
+    }
+
+    function _formatMessageTime(timestamp) {
+        const ms = _toMillis(timestamp);
+        if (!ms) return '--:--';
+        const date = new Date(ms);
+        if (isNaN(date.getTime())) return '--:--';
+        return date.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit', 
+            hour12: true,
+            timeZone: 'America/Guyana'
+        });
+    }
+
+    function _formatMessageDate(timestamp) {
+        const ms = _toMillis(timestamp);
+        if (!ms) return '';
+        const date = new Date(ms);
+        if (isNaN(date.getTime())) return '';
+        return date.toLocaleDateString('en-US', {
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric',
+            timeZone: 'America/Guyana'
+        });
+    }
+
+    function _getServerTimestamp() {
+        if (_fbFunctions && _fbFunctions.serverTimestamp) {
+            return _fbFunctions.serverTimestamp();
+        }
+        console.warn('[Chat] Using client timestamp - server timestamp not available');
+        return { _seconds: Math.floor(Date.now() / 1000) };
+    }
+
+    function _loadDraft(channelId) {
+        try {
+            const drafts = JSON.parse(localStorage.getItem(DRAFTS_KEY) || '{}');
+            return drafts[channelId] || '';
+        } catch(e) { return ''; }
+    }
+
+    function _saveDraft(channelId, draft) {
+        try {
+            const drafts = JSON.parse(localStorage.getItem(DRAFTS_KEY) || '{}');
+            if (draft) {
+                drafts[channelId] = draft;
+            } else {
+                delete drafts[channelId];
+            }
+            localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+        } catch(e) {}
+    }
+
+    // Identity
     function _getMyIdentity() {
         const userRole = sessionStorage.getItem('bizUserRole');
         const isAdmin = userRole === 'admin';
         
         if (isAdmin) {
             const adminData = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-            // Get actual admin name from stored data
             let adminName = adminData.name || 'JAMAL';
-            // Map common admin names
             if (adminName.toUpperCase() === 'JAMAL') adminName = 'JAMAL';
             else if (adminName.toUpperCase() === 'ROSE') adminName = 'ROSE';
             else if (adminName.toUpperCase() === 'MOMO' || adminName.toUpperCase() === 'MOHENIE') adminName = 'MOHENIE';
@@ -92,7 +190,26 @@
         }
     }
 
-    // Get admin display name by ID
+    function _getAllChatParticipants() {
+        const admins = [
+            { id: 'jamal', name: 'JAMAL', type: 'admin' },
+            { id: 'rose', name: 'ROSE', type: 'admin' },
+            { id: 'momo', name: 'MOHENIE', type: 'admin' },
+            { id: 'mel', name: 'MEL', type: 'admin' },
+            { id: 'nadia', name: 'NADIA', type: 'admin' }
+        ];
+        
+        const roster = _getAgentRoster();
+        const agents = roster.map(agent => ({
+            id: 'agent_' + (agent.userId || agent.ytelId || agent.id || ''),
+            name: agent.fullName || agent.name || 'Agent',
+            type: 'agent',
+            team: agent.team || 'PR'
+        })).filter(a => a.id && a.id !== 'agent_');
+        
+        return [...admins, ...agents];
+    }
+
     function _getAdminNameById(adminId) {
         const adminMap = {
             'admin': 'JAMAL',
@@ -212,14 +329,6 @@
         } catch(e) {}
     }
 
-    function _stopTitleBlink() {
-        if (_crTitleBlinkInterval) {
-            clearInterval(_crTitleBlinkInterval);
-            _crTitleBlinkInterval = null;
-            document.title = _crOriginalTitle;
-        }
-    }
-
     // ═══════════════════════════════════════════
     // FIREBASE HELPERS
     // ═══════════════════════════════════════════
@@ -238,7 +347,8 @@
                 update: mod.update,
                 remove: mod.remove,
                 onValue: mod.onValue,
-                off: mod.off
+                off: mod.off,
+                serverTimestamp: mod.serverTimestamp
             };
             console.log('[Chat] Firebase functions loaded');
             return true;
@@ -261,6 +371,11 @@
         return 'dm_' + parts.join('__');
     }
 
+    function _getGroupChannelId(roomName, members) {
+        const sorted = [...members].sort();
+        return 'group_' + roomName.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '_' + sorted.join('_').slice(0, 50);
+    }
+
     function _getAdminList() {
         return [
             { id: 'jamal', name: 'JAMAL' },
@@ -281,7 +396,306 @@
     }
 
     // ═══════════════════════════════════════════
-    // GENERAL CHAT - Always Open in Full Tab
+    // TYPING INDICATORS
+    // ═══════════════════════════════════════════
+    function _sendTypingIndicator(channelId, isTyping) {
+        if (!_fbFunctions || !channelId) return;
+        const me = _getMyIdentity();
+        const typingRef = _ref(TYPING_DB_PATH + '/' + channelId + '/' + me.id);
+        if (typingRef) {
+            if (isTyping) {
+                _fbFunctions.set(typingRef, {
+                    name: me.name,
+                    timestamp: _getServerTimestamp()
+                });
+            } else {
+                _fbFunctions.remove(typingRef);
+            }
+        }
+    }
+    
+    function _listenForTyping(channelId) {
+        if (!_fbFunctions || !channelId) return;
+        const typingRef = _ref(TYPING_DB_PATH + '/' + channelId);
+        if (!typingRef) return;
+        
+        _fbFunctions.onValue(typingRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            const me = _getMyIdentity();
+            const now = Date.now();
+            const typingUsers = [];
+            
+            Object.keys(data).forEach(userId => {
+                if (userId !== me.id && data[userId]) {
+                    const ts = _toMillis(data[userId].timestamp);
+                    if (now - ts < 3000) {
+                        typingUsers.push(data[userId].name);
+                    }
+                }
+            });
+            
+            _crCurrentTypingUsers[channelId] = typingUsers;
+            _updateTypingIndicator(channelId);
+        });
+    }
+    
+    function _updateTypingIndicator(channelId) {
+        if (_crCurrentChannel !== channelId) return;
+        const typingUsers = _crCurrentTypingUsers[channelId] || [];
+        const indicator = document.getElementById('cr-typing-indicator');
+        if (!indicator) return;
+        
+        if (typingUsers.length === 0) {
+            indicator.classList.add('hidden');
+        } else if (typingUsers.length === 1) {
+            indicator.querySelector('.cr-typing-text').textContent = typingUsers[0] + ' is typing...';
+            indicator.classList.remove('hidden');
+        } else if (typingUsers.length === 2) {
+            indicator.querySelector('.cr-typing-text').textContent = typingUsers[0] + ' and ' + typingUsers[1] + ' are typing...';
+            indicator.classList.remove('hidden');
+        } else {
+            indicator.querySelector('.cr-typing-text').textContent = 'Several people are typing...';
+            indicator.classList.remove('hidden');
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // MESSAGE EDIT/DELETE
+    // ═══════════════════════════════════════════
+    async function _editMessage(channelId, messageId, newText) {
+        if (!_fbFunctions || !channelId || !messageId) return false;
+        
+        const me = _getMyIdentity();
+        const msgRef = _ref(CHAT_DB_PATH + '/' + channelId + '/' + messageId);
+        if (!msgRef) return false;
+        
+        try {
+            const snapshot = await _fbFunctions.get(msgRef);
+            const msg = snapshot.val();
+            if (!msg || msg.from !== me.id) {
+                alert('You can only edit your own messages');
+                return false;
+            }
+            
+            const encrypted = await _encrypt(newText, channelId);
+            if (!encrypted) return false;
+            
+            await _fbFunctions.update(msgRef, {
+                ciphertext: encrypted.ciphertext,
+                iv: encrypted.iv,
+                edited: true,
+                editedAt: _getServerTimestamp()
+            });
+            
+            return true;
+        } catch(e) {
+            console.error('[Chat] Edit message failed:', e);
+            return false;
+        }
+    }
+    
+    async function _deleteMessage(channelId, messageId) {
+        if (!_fbFunctions || !channelId || !messageId) return false;
+        
+        const me = _getMyIdentity();
+        const msgRef = _ref(CHAT_DB_PATH + '/' + channelId + '/' + messageId);
+        if (!msgRef) return false;
+        
+        try {
+            const snapshot = await _fbFunctions.get(msgRef);
+            const msg = snapshot.val();
+            if (!msg || msg.from !== me.id) {
+                alert('You can only delete your own messages');
+                return false;
+            }
+            
+            await _fbFunctions.remove(msgRef);
+            return true;
+        } catch(e) {
+            console.error('[Chat] Delete message failed:', e);
+            return false;
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // SEARCH WITHIN CHAT
+    // ═══════════════════════════════════════════
+    function _searchMessages(query, messages) {
+        if (!query || !messages.length) return [];
+        
+        const results = [];
+        const lowerQuery = query.toLowerCase();
+        
+        messages.forEach((msg, index) => {
+            if (msg.text && msg.text.toLowerCase().includes(lowerQuery)) {
+                results.push({ index, message: msg, preview: msg.text.substring(0, 100) });
+            }
+        });
+        
+        return results;
+    }
+    
+    function _highlightSearchResults() {
+        if (!_crSearchActive || !_crSearchResults.length) return;
+        
+        const messages = document.querySelectorAll('.cr-msg-text');
+        messages.forEach(msgEl => {
+            const originalHtml = msgEl.innerHTML;
+            _crSearchResults.forEach(result => {
+                const regex = new RegExp(`(${_crSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                msgEl.innerHTML = originalHtml.replace(regex, '<mark style="background:#facc15;color:#020617;padding:0 2px;border-radius:3px;">$1</mark>');
+            });
+        });
+    }
+    
+    function _navigateSearchResult(direction) {
+        if (!_crSearchResults.length) return;
+        
+        _crCurrentSearchIndex += direction;
+        if (_crCurrentSearchIndex < 0) _crCurrentSearchIndex = _crSearchResults.length - 1;
+        if (_crCurrentSearchIndex >= _crSearchResults.length) _crCurrentSearchIndex = 0;
+        
+        const result = _crSearchResults[_crCurrentSearchIndex];
+        const messageElements = document.querySelectorAll('.cr-msg-row');
+        if (messageElements[result.index]) {
+            messageElements[result.index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            messageElements[result.index].style.background = 'rgba(250,204,21,0.15)';
+            setTimeout(() => {
+                messageElements[result.index].style.background = '';
+            }, 2000);
+        }
+        
+        const searchInfo = document.getElementById('cr-search-info');
+        if (searchInfo) {
+            searchInfo.textContent = `${_crCurrentSearchIndex + 1} of ${_crSearchResults.length}`;
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // PIN MESSAGES
+    // ═══════════════════════════════════════════
+    async function _pinMessage(channelId, messageId, message) {
+        if (!_fbFunctions) return;
+        const me = _getMyIdentity();
+        const pinRef = _ref(PINS_DB_PATH + '/' + channelId + '/' + messageId);
+        if (!pinRef) return;
+        
+        const isPinned = _crPinnedMessages[channelId] && _crPinnedMessages[channelId][messageId];
+        
+        if (isPinned) {
+            await _fbFunctions.remove(pinRef);
+            if (_crPinnedMessages[channelId]) delete _crPinnedMessages[channelId][messageId];
+        } else {
+            await _fbFunctions.set(pinRef, {
+                pinnedBy: me.id,
+                pinnedByName: me.name,
+                pinnedAt: _getServerTimestamp(),
+                message: {
+                    text: message.text,
+                    fromName: message.fromName,
+                    timestamp: message.timestamp
+                }
+            });
+            if (!_crPinnedMessages[channelId]) _crPinnedMessages[channelId] = {};
+            _crPinnedMessages[channelId][messageId] = true;
+        }
+        
+        _renderPinnedMessages(channelId);
+    }
+    
+    function _listenForPins(channelId) {
+        if (!_fbFunctions) return;
+        const pinsRef = _ref(PINS_DB_PATH + '/' + channelId);
+        if (!pinsRef) return;
+        
+        _fbFunctions.onValue(pinsRef, (snapshot) => {
+            _crPinnedMessages[channelId] = snapshot.val() || {};
+            _renderPinnedMessages(channelId);
+        });
+    }
+    
+    function _renderPinnedMessages(channelId) {
+        const container = document.getElementById('cr-pinned-messages');
+        if (!container) return;
+        
+        const pins = _crPinnedMessages[channelId] || {};
+        const pinList = Object.values(pins);
+        
+        if (pinList.length === 0) {
+            container.innerHTML = '<div class="cr-pinned-header" style="display:none;"></div>';
+            return;
+        }
+        
+        container.innerHTML = `
+            <div class="cr-pinned-header" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(250,204,21,0.08);border-bottom:1px solid rgba(250,204,21,0.2);font-size:10px;font-weight:900;color:#facc15;">
+                <span>📌 Pinned Messages (${pinList.length})</span>
+            </div>
+            <div class="cr-pinned-list" style="max-height:150px;overflow-y:auto;padding:8px;">
+                ${pinList.slice(0, 5).map(pin => `
+                    <div class="cr-pinned-item" style="padding:6px 10px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:4px;cursor:pointer;" onclick="window._crScrollToMessage('${channelId}')">
+                        <div style="font-size:9px;color:#facc15;font-weight:800;">📌 ${_escHtml(pin.message?.fromName || 'Unknown')}</div>
+                        <div style="font-size:11px;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escHtml(pin.message?.text?.substring(0, 50) || '')}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    // ═══════════════════════════════════════════
+    // PRESENCE / ONLINE STATUS
+    // ═══════════════════════════════════════════
+    function _updatePresence() {
+        if (!_fbFunctions) return;
+        const me = _getMyIdentity();
+        const presenceRef = _ref(PRESENCE_DB_PATH + '/' + me.id);
+        if (presenceRef) {
+            _fbFunctions.set(presenceRef, {
+                name: me.name,
+                role: me.role,
+                online: true,
+                lastSeen: _getServerTimestamp()
+            });
+            
+            const onDisconnectRef = _fbFunctions.ref(_getDb(), PRESENCE_DB_PATH + '/' + me.id);
+            if (onDisconnectRef && onDisconnectRef.onDisconnect) {
+                onDisconnectRef.onDisconnect().set({
+                    name: me.name,
+                    role: me.role,
+                    online: false,
+                    lastSeen: _getServerTimestamp()
+                });
+            }
+        }
+    }
+    
+    function _listenForPresence() {
+        if (!_fbFunctions) return;
+        const presenceRef = _ref(PRESENCE_DB_PATH);
+        if (!presenceRef) return;
+        
+        _fbFunctions.onValue(presenceRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            _crOnlineUsers.clear();
+            Object.keys(data).forEach(id => {
+                if (data[id].online) {
+                    _crOnlineUsers.add(id);
+                }
+                _crLastSeen[id] = data[id].lastSeen || 0;
+            });
+            _updateOnlineStatusUI();
+        });
+    }
+    
+    function _updateOnlineStatusUI() {
+        const statusEl = document.getElementById('cr-online-status');
+        if (statusEl) {
+            const count = _crOnlineUsers.size;
+            statusEl.innerHTML = `<span class="online-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-right:6px;"></span> ${count} online`;
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // GENERAL CHAT - with server timestamps
     // ═══════════════════════════════════════════
     function _listenToGeneralChat(me) {
         if (!_fbFunctions) return;
@@ -301,22 +715,33 @@
             }
 
             const messages = [];
-            const msgKeys = Object.keys(data).sort();
+            const msgKeys = Object.keys(data);
             
             for (const key of msgKeys) {
                 const raw = data[key];
                 if (!raw || !raw.ciphertext) continue;
                 const cacheKey = GENERAL_CHAT_PATH + '_' + key;
-                const plaintext = _decryptCache[cacheKey]
-                    ? _decryptCache[cacheKey]
-                    : (_decryptCache[cacheKey] = await _decrypt(raw.ciphertext, raw.iv, GENERAL_CHAT_PATH));
+                let plaintext = _decryptCache[cacheKey];
+                if (!plaintext) {
+                    plaintext = await _decrypt(raw.ciphertext, raw.iv, GENERAL_CHAT_PATH);
+                    _decryptCache[cacheKey] = plaintext;
+                }
+                
+                let timestamp = 0;
+                if (raw.timestamp) {
+                    timestamp = _toMillis(raw.timestamp);
+                } else if (raw.createdAt) {
+                    timestamp = _toMillis(raw.createdAt);
+                }
+                
                 messages.push({
                     id: key,
                     from: raw.from || '',
                     fromName: raw.fromName || '',
                     text: plaintext,
-                    timestamp: raw.timestamp || 0,
-                    isQuickAction: raw.isQuickAction || false
+                    timestamp: timestamp,
+                    isQuickAction: raw.isQuickAction || false,
+                    edited: raw.edited || false
                 });
             }
 
@@ -328,9 +753,10 @@
                 if (newest && newest.from !== me.id) {
                     _playNotificationSound();
                     if (!_isFirstLoad) {
-                        if (window.currentTab === 'chatroom') {
-                            setTimeout(() => window._crSelectGeneralChat && window._crSelectGeneralChat(), 300);
-                        } else {
+                        _generalChatUnread++;
+                        _updateFloatBubbleBadge();
+                        _updateTabBadge();
+                        if (window.currentTab !== 'chatroom') {
                             setTimeout(() => window._crOpenFloat('general'), 500);
                         }
                     }
@@ -339,6 +765,7 @@
             
             initialLoad = false;
             _updateFloatBubbleBadge();
+            _updateTabBadge();
 
             if (_crCurrentChannelType === 'general') {
                 _renderGeneralChatMessages(me);
@@ -348,24 +775,40 @@
             }
         });
     }
+    
+    function _updateTabBadge() {
+        let totalUnread = _generalChatUnread;
+        Object.values(_crChannels).forEach(ch => { totalUnread += (ch.unread || 0); });
+        
+        const chatroomTab = document.getElementById('tab-chatroom');
+        if (chatroomTab) {
+            if (totalUnread > 0) {
+                chatroomTab.innerHTML = `💬 Chatroom <span style="background:#ef4444;color:white;border-radius:10px;padding:2px 6px;margin-left:5px;font-size:9px;">${totalUnread > 99 ? '99+' : totalUnread}</span>`;
+            } else {
+                chatroomTab.innerHTML = `💬 Chatroom`;
+            }
+        }
+    }
 
     async function _sendToGeneralChat(text, me, isQuickAction = false) {
         if (!_fbFunctions || !text) return false;
-        // Pre-warm key cache so encryption is instant
         if (!_keyCache[GENERAL_CHAT_PATH]) await _deriveKey(GENERAL_CHAT_PATH);
         
         const tempId = 'temp_' + Date.now() + '_' + Math.random();
+        const tempTimestamp = Date.now();
         const tempMessage = {
             id: tempId,
             from: me.id,
             fromName: me.name,
             text: text,
-            timestamp: Date.now(),
+            timestamp: tempTimestamp,
             isQuickAction: isQuickAction,
             isTemp: true
         };
         
         _generalChatMessages.push(tempMessage);
+        _generalChatMessages.sort((a, b) => a.timestamp - b.timestamp);
+        
         if (_crCurrentChannelType === 'general') {
             _renderGeneralChatMessages(me);
         }
@@ -380,14 +823,16 @@
         }
         
         try {
-            await _fbFunctions.push(_ref(GENERAL_CHAT_PATH), {
+            const payload = {
                 from: me.id,
                 fromName: me.name,
                 ciphertext: encrypted.ciphertext,
                 iv: encrypted.iv,
-                timestamp: Date.now(),
-                isQuickAction: isQuickAction
-            });
+                isQuickAction: isQuickAction,
+                timestamp: _getServerTimestamp()
+            };
+            
+            await _fbFunctions.push(_ref(GENERAL_CHAT_PATH), payload);
             
             _generalChatMessages = _generalChatMessages.filter(m => m.id !== tempId);
             return true;
@@ -417,10 +862,14 @@
             const me = _getMyIdentity();
             if (_crCurrentChannelType === 'general') _renderGeneralChatMessages(me);
             else if (_crCurrentChannelType === 'dm' && _crCurrentChannel) _renderPrivateChatMessages(_crCurrentChannel, me);
+            else if (_crCurrentChannelType === 'group' && _crCurrentChannel) _renderGroupChatMessages(_crCurrentChannel, me);
             if (window._crFloatActiveChannel) window._crOpenFloatChat(window._crFloatActiveChannel);
         });
     }
 
+    // ═══════════════════════════════════════════
+    // RENDER MESSAGES
+    // ═══════════════════════════════════════════
     function _renderGeneralChatMessages(me) {
         const area = document.getElementById('cr-messages-area');
         if (!area) return;
@@ -435,21 +884,19 @@
         
         const sortedMessages = [..._generalChatMessages].sort((a, b) => a.timestamp - b.timestamp);
 
-        sortedMessages.forEach(msg => {
-            const msgDate = new Date(msg.timestamp).toLocaleDateString('en-US', {
-                weekday: 'short', month: 'short', day: 'numeric'
-            });
+        sortedMessages.forEach((msg, idx) => {
+            const msgDate = _formatMessageDate(msg.timestamp);
             if (msgDate !== lastDate) {
                 html += `<div class="cr-date-sep" style="text-align:center;padding:16px 0 8px;"><span style="font-size:10px;font-weight:700;color:#475569;background:rgba(255,255,255,0.04);padding:4px 12px;border-radius:20px;">${msgDate}</span></div>`;
                 lastDate = msgDate;
             }
 
             const isSent = msg.from === me.id;
-            const timeStr = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            const timeStr = _formatMessageTime(msg.timestamp);
             const isQuickAction = msg.isQuickAction;
             const actionStyle = isQuickAction ? 'background:rgba(239,68,68,0.15);border-left:3px solid #ef4444;' : '';
+            const editedBadge = msg.edited ? '<span style="font-size:8px;color:#64748b;margin-left:6px;">(edited)</span>' : '';
             
-            // Show proper admin names with icons
             let senderName = msg.fromName;
             let senderClass = 'color:#a855f7;';
             let senderIcon = '';
@@ -467,15 +914,26 @@
                 senderName = 'MOHENIE';
             }
 
+            const isOnline = _crOnlineUsers.has(msg.from);
+            const onlineDot = isOnline ? '<span class="online-status-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;margin-left:6px;"></span>' : '';
+            
+            const isPinned = _crPinnedMessages[GENERAL_CHAT_PATH] && _crPinnedMessages[GENERAL_CHAT_PATH][msg.id];
+            const pinIcon = isPinned ? '<span style="margin-left:6px;color:#facc15;">📌</span>' : '';
+            
+            const pinButton = `<button class="cr-pin-btn" onclick="window._crPinMessage('${GENERAL_CHAT_PATH}', '${msg.id}', this)" style="background:transparent;border:none;color:${isPinned ? '#facc15' : '#64748b'};cursor:pointer;font-size:10px;" title="${isPinned ? 'Unpin' : 'Pin'}">📌</button>`;
+            
+            const editButton = isSent ? `<button class="cr-edit-btn" onclick="window._crEditMessage('${GENERAL_CHAT_PATH}', '${msg.id}', this)" style="background:transparent;border:none;color:#64748b;cursor:pointer;font-size:10px;" title="Edit">✏️</button>` : '';
+            const deleteButton = isSent ? `<button class="cr-delete-btn" onclick="window._crDeleteMessage('${GENERAL_CHAT_PATH}', '${msg.id}', this)" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:10px;" title="Delete">🗑️</button>` : '';
+
             const ri = _getReactionInfo(msg.id, me.id);
             html += `
-                <div class="cr-msg-row ${isSent ? 'sent' : 'received'}" style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:12px;animation:fadeIn 0.2s ease;"
-                     onmouseenter="var b=this.querySelector('.cr-tb');if(b)b.style.opacity='1'"
-                     onmouseleave="var b=this.querySelector('.cr-tb');if(b&&b.getAttribute('data-has')!=='1')b.style.opacity='0'">
+                <div class="cr-msg-row ${isSent ? 'sent' : 'received'}" data-msg-id="${msg.id}" data-msg-index="${idx}" style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:12px;animation:fadeIn 0.2s ease;">
                     <div style="max-width:75%;">
                         <div class="cr-msg-bubble" style="padding:10px 14px;border-radius:16px;${actionStyle} ${isSent ? 'background:linear-gradient(135deg,rgba(16,185,129,0.18),rgba(5,150,105,0.22));border-bottom-right-radius:6px;' : 'background:rgba(255,255,255,0.04);border-bottom-left-radius:6px;'}">
-                            <div class="cr-msg-sender" style="font-size:10px;${senderClass} font-weight:800;margin-bottom:4px;white-space:nowrap;">${senderIcon}${_escHtml(senderName)}</div>
-                            <div class="cr-msg-text" style="font-size:13px;color:#e2e8f0;line-height:1.5;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}</div>
+                            <div class="cr-msg-sender" style="font-size:10px;${senderClass} font-weight:800;margin-bottom:4px;white-space:nowrap;">
+                                ${senderIcon}${_escHtml(senderName)}${onlineDot}${pinIcon}
+                            </div>
+                            <div class="cr-msg-text" style="font-size:13px;color:#e2e8f0;line-height:1.5;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
                             <div class="cr-msg-meta" style="display:flex;align-items:center;gap:6px;margin-top:6px;justify-content:flex-end;">
                                 <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
                                         onclick="window._crToggleThumbsUp('${msg.id}')"
@@ -483,6 +941,9 @@
                                         style="opacity:${ri.count > 0 || ri.iReacted ? '1' : '0'};transition:opacity 0.15s;background:${ri.iReacted ? 'rgba(250,204,21,0.15)' : 'rgba(15,23,42,0.92)'};border:1px solid ${ri.iReacted ? 'rgba(250,204,21,0.45)' : 'rgba(255,255,255,0.14)'};border-radius:20px;padding:2px 8px;cursor:pointer;font-size:10px;color:${ri.iReacted ? '#facc15' : '#94a3b8'};white-space:nowrap;">
                                     👍${ri.count > 0 ? ' ' + ri.count : ''}
                                 </button>
+                                ${pinButton}
+                                ${editButton}
+                                ${deleteButton}
                                 <span class="cr-msg-time" style="font-size:9px;color:#475569;">${timeStr}</span>
                                 ${msg.isTemp ? '<span class="cr-msg-read" style="font-size:9px;color:#fbbf24;">sending...</span>' : ''}
                             </div>
@@ -496,6 +957,10 @@
         setTimeout(() => {
             if (area) area.scrollTop = area.scrollHeight;
         }, 50);
+        
+        if (_crSearchActive && _crSearchQuery) {
+            _highlightSearchResults();
+        }
     }
 
     // ═══════════════════════════════════════════
@@ -523,7 +988,6 @@
                     };
                 }
             });
-            // Admins can also message other admins
             const admins = _getAdminList();
             admins.forEach(admin => {
                 if (admin.id === me.id || admin.name === me.name) return;
@@ -561,13 +1025,489 @@
         }
 
         _listenForPrivateMessages(me);
+        _loadGroupChats(me);
+        _updatePresence();
+        _listenForPresence();
+        _loadNotificationSettings();
     }
+
+    function _loadGroupChats(me) {
+        if (!_fbFunctions) return;
+        const groupsRef = _ref(GROUP_CHAT_PATH);
+        if (!groupsRef) return;
+
+        _fbFunctions.onValue(groupsRef, async (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            Object.keys(data).forEach(groupKey => {
+                const group = data[groupKey];
+                if (!group || !group.members) return;
+                
+                const memberIds = group.members.map(m => String(m.id || m));
+                const myId = String(me.id);
+                const isMember = memberIds.includes(myId);
+                
+                if (!isMember) return;
+
+                if (!_crGroupChannels[groupKey]) {
+                    _crGroupChannels[groupKey] = {
+                        type: 'group',
+                        channelId: groupKey,
+                        roomName: group.roomName || 'Group Chat',
+                        members: group.members,
+                        messages: [],
+                        unread: 0,
+                        lastMsg: null,
+                        lastMsgTime: 0
+                    };
+                }
+                _crChannels[groupKey] = _crGroupChannels[groupKey];
+                _listenToGroupChannel(groupKey, me);
+                _listenForTyping(groupKey);
+                _listenForPins(groupKey);
+            });
+            
+            if (document.getElementById('cr-channel-list')) _renderChannelList();
+        });
+    }
+
+    function _listenToGroupChannel(channelId, me) {
+        if (!_fbFunctions) return;
+        const msgRef = _ref(CHAT_DB_PATH + '/' + channelId);
+        if (!msgRef) return;
+
+        let initialLoad = true;
+
+        _fbFunctions.onValue(msgRef, async (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            const messages = [];
+            let unread = 0;
+            let lastMsgTime = 0;
+            let lastMsg = null;
+
+            const msgKeys = Object.keys(data);
+            
+            for (const key of msgKeys) {
+                const raw = data[key];
+                if (!raw || !raw.ciphertext) continue;
+                const cacheKey = channelId + '_' + key;
+                let plaintext = _decryptCache[cacheKey];
+                if (!plaintext) {
+                    plaintext = await _decrypt(raw.ciphertext, raw.iv, channelId);
+                    _decryptCache[cacheKey] = plaintext;
+                }
+                
+                let timestamp = _toMillis(raw.timestamp);
+                
+                const msg = {
+                    id: key,
+                    from: raw.from || '',
+                    fromName: raw.fromName || '',
+                    text: plaintext,
+                    timestamp: timestamp,
+                    read: raw.read || false,
+                    isQuickAction: raw.isQuickAction || false,
+                    edited: raw.edited || false
+                };
+                messages.push(msg);
+                if (msg.timestamp > lastMsgTime) {
+                    lastMsgTime = msg.timestamp;
+                    lastMsg = msg;
+                }
+                if (msg.from !== me.id && !msg.read) unread++;
+            }
+
+            messages.sort((a, b) => a.timestamp - b.timestamp);
+
+            const ch = _crChannels[channelId];
+            if (ch) {
+                ch.messages = messages;
+                if (!initialLoad && unread > ch.unread) {
+                    _playNotificationSound();
+                }
+                ch.unread = unread;
+                ch.lastMsg = lastMsg;
+                ch.lastMsgTime = lastMsgTime;
+                
+                _updateFloatBubbleBadge();
+                _updateTabBadge();
+
+                if (!initialLoad && messages.length > 0) {
+                    const newest = messages[messages.length - 1];
+                    if (newest && newest.from !== me.id) {
+                        _playNotificationSound();
+                        if (!_isFirstLoad && window.currentTab !== 'chatroom') {
+                            setTimeout(() => window._crOpenFloat(channelId), 500);
+                        }
+                    }
+                }
+            }
+            
+            initialLoad = false;
+
+            if (_crCurrentChannel === channelId && _crCurrentChannelType === 'group') {
+                _renderGroupChatMessages(channelId, me);
+                if (ch) ch.unread = 0;
+            }
+            if (document.getElementById('cr-channel-list')) _renderChannelList();
+        });
+    }
+
+    async function _sendToGroupChannel(channelId, text, me, isQuickAction = false) {
+        if (!_fbFunctions || !text || !channelId) return false;
+        
+        const tempId = 'temp_' + Date.now() + '_' + Math.random();
+        const tempTimestamp = Date.now();
+        const tempMessage = {
+            id: tempId,
+            from: me.id,
+            fromName: me.name,
+            text: text,
+            timestamp: tempTimestamp,
+            isQuickAction: isQuickAction,
+            isTemp: true
+        };
+        
+        if (_crChannels[channelId]) {
+            _crChannels[channelId].messages.push(tempMessage);
+            _crChannels[channelId].messages.sort((a, b) => a.timestamp - b.timestamp);
+            if (_crCurrentChannel === channelId && _crCurrentChannelType === 'group') {
+                _renderGroupChatMessages(channelId, me);
+            }
+        }
+        
+        const encrypted = await _encrypt(text, channelId);
+        if (!encrypted) {
+            if (_crChannels[channelId]) {
+                _crChannels[channelId].messages = _crChannels[channelId].messages.filter(m => m.id !== tempId);
+                if (_crCurrentChannel === channelId && _crCurrentChannelType === 'group') {
+                    _renderGroupChatMessages(channelId, me);
+                }
+            }
+            return false;
+        }
+        
+        try {
+            const payload = {
+                from: me.id,
+                fromName: me.name,
+                ciphertext: encrypted.ciphertext,
+                iv: encrypted.iv,
+                read: false,
+                isQuickAction: isQuickAction,
+                timestamp: _getServerTimestamp()
+            };
+            
+            await _fbFunctions.push(_ref(CHAT_DB_PATH + '/' + channelId), payload);
+            
+            if (_crChannels[channelId]) {
+                _crChannels[channelId].messages = _crChannels[channelId].messages.filter(m => m.id !== tempId);
+            }
+            return true;
+        } catch(e) {
+            if (_crChannels[channelId]) {
+                _crChannels[channelId].messages = _crChannels[channelId].messages.filter(m => m.id !== tempId);
+                if (_crCurrentChannel === channelId && _crCurrentChannelType === 'group') {
+                    _renderGroupChatMessages(channelId, me);
+                }
+            }
+            return false;
+        }
+    }
+
+    function _renderGroupChatMessages(channelId, me) {
+        const area = document.getElementById('cr-messages-area');
+        if (!area) return;
+
+        const ch = _crChannels[channelId];
+        if (!ch || ch.messages.length === 0) {
+            area.innerHTML = `<div class="cr-empty-state" style="padding:60px 20px;text-align:center;"><div class="cr-empty-icon" style="font-size:48px;margin-bottom:16px;">👥</div><div class="cr-empty-title" style="font-size:16px;font-weight:800;margin-bottom:8px;">${_escHtml(ch?.roomName || 'Group Chat')}</div><div class="cr-empty-desc" style="font-size:12px;color:#64748b;">Group messages are end-to-end encrypted.</div></div>`;
+            return;
+        }
+
+        let html = '';
+        let lastDate = '';
+        const sortedMessages = [...ch.messages].sort((a, b) => a.timestamp - b.timestamp);
+
+        sortedMessages.forEach((msg, idx) => {
+            const msgDate = _formatMessageDate(msg.timestamp);
+            if (msgDate !== lastDate) {
+                html += `<div class="cr-date-sep" style="text-align:center;padding:16px 0 8px;"><span style="font-size:10px;font-weight:700;color:#475569;background:rgba(255,255,255,0.04);padding:4px 12px;border-radius:20px;">${msgDate}</span></div>`;
+                lastDate = msgDate;
+            }
+
+            const isSent = msg.from === me.id;
+            const timeStr = _formatMessageTime(msg.timestamp);
+            const isQuickAction = msg.isQuickAction;
+            const actionStyle = isQuickAction ? 'background:rgba(239,68,68,0.15);border-left:3px solid #ef4444;' : '';
+            const editedBadge = msg.edited ? '<span style="font-size:8px;color:#64748b;margin-left:6px;">(edited)</span>' : '';
+            
+            let displayName = msg.fromName;
+            let senderIcon = '';
+            let senderColor = '#a855f7';
+            
+            if (msg.fromName === 'JAMAL') {
+                senderIcon = '👑 ';
+                senderColor = '#fbbf24';
+            } else if (msg.fromName === 'ROSE') {
+                senderIcon = '🌹 ';
+                senderColor = '#ec4899';
+            } else if (msg.fromName === 'MOMO') {
+                senderIcon = '🐱 ';
+                senderColor = '#06b6d4';
+            }
+
+            const isOnline = _crOnlineUsers.has(msg.from);
+            const onlineDot = isOnline ? '<span class="online-status-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;margin-left:6px;"></span>' : '';
+            
+            const isPinned = _crPinnedMessages[channelId] && _crPinnedMessages[channelId][msg.id];
+            const pinIcon = isPinned ? '<span style="margin-left:6px;color:#facc15;">📌</span>' : '';
+            
+            const pinButton = `<button class="cr-pin-btn" onclick="window._crPinMessage('${channelId}', '${msg.id}', this)" style="background:transparent;border:none;color:${isPinned ? '#facc15' : '#64748b'};cursor:pointer;font-size:10px;" title="${isPinned ? 'Unpin' : 'Pin'}">📌</button>`;
+            
+            const editButton = isSent ? `<button class="cr-edit-btn" onclick="window._crEditMessage('${channelId}', '${msg.id}', this)" style="background:transparent;border:none;color:#64748b;cursor:pointer;font-size:10px;" title="Edit">✏️</button>` : '';
+            const deleteButton = isSent ? `<button class="cr-delete-btn" onclick="window._crDeleteMessage('${channelId}', '${msg.id}', this)" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:10px;" title="Delete">🗑️</button>` : '';
+
+            const ri = _getReactionInfo(msg.id, me.id);
+            html += `
+                <div class="cr-msg-row ${isSent ? 'sent' : 'received'}" data-msg-id="${msg.id}" data-msg-index="${idx}" style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:12px;">
+                    <div style="max-width:75%;">
+                        <div class="cr-msg-bubble" style="padding:10px 14px;border-radius:16px;${actionStyle} ${isSent ? 'background:linear-gradient(135deg,rgba(16,185,129,0.18),rgba(5,150,105,0.22));border-bottom-right-radius:6px;' : 'background:rgba(255,255,255,0.04);border-bottom-left-radius:6px;'}">
+                            ${!isSent ? `<div class="cr-msg-sender" style="font-size:10px;color:${senderColor};font-weight:800;margin-bottom:4px;">${senderIcon}${_escHtml(displayName)}${onlineDot}${pinIcon}</div>` : ''}
+                            <div class="cr-msg-text" style="font-size:13px;color:#e2e8f0;line-height:1.5;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
+                            <div class="cr-msg-meta" style="display:flex;align-items:center;gap:6px;margin-top:6px;justify-content:flex-end;">
+                                <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
+                                        onclick="window._crToggleThumbsUp('${msg.id}')"
+                                        title="${_escHtml(ri.names)}"
+                                        style="opacity:${ri.count > 0 || ri.iReacted ? '1' : '0'};transition:opacity 0.15s;background:${ri.iReacted ? 'rgba(250,204,21,0.15)' : 'rgba(15,23,42,0.92)'};border:1px solid ${ri.iReacted ? 'rgba(250,204,21,0.45)' : 'rgba(255,255,255,0.14)'};border-radius:20px;padding:2px 8px;cursor:pointer;font-size:10px;color:${ri.iReacted ? '#facc15' : '#94a3b8'};white-space:nowrap;">
+                                    👍${ri.count > 0 ? ' ' + ri.count : ''}
+                                </button>
+                                ${pinButton}
+                                ${editButton}
+                                ${deleteButton}
+                                <span class="cr-msg-time" style="font-size:9px;color:#475569;">${timeStr}</span>
+                                ${msg.isTemp ? '<span class="cr-msg-read" style="font-size:9px;color:#fbbf24;">sending...</span>' : (isSent && msg.read ? '<span class="cr-msg-read" style="font-size:10px;color:#10b981;">✓✓</span>' : '')}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        });
+
+        area.innerHTML = html;
+        setTimeout(() => { if (area) area.scrollTop = area.scrollHeight; }, 50);
+        
+        if (_crSearchActive && _crSearchQuery) {
+            _highlightSearchResults();
+        }
+    }
+
+    window._crCreateRoom = async function() {
+        const roomName = document.getElementById('cr-room-name-input')?.value.trim();
+        const checkboxes = document.querySelectorAll('#cr-agent-checklist input[type="checkbox"]:checked');
+        
+        if (!roomName) {
+            alert('Please enter a room name');
+            return;
+        }
+        
+        const me = _getMyIdentity();
+        
+        const selectedParticipants = Array.from(checkboxes).map(cb => ({
+            id: cb.value,
+            name: cb.getAttribute('data-name') || cb.value,
+            type: cb.value.startsWith('agent_') ? 'agent' : 'admin'
+        }));
+        
+        const members = [{ id: me.id, name: me.name, type: 'admin' }, ...selectedParticipants];
+        
+        const uniqueMembers = [];
+        const memberIds = new Set();
+        for (const m of members) {
+            if (!memberIds.has(m.id)) {
+                memberIds.add(m.id);
+                uniqueMembers.push(m);
+            }
+        }
+        
+        const channelId = _getGroupChannelId(roomName, uniqueMembers.map(m => m.id));
+        
+        const groupInfo = {
+            roomName: roomName,
+            members: uniqueMembers,
+            createdBy: me.id,
+            createdByName: me.name,
+            createdAt: _getServerTimestamp(),
+            memberIds: uniqueMembers.map(m => m.id)
+        };
+        
+        if (!_fbFunctions) return;
+        
+        try {
+            await _fbFunctions.set(_ref(GROUP_CHAT_PATH + '/' + channelId), groupInfo);
+            
+            _crGroupChannels[channelId] = {
+                type: 'group',
+                channelId: channelId,
+                roomName: roomName,
+                members: uniqueMembers,
+                messages: [],
+                unread: 0,
+                lastMsg: null,
+                lastMsgTime: 0
+            };
+            _crChannels[channelId] = _crGroupChannels[channelId];
+            
+            _listenToGroupChannel(channelId, me);
+            _listenForTyping(channelId);
+            _listenForPins(channelId);
+            
+            window._crCloseModal();
+            
+            if (document.getElementById('cr-channel-list')) _renderChannelList();
+            
+            setTimeout(() => window._crSelectGroupChat(channelId), 500);
+            
+        } catch(e) {
+            console.error('[Chat] Failed to create room:', e);
+            alert('Failed to create room: ' + e.message);
+        }
+    };
+    
+    window._crSelectGroupChat = function(channelId) {
+        const me = _getMyIdentity();
+        _crCurrentChannel = channelId;
+        _crCurrentChannelType = 'group';
+        
+        const ch = _crChannels[channelId];
+        const title = ch ? ch.roomName : 'Group Chat';
+        
+        if (ch) ch.unread = 0;
+        _updateFloatBubbleBadge();
+        _updateTabBadge();
+
+        const panel = document.getElementById('cr-chat-panel');
+        if (!panel) return;
+        
+        const savedDraft = _loadDraft(channelId);
+
+        panel.innerHTML = `
+            <div class="cr-chat-header" style="display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.06);flex-shrink:0;">
+                <button class="cr-back-btn" onclick="window._crBackToSidebar()" style="display:none;background:rgba(255,255,255,0.05);border:none;border-radius:10px;color:#94a3b8;width:34px;height:34px;align-items:center;justify-content:center;cursor:pointer;">←</button>
+                <div class="cr-channel-avatar" style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);font-size:18px;font-weight:900;color:#10b981;">👥</div>
+                <div class="cr-chat-header-info" style="flex:1;">
+                    <div class="cr-chat-header-name" style="font-size:14px;font-weight:900;color:white;">${_escHtml(title)}</div>
+                    <div class="cr-chat-header-status" style="font-size:10px;color:#64748b;margin-top:2px;">
+                        <span class="cr-e2e-badge" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:2px 8px;font-size:8px;color:#10b981;">🔐 E2E Encrypted</span>
+                        <span style="margin-left:8px;" id="cr-online-status">Loading...</span>
+                    </div>
+                </div>
+                <div class="cr-chat-actions" style="display:flex;gap:4px;">
+                    <button class="cr-search-btn" onclick="window._crToggleSearch()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:#94a3b8;cursor:pointer;font-size:12px;">🔍</button>
+                    <button class="cr-clear-chat-btn" onclick="window._crClearPrivateChat('${channelId}')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#ef4444;padding:6px 12px;font-size:10px;font-weight:900;cursor:pointer;">🗑️ Clear</button>
+                </div>
+            </div>
+            <div id="cr-pinned-messages" style="border-bottom:1px solid rgba(255,255,255,0.06);"></div>
+            <div id="cr-search-panel" style="display:none;padding:8px 12px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="text" id="cr-search-input" placeholder="Search messages..." style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:white;font-size:12px;">
+                    <button onclick="window._crSearchMessages()" style="background:#10b981;border:none;border-radius:8px;padding:6px 12px;color:white;cursor:pointer;">🔍</button>
+                    <span id="cr-search-info" style="font-size:10px;color:#64748b;"></span>
+                    <button onclick="window._crCloseSearch()" style="background:transparent;border:none;color:#94a3b8;cursor:pointer;">✕</button>
+                </div>
+                <div style="display:flex;gap:4px;margin-top:6px;justify-content:center;">
+                    <button onclick="window._crPrevSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">← Previous</button>
+                    <button onclick="window._crNextSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">Next →</button>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;padding:10px 16px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;flex-shrink:0;">
+                <button onclick="window._crSendQuickActionToGroup('come_quick', '${channelId}')" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:20px;padding:6px 14px;color:#f87171;font-size:11px;font-weight:700;cursor:pointer;">🚨 Come Quick</button>
+                <button onclick="window._crSendQuickActionToGroup('help', '${channelId}')" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);border-radius:20px;padding:6px 14px;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;">🆘 Help</button>
+                <button onclick="window._crMentionUser()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);border-radius:20px;padding:6px 14px;color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer;">@ Mention</button>
+            </div>
+            <div class="cr-messages" id="cr-messages-area" style="flex: 1; overflow-y: auto; padding: 16px 20px;"></div>
+            <div class="cr-typing-indicator hidden" id="cr-typing-indicator" style="padding:8px 16px;flex-shrink:0;"><div class="cr-typing-dots" style="display:flex;gap:3px;"><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div></div><span class="cr-typing-text" style="font-size:10px;color:#475569;margin-left:8px;">typing...</span></div>
+            <div class="cr-input-bar" style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:10px;flex-shrink:0;">
+                <div class="cr-input-wrap" style="flex:1;position:relative;">
+                    <textarea class="cr-msg-input" id="cr-msg-input" placeholder="Type a message to the group..." rows="1" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;color:#e2e8f0;font-size:13px;padding:12px 16px;resize:none;line-height:1.4;padding-right:50px;" onkeydown="window._crHandleGroupKeydown(event, '${channelId}')" oninput="window._crHandleGroupTyping(event, '${channelId}')">${_escHtml(savedDraft)}</textarea>
+                    <button class="cr-emoji-btn" onclick="window._crToggleEmojiPicker(event, 'group_${channelId}')" style="position:absolute;right:8px;bottom:8px;width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,0.05);border:none;cursor:pointer;font-size:18px;">😊</button>
+                    <div id="cr-emoji-picker-group_${channelId}" class="cr-emoji-picker"></div>
+                </div>
+                <button class="cr-send-btn" onclick="window._crSendGroupMessage('${channelId}')" style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">➤</button>
+            </div>`;
+
+        _renderGroupChatMessages(channelId, me);
+        _markPrivateChannelRead(channelId, me);
+        _listenForTyping(channelId);
+        _updateOnlineStatusUI();
+        
+        const textarea = document.getElementById('cr-msg-input');
+        if (textarea) {
+            textarea.addEventListener('input', () => {
+                _saveDraft(channelId, textarea.value);
+            });
+        }
+
+        if (window.innerWidth <= 700) {
+            const sidebar = document.getElementById('cr-sidebar');
+            const chatPanel = document.getElementById('cr-chat-panel');
+            if (sidebar) sidebar.classList.add('sidebar-hidden');
+            if (chatPanel) chatPanel.classList.remove('panel-hidden');
+            const backBtn = document.querySelector('#cr-chat-panel .cr-back-btn');
+            if (backBtn) backBtn.style.display = 'flex';
+        }
+    };
+
+    window._crSendGroupMessage = async function(channelId) {
+        const input = document.getElementById('cr-msg-input');
+        if (!input) return;
+        const text = input.value.trim();
+        if (!text || !channelId) return;
+        const me = _getMyIdentity();
+        const success = await _sendToGroupChannel(channelId, text, me, false);
+        if (success) {
+            input.value = '';
+            _saveDraft(channelId, '');
+            input.style.height = 'auto';
+            _sendTypingIndicator(channelId, false);
+        }
+    };
+
+    window._crSendQuickActionToGroup = async function(actionKey, channelId) {
+        const action = QUICK_ACTIONS[actionKey];
+        if (!action || !channelId) return;
+        const me = _getMyIdentity();
+        await _sendToGroupChannel(channelId, action.message, me, true);
+    };
+
+    window._crHandleGroupKeydown = function(e, channelId) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            window._crSendGroupMessage(channelId);
+        }
+    };
+
+    window._crHandleGroupTyping = function(e, channelId) {
+        const input = document.getElementById('cr-msg-input');
+        if (input) {
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 80) + 'px';
+        }
+        
+        if (_crTypingTimers[channelId]) clearTimeout(_crTypingTimers[channelId]);
+        _sendTypingIndicator(channelId, true);
+        _crTypingTimers[channelId] = setTimeout(() => {
+            _sendTypingIndicator(channelId, false);
+        }, 1500);
+    };
 
     function _listenForPrivateMessages(me) {
         if (!_fbFunctions) return;
 
         Object.values(_crChannels).forEach(ch => {
-            _listenToPrivateChannel(ch.channelId, me);
+            if (ch.type === 'dm') _listenToPrivateChannel(ch.channelId, me);
         });
 
         const chatRef = _ref(CHAT_DB_PATH);
@@ -615,6 +1555,7 @@
                     lastMsgTime: 0
                 };
                 _listenToPrivateChannel(channelId, me);
+                _listenForTyping(channelId);
                 if (document.getElementById('cr-channel-list')) _renderChannelList();
             });
         }, { onlyOnce: true });
@@ -636,24 +1577,29 @@
             let lastMsgTime = 0;
             let lastMsg = null;
 
-            const msgKeys = Object.keys(data).sort();
+            const msgKeys = Object.keys(data);
             
             for (const key of msgKeys) {
                 const raw = data[key];
                 if (!raw || !raw.ciphertext) continue;
                 const cacheKey = channelId + '_' + key;
-                const plaintext = _decryptCache[cacheKey]
-                    ? _decryptCache[cacheKey]
-                    : (_decryptCache[cacheKey] = await _decrypt(raw.ciphertext, raw.iv, channelId));
-                // Keep original sender name (no transformation here - that happens in render)
+                let plaintext = _decryptCache[cacheKey];
+                if (!plaintext) {
+                    plaintext = await _decrypt(raw.ciphertext, raw.iv, channelId);
+                    _decryptCache[cacheKey] = plaintext;
+                }
+                
+                let timestamp = _toMillis(raw.timestamp);
+                
                 const msg = {
                     id: key,
                     from: raw.from || '',
                     fromName: raw.fromName || '',
                     text: plaintext,
-                    timestamp: raw.timestamp || 0,
+                    timestamp: timestamp,
                     read: raw.read || false,
-                    isQuickAction: raw.isQuickAction || false
+                    isQuickAction: raw.isQuickAction || false,
+                    edited: raw.edited || false
                 };
                 messages.push(msg);
                 if (msg.timestamp > lastMsgTime) {
@@ -663,33 +1609,37 @@
                 if (msg.from !== me.id && !msg.read) unread++;
             }
 
+            messages.sort((a, b) => a.timestamp - b.timestamp);
+
             const ch = _crChannels[channelId];
             if (ch) {
                 ch.messages = messages;
+                if (!initialLoad && unread > ch.unread) {
+                    _playNotificationSound();
+                }
                 ch.unread = unread;
                 ch.lastMsg = lastMsg;
                 ch.lastMsgTime = lastMsgTime;
+                
+                _updateFloatBubbleBadge();
+                _updateTabBadge();
 
                 if (!initialLoad && messages.length > 0) {
                     const newest = messages[messages.length - 1];
                     if (newest && newest.from !== me.id) {
                         _playNotificationSound();
-                        if (!_isFirstLoad) {
-                            if (window.currentTab === 'chatroom') {
-                                setTimeout(() => window._crSelectPrivateChat && window._crSelectPrivateChat(channelId), 300);
-                            } else {
-                                setTimeout(() => window._crOpenFloat(channelId), 500);
-                            }
+                        if (!_isFirstLoad && window.currentTab !== 'chatroom') {
+                            setTimeout(() => window._crOpenFloat(channelId), 500);
                         }
                     }
                 }
             }
             
             initialLoad = false;
-            _updateFloatBubbleBadge();
 
             if (_crCurrentChannel === channelId && _crCurrentChannelType === 'dm') {
                 _renderPrivateChatMessages(channelId, me);
+                if (ch) ch.unread = 0;
             }
             if (document.getElementById('cr-channel-list')) _renderChannelList();
         });
@@ -699,18 +1649,20 @@
         if (!_fbFunctions || !text || !channelId) return false;
         
         const tempId = 'temp_' + Date.now() + '_' + Math.random();
+        const tempTimestamp = Date.now();
         const tempMessage = {
             id: tempId,
             from: me.id,
             fromName: me.name,
             text: text,
-            timestamp: Date.now(),
+            timestamp: tempTimestamp,
             isQuickAction: isQuickAction,
             isTemp: true
         };
         
         if (_crChannels[channelId]) {
             _crChannels[channelId].messages.push(tempMessage);
+            _crChannels[channelId].messages.sort((a, b) => a.timestamp - b.timestamp);
             if (_crCurrentChannel === channelId && _crCurrentChannelType === 'dm') {
                 _renderPrivateChatMessages(channelId, me);
             }
@@ -728,15 +1680,17 @@
         }
         
         try {
-            await _fbFunctions.push(_ref(CHAT_DB_PATH + '/' + channelId), {
+            const payload = {
                 from: me.id,
                 fromName: me.name,
                 ciphertext: encrypted.ciphertext,
                 iv: encrypted.iv,
-                timestamp: Date.now(),
                 read: false,
-                isQuickAction: isQuickAction
-            });
+                isQuickAction: isQuickAction,
+                timestamp: _getServerTimestamp()
+            };
+            
+            await _fbFunctions.push(_ref(CHAT_DB_PATH + '/' + channelId), payload);
             
             if (_crChannels[channelId]) {
                 _crChannels[channelId].messages = _crChannels[channelId].messages.filter(m => m.id !== tempId);
@@ -767,21 +1721,19 @@
         let lastDate = '';
         const sortedMessages = [...ch.messages].sort((a, b) => a.timestamp - b.timestamp);
 
-        sortedMessages.forEach(msg => {
-            const msgDate = new Date(msg.timestamp).toLocaleDateString('en-US', {
-                weekday: 'short', month: 'short', day: 'numeric'
-            });
+        sortedMessages.forEach((msg, idx) => {
+            const msgDate = _formatMessageDate(msg.timestamp);
             if (msgDate !== lastDate) {
                 html += `<div class="cr-date-sep" style="text-align:center;padding:16px 0 8px;"><span style="font-size:10px;font-weight:700;color:#475569;background:rgba(255,255,255,0.04);padding:4px 12px;border-radius:20px;">${msgDate}</span></div>`;
                 lastDate = msgDate;
             }
 
             const isSent = msg.from === me.id;
-            const timeStr = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            const timeStr = _formatMessageTime(msg.timestamp);
             const isQuickAction = msg.isQuickAction;
             const actionStyle = isQuickAction ? 'background:rgba(239,68,68,0.15);border-left:3px solid #ef4444;' : '';
+            const editedBadge = msg.edited ? '<span style="font-size:8px;color:#64748b;margin-left:6px;">(edited)</span>' : '';
             
-            // Get display name for the sender
             let displayName = msg.fromName;
             let senderIcon = '';
             let senderColor = '#a855f7';
@@ -797,15 +1749,24 @@
                 senderColor = '#06b6d4';
             }
 
+            const isOnline = _crOnlineUsers.has(msg.from);
+            const onlineDot = isOnline ? '<span class="online-status-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;margin-left:6px;"></span>' : '';
+            
+            const isPinned = _crPinnedMessages[channelId] && _crPinnedMessages[channelId][msg.id];
+            const pinIcon = isPinned ? '<span style="margin-left:6px;color:#facc15;">📌</span>' : '';
+            
+            const pinButton = `<button class="cr-pin-btn" onclick="window._crPinMessage('${channelId}', '${msg.id}', this)" style="background:transparent;border:none;color:${isPinned ? '#facc15' : '#64748b'};cursor:pointer;font-size:10px;" title="${isPinned ? 'Unpin' : 'Pin'}">📌</button>`;
+            
+            const editButton = isSent ? `<button class="cr-edit-btn" onclick="window._crEditMessage('${channelId}', '${msg.id}', this)" style="background:transparent;border:none;color:#64748b;cursor:pointer;font-size:10px;" title="Edit">✏️</button>` : '';
+            const deleteButton = isSent ? `<button class="cr-delete-btn" onclick="window._crDeleteMessage('${channelId}', '${msg.id}', this)" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:10px;" title="Delete">🗑️</button>` : '';
+
             const ri = _getReactionInfo(msg.id, me.id);
             html += `
-                <div class="cr-msg-row ${isSent ? 'sent' : 'received'}" style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:12px;"
-                     onmouseenter="var b=this.querySelector('.cr-tb');if(b)b.style.opacity='1'"
-                     onmouseleave="var b=this.querySelector('.cr-tb');if(b&&b.getAttribute('data-has')!=='1')b.style.opacity='0'">
+                <div class="cr-msg-row ${isSent ? 'sent' : 'received'}" data-msg-id="${msg.id}" data-msg-index="${idx}" style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:12px;">
                     <div style="max-width:75%;">
                         <div class="cr-msg-bubble" style="padding:10px 14px;border-radius:16px;${actionStyle} ${isSent ? 'background:linear-gradient(135deg,rgba(16,185,129,0.18),rgba(5,150,105,0.22));border-bottom-right-radius:6px;' : 'background:rgba(255,255,255,0.04);border-bottom-left-radius:6px;'}">
-                            ${!isSent ? `<div class="cr-msg-sender" style="font-size:10px;color:${senderColor};font-weight:800;margin-bottom:4px;">${senderIcon}${_escHtml(displayName)}</div>` : ''}
-                            <div class="cr-msg-text" style="font-size:13px;color:#e2e8f0;line-height:1.5;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}</div>
+                            ${!isSent ? `<div class="cr-msg-sender" style="font-size:10px;color:${senderColor};font-weight:800;margin-bottom:4px;">${senderIcon}${_escHtml(displayName)}${onlineDot}${pinIcon}</div>` : ''}
+                            <div class="cr-msg-text" style="font-size:13px;color:#e2e8f0;line-height:1.5;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
                             <div class="cr-msg-meta" style="display:flex;align-items:center;gap:6px;margin-top:6px;justify-content:flex-end;">
                                 <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
                                         onclick="window._crToggleThumbsUp('${msg.id}')"
@@ -813,6 +1774,9 @@
                                         style="opacity:${ri.count > 0 || ri.iReacted ? '1' : '0'};transition:opacity 0.15s;background:${ri.iReacted ? 'rgba(250,204,21,0.15)' : 'rgba(15,23,42,0.92)'};border:1px solid ${ri.iReacted ? 'rgba(250,204,21,0.45)' : 'rgba(255,255,255,0.14)'};border-radius:20px;padding:2px 8px;cursor:pointer;font-size:10px;color:${ri.iReacted ? '#facc15' : '#94a3b8'};white-space:nowrap;">
                                     👍${ri.count > 0 ? ' ' + ri.count : ''}
                                 </button>
+                                ${pinButton}
+                                ${editButton}
+                                ${deleteButton}
                                 <span class="cr-msg-time" style="font-size:9px;color:#475569;">${timeStr}</span>
                                 ${msg.isTemp ? '<span class="cr-msg-read" style="font-size:9px;color:#fbbf24;">sending...</span>' : (isSent && msg.read ? '<span class="cr-msg-read" style="font-size:10px;color:#10b981;">✓✓</span>' : '')}
                             </div>
@@ -823,6 +1787,10 @@
 
         area.innerHTML = html;
         setTimeout(() => { if (area) area.scrollTop = area.scrollHeight; }, 50);
+        
+        if (_crSearchActive && _crSearchQuery) {
+            _highlightSearchResults();
+        }
     }
 
     async function _markPrivateChannelRead(channelId, me) {
@@ -850,13 +1818,258 @@
                 await _fbFunctions.update(msgRef, updates);
                 ch.unread = 0;
                 _updateFloatBubbleBadge();
+                _updateTabBadge();
                 if (document.getElementById('cr-channel-list')) _renderChannelList();
             }
         } catch(e) {}
     }
 
     // ═══════════════════════════════════════════
-    // UI RENDERING - TALL CHAT HEIGHT
+    // EDIT/DELETE/PIN MESSAGE FUNCTIONS
+    // ═══════════════════════════════════════════
+    window._crEditMessage = async function(channelId, messageId, btn) {
+        const newText = prompt('Edit your message:', '');
+        if (!newText) return;
+        
+        const success = await _editMessage(channelId, messageId, newText);
+        if (success) {
+            const me = _getMyIdentity();
+            if (channelId === GENERAL_CHAT_PATH) {
+                _renderGeneralChatMessages(me);
+            } else if (_crCurrentChannelType === 'dm') {
+                _renderPrivateChatMessages(channelId, me);
+            } else if (_crCurrentChannelType === 'group') {
+                _renderGroupChatMessages(channelId, me);
+            }
+        } else {
+            alert('Failed to edit message');
+        }
+    };
+    
+    window._crDeleteMessage = async function(channelId, messageId, btn) {
+        if (!confirm('Delete this message? This cannot be undone.')) return;
+        
+        const success = await _deleteMessage(channelId, messageId);
+        if (success) {
+            const me = _getMyIdentity();
+            if (channelId === GENERAL_CHAT_PATH) {
+                _renderGeneralChatMessages(me);
+            } else if (_crCurrentChannelType === 'dm') {
+                _renderPrivateChatMessages(channelId, me);
+            } else if (_crCurrentChannelType === 'group') {
+                _renderGroupChatMessages(channelId, me);
+            }
+        } else {
+            alert('Failed to delete message');
+        }
+    };
+    
+    window._crPinMessage = async function(channelId, messageId, btn) {
+        let message = null;
+        if (channelId === GENERAL_CHAT_PATH) {
+            message = _generalChatMessages.find(m => m.id === messageId);
+        } else {
+            const ch = _crChannels[channelId];
+            if (ch) message = ch.messages.find(m => m.id === messageId);
+        }
+        
+        if (message) {
+            await _pinMessage(channelId, messageId, message);
+        }
+    };
+    
+    window._crScrollToMessage = function(channelId) {};
+
+    // ═══════════════════════════════════════════
+    // SEARCH FUNCTIONS
+    // ═══════════════════════════════════════════
+    window._crToggleSearch = function() {
+        const panel = document.getElementById('cr-search-panel');
+        if (panel) {
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            if (panel.style.display === 'block') {
+                document.getElementById('cr-search-input').focus();
+            } else {
+                _crSearchActive = false;
+                const me = _getMyIdentity();
+                if (_crCurrentChannelType === 'general') _renderGeneralChatMessages(me);
+                else if (_crCurrentChannelType === 'dm') _renderPrivateChatMessages(_crCurrentChannel, me);
+                else if (_crCurrentChannelType === 'group') _renderGroupChatMessages(_crCurrentChannel, me);
+            }
+        }
+    };
+    
+    window._crSearchMessages = function() {
+        const query = document.getElementById('cr-search-input').value.trim();
+        if (!query) return;
+        
+        _crSearchQuery = query;
+        _crSearchActive = true;
+        
+        let messages = [];
+        if (_crCurrentChannelType === 'general') {
+            messages = _generalChatMessages;
+        } else {
+            const ch = _crChannels[_crCurrentChannel];
+            if (ch) messages = ch.messages;
+        }
+        
+        _crSearchResults = _searchMessages(query, messages);
+        _crCurrentSearchIndex = -1;
+        
+        if (_crSearchResults.length > 0) {
+            _navigateSearchResult(1);
+            const searchInfo = document.getElementById('cr-search-info');
+            if (searchInfo) searchInfo.textContent = `${_crCurrentSearchIndex + 1} of ${_crSearchResults.length}`;
+        } else {
+            alert('No messages found matching "' + query + '"');
+        }
+        
+        _highlightSearchResults();
+    };
+    
+    window._crNextSearchResult = function() {
+        _navigateSearchResult(1);
+    };
+    
+    window._crPrevSearchResult = function() {
+        _navigateSearchResult(-1);
+    };
+    
+    window._crCloseSearch = function() {
+        const panel = document.getElementById('cr-search-panel');
+        if (panel) panel.style.display = 'none';
+        _crSearchActive = false;
+        const me = _getMyIdentity();
+        if (_crCurrentChannelType === 'general') _renderGeneralChatMessages(me);
+        else if (_crCurrentChannelType === 'dm') _renderPrivateChatMessages(_crCurrentChannel, me);
+        else if (_crCurrentChannelType === 'group') _renderGroupChatMessages(_crCurrentChannel, me);
+    };
+    
+    // ═══════════════════════════════════════════
+    // VOICE RECORDING & FILE SHARING
+    // ═══════════════════════════════════════════
+    async function _startVoiceRecording() {
+        if (_crIsRecording) {
+            _stopVoiceRecording();
+            return;
+        }
+        
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            _crMediaRecorder = new MediaRecorder(stream);
+            _crAudioChunks = [];
+            
+            _crMediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    _crAudioChunks.push(event.data);
+                }
+            };
+            
+            _crMediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(_crAudioChunks, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                    const audioData = reader.result.split(',')[1];
+                    const me = _getMyIdentity();
+                    const messageText = '🎤 Voice message';
+                    if (_crCurrentChannelType === 'general') {
+                        await _sendToGeneralChat(messageText, me, false);
+                    } else if (_crCurrentChannelType === 'dm') {
+                        await _sendToPrivateChannel(_crCurrentChannel, messageText, me, false);
+                    } else if (_crCurrentChannelType === 'group') {
+                        await _sendToGroupChannel(_crCurrentChannel, messageText, me, false);
+                    }
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                reader.readAsDataURL(audioBlob);
+                _updateVoiceButtonUI(false);
+            };
+            
+            _crMediaRecorder.start(1000);
+            _crIsRecording = true;
+            _updateVoiceButtonUI(true);
+            
+            setTimeout(() => {
+                if (_crIsRecording) _stopVoiceRecording();
+            }, 30000);
+        } catch (e) {
+            console.error('[Chat] Voice recording failed:', e);
+            alert('Microphone access denied or not available');
+        }
+    }
+    
+    function _stopVoiceRecording() {
+        if (_crMediaRecorder && _crIsRecording) {
+            _crMediaRecorder.stop();
+            _crIsRecording = false;
+            _updateVoiceButtonUI(false);
+        }
+    }
+    
+    function _updateVoiceButtonUI(isRecording) {
+        const voiceBtn = document.getElementById('cr-voice-btn');
+        if (voiceBtn) {
+            if (isRecording) {
+                voiceBtn.innerHTML = '🔴';
+                voiceBtn.style.background = 'rgba(239,68,68,0.2)';
+                voiceBtn.style.borderColor = '#ef4444';
+            } else {
+                voiceBtn.innerHTML = '🎙️';
+                voiceBtn.style.background = 'rgba(255,255,255,0.05)';
+                voiceBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+            }
+        }
+    }
+    
+    window._crHandleFileSelect = async function(input) {
+        const files = Array.from(input.files);
+        for (const file of files) {
+            if (file.size > 10 * 1024 * 1024) {
+                alert(`File ${file.name} is too large (max 10MB)`);
+                continue;
+            }
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const fileData = reader.result.split(',')[1];
+                const me = _getMyIdentity();
+                const messageText = `📎 ${file.name}`;
+                if (_crCurrentChannelType === 'general') {
+                    await _sendToGeneralChat(messageText, me, false);
+                } else if (_crCurrentChannelType === 'dm') {
+                    await _sendToPrivateChannel(_crCurrentChannel, messageText, me, false);
+                } else if (_crCurrentChannelType === 'group') {
+                    await _sendToGroupChannel(_crCurrentChannel, messageText, me, false);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+        input.value = '';
+    };
+    
+    window._crToggleVoiceRecording = function() {
+        if (_crIsRecording) {
+            _stopVoiceRecording();
+        } else {
+            _startVoiceRecording();
+        }
+    };
+    
+    // ═══════════════════════════════════════════
+    // MENTION FUNCTION
+    // ═══════════════════════════════════════════
+    window._crMentionUser = function() {
+        const participants = _getAllChatParticipants();
+        const mentionList = participants.map(p => p.name).join(', ');
+        const input = document.getElementById('cr-msg-input');
+        if (input) {
+            input.value += '@';
+            input.focus();
+        }
+    };
+    
+    // ═══════════════════════════════════════════
+    // UI RENDERING
     // ═══════════════════════════════════════════
     function _renderMainLayout(me) {
         const container = document.getElementById('cr-main-container');
@@ -865,19 +2078,50 @@
         container.style.height = 'calc(100vh - 180px)';
         container.style.minHeight = '550px';
 
+        const allParticipants = _getAllChatParticipants();
+        const checklist = document.getElementById('cr-agent-checklist');
+        if (checklist) {
+            const adminsList = allParticipants.filter(p => p.type === 'admin');
+            const agentsList = allParticipants.filter(p => p.type === 'agent');
+            
+            let checklistHtml = '<div style="margin-bottom:8px;font-size:10px;font-weight:900;color:#10b981;">👑 Admins</div>';
+            adminsList.forEach(admin => {
+                checklistHtml += `
+                    <label class="cr-agent-check-row" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;">
+                        <input type="checkbox" value="${admin.id}" data-name="${admin.name}" ${admin.id === me.id ? 'checked disabled' : ''}>
+                        <span class="cr-agent-check-name">👑 ${_escHtml(admin.name)} (Admin)</span>
+                    </label>
+                `;
+            });
+            
+            checklistHtml += '<div style="margin:12px 0 8px;font-size:10px;font-weight:900;color:#10b981;">👤 Agents</div>';
+            agentsList.forEach(agent => {
+                checklistHtml += `
+                    <label class="cr-agent-check-row" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;">
+                        <input type="checkbox" value="${agent.id}" data-name="${agent.name}">
+                        <span class="cr-agent-check-name">👤 ${_escHtml(agent.name)} (${agent.team || 'Agent'})</span>
+                    </label>
+                `;
+            });
+            
+            checklist.innerHTML = checklistHtml;
+        }
+
         container.innerHTML = `
             <div class="cr-container" id="cr-chat-container" style="height: 100%; display: flex; gap: 0;">
                 <div class="cr-sidebar" id="cr-sidebar" style="width: 280px; min-width: 280px; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; height: 100%;">
                     <div class="cr-sidebar-header" style="padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.06);">
                         <div class="cr-sidebar-title" style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;color:#10b981;"><span class="lock-icon">🔒</span> Chat</div>
+                        <button class="cr-create-room-btn" onclick="document.getElementById('cr-create-room-modal').classList.remove('hidden')" title="Create Group Chat">➕</button>
                     </div>
                     <div class="cr-sidebar-tabs" style="display:flex;gap:2px;padding:12px;">
                         <button class="cr-sidebar-tab active" id="cr-tab-general" onclick="window._crSwitchSidebarTab('general')" style="flex:1;padding:8px;border-radius:10px;font-size:10px;font-weight:900;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);color:#10b981;">🌍 General</button>
                         <button class="cr-sidebar-tab" id="cr-tab-dms" onclick="window._crSwitchSidebarTab('dms')" style="flex:1;padding:8px;border-radius:10px;font-size:10px;font-weight:900;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:#64748b;">💬 Private</button>
+                        <button class="cr-sidebar-tab" id="cr-tab-groups" onclick="window._crSwitchSidebarTab('groups')" style="flex:1;padding:8px;border-radius:10px;font-size:10px;font-weight:900;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:#64748b;">👥 Groups</button>
                     </div>
                     <div class="cr-search-wrap" style="padding:0 12px 12px;position:relative;">
                         <span class="cr-search-icon" style="position:absolute;left:22px;top:50%;transform:translateY(-50%);font-size:11px;color:#334155;">🔍</span>
-                        <input type="text" class="cr-search-input" placeholder="Search..." oninput="window._crSearch(this.value)" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:8px 12px 8px 32px;color:#e2e8f0;font-size:12px;" />
+                        <input type="text" class="cr-search-input" placeholder="Search channels..." oninput="window._crSearch(this.value)" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:8px 12px 8px 32px;color:#e2e8f0;font-size:12px;" />
                     </div>
                     <div class="cr-channel-list" id="cr-channel-list" style="flex: 1; overflow-y: auto; padding: 8px;"></div>
                 </div>
@@ -903,26 +2147,44 @@
                 <div class="cr-channel-meta">${generalUnreadBadge}</div>
             </div>`;
 
-        const channels = Object.values(_crChannels)
-            .filter(ch => {
-                if (!_crSearchQuery) return true;
-                return (ch.agentName || '').toLowerCase().includes(_crSearchQuery);
-            })
-            .sort((a, b) => (b.lastMsgTime || 0) - (a.lastMsgTime || 0));
+        let channelsToShow = [];
+        
+        if (_crSidebarTab === 'dms') {
+            channelsToShow = Object.values(_crChannels).filter(ch => ch.type === 'dm');
+        } else if (_crSidebarTab === 'groups') {
+            channelsToShow = Object.values(_crChannels).filter(ch => ch.type === 'group');
+        } else {
+            channelsToShow = [];
+        }
 
-        channels.forEach(ch => {
-            const isActive = _crCurrentChannel === ch.channelId && _crCurrentChannelType === 'dm';
-            const name = ch.agentName || 'User';
-            const avatarContent = _getInitials(name);
+        const filtered = channelsToShow.filter(ch => {
+            if (!_crSearchQuery) return true;
+            const name = ch.type === 'group' ? (ch.roomName || '') : (ch.agentName || '');
+            return name.toLowerCase().includes(_crSearchQuery);
+        }).sort((a, b) => (b.lastMsgTime || 0) - (a.lastMsgTime || 0));
+
+        filtered.forEach(ch => {
+            const isActive = _crCurrentChannel === ch.channelId && _crCurrentChannelType === ch.type;
+            const name = ch.type === 'group' ? (ch.roomName || 'Group Chat') : (ch.agentName || 'User');
+            const avatarContent = ch.type === 'group' ? '👥' : _getInitials(name);
             const preview = ch.lastMsg ? _truncate(ch.lastMsg.text, 30) : 'No messages';
-            const timeStr = ch.lastMsgTime ? _formatTime(ch.lastMsgTime) : '';
+            const timeStr = ch.lastMsgTime ? _formatMessageTime(ch.lastMsgTime) : '';
             const unreadBadge = ch.unread > 0 ? `<div class="cr-unread-badge" style="background:#10b981;color:white;border-radius:10px;min-width:18px;height:18px;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;">${ch.unread}</div>` : '';
+            
+            let onlineIndicator = '';
+            if (ch.type === 'dm' && _crOnlineUsers.has(ch.agentId)) {
+                onlineIndicator = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-left:6px;box-shadow:0 0 4px #22c55e;"></span>';
+            }
+
+            const onClick = ch.type === 'dm' 
+                ? `window._crSelectPrivateChat('${ch.channelId}')` 
+                : `window._crSelectGroupChat('${ch.channelId}')`;
 
             html += `
-                <div class="cr-channel-item ${isActive ? 'active' : ''}" onclick="window._crSelectPrivateChat('${ch.channelId}')" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;cursor:pointer;margin-bottom:2px;${isActive ? 'background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);' : 'background:transparent;'}">
+                <div class="cr-channel-item ${isActive ? 'active' : ''}" onclick="${onClick}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;cursor:pointer;margin-bottom:2px;${isActive ? 'background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);' : 'background:transparent;'}">
                     <div class="cr-channel-avatar" style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);font-size:16px;font-weight:900;color:#10b981;">${avatarContent}</div>
                     <div class="cr-channel-info" style="flex:1;">
-                        <div class="cr-channel-name" style="font-size:13px;font-weight:800;color:white;">${_escHtml(name)}</div>
+                        <div class="cr-channel-name" style="font-size:13px;font-weight:800;color:white;">${_escHtml(name)}${onlineIndicator}</div>
                         <div class="cr-channel-preview" style="font-size:10px;color:#475569;">${_escHtml(preview)}</div>
                     </div>
                     <div class="cr-channel-meta" style="text-align:right;">
@@ -948,6 +2210,12 @@
         _crCurrentChannelType = 'general';
         _crCurrentChannel = null;
         
+        _generalChatUnread = 0;
+        _updateFloatBubbleBadge();
+        _updateTabBadge();
+        
+        const savedDraft = _loadDraft(GENERAL_CHAT_PATH);
+
         const panel = document.getElementById('cr-chat-panel');
         if (!panel) return;
 
@@ -957,22 +2225,58 @@
                 <div class="cr-channel-avatar" style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(56,189,248,0.15));font-size:22px;">🌍</div>
                 <div class="cr-chat-header-info" style="flex:1;">
                     <div class="cr-chat-header-name" style="font-size:14px;font-weight:900;color:white;">General Chat</div>
-                    <div class="cr-chat-header-status" style="font-size:10px;color:#64748b;margin-top:2px;"><span class="cr-e2e-badge" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:2px 8px;font-size:8px;color:#10b981;">🔐 E2E Encrypted</span> <span style="margin-left:8px;">Everyone in the room</span></div>
+                    <div class="cr-chat-header-status" style="font-size:10px;color:#64748b;margin-top:2px;">
+                        <span class="cr-e2e-badge" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:2px 8px;font-size:8px;color:#10b981;">🔐 E2E Encrypted</span>
+                        <span style="margin-left:8px;" id="cr-online-status">Everyone in the room</span>
+                    </div>
+                </div>
+                <div class="cr-chat-actions" style="display:flex;gap:4px;">
+                    <button class="cr-search-btn" onclick="window._crToggleSearch()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:#94a3b8;cursor:pointer;font-size:12px;">🔍</button>
+                </div>
+            </div>
+            <div id="cr-pinned-messages" style="border-bottom:1px solid rgba(255,255,255,0.06);"></div>
+            <div id="cr-search-panel" style="display:none;padding:8px 12px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="text" id="cr-search-input" placeholder="Search messages..." style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:white;font-size:12px;">
+                    <button onclick="window._crSearchMessages()" style="background:#10b981;border:none;border-radius:8px;padding:6px 12px;color:white;cursor:pointer;">🔍</button>
+                    <span id="cr-search-info" style="font-size:10px;color:#64748b;"></span>
+                    <button onclick="window._crCloseSearch()" style="background:transparent;border:none;color:#94a3b8;cursor:pointer;">✕</button>
+                </div>
+                <div style="display:flex;gap:4px;margin-top:6px;justify-content:center;">
+                    <button onclick="window._crPrevSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">← Previous</button>
+                    <button onclick="window._crNextSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">Next →</button>
                 </div>
             </div>
             <div style="display:flex;gap:8px;padding:10px 16px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;flex-shrink:0;align-items:center;">
                 <button onclick="window._crSendQuickActionToGeneral('come_quick')" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:20px;padding:6px 14px;color:#f87171;font-size:11px;font-weight:700;cursor:pointer;">🚨 Come Quick</button>
                 <button onclick="window._crSendQuickActionToGeneral('help')" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);border-radius:20px;padding:6px 14px;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;">🆘 Help</button>
+                <button onclick="window._crMentionUser()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);border-radius:20px;padding:6px 14px;color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer;">@ Mention</button>
                 ${(function(){ const a=JSON.parse(sessionStorage.getItem('currentAdmin')||'{}'); return (a.role==='super_admin'||a.isSuper)?'<button onclick="window._crClearGeneralChat()" style="margin-left:auto;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:20px;padding:6px 14px;color:#ef4444;font-size:10px;font-weight:800;cursor:pointer;letter-spacing:0.05em;text-transform:uppercase;">🗑 Clear Chat</button>':'';}())}
             </div>
             <div class="cr-messages" id="cr-messages-area" style="flex: 1; overflow-y: auto; padding: 16px 20px;"></div>
             <div class="cr-typing-indicator hidden" id="cr-typing-indicator" style="padding:8px 16px;flex-shrink:0;"><div class="cr-typing-dots" style="display:flex;gap:3px;"><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div></div><span class="cr-typing-text" style="font-size:10px;color:#475569;margin-left:8px;">typing...</span></div>
             <div class="cr-input-bar" style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:10px;flex-shrink:0;">
-                <div class="cr-input-wrap" style="flex:1;"><textarea class="cr-msg-input" id="cr-msg-input" placeholder="Type a message to everyone..." rows="1" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;color:#e2e8f0;font-size:13px;padding:12px 16px;resize:none;line-height:1.4;" onkeydown="window._crHandleGeneralKeydown(event)" oninput="window._crHandleGeneralTyping()"></textarea></div>
+                <div class="cr-input-wrap" style="flex:1;position:relative;">
+                    <textarea class="cr-msg-input" id="cr-msg-input" placeholder="Type a message to everyone... (use @ to mention)" rows="1" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;color:#e2e8f0;font-size:13px;padding:12px 16px;resize:none;line-height:1.4;padding-right:50px;" onkeydown="window._crHandleGeneralKeydown(event)" oninput="window._crHandleGeneralTyping(event)">${_escHtml(savedDraft)}</textarea>
+                    <button class="cr-emoji-btn" onclick="window._crToggleEmojiPicker(event, 'general')" style="position:absolute;right:8px;bottom:8px;width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,0.05);border:none;cursor:pointer;font-size:18px;">😊</button>
+                    <div id="cr-emoji-picker-general" class="cr-emoji-picker"></div>
+                </div>
+                <button id="cr-file-btn" onclick="document.getElementById('cr-file-input').click()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">📎</button>
+                <button id="cr-voice-btn" onclick="window._crToggleVoiceRecording()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">🎙️</button>
                 <button class="cr-send-btn" onclick="window._crSendGeneralMessage()" style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">➤</button>
-            </div>`;
+            </div>
+            <input type="file" id="cr-file-input" style="display:none" multiple onchange="window._crHandleFileSelect(this)">`;
 
         _renderGeneralChatMessages(me);
+        _listenForTyping(GENERAL_CHAT_PATH);
+        _listenForPins(GENERAL_CHAT_PATH);
+        
+        const textarea = document.getElementById('cr-msg-input');
+        if (textarea) {
+            textarea.addEventListener('input', () => {
+                _saveDraft(GENERAL_CHAT_PATH, textarea.value);
+            });
+        }
         
         if (window.innerWidth <= 700) {
             const sidebar = document.getElementById('cr-sidebar');
@@ -991,6 +2295,12 @@
         
         const ch = _crChannels[channelId];
         const title = ch ? ch.agentName : 'Chat';
+        
+        if (ch) ch.unread = 0;
+        _updateFloatBubbleBadge();
+        _updateTabBadge();
+        
+        const savedDraft = _loadDraft(channelId);
 
         const panel = document.getElementById('cr-chat-panel');
         if (!panel) return;
@@ -1001,23 +2311,57 @@
                 <div class="cr-channel-avatar" style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);font-size:18px;font-weight:900;color:#10b981;">${_getInitials(title)}</div>
                 <div class="cr-chat-header-info" style="flex:1;">
                     <div class="cr-chat-header-name" style="font-size:14px;font-weight:900;color:white;">${_escHtml(title)}</div>
-                    <div class="cr-chat-header-status" style="font-size:10px;color:#64748b;margin-top:2px;"><span class="cr-e2e-badge" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:2px 8px;font-size:8px;color:#10b981;">🔐 E2E Encrypted</span> <span style="margin-left:8px;">Private conversation</span></div>
+                    <div class="cr-chat-header-status" style="font-size:10px;color:#64748b;margin-top:2px;">
+                        <span class="cr-e2e-badge" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:2px 8px;font-size:8px;color:#10b981;">🔐 E2E Encrypted</span>
+                        <span style="margin-left:8px;" id="cr-online-status">Private conversation</span>
+                    </div>
                 </div>
-                <button class="cr-clear-chat-btn" onclick="window._crClearPrivateChat('${channelId}')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#ef4444;padding:6px 12px;font-size:10px;font-weight:900;cursor:pointer;">🗑️ Clear</button>
+                <div class="cr-chat-actions" style="display:flex;gap:4px;">
+                    <button class="cr-search-btn" onclick="window._crToggleSearch()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:#94a3b8;cursor:pointer;font-size:12px;">🔍</button>
+                    <button class="cr-clear-chat-btn" onclick="window._crClearPrivateChat('${channelId}')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#ef4444;padding:6px 12px;font-size:10px;font-weight:900;cursor:pointer;">🗑️ Clear</button>
+                </div>
+            </div>
+            <div id="cr-pinned-messages" style="border-bottom:1px solid rgba(255,255,255,0.06);"></div>
+            <div id="cr-search-panel" style="display:none;padding:8px 12px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="text" id="cr-search-input" placeholder="Search messages..." style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:white;font-size:12px;">
+                    <button onclick="window._crSearchMessages()" style="background:#10b981;border:none;border-radius:8px;padding:6px 12px;color:white;cursor:pointer;">🔍</button>
+                    <span id="cr-search-info" style="font-size:10px;color:#64748b;"></span>
+                    <button onclick="window._crCloseSearch()" style="background:transparent;border:none;color:#94a3b8;cursor:pointer;">✕</button>
+                </div>
+                <div style="display:flex;gap:4px;margin-top:6px;justify-content:center;">
+                    <button onclick="window._crPrevSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">← Previous</button>
+                    <button onclick="window._crNextSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">Next →</button>
+                </div>
             </div>
             <div style="display:flex;gap:8px;padding:10px 16px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;flex-shrink:0;">
                 <button onclick="window._crSendQuickActionToPrivate('come_quick', '${channelId}')" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:20px;padding:6px 14px;color:#f87171;font-size:11px;font-weight:700;cursor:pointer;">🚨 Come Quick</button>
                 <button onclick="window._crSendQuickActionToPrivate('help', '${channelId}')" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);border-radius:20px;padding:6px 14px;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;">🆘 Help</button>
+                <button onclick="window._crMentionUser()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);border-radius:20px;padding:6px 14px;color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer;">@ Mention</button>
             </div>
             <div class="cr-messages" id="cr-messages-area" style="flex: 1; overflow-y: auto; padding: 16px 20px;"></div>
             <div class="cr-typing-indicator hidden" id="cr-typing-indicator" style="padding:8px 16px;flex-shrink:0;"><div class="cr-typing-dots" style="display:flex;gap:3px;"><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div></div><span class="cr-typing-text" style="font-size:10px;color:#475569;margin-left:8px;">typing...</span></div>
             <div class="cr-input-bar" style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:10px;flex-shrink:0;">
-                <div class="cr-input-wrap" style="flex:1;"><textarea class="cr-msg-input" id="cr-msg-input" placeholder="Type a private message..." rows="1" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;color:#e2e8f0;font-size:13px;padding:12px 16px;resize:none;line-height:1.4;" onkeydown="window._crHandlePrivateKeydown(event, '${channelId}')" oninput="window._crHandlePrivateTyping()"></textarea></div>
+                <div class="cr-input-wrap" style="flex:1;position:relative;">
+                    <textarea class="cr-msg-input" id="cr-msg-input" placeholder="Type a private message... (use @ to mention)" rows="1" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;color:#e2e8f0;font-size:13px;padding:12px 16px;resize:none;line-height:1.4;padding-right:50px;" onkeydown="window._crHandlePrivateKeydown(event, '${channelId}')" oninput="window._crHandlePrivateTyping(event, '${channelId}')">${_escHtml(savedDraft)}</textarea>
+                    <button class="cr-emoji-btn" onclick="window._crToggleEmojiPicker(event, 'private_${channelId}')" style="position:absolute;right:8px;bottom:8px;width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,0.05);border:none;cursor:pointer;font-size:18px;">😊</button>
+                    <div id="cr-emoji-picker-private_${channelId}" class="cr-emoji-picker"></div>
+                </div>
                 <button class="cr-send-btn" onclick="window._crSendPrivateMessage('${channelId}')" style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">➤</button>
             </div>`;
 
         _renderPrivateChatMessages(channelId, me);
         _markPrivateChannelRead(channelId, me);
+        _listenForTyping(channelId);
+        _listenForPins(channelId);
+        _updateOnlineStatusUI();
+        
+        const textarea = document.getElementById('cr-msg-input');
+        if (textarea) {
+            textarea.addEventListener('input', () => {
+                _saveDraft(channelId, textarea.value);
+            });
+        }
 
         if (window.innerWidth <= 700) {
             const sidebar = document.getElementById('cr-sidebar');
@@ -1046,6 +2390,11 @@
         _renderFloatChannelList();
     };
 
+    window._crCloseModal = function() {
+        const modal = document.getElementById('cr-create-room-modal');
+        if (modal) modal.classList.add('hidden');
+    };
+
     // ═══════════════════════════════════════════
     // SEND MESSAGES & QUICK ACTIONS
     // ═══════════════════════════════════════════
@@ -1058,7 +2407,9 @@
         const success = await _sendToGeneralChat(text, me, false);
         if (success) {
             input.value = '';
+            _saveDraft(GENERAL_CHAT_PATH, '');
             input.style.height = 'auto';
+            _sendTypingIndicator(GENERAL_CHAT_PATH, false);
         }
     };
 
@@ -1071,7 +2422,9 @@
         const success = await _sendToPrivateChannel(channelId, text, me, false);
         if (success) {
             input.value = '';
+            _saveDraft(channelId, '');
             input.style.height = 'auto';
+            _sendTypingIndicator(channelId, false);
         }
     };
 
@@ -1086,7 +2439,6 @@
         const action = QUICK_ACTIONS[actionKey];
         if (!action || !channelId) return;
         const me = _getMyIdentity();
-        // Send to the specific private channel only, not to all admins
         await _sendToPrivateChannel(channelId, action.message, me, true);
     };
 
@@ -1104,24 +2456,36 @@
         }
     };
 
-    window._crHandleGeneralTyping = function() {
+    window._crHandleGeneralTyping = function(e) {
         const input = document.getElementById('cr-msg-input');
         if (input) {
             input.style.height = 'auto';
             input.style.height = Math.min(input.scrollHeight, 80) + 'px';
         }
+        
+        if (_crTypingTimers[GENERAL_CHAT_PATH]) clearTimeout(_crTypingTimers[GENERAL_CHAT_PATH]);
+        _sendTypingIndicator(GENERAL_CHAT_PATH, true);
+        _crTypingTimers[GENERAL_CHAT_PATH] = setTimeout(() => {
+            _sendTypingIndicator(GENERAL_CHAT_PATH, false);
+        }, 1500);
     };
 
-    window._crHandlePrivateTyping = function() {
+    window._crHandlePrivateTyping = function(e, channelId) {
         const input = document.getElementById('cr-msg-input');
         if (input) {
             input.style.height = 'auto';
             input.style.height = Math.min(input.scrollHeight, 80) + 'px';
         }
+        
+        if (_crTypingTimers[channelId]) clearTimeout(_crTypingTimers[channelId]);
+        _sendTypingIndicator(channelId, true);
+        _crTypingTimers[channelId] = setTimeout(() => {
+            _sendTypingIndicator(channelId, false);
+        }, 1500);
     };
 
     window._crClearPrivateChat = async function(channelId) {
-        if (!confirm('Clear this private chat?')) return;
+        if (!confirm('Clear this chat?')) return;
         if (!_fbFunctions || !channelId) return;
         try {
             await _fbFunctions.remove(_ref(CHAT_DB_PATH + '/' + channelId));
@@ -1130,7 +2494,8 @@
                 _crChannels[channelId].unread = 0;
             }
             const me = _getMyIdentity();
-            _renderPrivateChatMessages(channelId, me);
+            if (_crCurrentChannelType === 'dm') _renderPrivateChatMessages(channelId, me);
+            else if (_crCurrentChannelType === 'group') _renderGroupChatMessages(channelId, me);
         } catch(e) {}
     };
 
@@ -1177,16 +2542,103 @@
         return str.length > len ? str.substring(0, len) + '…' : str;
     }
 
-    function _formatTime(ts) {
-        if (!ts) return '';
-        const diff = Date.now() - ts;
-        if (diff < 60000) return 'now';
-        if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
-        return new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    // ═══════════════════════════════════════════
+    // EMOJI PICKER FUNCTIONS
+    // ═══════════════════════════════════════════
+    function _buildEmojiPicker() {
+        let html = '<div class="cr-emoji-picker-header">😊 Common Emojis</div>';
+        COMMON_EMOJIS.forEach(emoji => {
+            html += `<div class="cr-emoji-option" data-emoji="${emoji}">${emoji}</div>`;
+        });
+        return html;
     }
 
+    window._crToggleEmojiPicker = function(event, pickerId) {
+        event.stopPropagation();
+        const picker = document.getElementById(`cr-emoji-picker-${pickerId}`);
+        if (!picker) return;
+        
+        document.querySelectorAll('.cr-emoji-picker').forEach(p => {
+            if (p.id !== `cr-emoji-picker-${pickerId}`) {
+                p.classList.remove('show');
+            }
+        });
+        
+        picker.classList.toggle('show');
+        
+        if (picker.innerHTML === '') {
+            picker.innerHTML = _buildEmojiPicker();
+            picker.querySelectorAll('.cr-emoji-option').forEach(opt => {
+                opt.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const emoji = opt.getAttribute('data-emoji');
+                    const input = document.getElementById('cr-msg-input');
+                    if (input) {
+                        const start = input.selectionStart;
+                        const end = input.selectionEnd;
+                        const text = input.value;
+                        input.value = text.substring(0, start) + emoji + text.substring(end);
+                        input.focus();
+                        input.selectionStart = input.selectionEnd = start + emoji.length;
+                        input.dispatchEvent(new Event('input'));
+                    }
+                    picker.classList.remove('show');
+                });
+            });
+        }
+        
+        const closePicker = (e) => {
+            if (!picker.contains(e.target) && !e.target.classList.contains('cr-emoji-btn')) {
+                picker.classList.remove('show');
+                document.removeEventListener('click', closePicker);
+            }
+        };
+        setTimeout(() => {
+            document.addEventListener('click', closePicker);
+        }, 100);
+    };
+
+    window._crToggleFloatEmojiPicker = function(event) {
+        event.stopPropagation();
+        const picker = document.getElementById('cr-float-emoji-picker');
+        if (!picker) return;
+        
+        picker.classList.toggle('show');
+        
+        if (picker.innerHTML === '') {
+            picker.innerHTML = _buildEmojiPicker();
+            picker.querySelectorAll('.cr-emoji-option').forEach(opt => {
+                opt.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const emoji = opt.getAttribute('data-emoji');
+                    const input = document.getElementById('cr-float-input');
+                    if (input) {
+                        const start = input.selectionStart;
+                        const end = input.selectionEnd;
+                        const text = input.value;
+                        input.value = text.substring(0, start) + emoji + text.substring(end);
+                        input.focus();
+                        input.selectionStart = input.selectionEnd = start + emoji.length;
+                        input.dispatchEvent(new Event('input'));
+                    }
+                    picker.classList.remove('show');
+                });
+            });
+        }
+        
+        const closePicker = (e) => {
+            if (!picker.contains(e.target) && !e.target.classList.contains('cr-emoji-btn')) {
+                picker.classList.remove('show');
+                document.removeEventListener('click', closePicker);
+            }
+        };
+        setTimeout(() => {
+            document.addEventListener('click', closePicker);
+        }, 100);
+    };
+
     // ═══════════════════════════════════════════
-    // FLOATING WIDGET - Opens to list view
+    // FLOATING WIDGET - FIXED with instant updates and header
     // ═══════════════════════════════════════════
     window._crFloatActiveChannel = null;
     let _crFloatDrag = { active: false, currentX: 0, currentY: 0, initialX: 0, initialY: 0, xOffset: 0, yOffset: 0, isDraggingClick: false };
@@ -1260,12 +2712,19 @@
             </div>
             <div id="cr-float-list-view" style="flex:1;overflow-y:auto;padding:8px;"></div>
             <div id="cr-float-chat-view" style="flex:1;display:flex;flex-direction:column;min-height:0;display:none;">
+                <div id="cr-float-chat-header" style="padding:8px 12px;background:rgba(16,185,129,0.1);border-bottom:1px solid rgba(16,185,129,0.2);font-size:11px;font-weight:900;color:#10b981;display:flex;align-items:center;gap:6px;">
+                    <span>💬</span>
+                    <span id="cr-float-chat-name">Chat</span>
+                    <button onclick="window._crFloatShowList()" style="margin-left:auto;background:transparent;border:none;color:#64748b;cursor:pointer;font-size:12px;">← Back</button>
+                </div>
                 <div id="cr-float-body" style="flex:1;overflow-y:auto;padding:12px;"></div>
-                <div style="padding:10px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:6px;">
+                <div style="padding:10px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:6px;position:relative;">
                     <textarea id="cr-float-input" placeholder="Type a message..." rows="1" style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:white;font-size:12px;padding:8px 10px;resize:none;"></textarea>
+                    <button class="cr-emoji-btn" onclick="window._crToggleFloatEmojiPicker(event)" style="width:32px;height:36px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-size:16px;">😊</button>
                     <button id="cr-float-send" style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;">➤</button>
                 </div>
-            </div>`;
+            </div>
+            <div id="cr-float-emoji-picker" class="cr-emoji-picker" style="bottom:70px;right:0;left:auto;width:260px;"></div>`;
         document.body.appendChild(fw);
 
         document.getElementById('cr-float-close').addEventListener('click', () => window._crCloseFloat());
@@ -1289,13 +2748,13 @@
         const action = QUICK_ACTIONS[actionKey];
         if (!action) return;
         const me = _getMyIdentity();
-        // Send to the specific active channel only
         if (window._crFloatActiveChannel === 'general') {
             await _sendToGeneralChat(action.message, me, true);
         } else if (window._crFloatActiveChannel && window._crFloatActiveChannel.startsWith('dm_')) {
             await _sendToPrivateChannel(window._crFloatActiveChannel, action.message, me, true);
+        } else if (window._crFloatActiveChannel && window._crFloatActiveChannel.startsWith('group_')) {
+            await _sendToGroupChannel(window._crFloatActiveChannel, action.message, me, true);
         } else {
-            // Default to general chat if no channel selected
             await _sendToGeneralChat(action.message, me, true);
         }
     };
@@ -1329,19 +2788,31 @@
         </div>` : '';
 
         const channels = Object.values(_crChannels)
-            .filter(ch => !q || (ch.agentName || '').toLowerCase().includes(q))
+            .filter(ch => {
+                if (ch.type === 'general') return false;
+                const name = ch.type === 'group' ? (ch.roomName || '') : (ch.agentName || '');
+                return !q || name.toLowerCase().includes(q);
+            })
             .sort((a, b) => (b.lastMsgTime || 0) - (a.lastMsgTime || 0));
 
         channels.forEach(ch => {
-            const name = ch.agentName || 'User';
-            const avatarContent = _getInitials(name);
+            const name = ch.type === 'group' ? (ch.roomName || 'Group Chat') : (ch.agentName || 'User');
+            const avatarContent = ch.type === 'group' ? '👥' : _getInitials(name);
             const preview = ch.lastMsg ? _truncate(ch.lastMsg.text, 25) : 'No messages';
-            const timeStr = ch.lastMsgTime ? _formatTime(ch.lastMsgTime) : '';
+            const timeStr = ch.lastMsgTime ? _formatMessageTime(ch.lastMsgTime) : '';
             const unreadBadge = ch.unread > 0 ? `<div class="cr-unread-badge" style="margin-left:auto;background:#10b981;color:white;border-radius:10px;min-width:18px;height:18px;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;">${ch.unread}</div>` : '';
+            
+            let onlineIndicator = '';
+            if (ch.type === 'dm' && _crOnlineUsers.has(ch.agentId)) {
+                onlineIndicator = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;margin-left:6px;"></span>';
+            }
 
             html += `<div style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;cursor:pointer;margin-bottom:4px;" onclick="window._crOpenFloatChat('${ch.channelId}')">
                 <div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);font-size:14px;font-weight:900;color:#10b981;">${avatarContent}</div>
-                <div style="flex:1;"><div style="font-size:12px;font-weight:800;color:white;">${_escHtml(name)}</div><div style="font-size:9px;color:#475569;">${_escHtml(preview)}</div></div>
+                <div style="flex:1;">
+                    <div style="font-size:12px;font-weight:800;color:white;">${_escHtml(name)}${onlineIndicator}</div>
+                    <div style="font-size:9px;color:#475569;">${_escHtml(preview)}</div>
+                </div>
                 <div style="text-align:right;"><span style="font-size:8px;color:#334155;">${timeStr}</span>${unreadBadge}</div>
             </div>`;
         });
@@ -1364,9 +2835,24 @@
         _renderFloatChannelList();
     };
 
+    // FIXED: Open float chat with proper header and fast message display
     window._crOpenFloatChat = function(channelId) {
         if (window.currentTab === 'chatroom') return;
         window._crFloatActiveChannel = channelId;
+
+        // Update the header name
+        const chatNameSpan = document.getElementById('cr-float-chat-name');
+        if (chatNameSpan) {
+            if (channelId === 'general') {
+                chatNameSpan.textContent = 'General Chat';
+            } else if (channelId.startsWith('dm_')) {
+                const ch = _crChannels[channelId];
+                chatNameSpan.textContent = ch ? ch.agentName : 'Private Chat';
+            } else if (channelId.startsWith('group_')) {
+                const ch = _crChannels[channelId];
+                chatNameSpan.textContent = ch ? ch.roomName : 'Group Chat';
+            }
+        }
 
         const listView = document.getElementById('cr-float-list-view');
         const chatView = document.getElementById('cr-float-chat-view');
@@ -1389,7 +2875,7 @@
                     const sortedMessages = [..._generalChatMessages].sort((a, b) => a.timestamp - b.timestamp);
                     sortedMessages.slice(-30).forEach(msg => {
                         const isSent = msg.from === me.id;
-                        const timeStr = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        const timeStr = _formatMessageTime(msg.timestamp);
                         const isQuickAction = msg.isQuickAction;
                         let senderName = msg.fromName;
                         let senderClass = 'color:#a855f7;';
@@ -1407,13 +2893,14 @@
                             senderName = 'MOHENIE';
                         }
                         const ri = _getReactionInfo(msg.id, me.id);
+                        const editedBadge = msg.edited ? '<span style="font-size:8px;color:#64748b;"> (edited)</span>' : '';
                         html += `<div style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:10px;"
                                      onmouseenter="var b=this.querySelector('.cr-tb');if(b)b.style.opacity='1'"
                                      onmouseleave="var b=this.querySelector('.cr-tb');if(b&&b.getAttribute('data-has')!=='1')b.style.opacity='0'">
                             <div style="max-width:80%;">
                                 <div style="padding:8px 12px;border-radius:12px;${isQuickAction ? 'background:rgba(239,68,68,0.15);border-left:3px solid #ef4444;' : 'background:rgba(255,255,255,0.04);'}">
                                     ${!isSent ? `<div style="font-size:9px;${senderClass} font-weight:800;margin-bottom:2px;">${senderIcon}${_escHtml(senderName)}</div>` : ''}
-                                    <div style="font-size:11px;color:white;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}</div>
+                                    <div style="font-size:11px;color:white;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
                                     <div style="display:flex;align-items:center;gap:4px;margin-top:4px;justify-content:flex-end;">
                                         <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
                                                 onclick="window._crToggleThumbsUp('${msg.id}')"
@@ -1441,15 +2928,16 @@
                     const sortedMessages = [...ch.messages].sort((a, b) => a.timestamp - b.timestamp);
                     sortedMessages.slice(-30).forEach(msg => {
                         const isSent = msg.from === me.id;
-                        const timeStr = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        const timeStr = _formatMessageTime(msg.timestamp);
                         const isQuickAction = msg.isQuickAction;
+                        const editedBadge = msg.edited ? '<span style="font-size:8px;color:#64748b;"> (edited)</span>' : '';
                         const ri = _getReactionInfo(msg.id, me.id);
                         html += `<div style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:10px;"
                                      onmouseenter="var b=this.querySelector('.cr-tb');if(b)b.style.opacity='1'"
                                      onmouseleave="var b=this.querySelector('.cr-tb');if(b&&b.getAttribute('data-has')!=='1')b.style.opacity='0'">
                             <div style="max-width:80%;">
                                 <div style="padding:8px 12px;border-radius:12px;${isQuickAction ? 'background:rgba(239,68,68,0.15);border-left:3px solid #ef4444;' : 'background:rgba(255,255,255,0.04);'}">
-                                    <div style="font-size:11px;color:white;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}</div>
+                                    <div style="font-size:11px;color:white;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
                                     <div style="display:flex;align-items:center;gap:4px;margin-top:4px;justify-content:flex-end;">
                                         <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
                                                 onclick="window._crToggleThumbsUp('${msg.id}')"
@@ -1468,6 +2956,58 @@
                 }
             }
             if (channelId.startsWith('dm_')) _markPrivateChannelRead(channelId, me);
+        } else if (channelId.startsWith('group_')) {
+            const ch = _crChannels[channelId];
+            if (body) {
+                if (!ch || ch.messages.length === 0) {
+                    body.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#475569;">No messages yet</div>`;
+                } else {
+                    let html = '';
+                    const sortedMessages = [...ch.messages].sort((a, b) => a.timestamp - b.timestamp);
+                    sortedMessages.slice(-30).forEach(msg => {
+                        const isSent = msg.from === me.id;
+                        const timeStr = _formatMessageTime(msg.timestamp);
+                        const isQuickAction = msg.isQuickAction;
+                        let displayName = msg.fromName;
+                        let senderIcon = '';
+                        let senderColor = '#a855f7';
+                        if (msg.fromName === 'JAMAL') {
+                            senderIcon = '👑 ';
+                            senderColor = '#fbbf24';
+                        } else if (msg.fromName === 'ROSE') {
+                            senderIcon = '🌹 ';
+                            senderColor = '#ec4899';
+                        } else if (msg.fromName === 'MOMO') {
+                            senderIcon = '🐱 ';
+                            senderColor = '#06b6d4';
+                        }
+                        const editedBadge = msg.edited ? '<span style="font-size:8px;color:#64748b;"> (edited)</span>' : '';
+                        const ri = _getReactionInfo(msg.id, me.id);
+                        html += `<div style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:10px;"
+                                     onmouseenter="var b=this.querySelector('.cr-tb');if(b)b.style.opacity='1'"
+                                     onmouseleave="var b=this.querySelector('.cr-tb');if(b&&b.getAttribute('data-has')!=='1')b.style.opacity='0'">
+                            <div style="max-width:80%;">
+                                <div style="padding:8px 12px;border-radius:12px;${isQuickAction ? 'background:rgba(239,68,68,0.15);border-left:3px solid #ef4444;' : 'background:rgba(255,255,255,0.04);'}">
+                                    ${!isSent ? `<div style="font-size:9px;color:${senderColor};font-weight:800;margin-bottom:2px;">${senderIcon}${_escHtml(displayName)}</div>` : ''}
+                                    <div style="font-size:11px;color:white;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
+                                    <div style="display:flex;align-items:center;gap:4px;margin-top:4px;justify-content:flex-end;">
+                                        <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
+                                                onclick="window._crToggleThumbsUp('${msg.id}')"
+                                                title="${_escHtml(ri.names)}"
+                                                style="opacity:${ri.count > 0 || ri.iReacted ? '1' : '0'};transition:opacity 0.15s;background:${ri.iReacted ? 'rgba(250,204,21,0.15)' : 'rgba(15,23,42,0.92)'};border:1px solid ${ri.iReacted ? 'rgba(250,204,21,0.45)' : 'rgba(255,255,255,0.14)'};border-radius:20px;padding:1px 6px;cursor:pointer;font-size:9px;color:${ri.iReacted ? '#facc15' : '#94a3b8'};white-space:nowrap;">
+                                            👍${ri.count > 0 ? ' ' + ri.count : ''}
+                                        </button>
+                                        <span style="font-size:8px;color:#475569;">${timeStr}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+                    });
+                    body.innerHTML = html;
+                    body.scrollTop = body.scrollHeight;
+                }
+            }
+            _markPrivateChannelRead(channelId, me);
         }
     };
 
@@ -1513,28 +3053,30 @@
         }
     };
 
+    // FIXED: Send message with immediate UI update
     window._crFloatSend = async function() {
         const input = document.getElementById('cr-float-input');
         if (!input) return;
         const text = input.value.trim();
         if (!text || !window._crFloatActiveChannel) return;
         const me = _getMyIdentity();
+        
+        // Clear input immediately for better UX
+        input.value = '';
+        
         let success = false;
         if (window._crFloatActiveChannel === 'general') {
             success = await _sendToGeneralChat(text, me, false);
-        } else if (window._crFloatActiveChannel.startsWith('dm_')) {
-            success = await _sendToPrivateChannel(window._crFloatActiveChannel, text, me, false);
-        }
-        if (success) {
-            input.value = '';
-            if (window._crFloatActiveChannel === 'general') {
+            if (success) {
+                // Immediately update the floating chat view
                 const body = document.getElementById('cr-float-body');
                 if (body && _generalChatMessages.length) {
                     let html = '';
                     const sortedMessages = [..._generalChatMessages].sort((a, b) => a.timestamp - b.timestamp);
-                    sortedMessages.slice(-30).forEach(msg => {
+                    const recentMessages = sortedMessages.slice(-30);
+                    recentMessages.forEach(msg => {
                         const isSent = msg.from === me.id;
-                        const timeStr = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        const timeStr = _formatMessageTime(msg.timestamp);
                         const isQuickAction = msg.isQuickAction;
                         let senderName = msg.fromName;
                         let senderClass = 'color:#a855f7;';
@@ -1552,13 +3094,14 @@
                             senderName = 'MOHENIE';
                         }
                         const ri = _getReactionInfo(msg.id, me.id);
+                        const editedBadge = msg.edited ? '<span style="font-size:8px;color:#64748b;"> (edited)</span>' : '';
                         html += `<div style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:10px;"
                                      onmouseenter="var b=this.querySelector('.cr-tb');if(b)b.style.opacity='1'"
                                      onmouseleave="var b=this.querySelector('.cr-tb');if(b&&b.getAttribute('data-has')!=='1')b.style.opacity='0'">
                             <div style="max-width:80%;">
                                 <div style="padding:8px 12px;border-radius:12px;${isQuickAction ? 'background:rgba(239,68,68,0.15);border-left:3px solid #ef4444;' : 'background:rgba(255,255,255,0.04);'}">
                                     ${!isSent ? `<div style="font-size:9px;${senderClass} font-weight:800;margin-bottom:2px;">${senderIcon}${_escHtml(senderName)}</div>` : ''}
-                                    <div style="font-size:11px;color:white;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}</div>
+                                    <div style="font-size:11px;color:white;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
                                     <div style="display:flex;align-items:center;gap:4px;margin-top:4px;justify-content:flex-end;">
                                         <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
                                                 onclick="window._crToggleThumbsUp('${msg.id}')"
@@ -1576,6 +3119,100 @@
                     body.scrollTop = body.scrollHeight;
                 }
             }
+        } else if (window._crFloatActiveChannel.startsWith('dm_')) {
+            success = await _sendToPrivateChannel(window._crFloatActiveChannel, text, me, false);
+            if (success) {
+                const body = document.getElementById('cr-float-body');
+                const ch = _crChannels[window._crFloatActiveChannel];
+                if (body && ch && ch.messages.length) {
+                    let html = '';
+                    const sortedMessages = [...ch.messages].sort((a, b) => a.timestamp - b.timestamp);
+                    const recentMessages = sortedMessages.slice(-30);
+                    recentMessages.forEach(msg => {
+                        const isSent = msg.from === me.id;
+                        const timeStr = _formatMessageTime(msg.timestamp);
+                        const isQuickAction = msg.isQuickAction;
+                        const editedBadge = msg.edited ? '<span style="font-size:8px;color:#64748b;"> (edited)</span>' : '';
+                        const ri = _getReactionInfo(msg.id, me.id);
+                        html += `<div style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:10px;"
+                                     onmouseenter="var b=this.querySelector('.cr-tb');if(b)b.style.opacity='1'"
+                                     onmouseleave="var b=this.querySelector('.cr-tb');if(b&&b.getAttribute('data-has')!=='1')b.style.opacity='0'">
+                            <div style="max-width:80%;">
+                                <div style="padding:8px 12px;border-radius:12px;${isQuickAction ? 'background:rgba(239,68,68,0.15);border-left:3px solid #ef4444;' : 'background:rgba(255,255,255,0.04);'}">
+                                    <div style="font-size:11px;color:white;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
+                                    <div style="display:flex;align-items:center;gap:4px;margin-top:4px;justify-content:flex-end;">
+                                        <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
+                                                onclick="window._crToggleThumbsUp('${msg.id}')"
+                                                title="${_escHtml(ri.names)}"
+                                                style="opacity:${ri.count > 0 || ri.iReacted ? '1' : '0'};transition:opacity 0.15s;background:${ri.iReacted ? 'rgba(250,204,21,0.15)' : 'rgba(15,23,42,0.92)'};border:1px solid ${ri.iReacted ? 'rgba(250,204,21,0.45)' : 'rgba(255,255,255,0.14)'};border-radius:20px;padding:1px 6px;cursor:pointer;font-size:9px;color:${ri.iReacted ? '#facc15' : '#94a3b8'};white-space:nowrap;">
+                                            👍${ri.count > 0 ? ' ' + ri.count : ''}
+                                        </button>
+                                        <span style="font-size:8px;color:#475569;">${timeStr}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+                    });
+                    body.innerHTML = html;
+                    body.scrollTop = body.scrollHeight;
+                }
+            }
+        } else if (window._crFloatActiveChannel.startsWith('group_')) {
+            success = await _sendToGroupChannel(window._crFloatActiveChannel, text, me, false);
+            if (success) {
+                const body = document.getElementById('cr-float-body');
+                const ch = _crChannels[window._crFloatActiveChannel];
+                if (body && ch && ch.messages.length) {
+                    let html = '';
+                    const sortedMessages = [...ch.messages].sort((a, b) => a.timestamp - b.timestamp);
+                    const recentMessages = sortedMessages.slice(-30);
+                    recentMessages.forEach(msg => {
+                        const isSent = msg.from === me.id;
+                        const timeStr = _formatMessageTime(msg.timestamp);
+                        const isQuickAction = msg.isQuickAction;
+                        let displayName = msg.fromName;
+                        let senderIcon = '';
+                        let senderColor = '#a855f7';
+                        if (msg.fromName === 'JAMAL') {
+                            senderIcon = '👑 ';
+                            senderColor = '#fbbf24';
+                        } else if (msg.fromName === 'ROSE') {
+                            senderIcon = '🌹 ';
+                            senderColor = '#ec4899';
+                        } else if (msg.fromName === 'MOMO') {
+                            senderIcon = '🐱 ';
+                            senderColor = '#06b6d4';
+                        }
+                        const editedBadge = msg.edited ? '<span style="font-size:8px;color:#64748b;"> (edited)</span>' : '';
+                        const ri = _getReactionInfo(msg.id, me.id);
+                        html += `<div style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:10px;"
+                                     onmouseenter="var b=this.querySelector('.cr-tb');if(b)b.style.opacity='1'"
+                                     onmouseleave="var b=this.querySelector('.cr-tb');if(b&&b.getAttribute('data-has')!=='1')b.style.opacity='0'">
+                            <div style="max-width:80%;">
+                                <div style="padding:8px 12px;border-radius:12px;${isQuickAction ? 'background:rgba(239,68,68,0.15);border-left:3px solid #ef4444;' : 'background:rgba(255,255,255,0.04);'}">
+                                    ${!isSent ? `<div style="font-size:9px;color:${senderColor};font-weight:800;margin-bottom:2px;">${senderIcon}${_escHtml(displayName)}</div>` : ''}
+                                    <div style="font-size:11px;color:white;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
+                                    <div style="display:flex;align-items:center;gap:4px;margin-top:4px;justify-content:flex-end;">
+                                        <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
+                                                onclick="window._crToggleThumbsUp('${msg.id}')"
+                                                title="${_escHtml(ri.names)}"
+                                                style="opacity:${ri.count > 0 || ri.iReacted ? '1' : '0'};transition:opacity 0.15s;background:${ri.iReacted ? 'rgba(250,204,21,0.15)' : 'rgba(15,23,42,0.92)'};border:1px solid ${ri.iReacted ? 'rgba(250,204,21,0.45)' : 'rgba(255,255,255,0.14)'};border-radius:20px;padding:1px 6px;cursor:pointer;font-size:9px;color:${ri.iReacted ? '#facc15' : '#94a3b8'};white-space:nowrap;">
+                                            👍${ri.count > 0 ? ' ' + ri.count : ''}
+                                        </button>
+                                        <span style="font-size:8px;color:#475569;">${timeStr}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+                    });
+                    body.innerHTML = html;
+                    body.scrollTop = body.scrollHeight;
+                }
+            }
+        }
+        
+        if (success) {
+            input.value = '';
         }
     };
 
@@ -1624,5 +3261,5 @@
         _listenToGeneralChat(me);
     };
 
-    console.log('[Chat] chatroom.js loaded - Quick actions: Come Quick and Help only');
+    console.log('[Chat] chatroom.js loaded - Full feature chat with instant floating updates');
 })();
