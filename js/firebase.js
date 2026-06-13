@@ -456,26 +456,9 @@ async function sendBroadcastMessage(message, adminId) {
 // Function to push admin activity to Firebase directly
 window.writeAdminActivityLog = async function(action, details, specificAdmin = null) {
     if (!database) return;
-    
+
     let admin = specificAdmin || JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     if (!admin || (!admin.email && !admin.name)) return;
-    
-    // Also write to localStorage as fallback
-    try {
-        const localLogs = JSON.parse(localStorage.getItem('biz_activity_logs_v1') || '[]');
-        localLogs.unshift({
-            id: Date.now(),
-            timestamp: new Date().toISOString(),
-            email: admin.email || 'unknown',
-            name: admin.name || admin.email || 'unknown',
-            role: admin.role || 'unknown',
-            action: action,
-            details: details,
-            page: window.location.pathname || ''
-        });
-        if (localLogs.length > 500) localLogs.length = 500;
-        localStorage.setItem('biz_activity_logs_v1', JSON.stringify(localLogs));
-    } catch(_e) {}
 
     try {
         const logEntry = {
@@ -493,6 +476,17 @@ window.writeAdminActivityLog = async function(action, details, specificAdmin = n
         console.error("Activity logging failed", e);
     }
 };
+
+// Flush any logs queued by super-admin.js before this module loaded
+(function _flushPendingLogs() {
+    const queue = window._pendingFirebaseLogs;
+    if (!queue || !queue.length) return;
+    window._pendingFirebaseLogs = [];
+    queue.forEach(item => {
+        window.writeAdminActivityLog(item.action, item.details, item.admin);
+    });
+    console.log('[Firebase] Flushed', queue.length, 'pending activity log(s) to Firebase');
+})();
 
 window.listenForActivityLogs = function(callback) {
     if (!database) return;
