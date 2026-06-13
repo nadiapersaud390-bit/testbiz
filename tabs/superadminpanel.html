@@ -631,20 +631,81 @@
 
     <!-- LOGS TAB -->
     <div id="supsect-logs" class="supsect-container hidden">
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-cyan-400 flex items-center gap-2">
-                    <i class="fas fa-history"></i> 
-                    Admin Activity Logs
-                </h3>
-                <button onclick="clearActivityLogs()" class="text-xs bg-red-500/20 border border-red-500/30 text-red-400 px-3 py-1 rounded-lg hover:bg-red-500/30 transition">
-                    <i class="fas fa-trash mr-1"></i> Clear Logs
-                </button>
+
+        <!-- Header Row -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center">
+                    <i class="fas fa-shield-alt text-cyan-400 text-base"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-black text-white uppercase tracking-widest">Admin Activity Logs</h3>
+                    <div class="flex items-center gap-2 mt-0.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block"></span>
+                        <span class="text-[9px] text-green-400 font-bold uppercase tracking-wider">Live Firebase Sync</span>
+                    </div>
+                </div>
             </div>
-            <div class="bg-black/30 rounded-xl max-h-80 overflow-y-auto border border-white/5 shadow-inner p-2" id="activity-logs-container">
-                <div class="text-center text-slate-500 py-8 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Loading logs...</div>
+            <button onclick="clearActivityLogs()" class="text-[10px] bg-red-500/10 border border-red-500/25 text-red-400 px-3 py-1.5 rounded-xl hover:bg-red-500/20 transition font-black uppercase tracking-wider">
+                <i class="fas fa-trash-alt mr-1"></i> Clear All
+            </button>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="grid grid-cols-3 gap-3 mb-4">
+            <div class="bg-white/5 border border-white/[0.08] rounded-xl px-3 py-2.5 text-center">
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">Total Logs</div>
+                <div id="log-stat-total" class="text-xl font-black text-white">—</div>
+            </div>
+            <div class="bg-white/5 border border-white/[0.08] rounded-xl px-3 py-2.5 text-center">
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">Admins Seen</div>
+                <div id="log-stat-admins" class="text-xl font-black text-cyan-400">—</div>
+            </div>
+            <div class="bg-white/5 border border-white/[0.08] rounded-xl px-3 py-2.5 text-center">
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">Last Activity</div>
+                <div id="log-stat-last" class="text-[11px] font-black text-yellow-400 leading-tight">—</div>
             </div>
         </div>
+
+        <!-- Filters -->
+        <div class="flex flex-wrap gap-2 mb-4">
+            <div class="flex-1 min-w-[140px] relative">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]"></i>
+                <input id="log-search" type="text" placeholder="Search admin, email, or details…"
+                    oninput="filterActivityLogs()"
+                    class="w-full bg-black/40 border border-white/10 rounded-xl pl-7 pr-3 py-2 text-white text-[11px] font-medium outline-none focus:border-cyan-400/50 transition placeholder-slate-600">
+            </div>
+            <select id="log-filter-action" onchange="filterActivityLogs()"
+                class="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] font-bold outline-none focus:border-cyan-400/50 transition min-w-[130px]">
+                <option value="">All Actions</option>
+                <option value="login">Login</option>
+                <option value="logout">Logout</option>
+                <option value="login_failed">Failed Login</option>
+                <option value="tab_click">Tab Navigation</option>
+                <option value="user_management">User Mgmt</option>
+                <option value="agent_management">Agent Mgmt</option>
+                <option value="upload">Upload / Report</option>
+                <option value="force_logout">Force Logout</option>
+                <option value="broadcast">Broadcast</option>
+            </select>
+        </div>
+
+        <!-- Log Table -->
+        <div class="rounded-2xl border border-white/[0.08] overflow-hidden bg-black/20">
+            <div class="hidden md:grid gap-0 px-4 py-2.5 border-b border-white/[0.08] bg-white/[0.03]" style="grid-template-columns:190px 1fr 100px 88px">
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500">Admin</div>
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500">Action / Details</div>
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 text-center">Session</div>
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 text-right">When</div>
+            </div>
+            <div class="max-h-[540px] overflow-y-auto" id="activity-logs-container">
+                <div class="text-center text-slate-500 py-12 flex flex-col items-center gap-2">
+                    <i class="fas fa-spinner fa-spin text-2xl text-slate-600"></i>
+                    <span class="text-[10px] font-black uppercase tracking-widest">Loading logs…</span>
+                </div>
+            </div>
+        </div>
+        <div class="mt-2 text-right text-[9px] text-slate-600 font-bold uppercase tracking-wider" id="log-count-label"></div>
     </div>
 
     <!-- USERS TAB -->
@@ -1432,6 +1493,10 @@
         if (now - _supTabLastClick < 300) return;
         _supTabLastClick = now;
 
+        if (typeof window.writeAdminActivityLog === 'function') {
+            window.writeAdminActivityLog('tab_click', 'Navigated to Super Admin tab: ' + tabId);
+        }
+
         document.querySelectorAll('.supsect-container').forEach(el => el.classList.add('hidden'));
         document.querySelectorAll('.sup-tab-btn').forEach(el => el.classList.remove('active'));
 
@@ -1463,63 +1528,201 @@
             } else {
                 renderActivityLogs(null);
             }
+            // Reset filter inputs on each open
+            var ls = document.getElementById('log-search');
+            var lf = document.getElementById('log-filter-action');
+            if (ls) ls.value = '';
+            if (lf) lf.value = '';
         }
         if (tabId === 'users') { superLoadAdmins(); superLoadAgentPasswords(); }
         if (tabId === 'pranklookup') superLoadPrankNumbers();
     }
     
-    function renderActivityLogs(firebaseLogs) {
-        const container = document.getElementById('activity-logs-container');
-        if (!container) return;
-        try {
-            let logs = firebaseLogs;
-            if (!logs || !Array.isArray(logs)) {
-                logs = JSON.parse(localStorage.getItem('biz_activity_logs_v1') || '[]');
-            }
-            if (logs.length === 0) {
-                container.innerHTML = '<div class="text-center text-slate-500 py-6 text-xs font-bold uppercase tracking-widest">No activity logs found.</div>';
-                return;
-            }
-            container.innerHTML = logs.map(log => {
-                if(!log) return '';
-                const date = new Date(log.timestamp);
-                const timeStr = date.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-                const dateStr = date.toLocaleDateString('en-US', { month:'short', day:'numeric' });
-                
-                let actionColor = 'text-blue-400';
-                const actionStr = log.action || '';
-                if (actionStr.includes('login') && !actionStr.includes('failed')) actionColor = 'text-green-400';
-                else if (actionStr.includes('fail')) actionColor = 'text-red-400';
-                else if (actionStr.includes('logout')) actionColor = 'text-yellow-400';
-                else if (actionStr.includes('upload')) actionColor = 'text-purple-400';
-                else if (actionStr.includes('tab_click')) actionColor = 'text-slate-400';
-                else if (actionStr.includes('user')) actionColor = 'text-cyan-400';
+    // ── Activity Logs: master data cache ──
+    window._allActivityLogs = [];
 
-                return `
-                <div class="border-b border-white/5 py-3 px-3 hover:bg-white/5 transition flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div class="flex items-center gap-3">
-                        <div class="w-16 text-[9px] uppercase font-bold text-slate-500 tracking-wider flex-shrink-0 text-right">${timeStr} <br> ${dateStr}</div>
-                        <div>
-                            <div class="text-sm font-bold text-white flex items-center gap-2">
-                                ${escapeHtml(log.name || 'Unknown')} 
-                                <span class="bg-white/10 px-2 py-0.5 rounded-full text-[8px] uppercase font-black tracking-widest ${(log.role === 'super_admin') ? 'text-yellow-400' : 'text-slate-400'}">${(log.role||'user').replace('_', ' ')}</span>
-                            </div>
-                            <div class="text-xs ${actionColor} font-black uppercase tracking-wider mt-1">${actionStr.replace('_', ' ')}</div>
+    // Wire up the Firebase listener alias
+    window.listenToActivityLogs = function(cb) {
+        if (typeof window.listenForActivityLogs === 'function') {
+            window.listenForActivityLogs(cb);
+        } else {
+            setTimeout(function() { window.listenToActivityLogs(cb); }, 500);
+        }
+    };
+
+    function _logActionMeta(action) {
+        const a = (action || '').toLowerCase();
+        if (a === 'login' || a === 'admin_session_start') return { icon:'fa-sign-in-alt', bg:'bg-green-500/15', text:'text-green-400', border:'border-green-500/25', label:'Login' };
+        if (a.includes('logout') && !a.includes('force')) return { icon:'fa-sign-out-alt', bg:'bg-yellow-500/15', text:'text-yellow-400', border:'border-yellow-500/25', label:'Logout' };
+        if (a.includes('force_logout')) return { icon:'fa-bolt', bg:'bg-orange-500/15', text:'text-orange-400', border:'border-orange-500/25', label:'Force Logout' };
+        if (a.includes('fail') || a.includes('error')) return { icon:'fa-times-circle', bg:'bg-red-500/15', text:'text-red-400', border:'border-red-500/25', label:'Failed' };
+        if (a.includes('tab_click') || a.includes('tab_switch') || a.includes('navigation')) return { icon:'fa-mouse-pointer', bg:'bg-slate-500/15', text:'text-slate-400', border:'border-slate-500/25', label:'Navigation' };
+        if (a.includes('user_management') || a.includes('user_mgmt')) return { icon:'fa-users-cog', bg:'bg-cyan-500/15', text:'text-cyan-400', border:'border-cyan-500/25', label:'User Mgmt' };
+        if (a.includes('agent')) return { icon:'fa-user-circle', bg:'bg-blue-500/15', text:'text-blue-400', border:'border-blue-500/25', label:'Agent' };
+        if (a.includes('upload') || a.includes('report') || a.includes('file') || a.includes('push')) return { icon:'fa-upload', bg:'bg-purple-500/15', text:'text-purple-400', border:'border-purple-500/25', label:'Upload' };
+        if (a.includes('broadcast')) return { icon:'fa-bullhorn', bg:'bg-pink-500/15', text:'text-pink-400', border:'border-pink-500/25', label:'Broadcast' };
+        if (a.includes('clear')) return { icon:'fa-trash-alt', bg:'bg-red-500/15', text:'text-red-400', border:'border-red-500/25', label:'Clear' };
+        if (a.includes('idle')) return { icon:'fa-hourglass-half', bg:'bg-slate-500/15', text:'text-slate-500', border:'border-slate-500/20', label:'Idle' };
+        if (a.includes('concurrent')) return { icon:'fa-clone', bg:'bg-amber-500/15', text:'text-amber-400', border:'border-amber-500/25', label:'Multi-Session' };
+        return { icon:'fa-circle', bg:'bg-indigo-500/15', text:'text-indigo-400', border:'border-indigo-500/25', label: a.replace(/_/g,' ') || 'Activity' };
+    }
+
+    function _adminInitials(name) {
+        if (!name) return '?';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length >= 2) return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+        return name.substring(0,2).toUpperCase();
+    }
+
+    function _adminAvatarColor(name) {
+        const colors = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#f97316','#06b6d4','#6366f1'];
+        let h = 0;
+        for (let i=0; i<(name||'').length; i++) h = ((h<<5)-h)+name.charCodeAt(i);
+        return colors[Math.abs(h) % colors.length];
+    }
+
+    function _timeAgo(tsStr) {
+        const now = Date.now();
+        const then = new Date(tsStr).getTime();
+        if (isNaN(then)) return '';
+        const diff = Math.floor((now - then) / 1000);
+        if (diff < 60) return diff + 's ago';
+        if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+        return Math.floor(diff/86400) + 'd ago';
+    }
+
+    function _formatFullTime(tsStr) {
+        const d = new Date(tsStr);
+        if (isNaN(d)) return '';
+        return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    }
+
+    function renderActivityLogs(firebaseLogs) {
+        let logs = firebaseLogs;
+        if (!logs || !Array.isArray(logs)) {
+            logs = JSON.parse(localStorage.getItem('biz_activity_logs_v1') || '[]');
+        }
+        window._allActivityLogs = logs;
+        _updateLogStats(logs);
+        filterActivityLogs();
+    }
+
+    function _updateLogStats(logs) {
+        const totalEl = document.getElementById('log-stat-total');
+        const adminsEl = document.getElementById('log-stat-admins');
+        const lastEl = document.getElementById('log-stat-last');
+        if (totalEl) totalEl.textContent = logs.length || '0';
+        if (adminsEl) {
+            const unique = new Set(logs.map(l => l && (l.email || l.name)).filter(Boolean));
+            adminsEl.textContent = unique.size || '0';
+        }
+        if (lastEl && logs.length) {
+            const recent = logs[0];
+            lastEl.textContent = recent ? _timeAgo(recent.timestamp) : '—';
+        }
+    }
+
+    function filterActivityLogs() {
+        const search = (document.getElementById('log-search') || {}).value || '';
+        const actionFilter = (document.getElementById('log-filter-action') || {}).value || '';
+        const logs = window._allActivityLogs || [];
+
+        const filtered = logs.filter(log => {
+            if (!log) return false;
+            if (actionFilter && !(log.action || '').toLowerCase().includes(actionFilter.toLowerCase())) return false;
+            if (search) {
+                const q = search.toLowerCase();
+                const haystack = [(log.name||''),(log.email||''),(log.details||''),(log.action||'')].join(' ').toLowerCase();
+                if (!haystack.includes(q)) return false;
+            }
+            return true;
+        });
+
+        _renderFilteredLogs(filtered, logs.length);
+    }
+
+    function _renderFilteredLogs(logs, totalCount) {
+        const container = document.getElementById('activity-logs-container');
+        const countLabel = document.getElementById('log-count-label');
+        if (!container) return;
+
+        if (countLabel) {
+            countLabel.textContent = logs.length === totalCount
+                ? logs.length + ' entries'
+                : 'Showing ' + logs.length + ' of ' + totalCount;
+        }
+
+        if (logs.length === 0) {
+            container.innerHTML = '<div class="text-center text-slate-500 py-10 flex flex-col items-center gap-2"><i class="fas fa-inbox text-2xl text-slate-700"></i><span class="text-[10px] font-black uppercase tracking-widest">No activity logs found.</span></div>';
+            return;
+        }
+
+        try {
+            container.innerHTML = logs.map((log, idx) => {
+                if (!log) return '';
+                const meta = _logActionMeta(log.action);
+                const initials = _adminInitials(log.name);
+                const avatarColor = _adminAvatarColor(log.name || log.email || '');
+                const isSuper = (log.role || '') === 'super_admin';
+                const roleLabel = isSuper ? 'Super Admin' : (log.role || 'admin').replace(/_/g,' ');
+                const roleBg = isSuper ? 'bg-yellow-400/15 text-yellow-400 border-yellow-400/25' : 'bg-white/8 text-slate-400 border-white/10';
+                const timeAgo = _timeAgo(log.timestamp);
+                const fullTime = _formatFullTime(log.timestamp);
+                const evenRow = idx % 2 === 0;
+
+                // Session/idle indicator: if action is idle or tab_switch show different badge
+                let sessionBadge = '';
+                const act = (log.action||'').toLowerCase();
+                if (act === 'login' || act === 'admin_session_start') {
+                    sessionBadge = '<span class="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider bg-green-500/15 text-green-400 border border-green-500/25 px-2 py-0.5 rounded-full"><span class="w-1 h-1 rounded-full bg-green-400 inline-block"></span>Start</span>';
+                } else if (act.includes('logout')) {
+                    sessionBadge = '<span class="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded-full"><i class="fas fa-sign-out-alt text-[7px]"></i>End</span>';
+                } else if (act.includes('idle')) {
+                    sessionBadge = '<span class="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider bg-slate-500/10 text-slate-500 border border-slate-500/20 px-2 py-0.5 rounded-full"><i class="fas fa-hourglass-half text-[7px]"></i>Idle</span>';
+                } else if (act.includes('tab_click') || act.includes('navigation')) {
+                    sessionBadge = '<span class="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider bg-slate-500/10 text-slate-400 border border-slate-500/20 px-2 py-0.5 rounded-full"><i class="fas fa-mouse-pointer text-[7px]"></i>Click</span>';
+                } else {
+                    sessionBadge = '<span class="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full"><i class="fas fa-circle text-[5px]"></i>Active</span>';
+                }
+
+                return `<div class="flex flex-col md:grid gap-0 px-4 py-3 border-b border-white/[0.05] ${evenRow ? '' : 'bg-white/[0.015]'} hover:bg-white/[0.04] transition-colors" style="grid-template-columns:190px 1fr 100px 88px">
+                    <!-- Admin column -->
+                    <div class="flex items-center gap-2.5 min-w-0 mb-2 md:mb-0 pr-2">
+                        <div class="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-[11px] font-black shadow-lg" style="background:${avatarColor}20;border:1px solid ${avatarColor}40;color:${avatarColor}">${escapeHtml(initials)}</div>
+                        <div class="min-w-0">
+                            <div class="text-[12px] font-black text-white truncate leading-tight">${escapeHtml(log.name || log.email || 'Unknown')}</div>
+                            <span class="inline-block text-[8px] font-black uppercase tracking-wider border rounded-full px-1.5 py-0.5 mt-0.5 ${roleBg}">${escapeHtml(roleLabel)}</span>
                         </div>
                     </div>
-                    <div class="text-sm text-slate-300 md:text-right max-w-sm truncate whitespace-normal bg-black/40 px-3 py-2 rounded-xl border border-white/5">${escapeHtml(log.details || '')}</div>
-                </div>
-                `;
+                    <!-- Action + Details column -->
+                    <div class="flex flex-col justify-center gap-1 min-w-0 mb-2 md:mb-0 pr-3">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${meta.bg} ${meta.text} ${meta.border}"><i class="fas ${meta.icon} text-[7px]"></i>${escapeHtml(meta.label)}</span>
+                        </div>
+                        <div class="text-[11px] text-slate-300 leading-snug break-words">${escapeHtml(log.details || '')}</div>
+                    </div>
+                    <!-- Session column -->
+                    <div class="flex items-center justify-start md:justify-center mb-2 md:mb-0">
+                        ${sessionBadge}
+                    </div>
+                    <!-- Time column -->
+                    <div class="flex flex-col items-start md:items-end justify-center">
+                        <div class="text-[10px] font-bold text-slate-400" title="${escapeHtml(fullTime)}">${escapeHtml(timeAgo)}</div>
+                        <div class="text-[9px] text-slate-600">${escapeHtml(fullTime)}</div>
+                    </div>
+                </div>`;
             }).join('');
         } catch(e) {
             console.error("Activity Log Render Error:", e);
-            container.innerHTML = '<div class="text-center text-red-500 py-6 text-xs">Error parsing logs from system.</div>';
+            container.innerHTML = '<div class="text-center text-red-500 py-6 text-xs font-bold">Error rendering logs.</div>';
         }
     }
 
     function clearActivityLogs() {
-        if(confirm('Are you sure you want to clear all activity logs? This action cannot be undone.')) {
+        if(confirm('Clear all activity logs? This cannot be undone.')) {
             localStorage.setItem('biz_activity_logs_v1', '[]');
+            window._allActivityLogs = [];
             if (typeof window.clearFirebaseActivityLogs === 'function') window.clearFirebaseActivityLogs();
             renderActivityLogs([]);
             if (typeof window.writeAdminActivityLog === 'function') window.writeAdminActivityLog('clear_logs', 'Cleared all activity logs manually');
