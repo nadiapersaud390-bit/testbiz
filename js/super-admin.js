@@ -8,24 +8,28 @@ const ACTIVITY_LOG_KEY = 'biz_activity_logs_v1';
 window.writeAdminActivityLog = function(action, details, specificAdmin = null) {
     let admin = specificAdmin || JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     if (!admin || (!admin.email && !admin.name)) return;
-    
-    let logs = [];
-    try {
-        logs = JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY) || '[]');
-    } catch(e) {}
-    
-    logs.unshift({
+
+    const entry = {
         id: Date.now(),
         timestamp: new Date().toISOString(),
         email: admin.email || 'unknown',
         name: admin.name || admin.email || 'unknown',
         role: admin.role || 'unknown',
         action: action,
-        details: details
-    });
-    
-    if (logs.length > 500) logs = logs.slice(0, 500); // keep max 500 logs
+        details: details,
+        page: window.location.pathname || ''
+    };
+
+    // Write to localStorage as always
+    let logs = [];
+    try { logs = JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY) || '[]'); } catch(e) {}
+    logs.unshift(entry);
+    if (logs.length > 500) logs.length = 500;
     localStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(logs));
+
+    // Queue for Firebase (flushed by firebase.js once the module loads)
+    window._pendingFirebaseLogs = window._pendingFirebaseLogs || [];
+    window._pendingFirebaseLogs.push({ action, details, admin });
 };
 
 // ============================================
