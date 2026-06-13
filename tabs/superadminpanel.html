@@ -1581,20 +1581,23 @@
         return colors[Math.abs(h) % colors.length];
     }
 
-    function _timeAgo(tsStr) {
+    function _logTimeAgo(tsStr) {
+        if (!tsStr) return '';
         const now = Date.now();
-        const then = new Date(tsStr).getTime();
+        // Support both ISO strings and numeric Unix-ms timestamps
+        const then = typeof tsStr === 'number' ? tsStr : new Date(tsStr).getTime();
         if (isNaN(then)) return '';
-        const diff = Math.floor((now - then) / 1000);
-        if (diff < 60) return diff + 's ago';
-        if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-        if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
-        return Math.floor(diff/86400) + 'd ago';
+        const diff = now - then;
+        if (diff < 60000) return Math.floor(diff/1000) + 's ago';
+        if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+        if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+        return Math.floor(diff/86400000) + 'd ago';
     }
 
-    function _formatFullTime(tsStr) {
-        const d = new Date(tsStr);
-        if (isNaN(d)) return '';
+    function _logFormatTime(tsStr) {
+        if (!tsStr) return '';
+        const d = typeof tsStr === 'number' ? new Date(tsStr) : new Date(tsStr);
+        if (isNaN(d.getTime())) return '';
         return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
     }
 
@@ -1619,7 +1622,7 @@
         }
         if (lastEl && logs.length) {
             const recent = logs[0];
-            lastEl.textContent = recent ? _timeAgo(recent.timestamp) : '—';
+            lastEl.textContent = recent ? _logTimeAgo(recent.timestamp) : '—';
         }
     }
 
@@ -1667,8 +1670,8 @@
                 const isSuper = (log.role || '') === 'super_admin';
                 const roleLabel = isSuper ? 'Super Admin' : (log.role || 'admin').replace(/_/g,' ');
                 const roleBg = isSuper ? 'bg-yellow-400/15 text-yellow-400 border-yellow-400/25' : 'bg-white/8 text-slate-400 border-white/10';
-                const timeAgo = _timeAgo(log.timestamp);
-                const fullTime = _formatFullTime(log.timestamp);
+                const timeAgo = _logTimeAgo(log.timestamp);
+                const fullTime = _logFormatTime(log.timestamp);
                 const evenRow = idx % 2 === 0;
 
                 // Session/idle indicator: if action is idle or tab_switch show different badge
