@@ -109,6 +109,9 @@ window.startAdminHeartbeat = async function() {
         sessionId:  sessionId
     });
 
+    // Store session start time for duration tracking
+    sessionStorage.setItem('biz_session_login_ts', new Date().toISOString());
+
     // Push to session activity log
     push(ref(database, 'admin_session_log'), {
         type:      'login',
@@ -457,6 +460,23 @@ window.writeAdminActivityLog = async function(action, details, specificAdmin = n
     let admin = specificAdmin || JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     if (!admin || (!admin.email && !admin.name)) return;
     
+    // Also write to localStorage as fallback
+    try {
+        const localLogs = JSON.parse(localStorage.getItem('biz_activity_logs_v1') || '[]');
+        localLogs.unshift({
+            id: Date.now(),
+            timestamp: new Date().toISOString(),
+            email: admin.email || 'unknown',
+            name: admin.name || admin.email || 'unknown',
+            role: admin.role || 'unknown',
+            action: action,
+            details: details,
+            page: window.location.pathname || ''
+        });
+        if (localLogs.length > 500) localLogs.length = 500;
+        localStorage.setItem('biz_activity_logs_v1', JSON.stringify(localLogs));
+    } catch(_e) {}
+
     try {
         const logEntry = {
             timestamp: new Date().toISOString(),
@@ -464,7 +484,9 @@ window.writeAdminActivityLog = async function(action, details, specificAdmin = n
             name: admin.name || admin.email || 'unknown',
             role: admin.role || 'unknown',
             action: action,
-            details: details
+            details: details,
+            page: window.location.pathname || '',
+            sessionStart: sessionStorage.getItem('biz_session_login_ts') || ''
         };
         await push(ref(database, 'activity_logs'), logEntry);
     } catch(e) {
@@ -491,6 +513,11 @@ window.clearFirebaseActivityLogs = async function() {
     try {
         await set(ref(database, 'activity_logs'), null);
     } catch(e) {}
+};
+
+// Alias used by superadminpanel.html
+window.listenToActivityLogs = function(callback) {
+    window.listenForActivityLogs(callback);
 };
 
 window.listenForAdmins = function(callback) {
