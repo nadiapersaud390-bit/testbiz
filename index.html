@@ -448,59 +448,50 @@ function setupRoleBasedTabs() {
         prank: document.getElementById('tab-prank'),
         weekly: document.getElementById('tab-weekly'),
         trivia: document.getElementById('tab-trivia'),
+        simulator: document.getElementById('tab-simulator'),
         chatroom: document.getElementById('tab-chatroom'),
         tracker: document.getElementById('tab-tracker'),
         adminpanel: document.getElementById('tab-adminpanel'),
         superadminpanel: document.getElementById('tab-superadminpanel')
     };
 
-    // Reset visibility and grid
+    // Reset: show all, clear any inline grid-column overrides
     Object.values(tabs).forEach(tab => {
         if (tab) {
             tab.classList.remove('hidden', 'hidden-tab');
             tab.style.display = '';
+            tab.style.gridColumn = 'auto';
         }
     });
-    if (tabs.trivia) tabs.trivia.style.gridColumn = '1 / -1';
-    if (tabs.chatroom) tabs.chatroom.style.gridColumn = '1 / -1';
 
-    if (adminEmailLower === 'rose') {
-        // Rose: Super Admin button visible full-width below Admin Tools
-        if (tabs.superadminpanel) {
-            tabs.superadminpanel.classList.remove('hidden');
-            tabs.superadminpanel.style.gridColumn = '1 / -1';
-        }
-        if (tabs.trivia) tabs.trivia.style.gridColumn = 'auto';
-        if (tabs.chatroom) tabs.chatroom.style.gridColumn = 'auto';
-        if (tabs.adminpanel) tabs.adminpanel.style.gridColumn = 'auto';
+    if (adminEmailLower === 'rose' || isSuper) {
+        // Row 3: Trivia | Simulator | Chatroom
+        // Row 4: Admin Tools | My Tracker | Super Admin
+        // All auto \u2014 nothing extra needed
     } else if (adminEmailLower === 'momo') {
         if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
         if (tabs.tracker) tabs.tracker.classList.add('hidden');
-        // Make trivia, secure chat, and admin tool side by side (span 1 each)
-        if (tabs.trivia) tabs.trivia.style.gridColumn = 'auto';
-        if (tabs.chatroom) tabs.chatroom.style.gridColumn = 'auto';
-        if (tabs.adminpanel) tabs.adminpanel.style.gridColumn = 'auto';
+        // Row 3: Trivia | Simulator | Chatroom
+        // Row 4: Admin Tools full-width (alone)
+        if (tabs.adminpanel) tabs.adminpanel.style.gridColumn = '1 / -1';
     } else if (isRestrictedAdmin) {
         if (tabs.adminpanel) tabs.adminpanel.classList.add('hidden');
         if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
         if (tabs.tracker) tabs.tracker.classList.add('hidden');
+        // Row 3: Trivia | Simulator | Chatroom (all auto)
     } else if (isRegularAdmin) {
         if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
         if (tabs.tracker) tabs.tracker.classList.add('hidden');
-        if (tabs.trivia) tabs.trivia.style.gridColumn = 'auto';
-        if (tabs.chatroom) tabs.chatroom.style.gridColumn = 'auto';
-        if (tabs.adminpanel) tabs.adminpanel.style.gridColumn = 'auto';
-    } else if (isSuper) {
-        // Keep everything visible, but adjust grid
-        if (tabs.trivia) tabs.trivia.style.gridColumn = 'auto';
-        if (tabs.chatroom) tabs.chatroom.style.gridColumn = 'auto';
-        if (tabs.adminpanel) tabs.adminpanel.style.gridColumn = 'auto';
+        // Row 3: Trivia | Simulator | Chatroom
+        // Row 4: Admin Tools full-width (alone)
+        if (tabs.adminpanel) tabs.adminpanel.style.gridColumn = '1 / -1';
     } else {
-        // Agent
+        // Agent: hide admin tabs
         if (tabs.adminpanel) tabs.adminpanel.classList.add('hidden');
         if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
-        if (tabs.trivia) tabs.trivia.style.gridColumn = 'auto';
-        if (tabs.chatroom) tabs.chatroom.style.gridColumn = 'span 2';
+        // Row 3: Trivia | Simulator | Chatroom
+        // Row 4: My Tracker full-width
+        if (tabs.tracker) tabs.tracker.style.gridColumn = '1 / -1';
     }
     
     // Enforce per-admin hidden tabs saved by Rose in Super Admin panel
