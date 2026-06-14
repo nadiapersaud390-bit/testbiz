@@ -641,6 +641,7 @@ document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
         <button onclick="requestWeekly()"        id="tab-weekly"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-lock text-[9px] mr-1 opacity-60"></i>Weekly</button>
         
         <button onclick="switchTab('trivia')"    id="tab-trivia"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);grid-column:1/-1;">🎯 Trivia Blitz</button>
+        <button onclick="switchTab('simulator')" id="tab-simulator" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#818cf8;border-color:rgba(129,140,248,0.3);grid-column:1/-1;">🎧 Call Simulator</button>
         <button onclick="switchTab('chatroom')" id="tab-chatroom" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#10b981;border-color:rgba(16,185,129,0.3);grid-column:1/-1;">💬 Chatroom</button>
         
         <!-- ADMIN/TRACKER TABS (Hidden by default, unlocked by setupRoleBasedTabs) -->
@@ -702,6 +703,7 @@ document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
     <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html"></div>
     <div id="agentstats-view" class="hidden" data-tab-src="tabs/agentstats.html"></div>
     <div id="tracker-view" class="hidden" data-tab-src="tabs/tracker.html"></div>
+    <div id="simulator-view" class="hidden" data-tab-src="tabs/simulator.html"></div>
 
 </div>
 
