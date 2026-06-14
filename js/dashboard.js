@@ -1181,7 +1181,7 @@ function switchTab(tab) {
 }
 
 function updateTabUI() {
-    ['daily', 'lookup', 'playbook', 'rebuttals', 'prank', 'weekly', 'trivia', 'chatroom', 'adminpanel', 'superadminpanel', 'agentstats', 'tracker'].forEach(t => {
+    ['daily', 'lookup', 'playbook', 'rebuttals', 'prank', 'weekly', 'trivia', 'chatroom', 'adminpanel', 'superadminpanel', 'agentstats', 'tracker', 'simulator'].forEach(t => {
         const b = document.getElementById('tab-' + t);
         if (!b) return;
 
@@ -1216,6 +1216,9 @@ function updateTabUI() {
                 b.style.color = '#10b981';
                 b.style.borderColor = 'rgba(16,185,129,0.3)';
             } else if (t === 'tracker') {
+                b.style.color = '#818cf8';
+                b.style.borderColor = 'rgba(129,140,248,0.3)';
+            } else if (t === 'simulator') {
                 b.style.color = '#818cf8';
                 b.style.borderColor = 'rgba(129,140,248,0.3)';
             } else if (t === 'adminpanel') {
