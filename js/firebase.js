@@ -401,6 +401,39 @@ window.deleteSimScript = async function(id) {
     if (!database || !id) return;
     await set(ref(database, 'simulator_scripts/' + id), null);
 };
+// ========== REBUTTALS (RTDB) ==========
+window.listenForRebuttals = function(callback) {
+    if (!database) { setTimeout(() => window.listenForRebuttals(callback), 500); return; }
+    onValue(ref(database, 'rebuttals'), (snapshot) => {
+        const data = snapshot.val() || {};
+        const arr = Object.entries(data).map(([k, v]) => ({ id: k, ...v }));
+        arr.sort((a, b) => ((a.order !== undefined ? a.order : 999) - (b.order !== undefined ? b.order : 999)));
+        if (callback) callback(arr);
+    });
+};
+
+window.saveRebuttal = async function(obj) {
+    if (!database) return { success: false };
+    try {
+        if (obj.id && obj.id !== '__new__') {
+            await set(ref(database, 'rebuttals/' + obj.id), obj);
+            return { success: true, id: obj.id };
+        } else {
+            delete obj.id;
+            const r = push(ref(database, 'rebuttals'));
+            obj.id = r.key;
+            await set(r, obj);
+            return { success: true, id: r.key };
+        }
+    } catch(e) { return { success: false, error: e.message }; }
+};
+
+window.deleteRebuttal = async function(id) {
+    if (!database || !id) return;
+    await set(ref(database, 'rebuttals/' + id), null);
+};
+
+
 
 // ========== BROADCAST FUNCTIONS ==========
 
