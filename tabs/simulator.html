@@ -173,123 +173,48 @@
         return               { label: 'Furious',     color: 'text-red-400',    bar: 'bg-red-500' };
     }
 
-    // ── Load scripts from Firebase (with fallback demo data) ──
+    // ── Load scripts from Firebase ──
     function simInit() {
         const listEl = document.getElementById('sim-script-list');
         const noEl   = document.getElementById('sim-no-scripts');
 
-        // DEMO FALLBACK: if Firebase listener isn't available, show realistic scripts so simulator works
-        function loadDemoScripts() {
-            const demoScripts = [
-                {
-                    id: "script_price_objection",
-                    title: "💰 Price Resistance",
-                    category: "Objection Handling",
-                    difficulty: "Medium",
-                    steps: [
-                        {
-                            label: "Initial objection",
-                            customer_lines: ["That's way too expensive.", "Your pricing is out of my budget.", "I can get this cheaper elsewhere."],
-                            options: [
-                                { text: "I understand budget is important. What if we could show you ROI within 3 months?", quality: "best" },
-                                { text: "Actually, we're the most affordable option in the market.", quality: "weak" },
-                                { text: "You get what you pay for. Cheap solutions break.", quality: "wrong" },
-                                { text: "Let me check if there are any current discounts available for you.", quality: "ok" }
-                            ],
-                            reaction_ok: "Hmm, ROI in 3 months? That's interesting...",
-                            reaction_weak: "I've heard that before. Not convinced.",
-                            reaction_wrong: "That's exactly the attitude I hate. I'm hanging up."
-                        },
-                        {
-                            label: "Value discussion",
-                            customer_lines: ["How is this different from what I already use?", "Everyone claims to be the best."],
-                            options: [
-                                { text: "Great question. Unlike competitors, we include 24/7 support and free onboarding.", quality: "best" },
-                                { text: "We're just better, trust me.", quality: "wrong" },
-                                { text: "Let me send you a comparison sheet after this call.", quality: "weak" },
-                                { text: "What's most important to you in a solution? I'll match it to our features.", quality: "ok" }
-                            ],
-                            reaction_ok: "Okay, I'm listening...",
-                            reaction_weak: "Just send an email, I'm busy.",
-                            reaction_wrong: "That's not an answer. Goodbye."
-                        }
-                    ]
-                },
-                {
-                    id: "script_competitor",
-                    title: "🏁 Competitor Battle",
-                    category: "Sales",
-                    difficulty: "Hard",
-                    steps: [
-                        {
-                            label: "Competitor mention",
-                            customer_lines: ["I'm already using [Competitor] and happy with it.", "Why should I switch from my current provider?"],
-                            options: [
-                                { text: "I respect that. What's one thing you wish their product could do better?", quality: "best" },
-                                { text: "They're actually struggling financially right now.", quality: "wrong" },
-                                { text: "We have a migration bonus that makes switching completely free.", quality: "ok" },
-                                { text: "Most of our clients came from them because we're faster.", quality: "weak" }
-                            ],
-                            reaction_ok: "A migration bonus? Tell me more.",
-                            reaction_weak: "Faster doesn't always mean better.",
-                            reaction_wrong: "That sounds like gossip. Not professional."
-                        }
-                    ]
-                },
-                {
-                    id: "script_timing",
-                    title: "⏰ Bad Timing",
-                    category: "Follow-up",
-                    difficulty: "Easy",
-                    steps: [
-                        {
-                            label: "Not a good time",
-                            customer_lines: ["Call back next month.", "I'm swamped right now, not interested.", "This is the worst time possible."],
-                            options: [
-                                { text: "Absolutely, I'll schedule a reminder. When's a good date for you?", quality: "best" },
-                                { text: "It only takes 2 minutes, I promise.", quality: "weak" },
-                                { text: "You said the same thing last time.", quality: "wrong" },
-                                { text: "I'll send a calendar invite. Does Tuesday at 2pm work?", quality: "ok" }
-                            ],
-                            reaction_ok: "Fine, send the invite for next Tuesday.",
-                            reaction_weak: "No means no. Stop pushing.",
-                            reaction_wrong: "And now you're blocked."
-                        }
-                    ]
-                }
-            ];
-            _scripts = demoScripts;
-            if (listEl) {
-                listEl.innerHTML = _scripts.map((sc, i) => {
-                    const diff = sc.difficulty || 'Medium';
-                    const diffCfg = {
-                        Easy:   'bg-green-500/15 text-green-400 border-green-500/30',
-                        Medium: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
-                        Hard:   'bg-red-500/15 text-red-400 border-red-500/30'
-                    }[diff] || 'bg-slate-500/15 text-slate-400 border-slate-500/30';
-                    return `<div onclick="simStart('${_esc(sc.id)}')"
-                        class="flex items-center gap-4 p-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-indigo-500/40 cursor-pointer transition-all group">
-                        <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center" style="background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);">
-                            <i class="fas fa-phone-alt text-indigo-400"></i>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-sm font-black text-white group-hover:text-indigo-300 transition truncate">${_esc(sc.title)}</div>
-                            <div class="text-[10px] text-slate-500 mt-0.5">${sc.steps.length} steps · ${_esc(sc.category || 'General')}</div>
-                        </div>
-                        <span class="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${diffCfg} flex-shrink-0">${diff}</span>
-                    </div>`;
-                }).join('');
-                if (noEl) noEl.classList.add('hidden');
+        function renderScriptList() {
+            if (!listEl) return;
+            if (!_scripts.length) {
+                listEl.innerHTML = '';
+                if (noEl) noEl.classList.remove('hidden');
+                return;
             }
+            if (noEl) noEl.classList.add('hidden');
+            listEl.innerHTML = _scripts.map((sc, i) => {
+                const diff = sc.difficulty || 'Medium';
+                const diffCfg = {
+                    Easy:   'bg-green-500/15 text-green-400 border-green-500/30',
+                    Medium: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+                    Hard:   'bg-red-500/15 text-red-400 border-red-500/30'
+                }[diff] || 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+                return `<div onclick="simStart('${_esc(sc.id)}')"
+                    class="flex items-center gap-4 p-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-indigo-500/40 cursor-pointer transition-all group">
+                    <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center" style="background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);">
+                        <i class="fas fa-phone-alt text-indigo-400"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-black text-white group-hover:text-indigo-300 transition truncate">${_esc(sc.title)}</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">${sc.steps.length} steps · ${_esc(sc.category || 'General')}</div>
+                    </div>
+                    <span class="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${diffCfg} flex-shrink-0">${diff}</span>
+                </div>`;
+            }).join('');
         }
 
-        // Try Firebase listener, fallback to demo after 1 second if not defined
+        // Wait for Firebase listener then subscribe — show empty state if no scripts
         function waitForFirebase(cb, tries) {
             tries = tries || 0;
             if (typeof window.listenForSimScripts === 'function') { cb(); return; }
             if (tries > 20) {
-                // No Firebase listener → use demo scripts
-                loadDemoScripts();
+                // Firebase not available — show empty state
+                _scripts = [];
+                renderScriptList();
                 return;
             }
             setTimeout(() => waitForFirebase(cb, tries + 1), 150);
@@ -297,39 +222,8 @@
 
         waitForFirebase(() => {
             window.listenForSimScripts(function(scripts) {
-                if (scripts && scripts.length > 0) {
-                    _scripts = (scripts || []).filter(s => s && s.title && s.steps && s.steps.length);
-                } else {
-                    // If Firebase returns empty, still fallback to demo
-                    loadDemoScripts();
-                    return;
-                }
-                if (!listEl) return;
-                if (!_scripts.length) {
-                    listEl.innerHTML = '';
-                    if (noEl) noEl.classList.remove('hidden');
-                    return;
-                }
-                if (noEl) noEl.classList.add('hidden');
-                listEl.innerHTML = _scripts.map((sc, i) => {
-                    const diff = sc.difficulty || 'Medium';
-                    const diffCfg = {
-                        Easy:   'bg-green-500/15 text-green-400 border-green-500/30',
-                        Medium: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
-                        Hard:   'bg-red-500/15 text-red-400 border-red-500/30'
-                    }[diff] || 'bg-slate-500/15 text-slate-400 border-slate-500/30';
-                    return `<div onclick="simStart('${_esc(sc.id)}')"
-                        class="flex items-center gap-4 p-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-indigo-500/40 cursor-pointer transition-all group">
-                        <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center" style="background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);">
-                            <i class="fas fa-phone-alt text-indigo-400"></i>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-sm font-black text-white group-hover:text-indigo-300 transition truncate">${_esc(sc.title)}</div>
-                            <div class="text-[10px] text-slate-500 mt-0.5">${sc.steps.length} steps · ${_esc(sc.category || 'General')}</div>
-                        </div>
-                        <span class="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${diffCfg} flex-shrink-0">${diff}</span>
-                    </div>`;
-                }).join('');
+                _scripts = (scripts || []).filter(s => s && s.title && s.steps && s.steps.length);
+                renderScriptList();
             });
         });
     }
