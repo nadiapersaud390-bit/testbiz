@@ -1,0 +1,512 @@
+<style>
+.sim-btn {
+    padding: 12px 18px;
+    border-radius: 14px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+.sim-opt-btn {
+    width: 100%;
+    text-align: left;
+    padding: 14px 18px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s;
+    border: 1.5px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    color: #cbd5e1;
+    line-height: 1.4;
+}
+.sim-opt-btn:hover { background: rgba(255,255,255,0.09); border-color: rgba(99,102,241,0.5); color: #fff; transform: translateX(3px); }
+.sim-opt-btn.selected-best  { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.5); color: #6ee7b7; }
+.sim-opt-btn.selected-ok    { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.5); color: #fcd34d; }
+.sim-opt-btn.selected-weak  { background: rgba(249,115,22,0.12); border-color: rgba(249,115,22,0.5); color: #fdba74; }
+.sim-opt-btn.selected-wrong { background: rgba(239,68,68,0.12);  border-color: rgba(239,68,68,0.5);  color: #fca5a5; }
+.mood-bar { height: 6px; border-radius: 99px; transition: width 0.6s ease, background 0.6s ease; }
+@keyframes sim-bubble-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+.sim-bubble { animation: sim-bubble-in 0.3s ease; }
+@keyframes sim-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+.sim-shake { animation: sim-shake 0.45s ease; }
+</style>
+
+<div class="max-w-2xl mx-auto px-2 py-4" id="simulator-root">
+
+    <!-- ── LOBBY ── -->
+    <div id="sim-lobby">
+        <div class="text-center mb-6">
+            <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3" style="background:rgba(99,102,241,0.15);border:1.5px solid rgba(99,102,241,0.35);">
+                <i class="fas fa-headset text-indigo-400 text-2xl"></i>
+            </div>
+            <h2 class="text-xl font-black text-white uppercase tracking-widest">Call Simulator</h2>
+            <p class="text-slate-500 text-xs mt-1">Practice real objections. Every run is different.</p>
+        </div>
+
+        <!-- Script picker -->
+        <div id="sim-script-list" class="space-y-3 mb-6">
+            <div class="text-center text-slate-600 py-8 text-xs font-bold uppercase tracking-widest">
+                <i class="fas fa-spinner fa-spin mr-2"></i>Loading scripts from Firebase…
+            </div>
+        </div>
+
+        <div id="sim-no-scripts" class="hidden text-center py-10">
+            <i class="fas fa-inbox text-3xl text-slate-700 mb-3 block"></i>
+            <div class="text-slate-500 text-sm font-bold">No training scripts available yet.</div>
+            <div class="text-slate-600 text-xs mt-1">Ask your Super Admin to upload one.</div>
+        </div>
+    </div>
+
+    <!-- ── ACTIVE SIMULATION ── -->
+    <div id="sim-active" class="hidden">
+
+        <!-- Header bar -->
+        <div class="flex items-center justify-between mb-4 gap-3">
+            <div>
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">Script</div>
+                <div id="sim-script-title" class="text-sm font-black text-white"></div>
+            </div>
+            <button onclick="simAbort()" class="text-[10px] font-black uppercase tracking-wider text-slate-500 hover:text-red-400 border border-white/10 hover:border-red-400/30 px-3 py-1.5 rounded-xl transition">
+                <i class="fas fa-times mr-1"></i>Quit
+            </button>
+        </div>
+
+        <!-- Mood / tension bar -->
+        <div class="bg-white/5 border border-white/[0.07] rounded-2xl p-3 mb-4">
+            <div class="flex justify-between items-center mb-1.5">
+                <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">Customer Tension</span>
+                <span id="sim-mood-label" class="text-[9px] font-black uppercase tracking-wider text-green-400">Calm</span>
+            </div>
+            <div class="w-full bg-white/5 rounded-full overflow-hidden">
+                <div id="sim-mood-bar" class="mood-bar bg-green-500" style="width:20%"></div>
+            </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="flex items-center gap-2 mb-4">
+            <div class="text-[9px] font-black uppercase tracking-widest text-slate-600">Step</div>
+            <div id="sim-progress-dots" class="flex gap-1.5 flex-1"></div>
+            <div id="sim-step-counter" class="text-[9px] font-black text-slate-500"></div>
+        </div>
+
+        <!-- Chat transcript -->
+        <div id="sim-transcript" class="space-y-3 mb-5 max-h-72 overflow-y-auto pr-1"></div>
+
+        <!-- Response options -->
+        <div id="sim-options-wrap" class="space-y-2">
+            <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Your response:</div>
+            <div id="sim-options"></div>
+        </div>
+
+        <!-- Thinking indicator -->
+        <div id="sim-thinking" class="hidden text-center py-4 text-slate-600 text-xs font-bold">
+            <i class="fas fa-ellipsis-h fa-beat mr-2"></i>Customer is responding…
+        </div>
+    </div>
+
+    <!-- ── RESULTS SCREEN ── -->
+    <div id="sim-results" class="hidden">
+        <div class="text-center mb-6">
+            <div id="sim-result-icon" class="text-5xl mb-3"></div>
+            <div id="sim-result-headline" class="text-lg font-black text-white uppercase tracking-widest"></div>
+            <div id="sim-result-sub" class="text-slate-500 text-xs mt-1"></div>
+        </div>
+
+        <!-- Score bar -->
+        <div class="bg-white/5 border border-white/[0.08] rounded-2xl p-4 mb-4">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Your Score</span>
+                <span id="sim-score-val" class="text-2xl font-black text-white"></span>
+            </div>
+            <div class="w-full bg-white/5 rounded-full overflow-hidden">
+                <div id="sim-score-bar" class="h-3 rounded-full transition-all duration-700" style="width:0%"></div>
+            </div>
+        </div>
+
+        <!-- Step-by-step breakdown -->
+        <div class="bg-white/5 border border-white/[0.08] rounded-2xl p-4 mb-4">
+            <div class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Step Breakdown</div>
+            <div id="sim-breakdown" class="space-y-3"></div>
+        </div>
+
+        <div class="flex gap-3">
+            <button onclick="simRestart()" class="sim-btn flex-1 justify-center" style="background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.4);color:#a5b4fc;">
+                <i class="fas fa-redo"></i> Try Again
+            </button>
+            <button onclick="simBackToLobby()" class="sim-btn flex-1 justify-center" style="background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.12);color:#94a3b8;">
+                <i class="fas fa-list"></i> All Scripts
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // ── State ──────────────────────────────────────────────
+    let _scripts      = [];       // all Firebase scripts
+    let _activeScript = null;     // selected script object
+    let _steps        = [];       // shuffled steps for this run
+    let _stepIdx      = 0;        // current step index
+    let _tension      = 0;        // 0–100 tension level
+    let _history      = [];       // { stepLabel, chosen, quality, idealText }
+    let _customerMood = 'Calm';   // Calm / Skeptical / Frustrated / In a rush
+    let _scriptIdForRestart = null;
+
+    const MOODS = ['Calm', 'Skeptical', 'Frustrated', 'In a rush'];
+
+    // ── Tension config ────────────────────────────────────
+    const TENSION_DELTA = { best: -5, ok: 5, weak: 18, wrong: 30 };
+    const TENSION_INIT  = { Calm: 15, Skeptical: 35, Frustrated: 55, 'In a rush': 45 };
+
+    function _tensionLabel(t) {
+        if (t < 25)  return { label: 'Calm',        color: 'text-green-400',  bar: 'bg-green-500' };
+        if (t < 50)  return { label: 'Warming Up',  color: 'text-yellow-400', bar: 'bg-yellow-500' };
+        if (t < 75)  return { label: 'Frustrated',  color: 'text-orange-400', bar: 'bg-orange-500' };
+        return               { label: 'Furious',     color: 'text-red-400',    bar: 'bg-red-500' };
+    }
+
+    // ── Load scripts from Firebase ───────────────────────
+    function simInit() {
+        const listEl = document.getElementById('sim-script-list');
+        const noEl   = document.getElementById('sim-no-scripts');
+
+        function waitForFirebase(cb, tries) {
+            tries = tries || 0;
+            if (typeof window.listenForSimScripts === 'function') { cb(); return; }
+            if (tries > 30) {
+                if (listEl) listEl.innerHTML = '<div class="text-center text-red-400 text-xs font-bold py-6">Could not connect to Firebase.</div>';
+                return;
+            }
+            setTimeout(() => waitForFirebase(cb, tries + 1), 300);
+        }
+
+        waitForFirebase(() => {
+            window.listenForSimScripts(function(scripts) {
+                _scripts = (scripts || []).filter(s => s && s.title && s.steps && s.steps.length);
+                if (!listEl) return;
+                if (!_scripts.length) {
+                    listEl.innerHTML = '';
+                    if (noEl) noEl.classList.remove('hidden');
+                    return;
+                }
+                if (noEl) noEl.classList.add('hidden');
+                listEl.innerHTML = _scripts.map((sc, i) => {
+                    const diff = sc.difficulty || 'Medium';
+                    const diffCfg = {
+                        Easy:   'bg-green-500/15 text-green-400 border-green-500/30',
+                        Medium: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+                        Hard:   'bg-red-500/15 text-red-400 border-red-500/30'
+                    }[diff] || 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+                    return `<div onclick="simStart('${_esc(sc.id)}')"
+                        class="flex items-center gap-4 p-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-indigo-500/40 cursor-pointer transition-all group">
+                        <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center" style="background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);">
+                            <i class="fas fa-phone-alt text-indigo-400"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-black text-white group-hover:text-indigo-300 transition truncate">${_esc(sc.title)}</div>
+                            <div class="text-[10px] text-slate-500 mt-0.5">${sc.steps.length} steps · ${_esc(sc.category || 'General')}</div>
+                        </div>
+                        <span class="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${diffCfg} flex-shrink-0">${diff}</span>
+                    </div>`;
+                }).join('');
+            });
+        });
+    }
+
+    // ── Start a run ──────────────────────────────────────
+    window.simStart = function(scriptId) {
+        const sc = _scripts.find(s => s.id === scriptId);
+        if (!sc) return;
+        _scriptIdForRestart = scriptId;
+        _activeScript = sc;
+
+        // Pick random mood
+        _customerMood = MOODS[Math.floor(Math.random() * MOODS.length)];
+        _tension = TENSION_INIT[_customerMood] || 20;
+
+        // Shuffle steps
+        _steps = _shuffleSteps(sc.steps);
+        _stepIdx = 0;
+        _history = [];
+
+        _showSection('sim-active');
+        document.getElementById('sim-script-title').textContent = sc.title;
+        _renderTranscript();
+        _renderMood();
+        _renderProgress();
+        _renderStep();
+    };
+
+    function _shuffleSteps(steps) {
+        // Deep-clone and shuffle. For each step, shuffle its customer_lines variants.
+        const cloned = JSON.parse(JSON.stringify(steps));
+        // Fisher-Yates on the steps array
+        for (let i = cloned.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [cloned[i], cloned[j]] = [cloned[j], cloned[i]];
+        }
+        return cloned;
+    }
+
+    // ── Render one step ──────────────────────────────────
+    function _renderStep() {
+        const step = _steps[_stepIdx];
+        if (!step) { _showResults(); return; }
+
+        // Pick a random customer line variant based on tension
+        const lines = step.customer_lines || [step.customer_line || ''];
+        const tensorIdx = _tension > 60 ? (lines.length - 1) : Math.floor(Math.random() * lines.length);
+        const customerLine = lines[Math.min(tensorIdx, lines.length - 1)] || lines[0];
+
+        // Add customer bubble to transcript
+        _addBubble('customer', customerLine);
+
+        // Shuffle options (but keep quality tags with them)
+        const opts = _shuffleOptions(step.options || []);
+
+        const optWrap = document.getElementById('sim-options');
+        if (!optWrap) return;
+        optWrap.innerHTML = opts.map((opt, i) => {
+            const qualityMap = { best: '🟢', ok: '🟡', weak: '🟠', wrong: '🔴' };
+            return `<button class="sim-opt-btn" onclick="simPick(${i})"
+                data-quality="${_esc(opt.quality)}" data-idx="${i}">
+                ${_esc(opt.text)}
+            </button>`;
+        }).join('');
+
+        // Store opts on window for pick handler
+        window._simCurrentOpts = opts;
+        window._simCurrentStep = step;
+        window._simCustomerLine = customerLine;
+    }
+
+    function _shuffleOptions(opts) {
+        const cloned = opts.slice();
+        for (let i = cloned.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [cloned[i], cloned[j]] = [cloned[j], cloned[i]];
+        }
+        return cloned;
+    }
+
+    // ── Agent picks a response ───────────────────────────
+    window.simPick = function(optIdx) {
+        const opts    = window._simCurrentOpts;
+        const step    = window._simCurrentStep;
+        const chosen  = opts[optIdx];
+        if (!chosen) return;
+
+        // Highlight chosen button
+        const btns = document.querySelectorAll('#sim-options .sim-opt-btn');
+        btns.forEach((b, i) => {
+            if (i === optIdx) {
+                const cls = { best:'selected-best', ok:'selected-ok', weak:'selected-weak', wrong:'selected-wrong' }[chosen.quality] || 'selected-ok';
+                b.classList.add(cls);
+            }
+            b.disabled = true;
+        });
+
+        // Update tension
+        const delta = TENSION_DELTA[chosen.quality] || 10;
+        _tension = Math.max(0, Math.min(100, _tension + delta));
+        _renderMood();
+
+        // Add agent bubble
+        _addBubble('agent', chosen.text);
+
+        // Record history
+        const idealOpt = (step.options || []).find(o => o.quality === 'best');
+        _history.push({
+            stepLabel:   step.label || ('Step ' + (_stepIdx + 1)),
+            chosen:      chosen,
+            quality:     chosen.quality,
+            idealText:   idealOpt ? idealOpt.text : chosen.text,
+            customerLine: window._simCustomerLine
+        });
+
+        // Update progress dot
+        _updateProgressDot(_stepIdx, chosen.quality);
+
+        // Show thinking then next step
+        const thinking = document.getElementById('sim-thinking');
+        const optWrap  = document.getElementById('sim-options-wrap');
+        if (thinking) thinking.classList.remove('hidden');
+        if (optWrap)  optWrap.classList.add('hidden');
+
+        // Shake on bad picks
+        if (chosen.quality === 'wrong' || chosen.quality === 'weak') {
+            const active = document.getElementById('sim-active');
+            if (active) { active.classList.add('sim-shake'); setTimeout(() => active.classList.remove('sim-shake'), 500); }
+        }
+
+        // Add customer reaction bubble for non-best picks
+        const reactions = {
+            ok:    step.reaction_ok    || null,
+            weak:  step.reaction_weak  || "I'm not really convinced by that.",
+            wrong: step.reaction_wrong || "That's not what I want to hear. Let me stop you there."
+        };
+        const reaction = reactions[chosen.quality];
+
+        setTimeout(() => {
+            if (thinking) thinking.classList.add('hidden');
+            if (optWrap)  optWrap.classList.remove('hidden');
+
+            if (reaction) _addBubble('customer', reaction);
+
+            _stepIdx++;
+            _renderProgress();
+
+            if (_stepIdx >= _steps.length) {
+                setTimeout(_showResults, 600);
+            } else {
+                setTimeout(_renderStep, reaction ? 700 : 300);
+            }
+        }, 900);
+    };
+
+    // ── Transcript bubbles ───────────────────────────────
+    function _addBubble(who, text) {
+        const t = document.getElementById('sim-transcript');
+        if (!t) return;
+        const isAgent = who === 'agent';
+        const div = document.createElement('div');
+        div.className = 'sim-bubble flex ' + (isAgent ? 'justify-end' : 'justify-start');
+        div.innerHTML = `<div class="max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-snug ${
+            isAgent
+            ? 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-100 rounded-br-sm'
+            : 'bg-white/[0.06] border border-white/[0.08] text-slate-200 rounded-bl-sm'
+        }">
+            <div class="text-[8px] font-black uppercase tracking-wider mb-1 ${isAgent ? 'text-indigo-400' : 'text-slate-500'}">${isAgent ? 'You' : '👤 Customer'}</div>
+            ${_esc(text)}
+        </div>`;
+        t.appendChild(div);
+        t.scrollTop = t.scrollHeight;
+    }
+
+    // ── Mood bar ─────────────────────────────────────────
+    function _renderMood() {
+        const bar   = document.getElementById('sim-mood-bar');
+        const label = document.getElementById('sim-mood-label');
+        const cfg   = _tensionLabel(_tension);
+        if (bar)   { bar.style.width = _tension + '%'; bar.className = 'mood-bar ' + cfg.bar; }
+        if (label) { label.textContent = cfg.label; label.className = 'text-[9px] font-black uppercase tracking-wider ' + cfg.color; }
+    }
+
+    // ── Progress dots ────────────────────────────────────
+    function _renderProgress() {
+        const wrap = document.getElementById('sim-progress-dots');
+        const ctr  = document.getElementById('sim-step-counter');
+        if (!wrap) return;
+        wrap.innerHTML = _steps.map((_, i) => {
+            let cls = 'w-2 h-2 rounded-full ';
+            if (i < _stepIdx) cls += 'bg-slate-500';
+            else if (i === _stepIdx) cls += 'bg-indigo-400 scale-110';
+            else cls += 'bg-white/10';
+            return `<div class="${cls}" id="sim-dot-${i}"></div>`;
+        }).join('');
+        if (ctr) ctr.textContent = Math.min(_stepIdx + 1, _steps.length) + ' / ' + _steps.length;
+    }
+
+    function _updateProgressDot(idx, quality) {
+        const dot = document.getElementById('sim-dot-' + idx);
+        if (!dot) return;
+        const colorMap = { best: 'bg-green-400', ok: 'bg-yellow-400', weak: 'bg-orange-400', wrong: 'bg-red-400' };
+        dot.className = 'w-2 h-2 rounded-full ' + (colorMap[quality] || 'bg-slate-400');
+    }
+
+    function _renderTranscript() {
+        const t = document.getElementById('sim-transcript');
+        if (t) t.innerHTML = '';
+        // Intro bubble
+        const mood = _customerMood;
+        const intros = {
+            Calm:         'Yeah hello, I got your number from somewhere. What\'s this about?',
+            Skeptical:    'Hello? I\'ve been getting a lot of calls like this. Make it quick.',
+            Frustrated:   'I already told someone I\'m not interested. Why are you still calling?',
+            'In a rush':  'Yeah what is it? I\'m in the middle of something, make it fast.'
+        };
+        _addBubble('customer', intros[mood] || intros.Calm);
+    }
+
+    // ── Results ──────────────────────────────────────────
+    function _showResults() {
+        const total  = _history.length;
+        const points = { best: 3, ok: 2, weak: 1, wrong: 0 };
+        const earned = _history.reduce((s, h) => s + (points[h.quality] || 0), 0);
+        const max    = total * 3;
+        const pct    = max > 0 ? Math.round((earned / max) * 100) : 0;
+
+        _showSection('sim-results');
+
+        const iconEl    = document.getElementById('sim-result-icon');
+        const headEl    = document.getElementById('sim-result-headline');
+        const subEl     = document.getElementById('sim-result-sub');
+        const scoreVal  = document.getElementById('sim-score-val');
+        const scoreBar  = document.getElementById('sim-score-bar');
+        const breakdown = document.getElementById('sim-breakdown');
+
+        if (pct >= 80) { if(iconEl) iconEl.textContent='🏆'; if(headEl) headEl.textContent='Excellent Call!'; if(subEl) subEl.textContent='You nailed it. That customer would have converted.'; }
+        else if (pct >= 55) { if(iconEl) iconEl.textContent='👍'; if(headEl) headEl.textContent='Solid Effort'; if(subEl) subEl.textContent='Good call — a few tweaks and you\'ll close consistently.'; }
+        else if (pct >= 30) { if(iconEl) iconEl.textContent='📞'; if(headEl) headEl.textContent='Needs Work'; if(subEl) subEl.textContent='The customer wasn\'t convinced. Review the breakdown below.'; }
+        else { if(iconEl) iconEl.textContent='😬'; if(headEl) headEl.textContent='Rough Call'; if(subEl) subEl.textContent='Keep practicing — even the best reps started here.'; }
+
+        if (scoreVal) scoreVal.textContent = pct + '%';
+        if (scoreBar) {
+            scoreBar.style.width = '0%';
+            const barColor = pct >= 80 ? '#10b981' : pct >= 55 ? '#f59e0b' : pct >= 30 ? '#f97316' : '#ef4444';
+            scoreBar.style.background = barColor;
+            setTimeout(() => { scoreBar.style.width = pct + '%'; }, 100);
+        }
+
+        if (breakdown) {
+            const qCfg = {
+                best:  { icon:'fa-check-circle', color:'text-green-400',  bg:'bg-green-500/10',  border:'border-green-500/25',  label:'Best Response' },
+                ok:    { icon:'fa-check-circle', color:'text-yellow-400', bg:'bg-yellow-500/10', border:'border-yellow-500/25', label:'Decent' },
+                weak:  { icon:'fa-exclamation-circle', color:'text-orange-400', bg:'bg-orange-500/10', border:'border-orange-500/25', label:'Weak' },
+                wrong: { icon:'fa-times-circle', color:'text-red-400',    bg:'bg-red-500/10',    border:'border-red-500/25',    label:'Wrong Response' }
+            };
+            breakdown.innerHTML = _history.map((h, i) => {
+                const cfg = qCfg[h.quality] || qCfg.ok;
+                const showIdeal = (h.quality !== 'best');
+                return `<div class="rounded-xl border ${cfg.border} ${cfg.bg} p-3">
+                    <div class="flex items-start justify-between gap-2 mb-1">
+                        <div class="text-[9px] font-black uppercase tracking-widest text-slate-500">Step ${i+1} · ${_esc(h.stepLabel)}</div>
+                        <span class="text-[8px] font-black uppercase tracking-wider ${cfg.color} flex items-center gap-1 flex-shrink-0"><i class="fas ${cfg.icon} text-[9px]"></i>${cfg.label}</span>
+                    </div>
+                    <div class="text-[10px] text-slate-400 italic mb-1.5">"${_esc(h.customerLine)}"</div>
+                    <div class="text-[11px] ${cfg.color} font-semibold">You said: "${_esc(h.chosen.text)}"</div>
+                    ${showIdeal ? `<div class="text-[10px] text-green-400 mt-1.5 font-semibold">✓ Better: "${_esc(h.idealText)}"</div>` : ''}
+                </div>`;
+            }).join('');
+        }
+    }
+
+    // ── Controls ─────────────────────────────────────────
+    window.simAbort      = function() { simBackToLobby(); };
+    window.simBackToLobby = function() { _showSection('sim-lobby'); };
+    window.simRestart    = function() { if (_scriptIdForRestart) simStart(_scriptIdForRestart); };
+
+    function _showSection(id) {
+        ['sim-lobby','sim-active','sim-results'].forEach(s => {
+            const el = document.getElementById(s);
+            if (el) el.classList.toggle('hidden', s !== id);
+        });
+    }
+
+    function _esc(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Boot ─────────────────────────────────────────────
+    simInit();
+})();
+</script>
