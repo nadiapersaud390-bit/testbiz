@@ -775,7 +775,7 @@ async function loadTab(tabId) {
 // Pre-fetch ALL tabs immediately on page load (background, no DOM changes)
 function prefetchAllTabs() {
     ['lookup-view','playbook-view','rebuttals-view','prank-view',
-     'trivia-view','chatroom-view','adminpanel-view','superadminpanel-view','tracker-view'
+     'trivia-view','chatroom-view','adminpanel-view','superadminpanel-view','tracker-view','simulator-view'
     ].forEach(prefetchTab);
 }
 
@@ -790,6 +790,7 @@ window.switchTab = function(tab) {
         chatroom: 'chatroom-view', adminpanel: 'adminpanel-view',
         superadminpanel: 'superadminpanel-view', agentstats: 'agentstats-view',
         agentprofiles: 'agentprofiles-view', tracker: 'tracker-view',
+        simulator: 'simulator-view',
         weekly: 'leaderboard-view', prevweek: 'leaderboard-view'
     };
 
