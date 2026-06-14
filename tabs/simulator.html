@@ -173,24 +173,137 @@
         return               { label: 'Furious',     color: 'text-red-400',    bar: 'bg-red-500' };
     }
 
-    // ── Load scripts from Firebase ───────────────────────
+    // ── Load scripts from Firebase (with fallback demo data) ──
     function simInit() {
         const listEl = document.getElementById('sim-script-list');
         const noEl   = document.getElementById('sim-no-scripts');
 
+        // DEMO FALLBACK: if Firebase listener isn't available, show realistic scripts so simulator works
+        function loadDemoScripts() {
+            const demoScripts = [
+                {
+                    id: "script_price_objection",
+                    title: "💰 Price Resistance",
+                    category: "Objection Handling",
+                    difficulty: "Medium",
+                    steps: [
+                        {
+                            label: "Initial objection",
+                            customer_lines: ["That's way too expensive.", "Your pricing is out of my budget.", "I can get this cheaper elsewhere."],
+                            options: [
+                                { text: "I understand budget is important. What if we could show you ROI within 3 months?", quality: "best" },
+                                { text: "Actually, we're the most affordable option in the market.", quality: "weak" },
+                                { text: "You get what you pay for. Cheap solutions break.", quality: "wrong" },
+                                { text: "Let me check if there are any current discounts available for you.", quality: "ok" }
+                            ],
+                            reaction_ok: "Hmm, ROI in 3 months? That's interesting...",
+                            reaction_weak: "I've heard that before. Not convinced.",
+                            reaction_wrong: "That's exactly the attitude I hate. I'm hanging up."
+                        },
+                        {
+                            label: "Value discussion",
+                            customer_lines: ["How is this different from what I already use?", "Everyone claims to be the best."],
+                            options: [
+                                { text: "Great question. Unlike competitors, we include 24/7 support and free onboarding.", quality: "best" },
+                                { text: "We're just better, trust me.", quality: "wrong" },
+                                { text: "Let me send you a comparison sheet after this call.", quality: "weak" },
+                                { text: "What's most important to you in a solution? I'll match it to our features.", quality: "ok" }
+                            ],
+                            reaction_ok: "Okay, I'm listening...",
+                            reaction_weak: "Just send an email, I'm busy.",
+                            reaction_wrong: "That's not an answer. Goodbye."
+                        }
+                    ]
+                },
+                {
+                    id: "script_competitor",
+                    title: "🏁 Competitor Battle",
+                    category: "Sales",
+                    difficulty: "Hard",
+                    steps: [
+                        {
+                            label: "Competitor mention",
+                            customer_lines: ["I'm already using [Competitor] and happy with it.", "Why should I switch from my current provider?"],
+                            options: [
+                                { text: "I respect that. What's one thing you wish their product could do better?", quality: "best" },
+                                { text: "They're actually struggling financially right now.", quality: "wrong" },
+                                { text: "We have a migration bonus that makes switching completely free.", quality: "ok" },
+                                { text: "Most of our clients came from them because we're faster.", quality: "weak" }
+                            ],
+                            reaction_ok: "A migration bonus? Tell me more.",
+                            reaction_weak: "Faster doesn't always mean better.",
+                            reaction_wrong: "That sounds like gossip. Not professional."
+                        }
+                    ]
+                },
+                {
+                    id: "script_timing",
+                    title: "⏰ Bad Timing",
+                    category: "Follow-up",
+                    difficulty: "Easy",
+                    steps: [
+                        {
+                            label: "Not a good time",
+                            customer_lines: ["Call back next month.", "I'm swamped right now, not interested.", "This is the worst time possible."],
+                            options: [
+                                { text: "Absolutely, I'll schedule a reminder. When's a good date for you?", quality: "best" },
+                                { text: "It only takes 2 minutes, I promise.", quality: "weak" },
+                                { text: "You said the same thing last time.", quality: "wrong" },
+                                { text: "I'll send a calendar invite. Does Tuesday at 2pm work?", quality: "ok" }
+                            ],
+                            reaction_ok: "Fine, send the invite for next Tuesday.",
+                            reaction_weak: "No means no. Stop pushing.",
+                            reaction_wrong: "And now you're blocked."
+                        }
+                    ]
+                }
+            ];
+            _scripts = demoScripts;
+            if (listEl) {
+                listEl.innerHTML = _scripts.map((sc, i) => {
+                    const diff = sc.difficulty || 'Medium';
+                    const diffCfg = {
+                        Easy:   'bg-green-500/15 text-green-400 border-green-500/30',
+                        Medium: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+                        Hard:   'bg-red-500/15 text-red-400 border-red-500/30'
+                    }[diff] || 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+                    return `<div onclick="simStart('${_esc(sc.id)}')"
+                        class="flex items-center gap-4 p-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-indigo-500/40 cursor-pointer transition-all group">
+                        <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center" style="background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);">
+                            <i class="fas fa-phone-alt text-indigo-400"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-black text-white group-hover:text-indigo-300 transition truncate">${_esc(sc.title)}</div>
+                            <div class="text-[10px] text-slate-500 mt-0.5">${sc.steps.length} steps · ${_esc(sc.category || 'General')}</div>
+                        </div>
+                        <span class="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${diffCfg} flex-shrink-0">${diff}</span>
+                    </div>`;
+                }).join('');
+                if (noEl) noEl.classList.add('hidden');
+            }
+        }
+
+        // Try Firebase listener, fallback to demo after 1 second if not defined
         function waitForFirebase(cb, tries) {
             tries = tries || 0;
             if (typeof window.listenForSimScripts === 'function') { cb(); return; }
-            if (tries > 30) {
-                if (listEl) listEl.innerHTML = '<div class="text-center text-red-400 text-xs font-bold py-6">Could not connect to Firebase.</div>';
+            if (tries > 20) {
+                // No Firebase listener → use demo scripts
+                loadDemoScripts();
                 return;
             }
-            setTimeout(() => waitForFirebase(cb, tries + 1), 300);
+            setTimeout(() => waitForFirebase(cb, tries + 1), 150);
         }
 
         waitForFirebase(() => {
             window.listenForSimScripts(function(scripts) {
-                _scripts = (scripts || []).filter(s => s && s.title && s.steps && s.steps.length);
+                if (scripts && scripts.length > 0) {
+                    _scripts = (scripts || []).filter(s => s && s.title && s.steps && s.steps.length);
+                } else {
+                    // If Firebase returns empty, still fallback to demo
+                    loadDemoScripts();
+                    return;
+                }
                 if (!listEl) return;
                 if (!_scripts.length) {
                     listEl.innerHTML = '';
@@ -246,9 +359,7 @@
     };
 
     function _shuffleSteps(steps) {
-        // Deep-clone and shuffle. For each step, shuffle its customer_lines variants.
         const cloned = JSON.parse(JSON.stringify(steps));
-        // Fisher-Yates on the steps array
         for (let i = cloned.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [cloned[i], cloned[j]] = [cloned[j], cloned[i]];
@@ -261,28 +372,22 @@
         const step = _steps[_stepIdx];
         if (!step) { _showResults(); return; }
 
-        // Pick a random customer line variant based on tension
         const lines = step.customer_lines || [step.customer_line || ''];
         const tensorIdx = _tension > 60 ? (lines.length - 1) : Math.floor(Math.random() * lines.length);
         const customerLine = lines[Math.min(tensorIdx, lines.length - 1)] || lines[0];
 
-        // Add customer bubble to transcript
         _addBubble('customer', customerLine);
 
-        // Shuffle options (but keep quality tags with them)
         const opts = _shuffleOptions(step.options || []);
-
         const optWrap = document.getElementById('sim-options');
         if (!optWrap) return;
         optWrap.innerHTML = opts.map((opt, i) => {
-            const qualityMap = { best: '🟢', ok: '🟡', weak: '🟠', wrong: '🔴' };
             return `<button class="sim-opt-btn" onclick="simPick(${i})"
                 data-quality="${_esc(opt.quality)}" data-idx="${i}">
                 ${_esc(opt.text)}
             </button>`;
         }).join('');
 
-        // Store opts on window for pick handler
         window._simCurrentOpts = opts;
         window._simCurrentStep = step;
         window._simCustomerLine = customerLine;
@@ -304,7 +409,6 @@
         const chosen  = opts[optIdx];
         if (!chosen) return;
 
-        // Highlight chosen button
         const btns = document.querySelectorAll('#sim-options .sim-opt-btn');
         btns.forEach((b, i) => {
             if (i === optIdx) {
@@ -314,15 +418,12 @@
             b.disabled = true;
         });
 
-        // Update tension
         const delta = TENSION_DELTA[chosen.quality] || 10;
         _tension = Math.max(0, Math.min(100, _tension + delta));
         _renderMood();
 
-        // Add agent bubble
         _addBubble('agent', chosen.text);
 
-        // Record history
         const idealOpt = (step.options || []).find(o => o.quality === 'best');
         _history.push({
             stepLabel:   step.label || ('Step ' + (_stepIdx + 1)),
@@ -332,22 +433,18 @@
             customerLine: window._simCustomerLine
         });
 
-        // Update progress dot
         _updateProgressDot(_stepIdx, chosen.quality);
 
-        // Show thinking then next step
         const thinking = document.getElementById('sim-thinking');
         const optWrap  = document.getElementById('sim-options-wrap');
         if (thinking) thinking.classList.remove('hidden');
         if (optWrap)  optWrap.classList.add('hidden');
 
-        // Shake on bad picks
         if (chosen.quality === 'wrong' || chosen.quality === 'weak') {
             const active = document.getElementById('sim-active');
             if (active) { active.classList.add('sim-shake'); setTimeout(() => active.classList.remove('sim-shake'), 500); }
         }
 
-        // Add customer reaction bubble for non-best picks
         const reactions = {
             ok:    step.reaction_ok    || null,
             weak:  step.reaction_weak  || "I'm not really convinced by that.",
@@ -372,7 +469,6 @@
         }, 900);
     };
 
-    // ── Transcript bubbles ───────────────────────────────
     function _addBubble(who, text) {
         const t = document.getElementById('sim-transcript');
         if (!t) return;
@@ -391,7 +487,6 @@
         t.scrollTop = t.scrollHeight;
     }
 
-    // ── Mood bar ─────────────────────────────────────────
     function _renderMood() {
         const bar   = document.getElementById('sim-mood-bar');
         const label = document.getElementById('sim-mood-label');
@@ -400,7 +495,6 @@
         if (label) { label.textContent = cfg.label; label.className = 'text-[9px] font-black uppercase tracking-wider ' + cfg.color; }
     }
 
-    // ── Progress dots ────────────────────────────────────
     function _renderProgress() {
         const wrap = document.getElementById('sim-progress-dots');
         const ctr  = document.getElementById('sim-step-counter');
@@ -425,7 +519,6 @@
     function _renderTranscript() {
         const t = document.getElementById('sim-transcript');
         if (t) t.innerHTML = '';
-        // Intro bubble
         const mood = _customerMood;
         const intros = {
             Calm:         'Yeah hello, I got your number from somewhere. What\'s this about?',
@@ -436,7 +529,6 @@
         _addBubble('customer', intros[mood] || intros.Calm);
     }
 
-    // ── Results ──────────────────────────────────────────
     function _showResults() {
         const total  = _history.length;
         const points = { best: 3, ok: 2, weak: 1, wrong: 0 };
@@ -489,7 +581,6 @@
         }
     }
 
-    // ── Controls ─────────────────────────────────────────
     window.simAbort      = function() { simBackToLobby(); };
     window.simBackToLobby = function() { _showSection('sim-lobby'); };
     window.simRestart    = function() { if (_scriptIdForRestart) simStart(_scriptIdForRestart); };
@@ -506,7 +597,6 @@
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    // ── Boot ─────────────────────────────────────────────
     simInit();
 })();
 </script>
