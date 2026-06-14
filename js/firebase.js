@@ -369,6 +369,39 @@ async function _fetchAdminLocation() {
     }
 }
 
+// ========== CALL SIMULATOR SCRIPTS (RTDB) ==========
+window.listenForSimScripts = function(callback) {
+    if (!database) { setTimeout(() => window.listenForSimScripts(callback), 500); return; }
+    onValue(ref(database, 'simulator_scripts'), (snapshot) => {
+        const data = snapshot.val() || {};
+        const arr = Object.entries(data).map(([k, v]) => ({ id: k, ...v }));
+        arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        if (callback) callback(arr);
+    });
+};
+
+window.saveSimScript = async function(scriptObj) {
+    if (!database) return { success: false };
+    try {
+        let r;
+        if (scriptObj.id) {
+            r = ref(database, 'simulator_scripts/' + scriptObj.id);
+            await set(r, scriptObj);
+            return { success: true, id: scriptObj.id };
+        } else {
+            r = push(ref(database, 'simulator_scripts'));
+            scriptObj.id = r.key;
+            await set(r, scriptObj);
+            return { success: true, id: r.key };
+        }
+    } catch(e) { return { success: false, error: e.message }; }
+};
+
+window.deleteSimScript = async function(id) {
+    if (!database || !id) return;
+    await set(ref(database, 'simulator_scripts/' + id), null);
+};
+
 // ========== BROADCAST FUNCTIONS ==========
 
 // Function to show broadcast bar
@@ -529,6 +562,16 @@ window.clearFirebaseActivityLogs = async function() {
 // Alias used by superadminpanel.html
 window.listenToActivityLogs = function(callback) {
     window.listenForActivityLogs(callback);
+};
+
+// Real-time listener for live admin sessions (Who's Online panel)
+window.listenForAdminSessions = function(callback) {
+    if (!database) { setTimeout(() => window.listenForAdminSessions(callback), 500); return; }
+    onValue(ref(database, 'admin_sessions'), (snapshot) => {
+        const data = snapshot.val() || {};
+        const sessions = Object.entries(data).map(([key, val]) => ({ key, ...val }));
+        if (callback) callback(sessions);
+    });
 };
 
 window.listenForAdmins = function(callback) {
