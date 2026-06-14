@@ -713,8 +713,9 @@ function render() {
     const asView = document.getElementById('agentstats-view');
     const trackerView = document.getElementById('tracker-view');
     const crView = document.getElementById('chatroom-view');
+    const simView = document.getElementById('simulator-view');
 
-    [lView, pView, luView, prView, rbView, trView, adView, sadView, asView, trackerView, crView].forEach(v => { if (v) v.classList.add('hidden'); });
+    [lView, pView, luView, prView, rbView, trView, adView, sadView, asView, trackerView, crView, simView].forEach(v => { if (v) v.classList.add('hidden'); });
 
     if (currentTab === 'playbook') { pView.classList.remove('hidden'); return; }
     if (currentTab === 'lookup') { luView.classList.remove('hidden'); return; }
@@ -726,6 +727,7 @@ function render() {
     if (currentTab === 'superadminpanel') { if (sadView) sadView.classList.remove('hidden'); return; }
     if (currentTab === 'agentstats') { if (asView) asView.classList.remove('hidden'); return; }
     if (currentTab === 'tracker') { if (trackerView) trackerView.classList.remove('hidden'); return; }
+    if (currentTab === 'simulator') { if (simView) simView.classList.remove('hidden'); return; }
 
     lView.classList.remove('hidden');
 
