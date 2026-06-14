@@ -274,6 +274,7 @@
         <button onclick="switchSupTab('logs')" id="suptab-logs" class="sup-tab-btn">Activity Logs</button>
         <button onclick="switchSupTab('users')" id="suptab-users" class="sup-tab-btn">User Mgmt</button>
         <button onclick="switchSupTab('pranklookup')" id="suptab-pranklookup" class="sup-tab-btn">🚨 Prank Numbers</button>
+        <button onclick="switchSupTab('simulator')" id="suptab-simulator" class="sup-tab-btn">🎧 Simulator Scripts</button>
     </div>
 
     <!-- OVERVIEW TAB -->
@@ -651,6 +652,20 @@
             </button>
         </div>
 
+        <!-- Who's Online Now panel -->
+        <div class="rounded-2xl border border-white/[0.08] bg-black/20 mb-4 overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-circle text-green-400 text-[8px] animate-pulse"></i>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-white">Who's Online Now</span>
+                </div>
+                <span id="online-count-badge" class="text-[9px] font-black text-slate-500 uppercase tracking-wider">loading…</span>
+            </div>
+            <div id="whos-online-list" class="flex flex-wrap gap-3 px-4 py-3 min-h-[64px] items-center">
+                <span class="text-[10px] text-slate-600 font-bold"><i class="fas fa-spinner fa-spin mr-1"></i>Connecting to Firebase…</span>
+            </div>
+        </div>
+
         <!-- Stats Bar -->
         <div class="grid grid-cols-3 gap-3 mb-4">
             <div class="bg-white/5 border border-white/[0.08] rounded-xl px-3 py-2.5 text-center">
@@ -944,6 +959,107 @@
                 Next <i class="fas fa-chevron-right"></i>
             </button>
         </div>
+    <!-- SIMULATOR SCRIPTS TAB -->
+    <div id="supsect-simulator" class="supsect-container hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center">
+                    <i class="fas fa-headset text-indigo-400"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-black text-white uppercase tracking-widest">Simulator Scripts</h3>
+                    <p class="text-[9px] text-slate-500 mt-0.5">Agents train on these — synced to Firebase instantly</p>
+                </div>
+            </div>
+            <button onclick="simMgrNew()" class="text-[10px] bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 px-3 py-1.5 rounded-xl hover:bg-indigo-500/25 transition font-black uppercase tracking-wider">
+                <i class="fas fa-plus mr-1"></i> New Script
+            </button>
+        </div>
+
+        <!-- Script list -->
+        <div id="simmgr-list" class="space-y-2 mb-5">
+            <div class="text-center text-slate-600 py-8 text-xs font-bold"><i class="fas fa-spinner fa-spin mr-2"></i>Loading…</div>
+        </div>
+
+        <!-- Editor panel -->
+        <div id="simmgr-editor" class="hidden rounded-2xl border border-indigo-500/25 bg-indigo-500/5 p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h4 id="simmgr-editor-title" class="text-sm font-black text-indigo-300 uppercase tracking-widest">New Script</h4>
+                <button onclick="simmgrCloseEditor()" class="text-slate-500 hover:text-white text-xs"><i class="fas fa-times"></i></button>
+            </div>
+
+            <input type="hidden" id="simmgr-edit-id">
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label class="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Script Title</label>
+                    <input id="simmgr-title" type="text" placeholder="e.g. Overcoming Price Objection"
+                        class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-indigo-400 transition placeholder-slate-600">
+                </div>
+                <div>
+                    <label class="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Category</label>
+                    <input id="simmgr-category" type="text" placeholder="e.g. Objection Handling"
+                        class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-indigo-400 transition placeholder-slate-600">
+                </div>
+                <div>
+                    <label class="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Difficulty</label>
+                    <select id="simmgr-difficulty" class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-indigo-400 transition">
+                        <option value="Easy">Easy</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="Hard">Hard</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Text/file import -->
+            <div class="mb-4">
+                <label class="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Paste Script Text <span class="text-slate-600">(or upload .txt / .docx below)</span></label>
+                <textarea id="simmgr-raw" rows="10" placeholder="Paste your script here using this format:
+
+[STEP] Price Objection
+CUSTOMER: It costs too much, I can't afford that.
+CUSTOMER_ALT: That's way outside my budget.
+CUSTOMER_ALT: Why is it so expensive?
+BEST: I completely understand. Let me show you the value you're getting — most clients find it pays for itself within the first month.
+OK: We do have flexible payment options if that helps.
+WEAK: A lot of people say that at first.
+WRONG: Well that's our standard price.
+REACTION_WEAK: Hmm, that's not very reassuring.
+REACTION_WRONG: Yeah I'm not interested then. Goodbye.
+
+Repeat [STEP] blocks for each objection."
+                    class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-mono outline-none focus:border-indigo-400 transition placeholder-slate-600 leading-relaxed resize-y"></textarea>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 mb-4">
+                <label class="sim-btn cursor-pointer" style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;font-size:10px;padding:8px 14px;border-radius:12px;font-weight:900;text-transform:uppercase;letter-spacing:0.07em;display:inline-flex;align-items:center;gap:6px;">
+                    <i class="fas fa-upload text-[10px]"></i> Upload .txt / .docx
+                    <input type="file" id="simmgr-file" accept=".txt,.docx" class="hidden" onchange="simmgrLoadFile(this)">
+                </label>
+                <button onclick="simmgrPreviewParse()" class="text-[10px] bg-white/5 border border-white/10 text-slate-300 px-3 py-2 rounded-xl hover:bg-white/10 transition font-black uppercase tracking-wider">
+                    <i class="fas fa-eye mr-1"></i> Preview Parse
+                </button>
+                <div id="simmgr-parse-status" class="text-[10px] font-bold text-slate-500"></div>
+            </div>
+
+            <!-- Parsed preview -->
+            <div id="simmgr-preview" class="hidden mb-4 rounded-xl border border-white/[0.07] bg-black/30 p-3 max-h-52 overflow-y-auto">
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Parsed Steps Preview</div>
+                <div id="simmgr-preview-content" class="space-y-2 text-xs text-slate-400"></div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="simmgrSave()" class="text-[11px] bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white px-5 py-2.5 rounded-xl font-black uppercase tracking-widest transition active:scale-95 flex items-center gap-2">
+                    <i class="fas fa-cloud-upload-alt"></i> Save & Sync to Firebase
+                </button>
+                <button onclick="simmgrCloseEditor()" class="text-[11px] bg-white/5 border border-white/10 text-slate-400 px-4 py-2.5 rounded-xl font-black uppercase tracking-widest hover:bg-white/10 transition">
+                    Cancel
+                </button>
+            </div>
+            <div id="simmgr-save-status" class="text-[11px] font-bold mt-3"></div>
+        </div>
+    </div>
+
     </div>
 
     <!-- Edit Admin Modal -->
@@ -1528,6 +1644,10 @@
             } else {
                 renderActivityLogs(null);
             }
+            // Start Who's Online real-time listener
+            if (typeof window.listenForAdminSessions === 'function') {
+                window.listenForAdminSessions(renderWhosOnline);
+            }
             // Reset filter inputs on each open
             var ls = document.getElementById('log-search');
             var lf = document.getElementById('log-filter-action');
@@ -1536,6 +1656,7 @@
         }
         if (tabId === 'users') { superLoadAdmins(); superLoadAgentPasswords(); }
         if (tabId === 'pranklookup') superLoadPrankNumbers();
+        if (tabId === 'simulator') simmgrInit();
     }
     
     // ── Activity Logs: master data cache ──
@@ -1599,6 +1720,94 @@
         const d = typeof tsStr === 'number' ? new Date(tsStr) : new Date(tsStr);
         if (isNaN(d.getTime())) return '';
         return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    }
+
+    function renderWhosOnline(sessions) {
+        const container = document.getElementById('whos-online-list');
+        const badge = document.getElementById('online-count-badge');
+        if (!container) return;
+
+        const now = Date.now();
+        // Sort: active first, idle second, offline last; then by lastSeen
+        const sorted = (sessions || []).slice().sort((a, b) => {
+            const order = { active: 0, idle: 1, offline: 2 };
+            const oa = order[a.status] ?? 2;
+            const ob = order[b.status] ?? 2;
+            if (oa !== ob) return oa - ob;
+            return (b.lastSeen || 0) - (a.lastSeen || 0);
+        });
+
+        const activeCount = sorted.filter(s => s.status === 'active').length;
+        const idleCount   = sorted.filter(s => s.status === 'idle').length;
+        if (badge) {
+            badge.textContent = activeCount
+                ? activeCount + ' active' + (idleCount ? ', ' + idleCount + ' idle' : '')
+                : sorted.length ? idleCount + ' idle' : 'No one online';
+            badge.className = 'text-[9px] font-black uppercase tracking-wider ' +
+                (activeCount ? 'text-green-400' : idleCount ? 'text-yellow-400' : 'text-slate-500');
+        }
+
+        if (!sorted.length) {
+            container.innerHTML = '<span class="text-[10px] text-slate-600 font-bold italic">No admins currently online.</span>';
+            return;
+        }
+
+        container.innerHTML = sorted.map(s => {
+            const statusCfg = {
+                active:  { dot: 'bg-green-400',  label: 'Active',  ring: 'border-green-500/40',  bg: 'bg-green-500/10' },
+                idle:    { dot: 'bg-yellow-400', label: 'Idle',    ring: 'border-yellow-500/40', bg: 'bg-yellow-500/10' },
+                offline: { dot: 'bg-slate-500',  label: 'Offline', ring: 'border-slate-500/30',  bg: 'bg-slate-500/10' }
+            };
+            const cfg = statusCfg[s.status] || statusCfg.offline;
+            const isSuper = s.role === 'super_admin';
+            const name = escapeHtml(s.name || s.email || 'Unknown');
+            const initials = _adminInitials(s.name || s.email || '?');
+            const avatarColor = _adminAvatarColor(s.name || s.email || '');
+
+            // Online duration (from loginAt)
+            let durationStr = '';
+            if (s.loginAt) {
+                const mins = Math.floor((now - s.loginAt) / 60000);
+                if (mins < 1) durationStr = 'Just logged in';
+                else if (mins < 60) durationStr = mins + 'm online';
+                else durationStr = Math.floor(mins/60) + 'h ' + (mins%60) + 'm online';
+            }
+
+            // Last seen
+            let lastSeenStr = '';
+            if (s.lastSeen && s.status !== 'active') {
+                const secs = Math.floor((now - s.lastSeen) / 1000);
+                if (secs < 60) lastSeenStr = 'seen ' + secs + 's ago';
+                else lastSeenStr = 'seen ' + Math.floor(secs/60) + 'm ago';
+            }
+
+            // Location
+            const loc = s.location;
+            const locStr = loc && loc.city ? escapeHtml(loc.city + (loc.country ? ', ' + loc.country : '')) : '';
+
+            // Current admin check - can force logout others
+            const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+            const canForce = cAdmin.role === 'super_admin' && s.email !== cAdmin.email && s.status !== 'offline';
+            const forceBtn = canForce
+                ? \`<button onclick="forceLogoutAdmin('${escapeHtml(s.key)}', '${name}')" title="Force logout" class="text-[8px] text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-400/40 px-1.5 py-0.5 rounded-lg transition ml-1"><i class="fas fa-ban"></i></button>\`
+                : '';
+
+            return \`<div class="flex items-center gap-2 px-3 py-2 rounded-xl border \${cfg.ring} \${cfg.bg} min-w-0">
+                <div class="relative flex-shrink-0">
+                    <div class="w-8 h-8 rounded-xl flex items-center justify-center text-[11px] font-black"
+                         style="background:\${avatarColor}25;border:1.5px solid \${avatarColor}50;color:\${avatarColor}">\${escapeHtml(initials)}</div>
+                    <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-black \${cfg.dot}"></span>
+                </div>
+                <div class="min-w-0">
+                    <div class="text-[11px] font-black text-white leading-tight flex items-center gap-1 flex-wrap">
+                        \${name}
+                        \${isSuper ? '<span class="text-[7px] font-black uppercase text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 px-1 py-0.5 rounded-full">★ Super</span>' : ''}
+                        \${forceBtn}
+                    </div>
+                    <div class="text-[9px] text-slate-400 leading-tight mt-0.5">\${durationStr}\${lastSeenStr ? ' · ' + lastSeenStr : ''}\${locStr ? ' · 📍' + locStr : ''}</div>
+                </div>
+            </div>\`;
+        }).join('');
     }
 
     function renderActivityLogs(firebaseLogs) {
@@ -2897,5 +3106,217 @@
         statusEl.innerHTML = `<span class="text-green-400"><i class="fas fa-check mr-1"></i> ${saved} added, ${skipped} skipped (duplicates).</span>`;
         setTimeout(() => { if (statusEl) statusEl.innerHTML = ''; }, 5000);
     };
+
+
+    // ============================================================
+    // SIMULATOR SCRIPT MANAGER (Super Admin)
+    // ============================================================
+    var _simmgrScripts = [];
+    var _simmgrInited  = false;
+
+    function simmgrInit() {
+        if (_simmgrInited) return;
+        _simmgrInited = true;
+        function waitFb(cb, t) {
+            t = t || 0;
+            if (typeof window.listenForSimScripts === 'function') { cb(); return; }
+            if (t > 30) { document.getElementById('simmgr-list').innerHTML = '<div class="text-red-400 text-xs font-bold text-center py-6">Firebase not ready.</div>'; return; }
+            setTimeout(() => waitFb(cb, t+1), 300);
+        }
+        waitFb(() => {
+            window.listenForSimScripts(function(scripts) {
+                _simmgrScripts = scripts || [];
+                simmgrRenderList();
+            });
+        });
+    }
+
+    function simmgrRenderList() {
+        const el = document.getElementById('simmgr-list');
+        if (!el) return;
+        if (!_simmgrScripts.length) {
+            el.innerHTML = '<div class="text-center text-slate-600 py-8 text-xs font-bold uppercase tracking-widest"><i class="fas fa-inbox mr-2"></i>No scripts yet. Create one above.</div>';
+            return;
+        }
+        const diffColor = { Easy:'text-green-400 bg-green-500/10 border-green-500/25', Medium:'text-yellow-400 bg-yellow-500/10 border-yellow-500/25', Hard:'text-red-400 bg-red-500/10 border-red-500/25' };
+        el.innerHTML = _simmgrScripts.map(sc => {
+            const dc = diffColor[sc.difficulty] || diffColor.Medium;
+            const steps = (sc.steps || []).length;
+            return `<div class="flex items-center gap-3 p-3 rounded-xl border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.05] transition group">
+                <div class="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center bg-indigo-500/10 border border-indigo-500/20">
+                    <i class="fas fa-headset text-indigo-400 text-xs"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-black text-white truncate">${escapeHtml(sc.title || 'Untitled')}</div>
+                    <div class="text-[9px] text-slate-500">${escapeHtml(sc.category || 'General')} · ${steps} step${steps !== 1 ? 's' : ''}</div>
+                </div>
+                <span class="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${dc} flex-shrink-0">${escapeHtml(sc.difficulty || 'Medium')}</span>
+                <button onclick="simmgrEdit('${escapeHtml(sc.id)}')" class="text-[10px] text-slate-400 hover:text-indigo-300 border border-white/10 hover:border-indigo-400/30 px-2 py-1 rounded-lg transition ml-1 flex-shrink-0"><i class="fas fa-pen"></i></button>
+                <button onclick="simmgrDelete('${escapeHtml(sc.id)}','${escapeHtml(sc.title || '')}\')" class="text-[10px] text-slate-400 hover:text-red-400 border border-white/10 hover:border-red-400/30 px-2 py-1 rounded-lg transition flex-shrink-0"><i class="fas fa-trash"></i></button>
+            </div>`;
+        }).join('');
+    }
+
+    window.simMgrNew = function() {
+        document.getElementById('simmgr-edit-id').value = '';
+        document.getElementById('simmgr-title').value = '';
+        document.getElementById('simmgr-category').value = '';
+        document.getElementById('simmgr-difficulty').value = 'Medium';
+        document.getElementById('simmgr-raw').value = '';
+        document.getElementById('simmgr-preview').classList.add('hidden');
+        document.getElementById('simmgr-save-status').textContent = '';
+        document.getElementById('simmgr-parse-status').textContent = '';
+        document.getElementById('simmgr-editor-title').textContent = 'New Script';
+        document.getElementById('simmgr-editor').classList.remove('hidden');
+        document.getElementById('simmgr-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    window.simmgrEdit = function(id) {
+        const sc = _simmgrScripts.find(s => s.id === id);
+        if (!sc) return;
+        document.getElementById('simmgr-edit-id').value = sc.id;
+        document.getElementById('simmgr-title').value = sc.title || '';
+        document.getElementById('simmgr-category').value = sc.category || '';
+        document.getElementById('simmgr-difficulty').value = sc.difficulty || 'Medium';
+        // Reconstruct raw text from steps
+        document.getElementById('simmgr-raw').value = simmgrStepsToRaw(sc.steps || []);
+        document.getElementById('simmgr-preview').classList.add('hidden');
+        document.getElementById('simmgr-save-status').textContent = '';
+        document.getElementById('simmgr-parse-status').textContent = '';
+        document.getElementById('simmgr-editor-title').textContent = 'Edit Script';
+        document.getElementById('simmgr-editor').classList.remove('hidden');
+        document.getElementById('simmgr-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    window.simmgrCloseEditor = function() {
+        document.getElementById('simmgr-editor').classList.add('hidden');
+    };
+
+    window.simmgrDelete = async function(id, title) {
+        if (!confirm('Delete "' + title + '"? Agents will no longer see this script.')) return;
+        await window.deleteSimScript(id);
+        if (typeof window.writeAdminActivityLog === 'function')
+            window.writeAdminActivityLog('simulator_delete', 'Deleted simulator script: ' + title);
+    };
+
+    window.simmgrLoadFile = function(input) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // For .txt just dump text; for .docx it will be binary but we try plain text
+            document.getElementById('simmgr-raw').value = e.target.result;
+            document.getElementById('simmgr-parse-status').textContent = 'File loaded. Click Preview Parse to check.';
+            document.getElementById('simmgr-parse-status').className = 'text-[10px] font-bold text-cyan-400';
+        };
+        reader.readAsText(file);
+    };
+
+    window.simmgrPreviewParse = function() {
+        const raw = document.getElementById('simmgr-raw').value.trim();
+        const steps = simmgrParseRaw(raw);
+        const statusEl = document.getElementById('simmgr-parse-status');
+        const previewEl = document.getElementById('simmgr-preview');
+        const previewContent = document.getElementById('simmgr-preview-content');
+        if (!steps.length) {
+            statusEl.textContent = 'No steps found. Check format.';
+            statusEl.className = 'text-[10px] font-bold text-red-400';
+            previewEl.classList.add('hidden');
+            return;
+        }
+        statusEl.textContent = steps.length + ' step(s) parsed successfully.';
+        statusEl.className = 'text-[10px] font-bold text-green-400';
+        previewEl.classList.remove('hidden');
+        previewContent.innerHTML = steps.map((s, i) => `
+            <div class="border-b border-white/5 pb-2 mb-2">
+                <div class="text-indigo-300 font-black text-[10px] mb-1">Step ${i+1}: ${escapeHtml(s.label)}</div>
+                <div class="text-slate-400 text-[10px]">Customer lines: ${s.customer_lines.length} variant(s)</div>
+                <div class="text-slate-400 text-[10px]">Options: ${s.options.length} (${s.options.map(o=>o.quality).join(', ')})</div>
+            </div>`).join('');
+    };
+
+    window.simmgrSave = async function() {
+        const id        = document.getElementById('simmgr-edit-id').value.trim();
+        const title     = document.getElementById('simmgr-title').value.trim();
+        const category  = document.getElementById('simmgr-category').value.trim();
+        const difficulty= document.getElementById('simmgr-difficulty').value;
+        const raw       = document.getElementById('simmgr-raw').value.trim();
+        const statusEl  = document.getElementById('simmgr-save-status');
+
+        if (!title) { statusEl.textContent = 'Title is required.'; statusEl.className='text-[11px] font-bold text-red-400'; return; }
+
+        const steps = simmgrParseRaw(raw);
+        if (!steps.length) { statusEl.textContent = 'No steps parsed. Check format.'; statusEl.className='text-[11px] font-bold text-red-400'; return; }
+
+        statusEl.textContent = 'Saving…'; statusEl.className = 'text-[11px] font-bold text-yellow-400';
+
+        const scriptObj = { title, category: category || 'General', difficulty, steps, createdAt: id ? undefined : Date.now(), updatedAt: Date.now() };
+        if (id) scriptObj.id = id;
+        // Remove undefined keys
+        Object.keys(scriptObj).forEach(k => scriptObj[k] === undefined && delete scriptObj[k]);
+
+        const result = await window.saveSimScript(scriptObj);
+        if (result && result.success) {
+            statusEl.textContent = '✓ Saved & synced to Firebase!';
+            statusEl.className = 'text-[11px] font-bold text-green-400';
+            if (typeof window.writeAdminActivityLog === 'function')
+                window.writeAdminActivityLog('simulator_upload', (id ? 'Updated' : 'Created') + ' simulator script: ' + title + ' (' + steps.length + ' steps)');
+            setTimeout(simmgrCloseEditor, 1500);
+        } else {
+            statusEl.textContent = 'Save failed: ' + ((result && result.error) || 'Unknown error');
+            statusEl.className = 'text-[11px] font-bold text-red-400';
+        }
+    };
+
+    // ── Parser: converts raw text to steps array ──────────
+    function simmgrParseRaw(raw) {
+        if (!raw) return [];
+        const steps = [];
+        const blocks = raw.split(/\[STEP\]/i).map(b => b.trim()).filter(Boolean);
+        blocks.forEach(block => {
+            const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+            if (!lines.length) return;
+            const label = lines[0];
+            const customerLines = [];
+            const options = [];
+            let reactionOk = null, reactionWeak = null, reactionWrong = null;
+
+            lines.slice(1).forEach(line => {
+                const m = line.match(/^(CUSTOMER_ALT|CUSTOMER|BEST|OK|WEAK|WRONG|REACTION_OK|REACTION_WEAK|REACTION_WRONG)\s*[:\-]\s*(.+)$/i);
+                if (!m) return;
+                const key = m[1].toUpperCase();
+                const val = m[2].trim();
+                if (key === 'CUSTOMER' || key === 'CUSTOMER_ALT') customerLines.push(val);
+                else if (key === 'BEST')  options.push({ text: val, quality: 'best' });
+                else if (key === 'OK')    options.push({ text: val, quality: 'ok' });
+                else if (key === 'WEAK')  options.push({ text: val, quality: 'weak' });
+                else if (key === 'WRONG') options.push({ text: val, quality: 'wrong' });
+                else if (key === 'REACTION_OK')    reactionOk    = val;
+                else if (key === 'REACTION_WEAK')  reactionWeak  = val;
+                else if (key === 'REACTION_WRONG') reactionWrong = val;
+            });
+
+            if (!customerLines.length || !options.length) return; // skip malformed
+            const step = { label, customer_lines: customerLines, options };
+            if (reactionOk)    step.reaction_ok    = reactionOk;
+            if (reactionWeak)  step.reaction_weak  = reactionWeak;
+            if (reactionWrong) step.reaction_wrong = reactionWrong;
+            steps.push(step);
+        });
+        return steps;
+    }
+
+    // ── Reverse: steps array back to raw text for editing ─
+    function simmgrStepsToRaw(steps) {
+        return steps.map(s => {
+            let out = '[STEP] ' + (s.label || 'Step') + '\n';
+            (s.customer_lines || []).forEach((cl, i) => { out += (i === 0 ? 'CUSTOMER' : 'CUSTOMER_ALT') + ': ' + cl + '\n'; });
+            (s.options || []).forEach(o => { out += o.quality.toUpperCase() + ': ' + o.text + '\n'; });
+            if (s.reaction_ok)    out += 'REACTION_OK: '    + s.reaction_ok    + '\n';
+            if (s.reaction_weak)  out += 'REACTION_WEAK: '  + s.reaction_weak  + '\n';
+            if (s.reaction_wrong) out += 'REACTION_WRONG: ' + s.reaction_wrong + '\n';
+            return out;
+        }).join('\n');
+    }
 
 </script>
