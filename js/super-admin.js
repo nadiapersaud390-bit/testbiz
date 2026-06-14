@@ -27,9 +27,12 @@ window.writeAdminActivityLog = function(action, details, specificAdmin = null) {
     if (logs.length > 500) logs.length = 500;
     localStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(logs));
 
-    // Queue for Firebase (flushed by firebase.js once the module loads)
-    window._pendingFirebaseLogs = window._pendingFirebaseLogs || [];
-    window._pendingFirebaseLogs.push({ action, details, admin });
+    // Queue in sessionStorage so it survives page redirects (firebase.js flushes this on index.html)
+    try {
+        const queue = JSON.parse(sessionStorage.getItem('_fbPendingLogs') || '[]');
+        queue.push(entry);
+        sessionStorage.setItem('_fbPendingLogs', JSON.stringify(queue));
+    } catch(e) {}
 };
 
 // ============================================
