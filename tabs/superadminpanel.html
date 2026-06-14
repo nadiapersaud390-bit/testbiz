@@ -274,6 +274,7 @@
         <button onclick="switchSupTab('logs')" id="suptab-logs" class="sup-tab-btn">Activity Logs</button>
         <button onclick="switchSupTab('users')" id="suptab-users" class="sup-tab-btn">User Mgmt</button>
         <button onclick="switchSupTab('pranklookup')" id="suptab-pranklookup" class="sup-tab-btn">🚨 Prank Numbers</button>
+        <button onclick="switchSupTab('simscripts')" id="suptab-simscripts" class="sup-tab-btn">🎧 Sim Scripts</button>
     </div>
 
     <!-- OVERVIEW TAB -->
@@ -1536,6 +1537,7 @@
         }
         if (tabId === 'users') { superLoadAdmins(); superLoadAgentPasswords(); }
         if (tabId === 'pranklookup') superLoadPrankNumbers();
+        if (tabId === 'simscripts') simScriptLoadList();
     }
     
     // ── Activity Logs: master data cache ──
@@ -2898,4 +2900,271 @@
         setTimeout(() => { if (statusEl) statusEl.innerHTML = ''; }, 5000);
     };
 
+
+
+    // ── Sim Scripts Management ──────────────────────────────────────
+    var _simScriptFileContent = null;
+    var _simScriptFileName = null;
+
+    window.simScriptFileChosen = function(input) {
+        const file = input.files[0];
+        if (!file) return;
+        _simScriptFileName = file.name.replace(/\.txt$|\.json$/i, '');
+        const nameEl = document.getElementById('simscript-file-name');
+        if (nameEl) nameEl.textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = function(e) { _simScriptFileContent = e.target.result; };
+        reader.readAsText(file);
+    };
+
+    function _parseScriptContent(raw, title, category, difficulty) {
+        var steps = [];
+        try {
+            var parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) steps = parsed;
+            else if (parsed && Array.isArray(parsed.steps)) steps = parsed.steps;
+        } catch(e) {
+            // Plain text: each non-empty line becomes a step with one customer line
+            var lines = raw.split(/\n/).map(function(l){ return l.trim(); }).filter(Boolean);
+            steps = lines.map(function(line, i) {
+                return {
+                    label: 'Step ' + (i + 1),
+                    customer_lines: [line],
+                    options: [
+                        { text: 'I understand your concern. Let me address that.', quality: 'best' },
+                        { text: 'That is a valid point. Here is what we can do.', quality: 'ok' },
+                        { text: 'I am not sure about that.', quality: 'weak' },
+                        { text: 'That is just how it is.', quality: 'wrong' }
+                    ],
+                    reaction_ok: 'Thank you for understanding.',
+                    reaction_weak: 'I am still not convinced.',
+                    reaction_wrong: 'This conversation is not going well.'
+                };
+            });
+        }
+        return { title: title, category: category || 'General', difficulty: difficulty || 'Medium', steps: steps, createdAt: Date.now() };
+    }
+
+    window.simScriptSaveManual = async function() {
+        const title = (document.getElementById('simscript-title') || {}).value || '';
+        const body  = (document.getElementById('simscript-body')  || {}).value || '';
+        const cat   = (document.getElementById('simscript-category') || {}).value || 'General';
+        const diff  = (document.getElementById('simscript-difficulty') || {}).value || 'Medium';
+        const statusEl = document.getElementById('simscript-save-status');
+        if (!title.trim()) { if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Please enter a script title.</span>'; return; }
+        if (!body.trim())  { if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Please enter script content.</span>'; return; }
+        if (statusEl) statusEl.innerHTML = '<span class="text-yellow-400"><i class="fas fa-spinner fa-spin mr-1"></i> Saving...</span>';
+        var scriptObj = _parseScriptContent(body, title.trim(), cat.trim(), diff);
+        if (typeof window.saveSimScript !== 'function') {
+            if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Firebase not ready. Try again.</span>';
+            return;
+        }
+        var result = await window.saveSimScript(scriptObj);
+        if (result && result.success) {
+            if (statusEl) statusEl.innerHTML = '<span class="text-green-400"><i class="fas fa-check mr-1"></i> Saved!</span>';
+            document.getElementById('simscript-title').value = '';
+            document.getElementById('simscript-body').value  = '';
+            simScriptLoadList();
+            setTimeout(function(){ if (statusEl) statusEl.innerHTML = ''; }, 4000);
+        } else {
+            if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Error saving. Check Firebase.</span>';
+        }
+    };
+
+    window.simScriptSaveFile = async function() {
+        const statusEl = document.getElementById('simscript-file-status');
+        if (!_simScriptFileContent) { if (statusEl) statusEl.innerHTML = '<span class="text-red-400">No file selected.</span>'; return; }
+        const cat  = (document.getElementById('simscript-file-category') || {}).value || 'General';
+        const diff = (document.getElementById('simscript-file-difficulty') || {}).value || 'Medium';
+        const title = _simScriptFileName || 'Uploaded Script';
+        if (statusEl) statusEl.innerHTML = '<span class="text-yellow-400"><i class="fas fa-spinner fa-spin mr-1"></i> Saving...</span>';
+        var scriptObj = _parseScriptContent(_simScriptFileContent, title, cat.trim(), diff);
+        if (typeof window.saveSimScript !== 'function') {
+            if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Firebase not ready. Try again.</span>';
+            return;
+        }
+        var result = await window.saveSimScript(scriptObj);
+        if (result && result.success) {
+            if (statusEl) statusEl.innerHTML = '<span class="text-green-400"><i class="fas fa-check mr-1"></i> Uploaded & Saved!</span>';
+            _simScriptFileContent = null;
+            _simScriptFileName = null;
+            const fi = document.getElementById('simscript-file-input');
+            if (fi) fi.value = '';
+            const fn = document.getElementById('simscript-file-name');
+            if (fn) fn.textContent = '';
+            simScriptLoadList();
+            setTimeout(function(){ if (statusEl) statusEl.innerHTML = ''; }, 4000);
+        } else {
+            if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Error saving. Check Firebase.</span>';
+        }
+    };
+
+    window.simScriptDelete = async function(id) {
+        if (!confirm('Delete this script? Agents will no longer see it.')) return;
+        if (typeof window.deleteSimScript === 'function') {
+            await window.deleteSimScript(id);
+            simScriptLoadList();
+        }
+    };
+
+    window.simScriptLoadList = function() {
+        const listEl = document.getElementById('simscript-list');
+        const countEl = document.getElementById('simscript-total-count');
+        if (!listEl) return;
+        listEl.innerHTML = '<div class="text-center text-slate-600 py-8 text-xs font-bold uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading...</div>';
+        if (typeof window.listenForSimScripts !== 'function') {
+            setTimeout(window.simScriptLoadList, 600);
+            return;
+        }
+        window.listenForSimScripts(function(scripts) {
+            if (countEl) countEl.textContent = scripts.length;
+            if (!scripts.length) {
+                listEl.innerHTML = '<div class="text-center text-slate-600 py-8 text-xs font-bold uppercase tracking-widest"><i class="fas fa-inbox mr-2"></i>No scripts yet. Add one above.</div>';
+                return;
+            }
+            var diffColors = {
+                Easy:   'bg-green-500/15 text-green-400 border-green-500/30',
+                Medium: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+                Hard:   'bg-red-500/15 text-red-400 border-red-500/30'
+            };
+            listEl.innerHTML = scripts.map(function(sc) {
+                var diff = sc.difficulty || 'Medium';
+                var dc = diffColors[diff] || diffColors.Medium;
+                var stepsCount = Array.isArray(sc.steps) ? sc.steps.length : 0;
+                var date = sc.createdAt ? new Date(sc.createdAt).toLocaleDateString() : '';
+                return '<div class="flex items-center gap-3 p-3 rounded-xl border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.05] transition group">' +
+                    '<div class="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center" style="background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);">' +
+                        '<i class="fas fa-phone-alt text-indigo-400 text-sm"></i>' +
+                    '</div>' +
+                    '<div class="flex-1 min-w-0">' +
+                        '<div class="text-sm font-black text-white truncate">' + (sc.title || 'Untitled') + '</div>' +
+                        '<div class="text-[10px] text-slate-500 mt-0.5">' + stepsCount + ' steps &middot; ' + (sc.category || 'General') + (date ? ' &middot; ' + date : '') + '</div>' +
+                    '</div>' +
+                    '<span class="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-full border flex-shrink-0 ' + dc + '">' + diff + '</span>' +
+                    '<button onclick="simScriptDelete('' + sc.id + '')" class="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 hover:border-red-500/40 text-red-400 transition active:scale-90" title="Delete">' +
+                        '<i class="fas fa-trash text-[10px]"></i>' +
+                    '</button>' +
+                '</div>';
+            }).join('');
+        });
+    };
+
 </script>
+    <!-- SIM SCRIPTS TAB -->
+    <div id="supsect-simscripts" class="supsect-container hidden">
+        <!-- Header -->
+        <div class="bg-gradient-to-br from-indigo-500/10 to-purple-500/5 border border-indigo-500/25 rounded-2xl p-5 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+                    <i class="fas fa-headset text-indigo-400 text-lg"></i>
+                </div>
+                <div>
+                    <div class="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-0.5">Firebase Database</div>
+                    <div class="text-white font-black text-lg">Call Simulator Scripts</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-center">
+                    <div class="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Scripts</div>
+                    <div id="simscript-total-count" class="text-xl font-black text-indigo-400">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add / Upload -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+
+            <!-- Write / Paste Script -->
+            <div class="bg-black/40 border border-indigo-500/20 rounded-2xl p-4">
+                <div class="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-3 flex items-center gap-1.5">
+                    <i class="fas fa-pen"></i> Write or Paste Script
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Script Title</label>
+                        <input type="text" id="simscript-title" placeholder="e.g. Price Objection Handling"
+                               class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold outline-none focus:border-indigo-400 transition placeholder-slate-600">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Category</label>
+                            <input type="text" id="simscript-category" placeholder="e.g. Objection Handling"
+                                   class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold outline-none focus:border-indigo-400 transition placeholder-slate-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Difficulty</label>
+                            <select id="simscript-difficulty" class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold outline-none focus:border-indigo-400 transition">
+                                <option value="Easy">Easy</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="Hard">Hard</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                            Script Content (JSON steps or plain text)
+                        </label>
+                        <textarea id="simscript-body" rows="8" placeholder='Paste JSON steps or plain text script here&#10;&#10;JSON format example:&#10;[{"label":"Opening","customer_lines":["I am not interested"],"options":[{"text":"I understand...","quality":"best"}],"reaction_ok":"Tell me more"}]'
+                                  class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono outline-none focus:border-indigo-400 transition placeholder-slate-600 resize-none"></textarea>
+                    </div>
+                    <button onclick="simScriptSaveManual()"
+                            class="w-full bg-indigo-500/20 hover:bg-indigo-500/35 border border-indigo-500/35 text-indigo-300 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fas fa-cloud-upload-alt"></i> Save to Firebase
+                    </button>
+                    <div id="simscript-save-status" class="text-[10px] font-bold min-h-[14px] text-center"></div>
+                </div>
+            </div>
+
+            <!-- Upload .txt file -->
+            <div class="bg-black/40 border border-purple-500/20 rounded-2xl p-4 flex flex-col">
+                <div class="text-[9px] font-black uppercase tracking-widest text-purple-400 mb-3 flex items-center gap-1.5">
+                    <i class="fas fa-file-upload"></i> Upload .txt File
+                </div>
+                <p class="text-[11px] text-slate-400 font-bold mb-3">Upload a plain-text or JSON script file. The filename becomes the script title.</p>
+                <div class="border-2 border-dashed border-purple-500/25 rounded-xl p-6 text-center mb-3 flex-1 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-purple-400/50 transition" onclick="document.getElementById('simscript-file-input').click()">
+                    <i class="fas fa-cloud-upload-alt text-purple-400 text-2xl"></i>
+                    <div class="text-slate-400 text-xs font-bold">Click to choose a .txt or .json file</div>
+                    <div id="simscript-file-name" class="text-purple-300 text-[10px] font-black"></div>
+                </div>
+                <input type="file" id="simscript-file-input" accept=".txt,.json" class="hidden" onchange="simScriptFileChosen(this)">
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Category</label>
+                        <input type="text" id="simscript-file-category" placeholder="General"
+                               class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold outline-none focus:border-purple-400 transition placeholder-slate-600">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Difficulty</label>
+                        <select id="simscript-file-difficulty" class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold outline-none focus:border-purple-400 transition">
+                            <option value="Easy">Easy</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="Hard">Hard</option>
+                        </select>
+                    </div>
+                </div>
+                <button onclick="simScriptSaveFile()"
+                        class="w-full bg-purple-500/20 hover:bg-purple-500/35 border border-purple-500/35 text-purple-300 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fas fa-save"></i> Upload & Save to Firebase
+                </button>
+                <div id="simscript-file-status" class="text-[10px] font-bold min-h-[14px] text-center mt-2"></div>
+            </div>
+        </div>
+
+        <!-- Scripts List -->
+        <div class="bg-black/40 border border-white/10 rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-4">
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                    <i class="fas fa-list"></i> Saved Scripts
+                </div>
+                <button onclick="simScriptLoadList()" class="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition active:scale-95">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div id="simscript-list" class="space-y-2">
+                <div class="text-center text-slate-600 py-8 text-xs font-bold uppercase tracking-widest">
+                    <i class="fas fa-spinner fa-spin mr-2"></i>Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
