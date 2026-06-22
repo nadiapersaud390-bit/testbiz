@@ -51,7 +51,19 @@
             <p class="text-slate-500 text-xs mt-1">Practice real objections. Every run is different.</p>
         </div>
 
-        <!-- Script picker -->
+        <!-- Random call starter -->
+        <div id="sim-start-wrap" class="hidden mb-6">
+            <button id="sim-start-random" onclick="simStartRandom()"
+                class="sim-btn w-full justify-center text-sm"
+                style="background:rgba(99,102,241,0.18);border-color:rgba(99,102,241,0.55);color:#c7d2fe;padding:16px 20px;">
+                <i class="fas fa-phone-alt"></i> Start Random Call
+            </button>
+            <div class="text-center text-[10px] text-slate-600 mt-2">
+                A random training call will begin from the opening line.
+            </div>
+        </div>
+
+        <!-- Available scripts preview -->
         <div id="sim-script-list" class="space-y-3 mb-6">
             <div class="text-center text-slate-600 py-8 text-xs font-bold uppercase tracking-widest">
                 <i class="fas fa-spinner fa-spin mr-2"></i>Loading scripts from Firebase…
@@ -99,6 +111,14 @@
 
         <!-- Chat transcript -->
         <div id="sim-transcript" class="space-y-3 mb-5 max-h-72 overflow-y-auto pr-1"></div>
+
+        <!-- Full script reference -->
+        <details class="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 mb-5">
+            <summary class="cursor-pointer text-[10px] font-black uppercase tracking-widest text-indigo-300">
+                <i class="fas fa-file-alt mr-2"></i>View Full Call Script
+            </summary>
+            <div id="sim-full-script" class="space-y-3 mt-4"></div>
+        </details>
 
         <!-- Response options -->
         <div id="sim-options-wrap" class="space-y-2">
@@ -177,15 +197,18 @@
     function simInit() {
         const listEl = document.getElementById('sim-script-list');
         const noEl   = document.getElementById('sim-no-scripts');
+        const startWrap = document.getElementById('sim-start-wrap');
 
         function renderScriptList() {
             if (!listEl) return;
             if (!_scripts.length) {
                 listEl.innerHTML = '';
                 if (noEl) noEl.classList.remove('hidden');
+                if (startWrap) startWrap.classList.add('hidden');
                 return;
             }
             if (noEl) noEl.classList.add('hidden');
+            if (startWrap) startWrap.classList.remove('hidden');
             listEl.innerHTML = _scripts.map((sc, i) => {
                 const diff = sc.difficulty || 'Medium';
                 const diffCfg = {
@@ -194,6 +217,7 @@
                     Hard:   'bg-red-500/15 text-red-400 border-red-500/30'
                 }[diff] || 'bg-slate-500/15 text-slate-400 border-slate-500/30';
                 return `<div onclick="simStart('${_esc(sc.id)}')"
+                    title="Start this specific call"
                     class="flex items-center gap-4 p-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-indigo-500/40 cursor-pointer transition-all group">
                     <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center" style="background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);">
                         <i class="fas fa-phone-alt text-indigo-400"></i>
@@ -229,6 +253,12 @@
     }
 
     // ── Start a run ──────────────────────────────────────
+    window.simStartRandom = function() {
+        if (!_scripts.length) return;
+        const randomScript = _scripts[Math.floor(Math.random() * _scripts.length)];
+        simStart(randomScript.id);
+    };
+
     window.simStart = function(scriptId) {
         const sc = _scripts.find(s => s.id === scriptId);
         if (!sc) return;
@@ -239,14 +269,16 @@
         _customerMood = MOODS[Math.floor(Math.random() * MOODS.length)];
         _tension = TENSION_INIT[_customerMood] || 20;
 
-        // Shuffle steps
-        _steps = _shuffleSteps(sc.steps);
+        // Keep the authored call order so every call starts correctly
+        // and follows the full script from opening through closing.
+        _steps = JSON.parse(JSON.stringify(sc.steps));
         _stepIdx = 0;
         _history = [];
 
         _showSection('sim-active');
         document.getElementById('sim-script-title').textContent = sc.title;
         _renderTranscript();
+        _renderFullScript();
         _renderMood();
         _renderProgress();
         _renderStep();
@@ -270,7 +302,14 @@
         const tensorIdx = _tension > 60 ? (lines.length - 1) : Math.floor(Math.random() * lines.length);
         const customerLine = lines[Math.min(tensorIdx, lines.length - 1)] || lines[0];
 
-        _addBubble('customer', customerLine);
+        const openingLine = _getOpeningLine();
+        const isFirstOpeningDuplicate = _stepIdx === 0
+            && openingLine
+            && String(customerLine).trim() === String(openingLine).trim();
+
+        if (!isFirstOpeningDuplicate) {
+            _addBubble('customer', customerLine);
+        }
 
         const opts = _shuffleOptions(step.options || []);
         const optWrap = document.getElementById('sim-options');
@@ -410,17 +449,67 @@
         dot.className = 'w-2 h-2 rounded-full ' + (colorMap[quality] || 'bg-slate-400');
     }
 
+    function _getOpeningLine() {
+        if (!_activeScript) return '';
+        return _activeScript.opening_line
+            || _activeScript.intro
+            || _activeScript.starting_line
+            || (_steps[0] && (
+                (_steps[0].customer_lines && _steps[0].customer_lines[0])
+                || _steps[0].customer_line
+            ))
+            || '';
+    }
+
     function _renderTranscript() {
         const t = document.getElementById('sim-transcript');
         if (t) t.innerHTML = '';
-        const mood = _customerMood;
+
+        const scriptedOpening = _getOpeningLine();
         const intros = {
-            Calm:         'Yeah hello, I got your number from somewhere. What\'s this about?',
-            Skeptical:    'Hello? I\'ve been getting a lot of calls like this. Make it quick.',
-            Frustrated:   'I already told someone I\'m not interested. Why are you still calling?',
-            'In a rush':  'Yeah what is it? I\'m in the middle of something, make it fast.'
+            Calm:         'Hello, who is this?',
+            Skeptical:    'Hello? I get a lot of calls like this, so make it quick.',
+            Frustrated:   'Hello. I hope this is important.',
+            'In a rush':  'Hello? I only have a minute.'
         };
-        _addBubble('customer', intros[mood] || intros.Calm);
+
+        _addBubble('customer', scriptedOpening || intros[_customerMood] || intros.Calm);
+    }
+
+    function _renderFullScript() {
+        const wrap = document.getElementById('sim-full-script');
+        if (!wrap || !_activeScript) return;
+
+        const opening = _getOpeningLine();
+        const rows = [];
+
+        if (opening) {
+            rows.push(`<div class="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Opening</div>
+                <div class="text-xs text-slate-200"><span class="font-black text-slate-400">Customer:</span> ${_esc(opening)}</div>
+            </div>`);
+        }
+
+        _steps.forEach((step, index) => {
+            const customerLines = (step.customer_lines && step.customer_lines.length)
+                ? step.customer_lines
+                : [step.customer_line || ''];
+            const best = (step.options || []).find(opt => opt.quality === 'best')
+                || (step.options || [])[0];
+
+            rows.push(`<div class="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                    ${_esc(step.label || ('Step ' + (index + 1)))}
+                </div>
+                ${customerLines.filter(Boolean).map(line =>
+                    `<div class="text-xs text-slate-200 mb-1"><span class="font-black text-slate-400">Customer:</span> ${_esc(line)}</div>`
+                ).join('')}
+                ${best ? `<div class="text-xs text-indigo-200 mt-2"><span class="font-black text-indigo-400">Recommended response:</span> ${_esc(best.text)}</div>` : ''}
+                ${step.reaction_ok ? `<div class="text-xs text-slate-300 mt-2"><span class="font-black text-slate-400">Customer continues:</span> ${_esc(step.reaction_ok)}</div>` : ''}
+            </div>`);
+        });
+
+        wrap.innerHTML = rows.join('');
     }
 
     function _showResults() {
