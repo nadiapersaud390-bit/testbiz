@@ -3161,6 +3161,29 @@
         return { title: title, category: category || 'General', difficulty: difficulty || 'Medium', steps: steps, createdAt: Date.now() };
     }
 
+    var _simScriptEditId = null;
+    var _simScriptListCache = [];
+
+    window.simScriptEdit = function(id) {
+        var sc = _simScriptListCache.find(function(item) { return item.id === id; });
+        if (!sc) return;
+
+        _simScriptEditId = id;
+
+        var titleEl = document.getElementById('simscript-title');
+        var categoryEl = document.getElementById('simscript-category');
+        var difficultyEl = document.getElementById('simscript-difficulty');
+        var bodyEl = document.getElementById('simscript-body');
+
+        if (titleEl) titleEl.value = sc.title || '';
+        if (categoryEl) categoryEl.value = sc.category || 'General';
+        if (difficultyEl) difficultyEl.value = sc.difficulty || 'Medium';
+        if (bodyEl) bodyEl.value = JSON.stringify(sc.steps || [], null, 2);
+
+        if (titleEl) titleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (titleEl) titleEl.focus();
+    };
+
     window.simScriptSaveManual = async function() {
         const title = (document.getElementById('simscript-title') || {}).value || '';
         const body  = (document.getElementById('simscript-body')  || {}).value || '';
@@ -3171,6 +3194,7 @@
         if (!body.trim())  { if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Please enter script content.</span>'; return; }
         if (statusEl) statusEl.innerHTML = '<span class="text-yellow-400"><i class="fas fa-spinner fa-spin mr-1"></i> Saving...</span>';
         var scriptObj = _parseScriptContent(body, title.trim(), cat.trim(), diff);
+        if (_simScriptEditId) scriptObj.id = _simScriptEditId;
         if (typeof window.saveSimScript !== 'function') {
             if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Firebase not ready. Try again.</span>';
             return;
@@ -3180,6 +3204,7 @@
             if (statusEl) statusEl.innerHTML = '<span class="text-green-400"><i class="fas fa-check mr-1"></i> Saved!</span>';
             document.getElementById('simscript-title').value = '';
             document.getElementById('simscript-body').value  = '';
+            _simScriptEditId = null;
             simScriptLoadList();
             setTimeout(function(){ if (statusEl) statusEl.innerHTML = ''; }, 4000);
         } else {
@@ -3233,6 +3258,7 @@
             return;
         }
         window.listenForSimScripts(function(scripts) {
+            _simScriptListCache = scripts || [];
             if (countEl) countEl.textContent = scripts.length;
             if (!scripts.length) {
                 listEl.innerHTML = '<div class="text-center text-slate-600 py-8 text-xs font-bold uppercase tracking-widest"><i class="fas fa-inbox mr-2"></i>No scripts yet. Add one above.</div>';
@@ -3257,6 +3283,9 @@
                         '<div class="text-[10px] text-slate-500 mt-0.5">' + stepsCount + ' steps &middot; ' + (sc.category || 'General') + (date ? ' &middot; ' + date : '') + '</div>' +
                     '</div>' +
                     '<span class="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-full border flex-shrink-0 ' + dc + '">' + diff + '</span>' +
+                    '<button onclick="simScriptEdit(\'' + sc.id + '\')" class="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-blue-500/10 hover:bg-blue-500/25 border border-blue-500/20 hover:border-blue-500/40 text-blue-400 transition active:scale-90" title="Edit">' +
+                        '<i class="fas fa-pen text-[10px]"></i>' +
+                    '</button>' +
                     '<button onclick="simScriptDelete(\'' + sc.id + '\')" class="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 hover:border-red-500/40 text-red-400 transition active:scale-90" title="Delete">' +
                         '<i class="fas fa-trash text-[10px]"></i>' +
                     '</button>' +
