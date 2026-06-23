@@ -52,3 +52,13 @@ function getTeam(name, team) {
 function getTeamMeta(team) {
   return TEAM_CONFIG[normalizeTeam(team)] || TEAM_CONFIG.PR;
 }
+
+// Load the Superadmin agent profile tabs and lead-history matching.
+(function loadSuperadminAgentInsights() {
+  if (document.querySelector('script[data-superadmin-agent-insights]')) return;
+  const script = document.createElement('script');
+  script.src = 'js/superadmin-agent-insights.js?v=1';
+  script.dataset.superadminAgentInsights = 'true';
+  script.defer = true;
+  document.head.appendChild(script);
+})();
