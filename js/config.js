@@ -23,9 +23,6 @@ const REMOTE_AGENT_NAMES = new Set([
 let agents = [], dayHistory = [];
 let currentTab = 'daily', currentDayView = 'today', weeklyUnlocked = false;
 
-// ── CLIENT-SIDE GUYANA DAY DETECTION ──
-// Uses America/Guyana timezone — same approach as the Apps Script.
-// Overrides whatever todayName the API returns, preventing server-side TZ bugs.
 function getGuyanaToday() {
   const dayName = new Date().toLocaleDateString('en-US', { timeZone: 'America/Guyana', weekday: 'long' });
   const valid = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -53,12 +50,20 @@ function getTeamMeta(team) {
   return TEAM_CONFIG[normalizeTeam(team)] || TEAM_CONFIG.PR;
 }
 
-// Load the Superadmin agent profile tabs and lead-history matching.
 (function loadSuperadminAgentInsights() {
   if (document.querySelector('script[data-superadmin-agent-insights]')) return;
   const script = document.createElement('script');
   script.src = 'js/superadmin-agent-insights.js?v=1';
   script.dataset.superadminAgentInsights = 'true';
+  script.defer = true;
+  document.head.appendChild(script);
+})();
+
+(function loadSimulatorTextOnlyEditor() {
+  if (document.querySelector('script[data-simulator-text-only]')) return;
+  const script = document.createElement('script');
+  script.src = 'js/simulator-text-only.js?v=1';
+  script.dataset.simulatorTextOnly = 'true';
   script.defer = true;
   document.head.appendChild(script);
 })();
