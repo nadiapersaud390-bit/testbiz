@@ -16,7 +16,7 @@ const REMOTE_AGENT_NAMES = new Set([
   'GYP ERIKA SAMUELS',
   'GYP HANNAH BAPTISTE',
   'GYP NATHALIA CHARLES',
-  'GYP MANGAR',
+  'GYP NICHOLA MANGAR',
   'GYP NISHON GOMES',
   'GYP ROZANNA NIZAM'
 ]);
@@ -62,7 +62,7 @@ function getTeamMeta(team) {
 (function loadSimulatorTxtOnly() {
   if (document.querySelector('script[data-simulator-txt-only]')) return;
   const script = document.createElement('script');
-  script.src = 'js/simulator-txt-only.js?v=1';
+  script.src = 'js/simulator-txt-only.js?v=2';
   script.dataset.simulatorTxtOnly = 'true';
   script.defer = true;
   document.head.appendChild(script);
