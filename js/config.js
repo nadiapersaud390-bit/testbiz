@@ -58,12 +58,3 @@ function getTeamMeta(team) {
   script.defer = true;
   document.head.appendChild(script);
 })();
-
-(function loadSimulatorTextOnlyEditor() {
-  if (document.querySelector('script[data-simulator-text-only]')) return;
-  const script = document.createElement('script');
-  script.src = 'js/simulator-text-only.js?v=1';
-  script.dataset.simulatorTextOnly = 'true';
-  script.defer = true;
-  document.head.appendChild(script);
-})();
