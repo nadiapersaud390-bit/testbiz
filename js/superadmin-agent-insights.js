@@ -56,17 +56,20 @@
   function installLeadHooks() {
     if (window.__agentInsightLeadHooks) return;
     const timer = setInterval(() => {
+      let installed = 0;
       if (typeof window.saveLiveDashboardState === 'function' && !window.saveLiveDashboardState.__insightWrapped) {
         const original = window.saveLiveDashboardState;
         const wrapped = function (payload) { return original.call(this, enrichPayload(payload)); };
         wrapped.__insightWrapped = true;
         window.saveLiveDashboardState = wrapped;
+        installed++;
       }
       if (typeof window.saveAgentReportToFirebase === 'function' && !window.saveAgentReportToFirebase.__insightWrapped) {
         const original = window.saveAgentReportToFirebase;
         const wrapped = function (report) { return original.call(this, enrichReport(report)); };
         wrapped.__insightWrapped = true;
         window.saveAgentReportToFirebase = wrapped;
+        installed++;
       }
       if (window.saveLiveDashboardState && window.saveLiveDashboardState.__insightWrapped && window.saveAgentReportToFirebase && window.saveAgentReportToFirebase.__insightWrapped) {
         window.__agentInsightLeadHooks = true;
@@ -170,13 +173,13 @@
   window.switchAgentMiniTab = function (tab) {
     document.querySelectorAll('.agent-mini-tab').forEach(b => b.classList.toggle('active', b.dataset.agentTab === tab));
     document.querySelectorAll('.agent-mini-panel').forEach(p => p.classList.toggle('active', p.id === `agent-mini-${tab}`));
-    const footer = document.getElementById('agentModalFooter') || document.querySelector('#agentModal .agent-modal-footer');
+    const footer = document.getElementById('agentModalFooter') || document.querySelector('#agentProfileModal .agent-modal-footer');
     if (footer) footer.style.display = tab === 'profile' ? 'flex' : 'none';
     if (tab !== 'profile') render(tab);
   };
 
   function injectUi() {
-    const modal = document.getElementById('agentModal');
+    const modal = document.getElementById('agentProfileModal');
     if (!modal || document.getElementById('agentMiniTabs')) return false;
     addStyles();
     const body = modal.querySelector('.agent-modal-body');
