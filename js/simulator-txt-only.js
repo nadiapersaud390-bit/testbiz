@@ -1,6 +1,12 @@
 (function () {
   'use strict';
 
+  // Keep the Call Simulator lobby focused on the random-call action only.
+  var simulatorListStyle = document.createElement('style');
+  simulatorListStyle.id = 'simulator-random-only-style';
+  simulatorListStyle.textContent = '#sim-script-list{display:none!important;}';
+  document.head.appendChild(simulatorListStyle);
+
   // Preserve the existing remote-agent roster exactly as it was before this patch.
   if (typeof REMOTE_AGENT_NAMES !== 'undefined' && REMOTE_AGENT_NAMES instanceof Set) {
     REMOTE_AGENT_NAMES.delete('GYP MANGAR');
