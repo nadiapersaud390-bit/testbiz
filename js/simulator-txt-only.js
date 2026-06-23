@@ -1,6 +1,12 @@
 (function () {
   'use strict';
 
+  // Preserve the existing remote-agent roster exactly as it was before this patch.
+  if (typeof REMOTE_AGENT_NAMES !== 'undefined' && REMOTE_AGENT_NAMES instanceof Set) {
+    REMOTE_AGENT_NAMES.delete('GYP MANGAR');
+    REMOTE_AGENT_NAMES.add('GYP NICHOLA MANGAR');
+  }
+
   function textToSteps(raw) {
     return String(raw || '').split(/\r?\n/).map(function(line) {
       return line.trim();
