@@ -4,7 +4,6 @@
  * FIXED: Allows momo (admin) to access Agent Stats
  * FIXED: Counts leads based ONLY on duration >= 120 seconds (Status column ignored for counting)
  * FIXED: Auto-detects semicolon (;), comma (,), tab, or pipe delimiters in CSV files
- * FIXED: Deduplicates phone numbers per agent - keeps only the last call to each number
  */
 
 let allReports = [];
@@ -422,7 +421,7 @@ window.asConfirmUpload = async function() {
     }
 };
 
-// 🔥 FIXED: Completely rewritten handleFileUpload with delimiter auto-detection AND phone number deduplication
+// 🔥 FIXED: Completely rewritten handleFileUpload with delimiter auto-detection
 async function handleFileUpload(file) {
     if (!file.name.endsWith('.csv')) {
         updateStatsStatus('❌ Please upload a CSV file', true);
@@ -482,8 +481,6 @@ async function handleFileUpload(file) {
     let statusIdx = -1;
     let durationIdx = -1;
     let teamIdx = -1;
-    let phoneNumberIdx = -1;
-    let timestampIdx = -1;
     
     headers.forEach((h, idx) => {
         const lower = h.toLowerCase().replace(/[\s_-]/g, '');
@@ -492,24 +489,16 @@ async function handleFileUpload(file) {
         if (lower.includes('currentstatus') || lower === 'currentstatus' || lower === 'status' || lower === 'disposition') statusIdx = idx;
         if (lower.includes('duration') || lower === 'duration' || lower === 'dur' || lower === 'talktime') durationIdx = idx;
         if (lower.includes('team') || lower === 'team' || lower.includes('prefix')) teamIdx = idx;
-        // Phone number column detection
-        if (lower.includes('phone') || lower.includes('number') || lower.includes('phonenumber') || lower.includes('called') || lower.includes('dialed') || lower.includes('destination') || lower.includes('ani') || lower.includes('dnis')) phoneNumberIdx = idx;
-        // Timestamp column detection
-        if (lower.includes('timestamp') || lower.includes('date') || lower.includes('time') || lower.includes('datetime') || lower.includes('callstart') || lower.includes('starttime')) timestampIdx = idx;
     });
     
     // Fallbacks if not found
     if (agentNameIdx === -1) agentNameIdx = 0;
     if (statusIdx === -1 && headers.length > 2) statusIdx = 2;
     if (durationIdx === -1 && headers.length > 3) durationIdx = 3;
-    if (phoneNumberIdx === -1) {
-        console.warn('[Upload] Phone number column not detected - will not deduplicate by number');
-    }
     
-    console.log(`[Upload] Column mapping - Name:${agentNameIdx}, Status:${statusIdx}, Duration:${durationIdx}, AgentId:${agentIdIdx}, Team:${teamIdx}, PhoneNum:${phoneNumberIdx}, Timestamp:${timestampIdx}`);
+    console.log(`[Upload] Column mapping - Name:${agentNameIdx}, Status:${statusIdx}, Duration:${durationIdx}, AgentId:${agentIdIdx}, Team:${teamIdx}`);
     
-    // Store raw parsed data with timestamp info
-    const rawParsedData = [];
+    const parsedData = [];
     
     for (let i = headerIdx + 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -527,18 +516,6 @@ async function handleFileUpload(file) {
         
         const status = statusIdx >= 0 ? (values[statusIdx] || '').toUpperCase() : '';
         const durationRaw = durationIdx >= 0 ? (values[durationIdx] || '0') : '0';
-        
-        // Get phone number
-        const phoneNumber = phoneNumberIdx >= 0 ? (values[phoneNumberIdx] || '').trim() : '';
-        
-        // Get timestamp (if available)
-        let timestamp = '';
-        if (timestampIdx >= 0) {
-            timestamp = (values[timestampIdx] || '').trim();
-        } else {
-            // If no timestamp column, use row index as fallback (later rows = later calls)
-            timestamp = String(i);
-        }
         
         // Determine team from agent name prefix if not provided
         let team = 'PR';
@@ -569,76 +546,19 @@ async function handleFileUpload(file) {
             duration = parseInt(durationRaw, 10) || 0;
         }
         
-        rawParsedData.push({
+        parsedData.push({
             agentId: agentId,
             agentName: agentName,
             rawName: agentNameRaw,
             team: team,
             status: status,
-            duration: duration,
-            phoneNumber: phoneNumber,
-            timestamp: timestamp,
-            rawIndex: i // Keep track of original row order
+            duration: duration
         });
     }
     
-    if (rawParsedData.length === 0) {
+    if (parsedData.length === 0) {
         updateStatsStatus('❌ No valid data rows found in CSV. Check that columns are correctly detected.', true);
         return;
-    }
-    
-    // 🔥 NEW: Deduplicate by phone number per agent - keep only the LAST call to each number
-    let parsedData = [];
-    
-    if (phoneNumberIdx >= 0) {
-        console.log(`[Upload] Deduplicating by phone number per agent...`);
-        
-        // Group by agent + phone number
-        const groupedByAgentAndPhone = {};
-        
-        rawParsedData.forEach(row => {
-            const key = `${row.agentName}_${row.agentId}_${row.phoneNumber || 'NO_NUMBER'}`;
-            if (!groupedByAgentAndPhone[key]) {
-                groupedByAgentAndPhone[key] = [];
-            }
-            groupedByAgentAndPhone[key].push(row);
-        });
-        
-        // For each group, keep only the last call (based on timestamp or row order)
-        let deduplicatedCount = 0;
-        Object.values(groupedByAgentAndPhone).forEach(group => {
-            if (group.length === 1) {
-                // Only one call to this number - keep it
-                parsedData.push(group[0]);
-            } else {
-                // Multiple calls - find the last one
-                // Sort by timestamp (if available) or by rawIndex (row order)
-                const sortedGroup = [...group].sort((a, b) => {
-                    if (a.timestamp && b.timestamp) {
-                        // Try to parse as date
-                        const dateA = new Date(a.timestamp);
-                        const dateB = new Date(b.timestamp);
-                        if (!isNaN(dateA) && !isNaN(dateB)) {
-                            return dateB - dateA; // Newest first
-                        }
-                    }
-                    // Fallback to row order (higher index = later)
-                    return b.rawIndex - a.rawIndex;
-                });
-                
-                // Keep only the last call (first in sorted array)
-                parsedData.push(sortedGroup[0]);
-                deduplicatedCount++;
-                
-                console.log(`[Upload] Deduplicated: Agent ${sortedGroup[0].agentName}, Number ${sortedGroup[0].phoneNumber} - ${group.length} calls → 1 call kept (last call)`);
-            }
-        });
-        
-        console.log(`[Upload] Deduplication complete: ${rawParsedData.length} rows → ${parsedData.length} unique agent+number combinations (${deduplicatedCount} duplicates removed)`);
-    } else {
-        // No phone number column - can't deduplicate
-        console.warn('[Upload] No phone number column found - skipping deduplication');
-        parsedData = rawParsedData;
     }
     
     _asStagedFile = file;
@@ -672,11 +592,10 @@ async function handleFileUpload(file) {
     const leadCount = Object.values(agentLeadMap).reduce((a, b) => a + b, 0);
     const agentSummary = Object.entries(agentLeadMap).slice(0, 5).map(([name, count]) => `${name}: ${count}`).join(', ');
     
-    const dedupMsg = phoneNumberIdx >= 0 ? ` (${parsedData.length} unique agent+number combos after deduplication)` : '';
-    updateStatsStatus(`✅ Ready: ${rawParsedData.length} rows${dedupMsg}, ${leadCount} qualified leads (duration >= 120 sec). ${agentSummary}${Object.keys(agentLeadMap).length > 5 ? '...' : ''}. This will REPLACE previous data.`, false);
+    updateStatsStatus(`✅ Ready: ${parsedData.length} rows, ${leadCount} qualified leads (duration >= 120 sec). ${agentSummary}${Object.keys(agentLeadMap).length > 5 ? '...' : ''}. This will REPLACE previous data.`, false);
     
     console.log('[File Upload] Delimiter used:', delimiter);
-    console.log('[File Upload] Per-agent lead counts (deduplicated):', agentLeadMap);
+    console.log('[File Upload] Per-agent lead counts:', agentLeadMap);
 }
 
 function updateStatsStatus(msg, isError) {
