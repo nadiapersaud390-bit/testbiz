@@ -49,6 +49,9 @@ try {
     window.rtdbSet = set;
     window.rtdbGet = get;
     window.rtdbOnValue = onValue;
+    window.rtdbUpdate = update;
+    window.rtdbPush = push;
+    window.rtdbRemove = remove;
     
     console.log("Firebase & Firestore initialized successfully");
 } catch (error) {
