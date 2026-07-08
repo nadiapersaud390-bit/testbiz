@@ -3330,6 +3330,8 @@
         });
     }
 
+    var _rbDragIdx = null;
+
     function rbRenderList(arr) {
         var el = document.getElementById('rb-admin-list');
         if (!el) return;
@@ -3340,7 +3342,9 @@
         el.innerHTML = arr.map(function(rb, i) {
             var color = rb.color || '#14b8a6';
             var hasOpts = rb.options && rb.options.length > 0;
-            return '<div class="flex items-start gap-3 bg-black/40 border border-white/8 rounded-xl px-4 py-3">'
+            return '<div class="flex items-start gap-3 bg-black/40 border border-white/8 rounded-xl px-4 py-3" draggable="true" data-idx="'+i+'" '
+                + 'ondragstart="rbDragStart(event,'+i+')" ondragover="rbDragOver(event)" ondrop="rbDrop(event,'+i+')" ondragend="rbDragEnd(event)">'
+                + '<div style="cursor:grab;flex-shrink:0;margin-top:2px;color:#475569;" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></div>'
                 + '<div style="width:10px;height:10px;border-radius:50%;background:'+color+';flex-shrink:0;margin-top:4px;"></div>'
                 + '<div class="flex-1 min-w-0">'
                 + '<div class="font-black text-white text-sm truncate">'+escHtml(rb.buttonLabel||'Untitled')+'</div>'
@@ -3353,6 +3357,69 @@
                 + '</div>'
                 + '</div>';
         }).join('');
+    }
+
+    function rbDragStart(e, idx) {
+        _rbDragIdx = idx;
+        e.dataTransfer.effectAllowed = 'move';
+        if (e.currentTarget) e.currentTarget.style.opacity = '0.4';
+    }
+
+    function rbDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }
+
+    function rbDragEnd(e) {
+        if (e.currentTarget) e.currentTarget.style.opacity = '';
+    }
+
+    function rbDrop(e, idx) {
+        e.preventDefault();
+        if (_rbDragIdx === null || _rbDragIdx === idx) return;
+        var moved = _rbAll.splice(_rbDragIdx, 1)[0];
+        _rbAll.splice(idx, 0, moved);
+        _rbDragIdx = null;
+        rbRenderList(_rbAll);
+        rbPersistOrder();
+    }
+
+    function rbPersistOrder() {
+        var st = document.getElementById('rb-form-status');
+        if (st) { st.textContent = 'Saving order...'; st.style.color = '#94a3b8'; }
+        var changed = [];
+        // Partial update (order field only) so a concurrent edit to another field
+        // by a different admin isn't clobbered by a full-object overwrite.
+        _rbAll.forEach(function(rb, i) {
+            if (rb.order !== i) {
+                rb.order = i;
+                if (typeof window.rtdbUpdate === 'function' && typeof window.rtdbRef === 'function') {
+                    changed.push(window.rtdbUpdate(window.rtdbRef('rebuttals/' + rb.id), { order: i }));
+                } else {
+                    changed.push(window.saveRebuttal(rb));
+                }
+            }
+        });
+        Promise.all(changed).then(function() {
+            if (st) {
+                st.textContent = '✓ Order saved';
+                st.style.color = '#34d399';
+                setTimeout(function() { if (st) st.textContent = ''; }, 1500);
+            }
+        }).catch(function(err) {
+            if (st) { st.textContent = '✗ Failed to save order — refresh to verify'; st.style.color = '#f87171'; }
+            console.error('rbPersistOrder failed:', err);
+            // The live listenForRebuttals() subscription (started in rbAdminInit) will
+            // overwrite _rbAll with the true server state on its next event, but a failed
+            // write on a value that didn't actually change server-side won't retrigger it,
+            // so re-fetch explicitly to guarantee the on-screen order matches Firebase.
+            if (typeof window.listenForRebuttals === 'function') {
+                window.listenForRebuttals(function(arr) {
+                    _rbAll = arr || [];
+                    rbRenderList(_rbAll);
+                });
+            }
+        });
     }
 
     function escHtml(s) {
