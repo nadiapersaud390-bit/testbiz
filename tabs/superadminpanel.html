@@ -2458,11 +2458,11 @@
     }
 
     // Admin Tracker Functions
-    function _getDB() {
-        if (window.database && typeof window.database.ref === 'function') return window.database;
-        if (window.db && typeof window.db.ref === 'function') return window.db;
-        return null;
+    function _rtdbReady() {
+        return typeof window.rtdbRef === 'function' && typeof window.rtdbOnValue === 'function';
     }
+    // Legacy _getDB kept for any remaining compat code
+    function _getDB() { return null; }
 
     function renderTrackerGrid(sessions) {
         const rows = document.getElementById('tracker-grid-rows');
@@ -2604,11 +2604,12 @@
 
     window.forceLogoutAdmin = function(emailKey, adminName) {
         if (!confirm('Force logout ' + adminName + '? They will be signed out immediately.')) return;
-        const db = _getDB();
-        if (!db) return;
-        db.ref('admin_sessions/' + emailKey).update({ status: 'offline', forceLogout: true, lastSeen: Date.now() }).then(() => {
+        if (!_rtdbReady()) { alert('Firebase not ready. Please try again.'); return; }
+        window.rtdbUpdate(window.rtdbRef('admin_sessions/' + emailKey), {
+            status: 'offline', forceLogout: true, lastSeen: Date.now()
+        }).then(function() {
             console.log('[Tracker] Force logged out:', adminName);
-        }).catch(err => console.warn('[Tracker] Force logout failed:', err));
+        }).catch(function(err) { console.warn('[Tracker] Force logout failed:', err); });
         if (typeof window.writeAdminActivityLog === 'function') {
             window.writeAdminActivityLog('force_logout', 'Super Admin force-terminated session of: ' + adminName);
         }
@@ -2623,27 +2624,43 @@
     }
 
     function initAdminTracker() {
-        const db = _getDB();
-        if (!db || typeof db.ref !== 'function') {
-            console.warn('[Tracker] RTDB not ready, retrying in 1s');
-            setTimeout(initAdminTracker, 1000);
+        if (!_rtdbReady()) {
+            console.warn('[Tracker] RTDB helpers not ready, retrying in 500ms');
+            setTimeout(initAdminTracker, 500);
             return;
         }
         const rows = document.getElementById('tracker-grid-rows');
         if (rows && rows.innerHTML.includes('fa-spin')) {
             rows.innerHTML = '<div class="flex items-center justify-center py-8 text-slate-500 text-xs"><i class="fas fa-satellite-dish mr-2 text-slate-600"></i>No admin sessions recorded yet.</div>';
         }
-        db.ref('admin_sessions').on('value', function(snap) { renderTrackerGrid(snap.val() || {}); });
-        db.ref('admin_location_history').limitToLast(50).on('value', function(snap) { renderLocationHistory(snap.val() || {}); });
-        db.ref('admin_session_log').limitToLast(80).on('value', function(snap) { renderSessionActivityLog(snap.val() || {}); });
+        // Listen to admin sessions
+        window.rtdbOnValue(window.rtdbRef('admin_sessions'), function(snap) {
+            renderTrackerGrid(snap.val() || {});
+        });
+        // Listen to location history (last 50)
+        window.rtdbOnValue(window.rtdbRef('admin_location_history'), function(snap) {
+            const data = snap.val() || {};
+            const keys = Object.keys(data);
+            const limited = {};
+            keys.slice(-50).forEach(k => { limited[k] = data[k]; });
+            renderLocationHistory(limited);
+        });
+        // Listen to session activity log (last 80)
+        window.rtdbOnValue(window.rtdbRef('admin_session_log'), function(snap) {
+            const data = snap.val() || {};
+            const keys = Object.keys(data);
+            const limited = {};
+            keys.slice(-80).forEach(k => { limited[k] = data[k]; });
+            renderSessionActivityLog(limited);
+        });
         const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
         if (cAdmin && cAdmin.email) {
             const emailKey = cAdmin.email.replace(/[.#$[\]]/g, '_');
-            db.ref('admin_concurrent_sessions/' + emailKey).on('value', function(snap) {
+            window.rtdbOnValue(window.rtdbRef('admin_concurrent_sessions/' + emailKey), function(snap) {
                 const slots = snap.val() || {};
                 const count = Object.values(slots).filter(s => s && s.active).length;
                 if (count > 1 && typeof window.writeAdminActivityLog === 'function') {
-                    console.log(`[Tracker] ${cAdmin.name} has ${count} concurrent sessions`);
+                    console.log('[Tracker] ' + cAdmin.name + ' has ' + count + ' concurrent sessions');
                 }
             });
         }
