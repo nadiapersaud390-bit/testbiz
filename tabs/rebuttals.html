@@ -13,6 +13,20 @@
     </div>
 </div>
 
+<!-- Live Match: What did the customer say? -->
+<div style="background:rgba(139,92,246,0.06);border:1.5px solid rgba(139,92,246,0.25);border-radius:16px;padding:14px 16px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <i class="fas fa-magic" style="color:#a78bfa;font-size:13px;"></i>
+        <span style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#a78bfa;">Type what the customer said</span>
+    </div>
+    <textarea id="customer-said-input" oninput="handleCustomerSaidInput(this.value)"
+        placeholder="e.g. Is this even a real company? I never applied for a loan..."
+        style="width:100%;min-height:52px;resize:vertical;background:rgba(0,0,0,0.3);border:1.5px solid rgba(139,92,246,0.25);border-radius:12px;color:white;font-size:13px;font-weight:600;padding:10px 12px;outline:none;font-family:'Inter',sans-serif;box-sizing:border-box;transition:border-color 0.2s,box-shadow 0.2s;"
+        onfocus="this.style.borderColor='#a78bfa';this.style.boxShadow='0 0 0 3px rgba(139,92,246,0.15)'"
+        onblur="this.style.borderColor='rgba(139,92,246,0.25)';this.style.boxShadow='none'"></textarea>
+    <div id="customer-said-match-hint" style="margin-top:8px;font-size:11px;font-weight:700;min-height:14px;"></div>
+</div>
+
 <!-- Search Box -->
 <div style="position:relative;">
     <i class="fas fa-search" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);color:#14b8a6;font-size:13px;pointer-events:none;"></i>
@@ -63,6 +77,15 @@
 (function() {
     var _rebuttals = [];
     var _activeIdx = -1;
+    var _searchTerm = '';
+    var _customerDebounce = null;
+    var _lastAutoId = null;
+
+    var STOPWORDS = ['the','and','you','are','for','this','that','with','have','not','but','was','were','they','your',
+        'can','will','just','about','what','who','how','why','when','where','from','get','got','out','all','any',
+        'some','because','been','has','had','did','does','doing','into','over','under','than','then','them','their',
+        'there','here','which','would','could','should','also','only','like','know','said','say','tell','told',
+        'want','need','make','sure','right','okay','yeah','well','really','think','going'];
 
     function esc(s) {
         return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -131,6 +154,7 @@
             if (btnRow)    btnRow.innerHTML = '';
             if (container) container.innerHTML = '';
             if (emptyEl)   emptyEl.style.display = '';
+            _lastAutoId = null;
             return;
         }
         if (emptyEl) emptyEl.style.display = 'none';
@@ -151,10 +175,22 @@
         }
 
         _activeIdx = -1;
+        // Re-apply any in-progress search/customer-match now that the DOM exists,
+        // so a query typed while Firebase was still loading isn't silently dropped.
+        applySearchFilter();
+        // Auto-match state is tracked by rebuttal id, not render index, so a Firebase
+        // update that reorders/removes items can't cause the wrong panel to reopen.
+        if (_lastAutoId !== null) {
+            var reIdx = -1;
+            for (var ri = 0; ri < _rebuttals.length; ri++) {
+                if (_rebuttals[ri].id === _lastAutoId) { reIdx = ri; break; }
+            }
+            if (reIdx !== -1) { activatePanel(reIdx); } else { _lastAutoId = null; }
+        }
     }
 
-    window.showRebuttal = function(idx) {
-        if (_activeIdx !== -1) {
+    function activatePanel(idx) {
+        if (_activeIdx !== -1 && _activeIdx !== idx) {
             var prev = document.getElementById('rb-panel-'+_activeIdx);
             if (prev) prev.style.display = 'none';
             var prevBtn = document.getElementById('rb-btn-'+_activeIdx);
@@ -164,7 +200,6 @@
                 prevBtn.style.color      = '#64748b';
             }
         }
-        if (_activeIdx === idx) { _activeIdx = -1; return; }
         _activeIdx = idx;
         var panel = document.getElementById('rb-panel-'+idx);
         if (panel) { panel.style.display = ''; }
@@ -174,27 +209,110 @@
             btn.style.border     = '1px solid rgba(20,184,166,0.5)';
             btn.style.color      = '#14b8a6';
         }
+    }
+
+    window.showRebuttal = function(idx) {
+        if (_activeIdx === idx) {
+            var panel = document.getElementById('rb-panel-'+idx);
+            if (panel) panel.style.display = 'none';
+            var btn = document.getElementById('rb-btn-'+idx);
+            if (btn) {
+                btn.style.background = 'rgba(255,255,255,0.04)';
+                btn.style.border     = '1px solid rgba(255,255,255,0.1)';
+                btn.style.color      = '#64748b';
+            }
+            _activeIdx = -1;
+            return;
+        }
+        activatePanel(idx);
         if (typeof window.writeAdminActivityLog === 'function') {
             var rb = _rebuttals[idx];
             window.writeAdminActivityLog('view_rebuttal', 'Viewed: ' + (rb ? rb.buttonLabel : idx));
         }
     };
 
-    window.filterRebuttalSearch = function(term) {
-        term = (term||'').toLowerCase().trim();
+    // ── Search (operates on the data, not just what happens to be in the DOM,
+    // and is re-applied on every render so it can never miss panels that
+    // hadn't loaded from Firebase yet). ──
+    function applySearchFilter() {
         var noRes = document.getElementById('rebuttal-no-results');
-        var btns  = document.getElementById('rb-btn-row');
+        var btnRow = document.getElementById('rb-btn-row');
+        if (!btnRow || !_rebuttals.length) { if (noRes) noRes.style.display = 'none'; return; }
+        var term = _searchTerm;
         var visible = 0;
-        if (!btns) return;
-        btns.querySelectorAll('button').forEach(function(btn, i) {
-            var btnText   = (btn.textContent||'').toLowerCase();
-            var panel     = document.getElementById('rb-panel-'+i);
-            var panelText = panel ? (panel.textContent||'').toLowerCase() : '';
-            var match = !term || btnText.indexOf(term) !== -1 || panelText.indexOf(term) !== -1;
+        _rebuttals.forEach(function(rb, i) {
+            var btn = document.getElementById('rb-btn-'+i);
+            if (!btn) return;
+            var haystack = ((rb.buttonLabel||'')+' '+(rb.category||'')+' '+(rb.question||'')+' '+(rb.response||'')).toLowerCase();
+            var match = !term || haystack.indexOf(term) !== -1;
             btn.style.display = match ? '' : 'none';
             if (match) visible++;
         });
         if (noRes) noRes.style.display = (visible === 0 && term) ? '' : 'none';
+    }
+
+    window.filterRebuttalSearch = function(term) {
+        _searchTerm = (term||'').toLowerCase().trim();
+        applySearchFilter();
+    };
+
+    // ── "What did the customer say?" live match ──
+    function tokenize(s) {
+        return (s||'').toLowerCase().replace(/[^a-z0-9\s']/g,' ').split(/\s+/).filter(function(w) {
+            return w.length > 2 && STOPWORDS.indexOf(w) === -1;
+        });
+    }
+
+    function bestMatch(customerText) {
+        var words = tokenize(customerText);
+        if (!words.length) return { idx: -1, score: 0 };
+        var bestIdx = -1, bestScore = 0;
+        _rebuttals.forEach(function(rb, i) {
+            var qText   = (rb.question||'').toLowerCase();
+            var lblText = (rb.buttonLabel||'').toLowerCase();
+            var catText = (rb.category||'').toLowerCase();
+            var score = 0;
+            words.forEach(function(w) {
+                if (qText.indexOf(w) !== -1)   score += 3;
+                if (lblText.indexOf(w) !== -1) score += 2;
+                if (catText.indexOf(w) !== -1) score += 1;
+            });
+            if (score > bestScore) { bestScore = score; bestIdx = i; }
+        });
+        return { idx: bestIdx, score: bestScore };
+    }
+
+    window.handleCustomerSaidInput = function(val) {
+        clearTimeout(_customerDebounce);
+        _customerDebounce = setTimeout(function() {
+            var hint = document.getElementById('customer-said-match-hint');
+            if (!val || !val.trim()) {
+                if (hint) hint.innerHTML = '';
+                return;
+            }
+            if (!_rebuttals.length) {
+                if (hint) hint.innerHTML = '<span style="color:#64748b;">Still loading rebuttals&hellip;</span>';
+                return;
+            }
+            var result = bestMatch(val);
+            if (result.idx === -1 || result.score === 0) {
+                if (hint) hint.innerHTML = '<span style="color:#64748b;">No close match &mdash; try the objection buttons below.</span>';
+                return;
+            }
+            var rb = _rebuttals[result.idx];
+            if (hint) {
+                hint.innerHTML = '<span style="color:#a78bfa;"><i class="fas fa-check-circle"></i> Best match: <strong>'+esc(rb.buttonLabel||'')+'</strong></span>';
+            }
+            if (rb.id !== _lastAutoId) {
+                _lastAutoId = rb.id;
+                activatePanel(result.idx);
+                var panel = document.getElementById('rb-panel-'+result.idx);
+                if (panel && panel.scrollIntoView) panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+                if (typeof window.writeAdminActivityLog === 'function') {
+                    window.writeAdminActivityLog('view_rebuttal', 'Auto-matched: ' + (rb.buttonLabel||''));
+                }
+            }
+        }, 250);
     };
 
     function waitForFirebase(cb, tries) {
