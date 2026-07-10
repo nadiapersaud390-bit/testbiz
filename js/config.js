@@ -59,23 +59,30 @@ function getTeamMeta(team) {
   document.head.appendChild(script);
 })();
 
-window.applyRemoteAgentsList = function(names) {
-  if (!Array.isArray(names) || names.length === 0) return;
+window.rebuildRemoteAgentsFromRoster = function(profiles) {
   REMOTE_AGENT_NAMES.clear();
-  names.forEach(n => REMOTE_AGENT_NAMES.add(String(n).trim().toUpperCase()));
   REMOTE_AGENT_CLEAN_NAMES.clear();
-  [...REMOTE_AGENT_NAMES].forEach(n => {
-    REMOTE_AGENT_CLEAN_NAMES.add(n.replace(/^(GTM|GYP|GTR|RM)\s+/i, '').trim());
+  (profiles || []).forEach(function(p) {
+    const team = String(p.team || '').trim().toUpperCase();
+    if (team === 'RM' || team === 'REMOTE') {
+      const fullName = String(p.fullName || p.name || '').trim().toUpperCase();
+      if (fullName) {
+        REMOTE_AGENT_NAMES.add(fullName);
+        REMOTE_AGENT_CLEAN_NAMES.add(fullName.replace(/^(GTM|GYP|GTR|RM)\s+/i, '').trim());
+      }
+    }
   });
-  console.log('[Config] Remote agents updated from Firebase:', [...REMOTE_AGENT_NAMES]);
+  console.log('[Config] Remote agents from roster:', [...REMOTE_AGENT_NAMES]);
 };
 
-(function waitForRemoteAgentConfig() {
-  if (typeof window.listenForRemoteAgents === 'function') {
-    window.listenForRemoteAgents(function(names) {
-      if (names && names.length > 0) window.applyRemoteAgentsList(names);
+(function waitForRosterForRemoteAgents() {
+  if (typeof window.listenForMasterRoster === 'function') {
+    window.listenForMasterRoster(function(rosterData) {
+      if (!rosterData) return;
+      const arr = Array.isArray(rosterData) ? rosterData : Object.values(rosterData);
+      window.rebuildRemoteAgentsFromRoster(arr);
     });
   } else {
-    setTimeout(waitForRemoteAgentConfig, 500);
+    setTimeout(waitForRosterForRemoteAgents, 500);
   }
 })();
