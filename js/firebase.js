@@ -1400,27 +1400,6 @@ window.listenForPrankVisibility = function(callback) {
     });
 };
 
-// ========== REMOTE AGENTS CONFIG ==========
-
-window.saveRemoteAgents = async function(agentsList) {
-    if (!database) return;
-    try {
-        await set(ref(database, 'settings/remoteAgents'), agentsList);
-    } catch(e) {
-        console.error('saveRemoteAgents failed:', e);
-        throw e;
-    }
-};
-
-window.listenForRemoteAgents = function(callback) {
-    if (!database) return;
-    const remoteRef = ref(database, 'settings/remoteAgents');
-    onValue(remoteRef, (snapshot) => {
-        const data = snapshot.val();
-        if (callback) callback(Array.isArray(data) ? data : null);
-    });
-};
-
 // ========== INITIALIZATION ==========
 
 // Initialize all listeners
