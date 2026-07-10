@@ -349,7 +349,7 @@ function calculateWeeklyCumulativeTotals() {
                     weeklyTotals[agentKey] = {
                         name: agent.name,
                         ytelId: agent.ytelId,
-                        team: agent.team,
+                        team: normalizeTeam(agent.team, agent.name),
                         leads: 0
                     };
                 }
