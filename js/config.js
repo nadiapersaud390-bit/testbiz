@@ -8,16 +8,8 @@ const TEAM_CONFIG = {
   BB: { label: 'BERB', short: 'Berb', color: '#c084fc', rgb: '192,132,252' },
   RM: { label: 'RM', short: 'Remote', color: '#38bdf8', rgb: '56,189,248' }
 };
-const REMOTE_AGENT_NAMES = new Set([
-  'GTM ALICE HERNANDEZ',
-  'GTM MAY UMANDAL',
-  'GYP BIBI SAMUELS',
-  'GYP CHAUNCEY PIERE',
-  'GYP NATHALIA CHARLES',
-]);
-const REMOTE_AGENT_CLEAN_NAMES = new Set(
-  [...REMOTE_AGENT_NAMES].map(n => n.replace(/^(GTM|GYP|GTR|RM)\s+/i, '').trim().toUpperCase())
-);
+const REMOTE_AGENT_NAMES = new Set();
+const REMOTE_AGENT_CLEAN_NAMES = new Set();
 let agents = [], dayHistory = [];
 let currentTab = 'daily', currentDayView = 'today', weeklyUnlocked = false;
 
@@ -65,4 +57,25 @@ function getTeamMeta(team) {
   script.dataset.simulatorTxtOnly = 'true';
   script.defer = true;
   document.head.appendChild(script);
+})();
+
+window.applyRemoteAgentsList = function(names) {
+  if (!Array.isArray(names) || names.length === 0) return;
+  REMOTE_AGENT_NAMES.clear();
+  names.forEach(n => REMOTE_AGENT_NAMES.add(String(n).trim().toUpperCase()));
+  REMOTE_AGENT_CLEAN_NAMES.clear();
+  [...REMOTE_AGENT_NAMES].forEach(n => {
+    REMOTE_AGENT_CLEAN_NAMES.add(n.replace(/^(GTM|GYP|GTR|RM)\s+/i, '').trim());
+  });
+  console.log('[Config] Remote agents updated from Firebase:', [...REMOTE_AGENT_NAMES]);
+};
+
+(function waitForRemoteAgentConfig() {
+  if (typeof window.listenForRemoteAgents === 'function') {
+    window.listenForRemoteAgents(function(names) {
+      if (names && names.length > 0) window.applyRemoteAgentsList(names);
+    });
+  } else {
+    setTimeout(waitForRemoteAgentConfig, 500);
+  }
 })();
