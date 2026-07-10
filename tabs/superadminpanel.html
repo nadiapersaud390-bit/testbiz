@@ -621,7 +621,40 @@
                 <button disabled class="bg-white/5 px-4 py-2 rounded-xl text-sm">Locked</button>
             </div>
         </div>
-        <div class="bg-white/5 p-6 rounded-2xl border border-white/10">
+        <!-- REMOTE AGENTS MANAGER -->
+        <div class="bg-white/5 p-6 rounded-2xl border border-cyan-500/20 mb-6" id="remote-agents-manager">
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center">
+                        <i class="fas fa-satellite-dish text-cyan-400 text-sm"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-black text-white uppercase tracking-widest">Remote Agents</h4>
+                        <div class="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Team assignment config — synced to all users live</div>
+                    </div>
+                </div>
+                <span id="ra-count-badge" class="bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">— agents</span>
+            </div>
+            <div id="ra-agent-list" class="flex flex-col gap-2 mb-4 max-h-64 overflow-y-auto pr-1"></div>
+            <div class="flex gap-2 items-center mt-3">
+                <select id="ra-prefix-select" class="bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-white text-[11px] font-bold outline-none focus:border-cyan-400/50 transition w-24 shrink-0">
+                    <option value="GTM">GTM</option>
+                    <option value="GYP">GYP</option>
+                    <option value="GTR">GTR</option>
+                    <option value="RM">RM</option>
+                </select>
+                <input id="ra-name-input" type="text" placeholder="AGENT FULL NAME (e.g. ALICE HERNANDEZ)"
+                    class="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-white text-[11px] font-medium outline-none focus:border-cyan-400/50 transition placeholder-slate-600"
+                    style="text-transform:uppercase"
+                    onkeydown="if(event.key==='Enter') raAddAgent()">
+                <button onclick="raAddAgent()" class="bg-cyan-500/15 border border-cyan-500/30 hover:bg-cyan-500/25 text-cyan-400 text-[11px] font-black px-4 py-2.5 rounded-xl transition uppercase tracking-wider shrink-0">
+                    <i class="fas fa-plus mr-1"></i> Add
+                </button>
+            </div>
+            <div id="ra-status" class="mt-3 text-[10px] font-bold text-slate-500 min-h-[16px]"></div>
+        </div>
+
+                <div class="bg-white/5 p-6 rounded-2xl border border-white/10">
             <div class="flex justify-between items-center mb-4">
                 <h4 class="text-sm font-black text-white uppercase tracking-widest">Performance Reports</h4>
                 <button onclick="ahToolsLoadPerformance()" class="text-[10px] text-cyan-400 font-bold hover:underline">Refresh</button>
@@ -630,6 +663,117 @@
             <div id="ah-perf-empty" class="hidden py-10 text-center text-slate-500 font-bold">No data</div>
         </div>
     </div>
+
+    <script>
+    // ===== REMOTE AGENTS MANAGER =====
+    let _raAgentList = [];
+
+    function raSetStatus(msg, color) {
+        const el = document.getElementById('ra-status');
+        if (!el) return;
+        el.textContent = msg;
+        el.style.color = color || '#64748b';
+        if (msg) setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 3000);
+    }
+
+    function raRender() {
+        const listEl = document.getElementById('ra-agent-list');
+        const badge = document.getElementById('ra-count-badge');
+        if (!listEl) return;
+        if (badge) badge.textContent = _raAgentList.length + ' agents';
+        if (_raAgentList.length === 0) {
+            listEl.innerHTML = '<div class="text-[11px] text-slate-600 font-bold text-center py-4 uppercase tracking-wider">No remote agents configured. Using defaults.</div>';
+            return;
+        }
+        listEl.innerHTML = _raAgentList.map((name, i) => {
+            const parts = name.split(' ');
+            const prefix = parts[0] || '';
+            const cleanName = parts.slice(1).join(' ');
+            const prefixColor = { GTM: '#38bdf8', GYP: '#818cf8', GTR: '#a78bfa', RM: '#34d399' }[prefix] || '#94a3b8';
+            return `<div class="flex items-center justify-between bg-black/30 border border-white/[0.07] rounded-xl px-4 py-2.5 gap-3 group">
+                <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <span style="color:${prefixColor};background:${prefixColor}18;border:1px solid ${prefixColor}30" class="text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">${prefix}</span>
+                    <span class="text-[12px] font-bold text-white uppercase truncate">${cleanName}</span>
+                </div>
+                <button onclick="raRemoveAgent(${i})" class="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 text-[11px] px-2 py-1 rounded-lg hover:bg-red-500/10 transition shrink-0" title="Remove">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>`;
+        }).join('');
+    }
+
+    window.raAddAgent = function() {
+        const prefix = (document.getElementById('ra-prefix-select').value || 'GTM').trim().toUpperCase();
+        const nameRaw = (document.getElementById('ra-name-input').value || '').trim().toUpperCase();
+        if (!nameRaw) { raSetStatus('Enter an agent name first.', '#f87171'); return; }
+        const fullName = prefix + ' ' + nameRaw;
+        if (_raAgentList.includes(fullName)) { raSetStatus('Agent already in list.', '#f87171'); return; }
+        _raAgentList = [..._raAgentList, fullName].sort();
+        document.getElementById('ra-name-input').value = '';
+        raSaveToFirebase();
+    };
+
+    window.raRemoveAgent = function(index) {
+        _raAgentList = _raAgentList.filter((_, i) => i !== index);
+        raSaveToFirebase();
+    };
+
+    async function raSaveToFirebase() {
+        raRender();
+        raSetStatus('Saving…', '#fbbf24');
+        try {
+            if (typeof window.saveRemoteAgents === 'function') {
+                await window.saveRemoteAgents(_raAgentList);
+                raSetStatus('✓ Saved — all users updated instantly', '#22c55e');
+            } else {
+                raSetStatus('Firebase not ready. Refresh and try again.', '#f87171');
+            }
+        } catch(e) {
+            raSetStatus('Save failed: ' + e.message, '#f87171');
+        }
+    }
+
+    // One-time migration seed — these only get written to Firebase once if Firebase has no data.
+    // After that, Firebase is the single source of truth and this list is never read again.
+    var RA_MIGRATION_SEED = [
+        'GTM ALICE HERNANDEZ',
+        'GTM MAY UMANDAL',
+        'GYP BIBI SAMUELS',
+        'GYP CHAUNCEY PIERE',
+        'GYP ERIKA SAMUELS',
+        'GYP HANNAH BAPTISTE',
+        'GYP NATHALIA CHARLES',
+        'GYP NICHOLA MANGAR',
+        'GYP NISHON GOMES',
+        'GYP ROZANNA NIZAM'
+    ];
+
+    function raInit() {
+        if (typeof window.listenForRemoteAgents !== 'function') {
+            setTimeout(raInit, 600);
+            return;
+        }
+        window.listenForRemoteAgents(function(names) {
+            if (names && names.length > 0) {
+                _raAgentList = names.map(n => String(n).toUpperCase().trim()).sort();
+                raRender();
+            } else {
+                // Firebase empty — auto-migrate the old hardcoded list into Firebase now.
+                // After this one save, all future loads come from Firebase only.
+                _raAgentList = RA_MIGRATION_SEED.slice().sort();
+                raRender();
+                if (typeof window.saveRemoteAgents === 'function') {
+                    window.saveRemoteAgents(_raAgentList).then(() => {
+                        raSetStatus('✓ Migrated — names are now managed here, not in code', '#22c55e');
+                    }).catch(() => {});
+                }
+            }
+        });
+    }
+
+    // Auto-init when this section becomes visible
+    document.addEventListener('DOMContentLoaded', () => setTimeout(raInit, 1000));
+    </script>
 
     <!-- LOGS TAB -->
     <div id="supsect-logs" class="supsect-container hidden">
