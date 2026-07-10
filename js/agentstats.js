@@ -45,14 +45,51 @@ function isPhTrainingName(rawName) {
     return /^PH(?![A-Za-z])/i.test(t);
 }
 
-// 🔥 FIXED: Determines if a row counts as a lead based ONLY on duration
-// A lead counts if the call duration is 120 seconds or more
-// Status column (XFER/CONN/etc.) does NOT matter for counting
-function isLead(row) {
+// Normalizes a lead/phone number for comparison (digits only, last 10 digits)
+function normalizeLeadNumber(raw) {
+    if (!raw) return '';
+    const digits = String(raw).replace(/\D/g, '');
+    if (!digits) return '';
+    return digits.slice(-10);
+}
+
+// 🔥 NEW: When the same Lead Number (column F) appears multiple times in a report,
+// only the LAST time it was called counts toward lead detection. Earlier calls
+// to the same number are ignored even if they also show duration >= 120.
+// Rows without a usable Lead Number are evaluated individually (no dedup possible).
+function getCountableLeadSet(data) {
+    const countable = new Set();
+    if (!Array.isArray(data)) return countable;
+    
+    const lastRowByNumber = new Map();
+    data.forEach(row => {
+        const num = normalizeLeadNumber(row.leadNumber);
+        if (num) lastRowByNumber.set(num, row); // later occurrences overwrite earlier ones
+    });
+    
+    data.forEach(row => {
+        const num = normalizeLeadNumber(row.leadNumber);
+        if (!num) {
+            countable.add(row); // no number to dedupe by, evaluate on its own
+        } else if (lastRowByNumber.get(num) === row) {
+            countable.add(row); // this is the last call made to this number
+        }
+    });
+    
+    return countable;
+}
+
+// 🔥 FIXED: Determines if a row counts as a lead based on duration AND
+// (when a countableSet is supplied) whether it's the LAST call made to that
+// Lead Number. Status column (XFER/CONN/etc.) does NOT matter for counting.
+function isLead(row, countableSet) {
     const duration = Number(row.duration) || 0;
     
     // If duration is 0, never count as a lead
     if (duration === 0) return false;
+    
+    // If a dedup set was provided and this row isn't the last call to its number, skip it
+    if (countableSet && !countableSet.has(row)) return false;
     
     // Count as lead if duration >= 120 seconds
     return duration >= 120;
@@ -204,11 +241,12 @@ async function autoPushReportToDashboard(report) {
     }
     
     const aggMap = {};
+    const autoPushCountable = getCountableLeadSet(report.data);
     report.data.forEach(d => {
         const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
         const rawKey = d.rawName || d.agentName;
         if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0 };
-        if(isLead(d)) aggMap[nameKey].transfers++;
+        if(isLead(d, autoPushCountable)) aggMap[nameKey].transfers++;
     });
     const aggregatedList = Object.values(aggMap);
     
@@ -352,11 +390,12 @@ window.asConfirmUpload = async function() {
     
     // Calculate lead counts for success message with per-agent breakdown
     const agentLeadMap = {};
+    const stagedCountable = getCountableLeadSet(_asStagedParsed);
     _asStagedParsed.forEach(row => {
         const agentName = row.agentName;
         if (!agentName) return;
         if (!agentLeadMap[agentName]) agentLeadMap[agentName] = 0;
-        if (isLead(row)) agentLeadMap[agentName]++;
+        if (isLead(row, stagedCountable)) agentLeadMap[agentName]++;
     });
     
     const totalRows = _asStagedParsed.length;
@@ -365,11 +404,12 @@ window.asConfirmUpload = async function() {
     // Calculate NEW leads vs previous report (delta only for banner)
     const prevLeadMap = {};
     if (previousReportData && previousReportData.data) {
+        const prevCountable = getCountableLeadSet(previousReportData.data);
         previousReportData.data.forEach(row => {
             const agentName = row.agentName;
             if (!agentName) return;
             if (!prevLeadMap[agentName]) prevLeadMap[agentName] = 0;
-            if (isLead(row)) prevLeadMap[agentName]++;
+            if (isLead(row, prevCountable)) prevLeadMap[agentName]++;
         });
     }
     const newLeadsThisUpload = Object.entries(agentLeadMap).reduce((sum, [name, count]) => {
@@ -481,6 +521,7 @@ async function handleFileUpload(file) {
     let statusIdx = -1;
     let durationIdx = -1;
     let teamIdx = -1;
+    let leadNumberIdx = -1;
     
     headers.forEach((h, idx) => {
         const lower = h.toLowerCase().replace(/[\s_-]/g, '');
@@ -489,14 +530,16 @@ async function handleFileUpload(file) {
         if (lower.includes('currentstatus') || lower === 'currentstatus' || lower === 'status' || lower === 'disposition') statusIdx = idx;
         if (lower.includes('duration') || lower === 'duration' || lower === 'dur' || lower === 'talktime') durationIdx = idx;
         if (lower.includes('team') || lower === 'team' || lower.includes('prefix')) teamIdx = idx;
+        if (lower.includes('leadnumber') || lower === 'leadnumber' || lower.includes('phonenumber') || lower === 'number' || lower === 'customernumber' || lower === 'dialednumber') leadNumberIdx = idx;
     });
     
     // Fallbacks if not found
     if (agentNameIdx === -1) agentNameIdx = 0;
     if (statusIdx === -1 && headers.length > 2) statusIdx = 2;
     if (durationIdx === -1 && headers.length > 3) durationIdx = 3;
+    if (leadNumberIdx === -1 && headers.length > 5) leadNumberIdx = 5;
     
-    console.log(`[Upload] Column mapping - Name:${agentNameIdx}, Status:${statusIdx}, Duration:${durationIdx}, AgentId:${agentIdIdx}, Team:${teamIdx}`);
+    console.log(`[Upload] Column mapping - Name:${agentNameIdx}, Status:${statusIdx}, Duration:${durationIdx}, AgentId:${agentIdIdx}, Team:${teamIdx}, LeadNumber:${leadNumberIdx}`);
     
     const parsedData = [];
     
@@ -516,6 +559,7 @@ async function handleFileUpload(file) {
         
         const status = statusIdx >= 0 ? (values[statusIdx] || '').toUpperCase() : '';
         const durationRaw = durationIdx >= 0 ? (values[durationIdx] || '0') : '0';
+        const leadNumber = leadNumberIdx >= 0 ? (values[leadNumberIdx] || '') : '';
         
         // Determine team from agent name prefix if not provided
         let team = 'PR';
@@ -552,7 +596,8 @@ async function handleFileUpload(file) {
             rawName: agentNameRaw,
             team: team,
             status: status,
-            duration: duration
+            duration: duration,
+            leadNumber: leadNumber
         });
     }
     
@@ -582,11 +627,12 @@ async function handleFileUpload(file) {
     
     // Show preview of what will be counted with per-agent breakdown
     const agentLeadMap = {};
+    const previewCountable = getCountableLeadSet(parsedData);
     parsedData.forEach(row => {
         const agentName = row.agentName;
         if (!agentName) return;
         if (!agentLeadMap[agentName]) agentLeadMap[agentName] = 0;
-        if (isLead(row)) agentLeadMap[agentName]++;
+        if (isLead(row, previewCountable)) agentLeadMap[agentName]++;
     });
     
     const leadCount = Object.values(agentLeadMap).reduce((a, b) => a + b, 0);
@@ -684,10 +730,11 @@ window.viewReport = function(id) {
             pushBtn.onclick = async () => {
                 if (confirm(`Push ${report.reportDate} to Live Dashboard?`)) {
                     const aggMap = {};
+                    const pushCountable = getCountableLeadSet(report.data);
                     report.data.forEach(d => {
                         const nameKey = d.agentName.toUpperCase().trim();
                         if (!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, transfers: 0 };
-                        if (isLead(d)) aggMap[nameKey].transfers++;
+                        if (isLead(d, pushCountable)) aggMap[nameKey].transfers++;
                     });
                     const pushState = {
                         dateLabel: report.reportDate,
@@ -718,6 +765,7 @@ function renderActiveReportTable() {
     if (!currentReportData) return;
     
     const rawRows = (currentReportData.data || []).filter(d => !isPhTrainingName(d && (d.rawName || d.agentName)));
+    const activeCountable = getCountableLeadSet(rawRows);
     
     // Count leads per agent based ONLY on duration >= 120
     const agentLeadCount = {};
@@ -725,7 +773,7 @@ function renderActiveReportTable() {
         const agentName = row.agentName;
         if (!agentName) return;
         if (!agentLeadCount[agentName]) agentLeadCount[agentName] = 0;
-        if (isLead(row)) agentLeadCount[agentName]++;
+        if (isLead(row, activeCountable)) agentLeadCount[agentName]++;
     });
     
     const totalLeads = Object.values(agentLeadCount).reduce((a, b) => a + b, 0);
@@ -752,15 +800,18 @@ function renderActiveReportTable() {
     }
     
     const html = displayRows.map(d => {
-        const isLeadRow = isLead(d);
+        const isLeadRow = isLead(d, activeCountable);
         const typeColor = isLeadRow ? 'text-cyan-400 font-bold' : 'text-slate-600';
         
         // Show duration and status for context
         let typeLabel = '';
+        const meetsDuration = (Number(d.duration) || 0) >= 120;
         if (isLeadRow) {
             typeLabel = `✅ LEAD (${d.duration}s)`;
         } else if (d.duration === 0) {
             typeLabel = `⏳ 0s - No lead`;
+        } else if (meetsDuration && !activeCountable.has(d)) {
+            typeLabel = `🔁 ${d.duration}s - Duplicate number (not last call)`;
         } else {
             typeLabel = `⏳ ${d.duration}s - No lead (needs 120s)`;
         }
