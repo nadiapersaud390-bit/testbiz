@@ -13,13 +13,11 @@ const REMOTE_AGENT_NAMES = new Set([
   'GTM MAY UMANDAL',
   'GYP BIBI SAMUELS',
   'GYP CHAUNCEY PIERE',
-  'GYP ERIKA SAMUELS',
-  'GYP HANNAH BAPTISTE',
   'GYP NATHALIA CHARLES',
-  'GYP NICHOLA MANGAR',
-  'GYP NISHON GOMES',
-  'GYP ROZANNA NIZAM'
 ]);
+const REMOTE_AGENT_CLEAN_NAMES = new Set(
+  [...REMOTE_AGENT_NAMES].map(n => n.replace(/^(GTM|GYP|GTR|RM)\s+/i, '').trim().toUpperCase())
+);
 let agents = [], dayHistory = [];
 let currentTab = 'daily', currentDayView = 'today', weeklyUnlocked = false;
 
@@ -34,6 +32,7 @@ function normalizeTeam(team, name) {
   const rawTeam = String(team || '').trim().toUpperCase();
   const rawName = String(name || '').trim().toUpperCase();
   if (REMOTE_AGENT_NAMES.has(rawName)) return 'RM';
+  if (REMOTE_AGENT_CLEAN_NAMES.has(rawName)) return 'RM';
   if (rawName.startsWith('RM ') || rawName.startsWith('REMOTE ') || rawName.startsWith('GTR') || rawName.startsWith('GTM')) return 'RM';
   if (rawName.startsWith('GYB')) return 'BB';
   if (['RM', 'REMOTE'].includes(rawTeam)) return 'RM';
