@@ -619,7 +619,7 @@ function _subscribeLiveDashboard() {
                     (r.data || []).forEach(d => {
                         const id = d.agentId || d.ytelId || d.name;
                         const name = d.agentName || d.name;
-                        const rawName = d.rawName || name;
+                        const rawName = d.rawName || (d.prefix ? (d.prefix + ' ' + name) : name);
                         
                         // Skip PH training accounts
                         if (rawName && /^PH(?![A-Za-z])/i.test(rawName)) return;
