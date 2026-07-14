@@ -16,288 +16,760 @@ let lastAutoPushedReportId = null;
 let previousReportData = null;
 let _asLastUploadedDateLabel = null;
 
-// Helper function to check if current user can access Agent Stats
-// 🔥 FIXED: Allows rose (super admin) AND momo (admin)
 function canAccessAgentStats() {
-    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    const email = String(currentAdmin.email || '').toLowerCase();
-    
-    // Super Admin (rose) has access
+    const currentAdmin = JSON.parse(
+        sessionStorage.getItem('currentAdmin') || '{}'
+    );
+
+    const email = String(
+        currentAdmin.email || ''
+    ).toLowerCase();
+
     if (email === 'rose') return true;
-    
-    // Admin (momo) has access
     if (email === 'momo') return true;
-    
-    // Nadia has access
     if (email === 'nadia') return true;
-    
-    // Also check role property
+
     if (currentAdmin.role === 'super_admin') return true;
     if (currentAdmin.isSuper === true) return true;
-    
+
     return false;
 }
 
-// Returns true if a CSV agent-name represents a PH (Philippines) training account.
 function isPhTrainingName(rawName) {
     if (!rawName) return false;
-    const t = String(rawName).trim();
-    return /^PH(?![A-Za-z])/i.test(t);
+
+    const text = String(rawName).trim();
+
+    return /^PH(?![A-Za-z])/i.test(text);
 }
 
-// Normalizes a lead/phone number for comparison (digits only, last 10 digits)
 function normalizeLeadNumber(raw) {
     if (!raw) return '';
+
     const digits = String(raw).replace(/\D/g, '');
+
     if (!digits) return '';
+
     return digits.slice(-10);
 }
 
-// 🔥 NEW: When the same Lead Number (column F) appears multiple times in a report,
-// only the LAST time it was called counts toward lead detection. Earlier calls
-// to the same number are ignored even if they also show duration >= 120.
-// Rows without a usable Lead Number are evaluated individually (no dedup possible).
+function normalizeAgentKey(rawName) {
+    return String(rawName || '')
+        .replace(/^(GYP|GYB|GTM|RM)\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toUpperCase();
+}
+
 function getCountableLeadSet(data) {
     const countable = new Set();
-    if (!Array.isArray(data)) return countable;
-    
+
+    if (!Array.isArray(data)) {
+        return countable;
+    }
+
     const lastRowByNumber = new Map();
+
     data.forEach(row => {
-        const num = normalizeLeadNumber(row.leadNumber);
-        if (num) lastRowByNumber.set(num, row); // later occurrences overwrite earlier ones
-    });
-    
-    data.forEach(row => {
-        const num = normalizeLeadNumber(row.leadNumber);
-        if (!num) {
-            countable.add(row); // no number to dedupe by, evaluate on its own
-        } else if (lastRowByNumber.get(num) === row) {
-            countable.add(row); // this is the last call made to this number
+        const number = normalizeLeadNumber(
+            row.leadNumber
+        );
+
+        if (number) {
+            lastRowByNumber.set(number, row);
         }
     });
-    
+
+    data.forEach(row => {
+        const number = normalizeLeadNumber(
+            row.leadNumber
+        );
+
+        if (!number) {
+            countable.add(row);
+        } else if (
+            lastRowByNumber.get(number) === row
+        ) {
+            countable.add(row);
+        }
+    });
+
     return countable;
 }
 
-// 🔥 FIXED: Determines if a row counts as a lead based on duration AND
-// (when a countableSet is supplied) whether it's the LAST call made to that
-// Lead Number. Status column (XFER/CONN/etc.) does NOT matter for counting.
 function isLead(row, countableSet) {
-    const duration = Number(row.duration) || 0;
-    
-    // If duration is 0, never count as a lead
-    if (duration === 0) return false;
-    
-    // If a dedup set was provided and this row isn't the last call to its number, skip it
-    if (countableSet && !countableSet.has(row)) return false;
-    
-    // Count as lead if duration >= 120 seconds
+    const duration = Number(
+        row.duration
+    ) || 0;
+
+    if (duration === 0) {
+        return false;
+    }
+
+    if (
+        countableSet &&
+        !countableSet.has(row)
+    ) {
+        return false;
+    }
+
     return duration >= 120;
 }
 
-// 🔥 NEW: Detects delimiter (comma, semicolon, tab, or pipe) from CSV header line
 function detectDelimiter(line) {
-    const delimiters = [',', ';', '\t', '|'];
-    for (const delim of delimiters) {
-        // Split by this delimiter and check if we get at least 2 columns with content
-        const parts = line.split(delim);
-        if (parts.length >= 2 && parts[0].trim().length > 0 && parts[1].trim().length > 0) {
-            return delim;
+    const delimiters = [
+        ',',
+        ';',
+        '\t',
+        '|'
+    ];
+
+    for (const delimiter of delimiters) {
+        const parts = line.split(delimiter);
+
+        if (
+            parts.length >= 2 &&
+            parts[0].trim().length > 0 &&
+            parts[1].trim().length > 0
+        ) {
+            return delimiter;
         }
     }
-    return ','; // default to comma
+
+    return ',';
 }
 
-// 🔥 NEW: CSV row parser that handles quotes and any delimiter
 function parseCSVRow(row, delimiter) {
     const result = [];
+
     let inQuote = false;
     let current = '';
-    
-    for (let i = 0; i < row.length; i++) {
-        const char = row[i];
-        
-        if (char === '"') {
+
+    for (
+        let index = 0;
+        index < row.length;
+        index++
+    ) {
+        const character = row[index];
+
+        if (character === '"') {
             inQuote = !inQuote;
-        } else if (char === delimiter && !inQuote) {
+        } else if (
+            character === delimiter &&
+            !inQuote
+        ) {
             result.push(current.trim());
             current = '';
         } else {
-            current += char;
+            current += character;
         }
     }
+
     result.push(current.trim());
-    
-    // Remove surrounding quotes from each value
-    return result.map(v => v.replace(/^"|"$/g, ''));
+
+    return result.map(value => {
+        return value.replace(
+            /^"|"$/g,
+            ''
+        );
+    });
 }
 
 function normalizeReportDateLabel(input) {
-    if (!input) return "Unknown Date";
-    const raw = String(input).trim();
-    let d = null;
-    const mdy = raw.match(/^(\d{1,2})[\/\-_](\d{1,2})[\/\-_](\d{2,4})/);
-    if (mdy) {
-        let yr = parseInt(mdy[3], 10);
-        if (yr < 100) yr += 2000;
-        d = new Date(yr, parseInt(mdy[1], 10) - 1, parseInt(mdy[2], 10));
-    } else {
-        const cleaned = raw.replace(/\s*\([^)]*\)\s*$/, "").trim();
-        d = new Date(cleaned);
+    if (!input) {
+        return 'Unknown Date';
     }
-    if (!d || isNaN(d.getTime())) return raw;
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
-           " (" + d.toLocaleDateString("en-US", { weekday: "short" }) + ")";
+
+    const raw = String(input).trim();
+
+    let date = null;
+
+    const match = raw.match(
+        /^(\d{1,2})[\/\-_](\d{1,2})[\/\-_](\d{2,4})/
+    );
+
+    if (match) {
+        let year = parseInt(
+            match[3],
+            10
+        );
+
+        if (year < 100) {
+            year += 2000;
+        }
+
+        date = new Date(
+            year,
+            parseInt(match[1], 10) - 1,
+            parseInt(match[2], 10)
+        );
+    } else {
+        const cleaned = raw
+            .replace(
+                /\s*\([^)]*\)\s*$/,
+                ''
+            )
+            .trim();
+
+        date = new Date(cleaned);
+    }
+
+    if (
+        !date ||
+        isNaN(date.getTime())
+    ) {
+        return raw;
+    }
+
+    return (
+        date.toLocaleDateString(
+            'en-US',
+            {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            }
+        ) +
+        ' (' +
+        date.toLocaleDateString(
+            'en-US',
+            {
+                weekday: 'short'
+            }
+        ) +
+        ')'
+    );
 }
 
-window.renderAgentStatsHistory = function() {
-    // 🔥 FIXED: Use the new access check function
-    const hasAccess = canAccessAgentStats();
-    
+window.renderAgentStatsHistory = function () {
+    const hasAccess =
+        canAccessAgentStats();
+
     if (!hasAccess) {
-        const container = document.getElementById('ah-sect-stats');
+        const container =
+            document.getElementById(
+                'ah-sect-stats'
+            );
+
         if (container) {
-            container.innerHTML = '<div class="p-20 text-center"><i class="fas fa-lock text-5xl text-red-500 mb-4"></i><p class="text-slate-400 font-bold uppercase tracking-widest">Access Denied</p><p class="text-slate-500 text-sm mt-2">Agent Stats is only available for Authorized Admins.</p></div>';
+            container.innerHTML = `
+                <div class="p-20 text-center">
+                    <i class="fas fa-lock text-5xl text-red-500 mb-4"></i>
+
+                    <p class="text-slate-400 font-bold uppercase tracking-widest">
+                        Access Denied
+                    </p>
+
+                    <p class="text-slate-500 text-sm mt-2">
+                        Agent Stats is only available for Authorized Admins.
+                    </p>
+                </div>
+            `;
         }
+
         return;
     }
-    
+
     if (asSubscribed) {
         if (currentReportData) {
-            viewReport(currentReportData.id);
-        } else if (allReports.length > 0) {
-            const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-            if (sortedForDisplay.length > 0) {
-                viewReport(sortedForDisplay[0].id);
+            viewReport(
+                currentReportData.id
+            );
+        } else if (
+            allReports.length > 0
+        ) {
+            const sortedForDisplay = [
+                ...allReports
+            ].sort((a, b) => {
+                return (
+                    new Date(
+                        b.uploadedAt || 0
+                    ) -
+                    new Date(
+                        a.uploadedAt || 0
+                    )
+                );
+            });
+
+            if (
+                sortedForDisplay.length > 0
+            ) {
+                viewReport(
+                    sortedForDisplay[0].id
+                );
             }
         }
-    } else if (typeof window.listenForAgentReports === 'function') {
-        window.listenForAgentReports(data => {
-            allReports = data || [];
-            window.allAgentReports = allReports;
-            
-            const now = new Date();
-            allReports.forEach(r => {
-                const expires = new Date(r.expiresAt);
-                if (now > expires) {
-                    if (typeof window.deleteAgentReportFromFirebase === 'function') {
-                        window.deleteAgentReportFromFirebase(r.id);
+    } else if (
+        typeof window.listenForAgentReports ===
+        'function'
+    ) {
+        window.listenForAgentReports(
+            data => {
+                allReports =
+                    Array.isArray(data)
+                        ? data
+                        : [];
+
+                window.allAgentReports =
+                    allReports;
+
+                const now = new Date();
+
+                allReports.forEach(
+                    report => {
+                        if (
+                            !report.expiresAt
+                        ) {
+                            return;
+                        }
+
+                        const expires =
+                            new Date(
+                                report.expiresAt
+                            );
+
+                        if (
+                            !isNaN(
+                                expires.getTime()
+                            ) &&
+                            now > expires &&
+                            typeof window.deleteAgentReportFromFirebase ===
+                                'function'
+                        ) {
+                            window.deleteAgentReportFromFirebase(
+                                report.id
+                            );
+                        }
                     }
-                }
-            });
-            
-            renderHistoryList();
-            
-            if (allReports.length > 0) {
-                const sortedForDisplay = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-                
-                if (_asLastUploadedDateLabel) {
-                    const justUploaded = sortedForDisplay.find(r => normalizeReportDateLabel(r.reportDate) === _asLastUploadedDateLabel);
-                    _asLastUploadedDateLabel = null;
-                    if (justUploaded) {
-                        viewReport(justUploaded.id);
+                );
+
+                renderHistoryList();
+
+                const sortedForDisplay = [
+                    ...allReports
+                ].sort((a, b) => {
+                    return (
+                        new Date(
+                            b.uploadedAt || 0
+                        ) -
+                        new Date(
+                            a.uploadedAt || 0
+                        )
+                    );
+                });
+
+                if (
+                    sortedForDisplay.length ===
+                    0
+                ) {
+                    currentReportData = null;
+                } else if (
+                    _asLastUploadedDateLabel
+                ) {
+                    const uploadedDateLabel =
+                        _asLastUploadedDateLabel;
+
+                    const matchingReports =
+                        sortedForDisplay.filter(
+                            report => {
+                                return (
+                                    normalizeReportDateLabel(
+                                        report.reportDate
+                                    ) ===
+                                    uploadedDateLabel
+                                );
+                            }
+                        );
+
+                    _asLastUploadedDateLabel =
+                        null;
+
+                    currentReportData =
+                        matchingReports[0] ||
+                        sortedForDisplay[0];
+
+                    viewReport(
+                        currentReportData.id
+                    );
+                } else if (
+                    currentReportData
+                ) {
+                    const refreshedCurrent =
+                        allReports.find(
+                            report => {
+                                return (
+                                    report.id ===
+                                    currentReportData.id
+                                );
+                            }
+                        );
+
+                    if (refreshedCurrent) {
+                        currentReportData =
+                            refreshedCurrent;
+
+                        viewReport(
+                            refreshedCurrent.id
+                        );
                     } else {
-                        viewReport(sortedForDisplay[0].id);
+                        const previousDate =
+                            normalizeReportDateLabel(
+                                currentReportData.reportDate
+                            );
+
+                        const replacement =
+                            sortedForDisplay.find(
+                                report => {
+                                    return (
+                                        normalizeReportDateLabel(
+                                            report.reportDate
+                                        ) ===
+                                        previousDate
+                                    );
+                                }
+                            );
+
+                        currentReportData =
+                            replacement ||
+                            sortedForDisplay[0];
+
+                        viewReport(
+                            currentReportData.id
+                        );
                     }
-                } else if (!currentReportData) {
-                    viewReport(sortedForDisplay[0].id);
                 } else {
-                    const stillExists = allReports.find(r => r.id === currentReportData.id);
-                    if (!stillExists) viewReport(sortedForDisplay[0].id);
+                    currentReportData =
+                        sortedForDisplay[0];
+
+                    viewReport(
+                        sortedForDisplay[0].id
+                    );
+                }
+
+                const latestReport =
+                    sortedForDisplay[0];
+
+                if (
+                    latestReport &&
+                    lastAutoPushedReportId !==
+                        latestReport.id
+                ) {
+                    lastAutoPushedReportId =
+                        latestReport.id;
+
+                    autoPushReportToDashboard(
+                        latestReport
+                    );
                 }
             }
-            
-            if (allReports.length > 0) {
-                const latestReport = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))[0];
-                if (lastAutoPushedReportId !== latestReport.id) {
-                    autoPushReportToDashboard(latestReport);
-                    lastAutoPushedReportId = latestReport.id;
-                }
-            }
-        });
+        );
+
         asSubscribed = true;
     }
-    
+
     setupDropZone();
-    
-    const searchInput = document.getElementById('as-search-input');
-    if (searchInput) {
-        searchInput.addEventListener('input', () => {
-            if (currentReportData) renderActiveReportTable();
-        });
+
+    const searchInput =
+        document.getElementById(
+            'as-search-input'
+        );
+
+    if (
+        searchInput &&
+        !searchInput.dataset
+            .agentStatsBound
+    ) {
+        searchInput.dataset.agentStatsBound =
+            '1';
+
+        searchInput.addEventListener(
+            'input',
+            () => {
+                if (currentReportData) {
+                    renderActiveReportTable();
+                }
+            }
+        );
     }
 };
 
-async function autoPushReportToDashboard(report) {
-    if (!report || !report.data) return;
-    
-    const today = new Date();
-    const todayCanon = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const reportCanon = (normalizeReportDateLabel(report.reportDate) || '').split(' (')[0];
-    
-    if (!reportCanon || reportCanon !== todayCanon) {
-        console.log('[autoPush] Skipped — report date', reportCanon, 'is not today', todayCanon);
+async function autoPushReportToDashboard(
+    report
+) {
+    if (
+        !report ||
+        !Array.isArray(report.data)
+    ) {
         return;
     }
-    
-    const aggMap = {};
-    const autoPushCountable = getCountableLeadSet(report.data);
-    report.data.forEach(d => {
-        const nameKey = (d.agentName || 'UNKNOWN').trim().toUpperCase();
-        const rawKey = d.rawName || d.agentName;
-        if(!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, rawName: rawKey, transfers: 0 };
-        if(isLead(d, autoPushCountable)) aggMap[nameKey].transfers++;
-    });
-    const aggregatedList = Object.values(aggMap);
-    
-    const pushState = {
-        dateLabel: report.reportDate,
-        pushedAt: new Date().toISOString(),
-        pushedBy: report.author || 'Auto-Push System',
-        sourceReportId: report.id,
-        agents: aggregatedList.map(d => ({
-            name: d.name,
-            team: typeof normalizeTeam === 'function' ? normalizeTeam('', d.rawName) : 'PR',
-            dailyLeads: d.transfers
-        }))
-    };
-    
-    if (typeof window.saveLiveDashboardState === 'function') {
-        await window.saveLiveDashboardState(pushState);
-        if (typeof window.updateDashboard === 'function') setTimeout(() => window.updateDashboard(), 500);
-        if (typeof window.writeAdminActivityLog === 'function') {
-            window.writeAdminActivityLog('auto_push', `Auto-pushed Report: ${report.reportDate}`);
-        }
+
+    const guyanaNow = new Date(
+        new Date().toLocaleString(
+            'en-US',
+            {
+                timeZone:
+                    'America/Guyana'
+            }
+        )
+    );
+
+    const todayCanonical =
+        guyanaNow.toLocaleDateString(
+            'en-US',
+            {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            }
+        );
+
+    const reportCanonical = String(
+        normalizeReportDateLabel(
+            report.reportDate
+        ) || ''
+    )
+        .split(' (')[0]
+        .trim();
+
+    if (
+        !reportCanonical ||
+        reportCanonical !==
+            todayCanonical
+    ) {
+        console.log(
+            '[Daily Board] Report saved in Agent Stats but not pushed because the report date is not today.',
+            {
+                reportDate:
+                    reportCanonical,
+
+                today:
+                    todayCanonical
+            }
+        );
+
+        return;
     }
+
+    const aggregateMap = {};
+
+    const countableSet =
+        getCountableLeadSet(
+            report.data
+        );
+
+    report.data.forEach(row => {
+        const agentKey =
+            normalizeAgentKey(
+                row.agentName ||
+                row.rawName
+            );
+
+        if (!agentKey) {
+            return;
+        }
+
+        if (!aggregateMap[agentKey]) {
+            aggregateMap[agentKey] = {
+                name:
+                    row.agentName ||
+                    row.rawName ||
+                    agentKey,
+
+                rawName:
+                    row.rawName ||
+                    row.agentName ||
+                    agentKey,
+
+                team:
+                    row.team ||
+                    (
+                        typeof normalizeTeam ===
+                        'function'
+                            ? normalizeTeam(
+                                '',
+                                row.rawName ||
+                                    row.agentName
+                            )
+                            : 'PR'
+                    ),
+
+                transfers: 0
+            };
+        }
+
+        if (
+            isLead(
+                row,
+                countableSet
+            )
+        ) {
+            aggregateMap[
+                agentKey
+            ].transfers += 1;
+        }
+    });
+
+    const dashboardAgents =
+        Object.values(
+            aggregateMap
+        ).map(agent => {
+            return {
+                name: agent.name,
+                rawName: agent.rawName,
+                team: agent.team,
+                dailyLeads:
+                    agent.transfers
+            };
+        });
+
+    const pushState = {
+        dateLabel:
+            reportCanonical,
+
+        pushedAt:
+            new Date().toISOString(),
+
+        pushedBy:
+            report.author ||
+            'Agent Stats Upload',
+
+        sourceReportId:
+            report.id || '',
+
+        agents:
+            dashboardAgents
+    };
+
+    if (
+        typeof window.saveLiveDashboardState ===
+        'function'
+    ) {
+        await window.saveLiveDashboardState(
+            pushState
+        );
+    }
+
+    window._asLastLiveState =
+        pushState;
+
+    if (
+        typeof window.updateDashboard ===
+        'function'
+    ) {
+        setTimeout(() => {
+            window.updateDashboard();
+        }, 250);
+    }
+
+    if (
+        typeof window.writeAdminActivityLog ===
+        'function'
+    ) {
+        window.writeAdminActivityLog(
+            'auto_push',
+            `Auto-pushed Report: ${report.reportDate}`
+        );
+    }
+
+    console.log(
+        '[Daily Board] Updated successfully:',
+        pushState
+    );
 }
 
 function setupDropZone() {
-    const dropZone = document.getElementById('as-drop-zone');
-    const fileInput = document.getElementById('as-file-input');
-    
-    if (!dropZone || !fileInput) return;
-    
-    dropZone.addEventListener('click', () => fileInput.click());
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('border-cyan-400', 'bg-cyan-500/10');
-    });
-    dropZone.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('border-cyan-400', 'bg-cyan-500/10');
-    });
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('border-cyan-400', 'bg-cyan-500/10');
-        if (e.dataTransfer.files.length) {
-            handleFileUpload(e.dataTransfer.files[0]);
+    const dropZone =
+        document.getElementById(
+            'as-drop-zone'
+        );
+
+    const fileInput =
+        document.getElementById(
+            'as-file-input'
+        );
+
+    if (
+        !dropZone ||
+        !fileInput
+    ) {
+        return;
+    }
+
+    if (
+        dropZone.dataset
+            .agentStatsDropBound ===
+        '1'
+    ) {
+        return;
+    }
+
+    dropZone.dataset
+        .agentStatsDropBound = '1';
+
+    dropZone.addEventListener(
+        'click',
+        () => fileInput.click()
+    );
+
+    dropZone.addEventListener(
+        'dragover',
+        event => {
+            event.preventDefault();
+
+            dropZone.classList.add(
+                'border-cyan-400',
+                'bg-cyan-500/10'
+            );
         }
-    });
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length) {
-            handleFileUpload(e.target.files[0]);
+    );
+
+    dropZone.addEventListener(
+        'dragleave',
+        event => {
+            event.preventDefault();
+
+            dropZone.classList.remove(
+                'border-cyan-400',
+                'bg-cyan-500/10'
+            );
         }
-    });
+    );
+
+    dropZone.addEventListener(
+        'drop',
+        event => {
+            event.preventDefault();
+
+            dropZone.classList.remove(
+                'border-cyan-400',
+                'bg-cyan-500/10'
+            );
+
+            if (
+                event.dataTransfer.files
+                    .length
+            ) {
+                handleFileUpload(
+                    event.dataTransfer
+                        .files[0]
+                );
+            }
+        }
+    );
+
+    fileInput.addEventListener(
+        'change',
+        event => {
+            if (
+                event.target.files
+                    .length
+            ) {
+                handleFileUpload(
+                    event.target.files[0]
+                );
+            }
+        }
+    );
 }
 
 let _asStagedFile = null;
@@ -306,569 +778,2172 @@ let _asStagedDateStr = null;
 let _asStagedParsedDate = null;
 let _asRetentionDays = 30;
 
-window.asSetRetention = function(days) {
-    if (!days || isNaN(days) || days < 1) return;
-    _asRetentionDays = days;
-    [7, 30, 60, 90].forEach(d => {
-        const btn = document.getElementById(`as-ret-${d}`);
-        if (btn) btn.classList.remove('active-ret');
-        if (btn && d === days) btn.classList.add('active-ret');
-    });
-    const customInput = document.getElementById('as-ret-custom');
-    if (customInput && days !== 7 && days !== 30 && days !== 60 && days !== 90) {
-        customInput.value = days;
-    }
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + days);
-    const expiryEl = document.getElementById('as-expiry-display');
-    if (expiryEl) expiryEl.innerText = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-};
+window.asSetRetention =
+    function (days) {
+        if (
+            !days ||
+            isNaN(days) ||
+            days < 1
+        ) {
+            return;
+        }
 
-window.asSetCustomRetention = function() {
-    const customInput = document.getElementById('as-ret-custom');
-    if (customInput) {
-        let days = parseInt(customInput.value);
-        if (isNaN(days) || days < 1) days = 30;
-        if (days > 365) days = 365;
         _asRetentionDays = days;
-        [7, 30, 60, 90].forEach(d => {
-            const btn = document.getElementById(`as-ret-${d}`);
-            if (btn) btn.classList.remove('active-ret');
+
+        [
+            7,
+            30,
+            60,
+            90
+        ].forEach(value => {
+            const button =
+                document.getElementById(
+                    `as-ret-${value}`
+                );
+
+            if (button) {
+                button.classList.remove(
+                    'active-ret'
+                );
+            }
+
+            if (
+                button &&
+                value === days
+            ) {
+                button.classList.add(
+                    'active-ret'
+                );
+            }
         });
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + days);
-        const expiryEl = document.getElementById('as-expiry-display');
-        if (expiryEl) expiryEl.innerText = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-};
 
-window.asToggleDateOverride = function(checked) {
-    const input = document.getElementById('as-report-date-input');
-    if (!input) return;
-    input.readOnly = !checked;
-    input.style.borderColor = checked ? 'rgba(6,182,212,0.5)' : '';
-    input.style.cursor = checked ? 'text' : 'default';
-};
+        const customInput =
+            document.getElementById(
+                'as-ret-custom'
+            );
 
-window.asConfirmUpload = async function() {
-    if (!_asStagedParsed || !_asStagedFile) {
-        updateStatsStatus('❌ No file staged. Please re-select your CSV.', true);
-        return;
-    }
-    
-    const dateInput = document.getElementById('as-report-date-input');
-    const isOverride = document.getElementById('as-date-override-check')?.checked;
-    let finalDateStr = _asStagedDateStr;
-    if (isOverride && dateInput && dateInput.value.trim()) {
-        finalDateStr = dateInput.value.trim();
-    }
-    
-    updateStatsStatus('<i class="fas fa-spinner fa-spin mr-2"></i> Saving to Firebase...', false);
-    
-    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    const adminName = currentAdmin.name || currentAdmin.email || 'Admin';
-    
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + _asRetentionDays);
-    
-    const dayName = typeof getGuyanaDayName === 'function' ? getGuyanaDayName(_asStagedParsedDate) : 'MON';
-    
-    const normalizedFinalDate = normalizeReportDateLabel(finalDateStr);
-    
-    // Snapshot existing report's lead counts NOW, before we delete it
-    // This ensures prevLeadMap is correct for delta calculation on re-uploads
-    const existingReport = allReports.find(r => normalizeReportDateLabel(r.reportDate) === normalizedFinalDate);
-    if (existingReport && existingReport.data) {
-        previousReportData = existingReport;
-    }
+        if (
+            customInput &&
+            days !== 7 &&
+            days !== 30 &&
+            days !== 60 &&
+            days !== 90
+        ) {
+            customInput.value = days;
+        }
 
-    // DELETE existing report for this date completely
-    if (existingReport && typeof window.deleteAgentReportFromFirebase === 'function') {
-        await window.deleteAgentReportFromFirebase(existingReport.id);
-        console.log(`[Upload] Deleted existing report for ${normalizedFinalDate} - will replace with fresh data`);
-    }
-    
-    // Calculate lead counts for success message with per-agent breakdown
-    const agentLeadMap = {};
-    const stagedCountable = getCountableLeadSet(_asStagedParsed);
-    _asStagedParsed.forEach(row => {
-        const agentName = row.agentName;
-        if (!agentName) return;
-        if (!agentLeadMap[agentName]) agentLeadMap[agentName] = 0;
-        if (isLead(row, stagedCountable)) agentLeadMap[agentName]++;
-    });
-    
-    const totalRows = _asStagedParsed.length;
-    const totalLeads = Object.values(agentLeadMap).reduce((a, b) => a + b, 0);
+        const expiryDate =
+            new Date();
 
-    // Calculate NEW leads vs previous report (delta only for banner)
-    const prevLeadMap = {};
-    if (previousReportData && previousReportData.data) {
-        const prevCountable = getCountableLeadSet(previousReportData.data);
-        previousReportData.data.forEach(row => {
-            const agentName = row.agentName;
-            if (!agentName) return;
-            if (!prevLeadMap[agentName]) prevLeadMap[agentName] = 0;
-            if (isLead(row, prevCountable)) prevLeadMap[agentName]++;
-        });
-    }
-    const newLeadsThisUpload = Object.entries(agentLeadMap).reduce((sum, [name, count]) => {
-        return sum + Math.max(0, count - (prevLeadMap[name] || 0));
-    }, 0);
-    
-    console.log('[Upload] Per-agent lead counts:', agentLeadMap);
-    
-    // Create brand new report with FRESH data
-    const reportObj = {
-        filename: _asStagedFile.name,
-        reportDate: finalDateStr,
-        dayOfWeek: dayName,
-        uploadedAt: new Date().toISOString(),
-        expiresAt: expiryDate.toISOString(),
-        author: adminName,
-        data: _asStagedParsed
+        expiryDate.setDate(
+            expiryDate.getDate() +
+                days
+        );
+
+        const expiryElement =
+            document.getElementById(
+                'as-expiry-display'
+            );
+
+        if (expiryElement) {
+            expiryElement.innerText =
+                expiryDate.toLocaleDateString(
+                    'en-US',
+                    {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    }
+                );
+        }
     };
-    
-    _asLastUploadedDateLabel = normalizedFinalDate;
-    
-    if (typeof window.saveAgentReportToFirebase === 'function') {
-        const res = await window.saveAgentReportToFirebase(reportObj);
-        if (res && res.success) {
-            updateStatsStatus(`✅ Saved! ${totalRows} rows, ${totalLeads} leads (duration >= 120 sec) - Replaced previous data`, false);
-            
-            if (typeof window.writeAdminActivityLog === 'function') {
-                window.writeAdminActivityLog('upload_stats', `Uploaded (replaced): ${_asStagedFile.name} (${totalRows} rows, ${totalLeads} leads)`);
+
+window.asSetCustomRetention =
+    function () {
+        const customInput =
+            document.getElementById(
+                'as-ret-custom'
+            );
+
+        if (!customInput) {
+            return;
+        }
+
+        let days = parseInt(
+            customInput.value,
+            10
+        );
+
+        if (
+            isNaN(days) ||
+            days < 1
+        ) {
+            days = 30;
+        }
+
+        if (days > 365) {
+            days = 365;
+        }
+
+        _asRetentionDays = days;
+
+        [
+            7,
+            30,
+            60,
+            90
+        ].forEach(value => {
+            const button =
+                document.getElementById(
+                    `as-ret-${value}`
+                );
+
+            if (button) {
+                button.classList.remove(
+                    'active-ret'
+                );
+            }
+        });
+
+        const expiryDate =
+            new Date();
+
+        expiryDate.setDate(
+            expiryDate.getDate() +
+                days
+        );
+
+        const expiryElement =
+            document.getElementById(
+                'as-expiry-display'
+            );
+
+        if (expiryElement) {
+            expiryElement.innerText =
+                expiryDate.toLocaleDateString(
+                    'en-US',
+                    {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    }
+                );
+        }
+    };
+
+window.asToggleDateOverride =
+    function (checked) {
+        const input =
+            document.getElementById(
+                'as-report-date-input'
+            );
+
+        if (!input) {
+            return;
+        }
+
+        input.readOnly = !checked;
+
+        input.style.borderColor =
+            checked
+                ? 'rgba(6,182,212,0.5)'
+                : '';
+
+        input.style.cursor =
+            checked
+                ? 'text'
+                : 'default';
+    };
+
+window.asConfirmUpload =
+    async function () {
+        if (
+            !_asStagedParsed ||
+            !_asStagedFile
+        ) {
+            updateStatsStatus(
+                '❌ No file staged. Please re-select your CSV.',
+                true
+            );
+
+            return;
+        }
+
+        const dateInput =
+            document.getElementById(
+                'as-report-date-input'
+            );
+
+        const overrideCheck =
+            document.getElementById(
+                'as-date-override-check'
+            );
+
+        const isOverride =
+            Boolean(
+                overrideCheck &&
+                overrideCheck.checked
+            );
+
+        let finalDateStr =
+            _asStagedDateStr;
+
+        if (
+            isOverride &&
+            dateInput &&
+            dateInput.value.trim()
+        ) {
+            finalDateStr =
+                dateInput.value.trim();
+        }
+
+        const normalizedFinalDate =
+            normalizeReportDateLabel(
+                finalDateStr
+            );
+
+        updateStatsStatus(
+            '<i class="fas fa-spinner fa-spin mr-2"></i> Saving fresh report to Firebase...',
+            false
+        );
+
+        const currentAdmin =
+            JSON.parse(
+                sessionStorage.getItem(
+                    'currentAdmin'
+                ) || '{}'
+            );
+
+        const adminName =
+            currentAdmin.name ||
+            currentAdmin.email ||
+            'Admin';
+
+        const expiryDate =
+            new Date();
+
+        expiryDate.setDate(
+            expiryDate.getDate() +
+                _asRetentionDays
+        );
+
+        const dayName =
+            typeof getGuyanaDayName ===
+            'function'
+                ? getGuyanaDayName(
+                    _asStagedParsedDate
+                )
+                : 'MON';
+
+        const existingReportsForDate =
+            allReports.filter(
+                report => {
+                    return (
+                        normalizeReportDateLabel(
+                            report.reportDate
+                        ) ===
+                        normalizedFinalDate
+                    );
+                }
+            );
+
+        const existingReport = [
+            ...existingReportsForDate
+        ].sort((a, b) => {
+            return (
+                new Date(
+                    b.uploadedAt || 0
+                ) -
+                new Date(
+                    a.uploadedAt || 0
+                )
+            );
+        })[0] || null;
+
+        previousReportData =
+            existingReport || null;
+
+        const prevLeadMap = {};
+
+        if (
+            existingReport &&
+            Array.isArray(
+                existingReport.data
+            )
+        ) {
+            const previousCountable =
+                getCountableLeadSet(
+                    existingReport.data
+                );
+
+            existingReport.data.forEach(
+                row => {
+                    const agentKey =
+                        normalizeAgentKey(
+                            row.agentName ||
+                                row.rawName
+                        );
+
+                    if (!agentKey) {
+                        return;
+                    }
+
+                    if (
+                        !Object.prototype
+                            .hasOwnProperty
+                            .call(
+                                prevLeadMap,
+                                agentKey
+                            )
+                    ) {
+                        prevLeadMap[
+                            agentKey
+                        ] = 0;
+                    }
+
+                    if (
+                        isLead(
+                            row,
+                            previousCountable
+                        )
+                    ) {
+                        prevLeadMap[
+                            agentKey
+                        ] += 1;
+                    }
+                }
+            );
+        }
+
+        const agentLeadMap = {};
+        const agentDisplayNameMap = {};
+
+        const stagedCountable =
+            getCountableLeadSet(
+                _asStagedParsed
+            );
+
+        _asStagedParsed.forEach(
+            row => {
+                const agentKey =
+                    normalizeAgentKey(
+                        row.agentName ||
+                            row.rawName
+                    );
+
+                if (!agentKey) {
+                    return;
+                }
+
+                if (
+                    !Object.prototype
+                        .hasOwnProperty
+                        .call(
+                            agentLeadMap,
+                            agentKey
+                        )
+                ) {
+                    agentLeadMap[
+                        agentKey
+                    ] = 0;
+                }
+
+                agentDisplayNameMap[
+                    agentKey
+                ] =
+                    row.agentName ||
+                    row.rawName ||
+                    agentKey;
+
+                if (
+                    isLead(
+                        row,
+                        stagedCountable
+                    )
+                ) {
+                    agentLeadMap[
+                        agentKey
+                    ] += 1;
+                }
+            }
+        );
+
+        const totalRows =
+            _asStagedParsed.length;
+
+        const totalLeads =
+            Object.values(
+                agentLeadMap
+            ).reduce(
+                (total, count) => {
+                    return (
+                        total +
+                        Number(
+                            count || 0
+                        )
+                    );
+                },
+                0
+            );
+
+        const agentDeltaList =
+            Object.keys(
+                agentLeadMap
+            )
+                .map(agentKey => {
+                    const count =
+                        Number(
+                            agentLeadMap[
+                                agentKey
+                            ] || 0
+                        );
+
+                    const previous =
+                        Number(
+                            prevLeadMap[
+                                agentKey
+                            ] || 0
+                        );
+
+                    return {
+                        key: agentKey,
+
+                        name:
+                            agentDisplayNameMap[
+                                agentKey
+                            ] ||
+                            agentKey,
+
+                        count,
+
+                        prev:
+                            previous,
+
+                        added:
+                            Math.max(
+                                0,
+                                count -
+                                    previous
+                            )
+                    };
+                })
+                .filter(agent => {
+                    return (
+                        agent.added > 0
+                    );
+                })
+                .sort((a, b) => {
+                    return (
+                        b.added -
+                            a.added ||
+                        b.count -
+                            a.count ||
+                        a.name.localeCompare(
+                            b.name
+                        )
+                    );
+                });
+
+        const newLeadsThisUpload =
+            agentDeltaList.reduce(
+                (total, agent) => {
+                    return (
+                        total +
+                        agent.added
+                    );
+                },
+                0
+            );
+
+        const reportObj = {
+            filename:
+                _asStagedFile.name,
+
+            reportDate:
+                finalDateStr,
+
+            dayOfWeek:
+                dayName,
+
+            uploadedAt:
+                new Date().toISOString(),
+
+            expiresAt:
+                expiryDate.toISOString(),
+
+            author:
+                adminName,
+
+            data:
+                _asStagedParsed
+        };
+
+        try {
+            if (
+                typeof window.saveAgentReportToFirebase !==
+                'function'
+            ) {
+                throw new Error(
+                    'Firebase report save function is unavailable.'
+                );
             }
 
-            // Show lead banner to all connected clients with upload summary
-            if (newLeadsThisUpload > 0 && typeof window.triggerCsvUploadAlert === 'function') {
-                // Build per-agent delta list for the banner
-                const agentDeltaList = Object.entries(agentLeadMap)
-                    .map(([name, count]) => ({ name, count, prev: prevLeadMap[name] || 0 }))
-                    .filter(a => a.count > a.prev)
-                    .sort((a, b) => a.prev - b.prev || b.count - a.count); // first-timers first, then by count desc
-                window.triggerCsvUploadAlert(newLeadsThisUpload, agentDeltaList);
+            const result =
+                await window.saveAgentReportToFirebase(
+                    reportObj
+                );
+
+            if (
+                !result ||
+                !result.success ||
+                !result.id
+            ) {
+                throw new Error(
+                    result &&
+                    result.error
+                        ? String(
+                            result.error
+                        )
+                        : 'Firebase did not return the new report ID.'
+                );
             }
-            
-            document.getElementById('as-upload-panel').classList.add('hidden');
+
+            const newlySavedReport = {
+                id: result.id,
+                ...reportObj
+            };
+
+            currentReportData =
+                newlySavedReport;
+
+            _asLastUploadedDateLabel =
+                normalizedFinalDate;
+
+            allReports =
+                allReports.filter(
+                    report => {
+                        return (
+                            normalizeReportDateLabel(
+                                report.reportDate
+                            ) !==
+                            normalizedFinalDate
+                        );
+                    }
+                );
+
+            allReports.unshift(
+                newlySavedReport
+            );
+
+            window.allAgentReports =
+                allReports;
+
+            renderHistoryList();
+
+            viewReport(
+                newlySavedReport.id
+            );
+
+            await autoPushReportToDashboard(
+                newlySavedReport
+            );
+
+            lastAutoPushedReportId =
+                newlySavedReport.id;
+
+            if (
+                typeof window.deleteAgentReportFromFirebase ===
+                'function'
+            ) {
+                for (
+                    const oldReport of
+                    existingReportsForDate
+                ) {
+                    if (
+                        oldReport &&
+                        oldReport.id &&
+                        oldReport.id !==
+                            newlySavedReport.id
+                    ) {
+                        await window.deleteAgentReportFromFirebase(
+                            oldReport.id
+                        );
+                    }
+                }
+            }
+
+            updateStatsStatus(
+                `✅ Saved fresh report! ${totalRows} rows, ${totalLeads} qualified leads. Daily Agent Stats and the live dashboard were updated.`,
+                false
+            );
+
+            if (
+                typeof window.writeAdminActivityLog ===
+                'function'
+            ) {
+                window.writeAdminActivityLog(
+                    'upload_stats',
+                    `Uploaded fresh report: ${_asStagedFile.name} (${totalRows} rows, ${totalLeads} leads)`
+                );
+            }
+
+            if (
+                newLeadsThisUpload >
+                    0 &&
+                typeof window.triggerCsvUploadAlert ===
+                    'function'
+            ) {
+                await window.triggerCsvUploadAlert(
+                    newLeadsThisUpload,
+
+                    agentDeltaList.map(
+                        agent => {
+                            return {
+                                name:
+                                    agent.name,
+
+                                count:
+                                    agent.count,
+
+                                prev:
+                                    agent.prev,
+
+                                added:
+                                    agent.added
+                            };
+                        }
+                    )
+                );
+            }
+
+            const uploadPanel =
+                document.getElementById(
+                    'as-upload-panel'
+                );
+
+            if (uploadPanel) {
+                uploadPanel.classList.add(
+                    'hidden'
+                );
+            }
+
+            const fileInput =
+                document.getElementById(
+                    'as-file-input'
+                );
+
+            if (fileInput) {
+                fileInput.value = '';
+            }
+
             _asStagedFile = null;
             _asStagedParsed = null;
-            currentReportData = null;
-            setTimeout(() => updateStatsStatus('', false), 4000);
-        } else {
-            updateStatsStatus('❌ Failed to save', true);
-        }
-    }
-};
+            _asStagedDateStr = null;
+            _asStagedParsedDate =
+                null;
 
-// 🔥 FIXED: Completely rewritten handleFileUpload with delimiter auto-detection
-async function handleFileUpload(file) {
-    if (!file.name.endsWith('.csv')) {
-        updateStatsStatus('❌ Please upload a CSV file', true);
-        return;
-    }
-    
-    updateStatsStatus('<i class="fas fa-spinner fa-spin mr-2"></i> Reading file...', false);
-    
-    let fileDateStr = null;
-    const dateMatch = file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})/);
-    if (dateMatch) {
-        fileDateStr = `${dateMatch[1]}/${dateMatch[2]}/${dateMatch[3]}`;
-    }
-    if (!fileDateStr) fileDateStr = file.name.replace(/\.csv$/i, '');
-    
-    const text = await file.text();
-    let lines = text.split(/\r?\n/);
-    
-    // Filter out empty lines
-    lines = lines.filter(line => line.trim().length > 0);
-    
-    if (lines.length === 0) {
-        updateStatsStatus('❌ File is empty', true);
-        return;
-    }
-    
-    // Detect delimiter from first non-empty line
-    const firstLine = lines[0];
-    const delimiter = detectDelimiter(firstLine);
-    
-    console.log(`[Upload] Detected delimiter: "${delimiter}"`);
-    
-    // Parse headers using detected delimiter
-    let headers = parseCSVRow(firstLine, delimiter);
-    
-    // Find header row - look for Agent Name column
-    let headerIdx = 0;
-    for (let i = 0; i < Math.min(lines.length, 5); i++) {
-        const testHeaders = parseCSVRow(lines[i], delimiter);
-        const hasAgentName = testHeaders.some(h => 
-            h.toLowerCase().includes('agent name') || 
-            h.toLowerCase().includes('agentname') ||
-            h.toLowerCase().includes('rep name') ||
-            h.toLowerCase().includes('representative')
+            previousReportData =
+                null;
+
+            setTimeout(() => {
+                updateStatsStatus(
+                    '',
+                    false
+                );
+            }, 5000);
+        } catch (error) {
+            console.error(
+                '[Agent Stats Upload Error]',
+                error
+            );
+
+            updateStatsStatus(
+                `❌ Upload failed: ${
+                    error &&
+                    error.message
+                        ? error.message
+                        : 'Unknown error'
+                }`,
+                true
+            );
+        }
+    };
+
+async function handleFileUpload(
+    file
+) {
+    if (
+        !file.name
+            .toLowerCase()
+            .endsWith('.csv')
+    ) {
+        updateStatsStatus(
+            '❌ Please upload a CSV file',
+            true
         );
+
+        return;
+    }
+
+    updateStatsStatus(
+        '<i class="fas fa-spinner fa-spin mr-2"></i> Reading file...',
+        false
+    );
+
+    let fileDateStr = null;
+
+    const dateMatch =
+        file.name.match(
+            /(\d{2})[-_](\d{2})[-_](\d{4})/
+        );
+
+    if (dateMatch) {
+        fileDateStr =
+            `${dateMatch[1]}/${dateMatch[2]}/${dateMatch[3]}`;
+    }
+
+    if (!fileDateStr) {
+        fileDateStr =
+            file.name.replace(
+                /\.csv$/i,
+                ''
+            );
+    }
+
+    const text =
+        await file.text();
+
+    let lines =
+        text.split(/\r?\n/);
+
+    lines = lines.filter(line => {
+        return (
+            line.trim().length > 0
+        );
+    });
+
+    if (
+        lines.length === 0
+    ) {
+        updateStatsStatus(
+            '❌ File is empty',
+            true
+        );
+
+        return;
+    }
+
+    const firstLine =
+        lines[0];
+
+    const delimiter =
+        detectDelimiter(
+            firstLine
+        );
+
+    console.log(
+        `[Upload] Detected delimiter: "${delimiter}"`
+    );
+
+    let headers =
+        parseCSVRow(
+            firstLine,
+            delimiter
+        );
+
+    let headerIndex = 0;
+
+    for (
+        let index = 0;
+        index <
+        Math.min(
+            lines.length,
+            5
+        );
+        index++
+    ) {
+        const testHeaders =
+            parseCSVRow(
+                lines[index],
+                delimiter
+            );
+
+        const hasAgentName =
+            testHeaders.some(header => {
+                const text =
+                    header.toLowerCase();
+
+                return (
+                    text.includes(
+                        'agent name'
+                    ) ||
+                    text.includes(
+                        'agentname'
+                    ) ||
+                    text.includes(
+                        'rep name'
+                    ) ||
+                    text.includes(
+                        'representative'
+                    )
+                );
+            });
+
         if (hasAgentName) {
-            headerIdx = i;
-            headers = testHeaders;
-            console.log(`[Upload] Found header row at line ${i}:`, headers);
+            headerIndex =
+                index;
+
+            headers =
+                testHeaders;
+
+            console.log(
+                `[Upload] Found header row at line ${index}:`,
+                headers
+            );
+
             break;
         }
     }
-    
-    // Map column indices
-    let agentIdIdx = -1;
-    let agentNameIdx = -1;
-    let statusIdx = -1;
-    let durationIdx = -1;
-    let teamIdx = -1;
-    let leadNumberIdx = -1;
-    
-    headers.forEach((h, idx) => {
-        const lower = h.toLowerCase().replace(/[\s_-]/g, '');
-        if (lower.includes('agentid') || lower === 'agentid' || lower === 'userid' || lower === 'id') agentIdIdx = idx;
-        if (lower.includes('agentname') || lower === 'agentname' || lower === 'name' || lower === 'agent') agentNameIdx = idx;
-        if (lower.includes('currentstatus') || lower === 'currentstatus' || lower === 'status' || lower === 'disposition') statusIdx = idx;
-        if (lower.includes('duration') || lower === 'duration' || lower === 'dur' || lower === 'talktime') durationIdx = idx;
-        if (lower.includes('team') || lower === 'team' || lower.includes('prefix')) teamIdx = idx;
-        if (lower.includes('leadnumber') || lower === 'leadnumber' || lower.includes('phonenumber') || lower === 'number' || lower === 'customernumber' || lower === 'dialednumber') leadNumberIdx = idx;
-    });
-    
-    // Fallbacks if not found
-    if (agentNameIdx === -1) agentNameIdx = 0;
-    if (statusIdx === -1 && headers.length > 2) statusIdx = 2;
-    if (durationIdx === -1 && headers.length > 3) durationIdx = 3;
-    if (leadNumberIdx === -1 && headers.length > 5) leadNumberIdx = 5;
-    
-    console.log(`[Upload] Column mapping - Name:${agentNameIdx}, Status:${statusIdx}, Duration:${durationIdx}, AgentId:${agentIdIdx}, Team:${teamIdx}, LeadNumber:${leadNumberIdx}`);
-    
+
+    let agentIdIndex = -1;
+    let agentNameIndex = -1;
+    let statusIndex = -1;
+    let durationIndex = -1;
+    let teamIndex = -1;
+    let leadNumberIndex = -1;
+
+    headers.forEach(
+        (header, index) => {
+            const lower =
+                header
+                    .toLowerCase()
+                    .replace(
+                        /[\s_-]/g,
+                        ''
+                    );
+
+            if (
+                lower.includes(
+                    'agentid'
+                ) ||
+                lower === 'userid' ||
+                lower === 'id'
+            ) {
+                agentIdIndex =
+                    index;
+            }
+
+            if (
+                lower.includes(
+                    'agentname'
+                ) ||
+                lower === 'name' ||
+                lower === 'agent'
+            ) {
+                agentNameIndex =
+                    index;
+            }
+
+            if (
+                lower.includes(
+                    'currentstatus'
+                ) ||
+                lower === 'status' ||
+                lower ===
+                    'disposition'
+            ) {
+                statusIndex =
+                    index;
+            }
+
+            if (
+                lower.includes(
+                    'duration'
+                ) ||
+                lower === 'dur' ||
+                lower === 'talktime'
+            ) {
+                durationIndex =
+                    index;
+            }
+
+            if (
+                lower.includes(
+                    'team'
+                ) ||
+                lower.includes(
+                    'prefix'
+                )
+            ) {
+                teamIndex =
+                    index;
+            }
+
+            if (
+                lower.includes(
+                    'leadnumber'
+                ) ||
+                lower.includes(
+                    'phonenumber'
+                ) ||
+                lower === 'number' ||
+                lower ===
+                    'customernumber' ||
+                lower ===
+                    'dialednumber'
+            ) {
+                leadNumberIndex =
+                    index;
+            }
+        }
+    );
+
+    if (
+        agentNameIndex === -1
+    ) {
+        agentNameIndex = 0;
+    }
+
+    if (
+        statusIndex === -1 &&
+        headers.length > 2
+    ) {
+        statusIndex = 2;
+    }
+
+    if (
+        durationIndex === -1 &&
+        headers.length > 3
+    ) {
+        durationIndex = 3;
+    }
+
+    if (
+        leadNumberIndex === -1 &&
+        headers.length > 5
+    ) {
+        leadNumberIndex = 5;
+    }
+
+    console.log(
+        `[Upload] Column mapping - Name:${agentNameIndex}, Status:${statusIndex}, Duration:${durationIndex}, AgentId:${agentIdIndex}, Team:${teamIndex}, LeadNumber:${leadNumberIndex}`
+    );
+
     const parsedData = [];
-    
-    for (let i = headerIdx + 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        
-        const values = parseCSVRow(line, delimiter);
-        if (values.length < 3) continue;
-        
-        const agentId = agentIdIdx >= 0 ? (values[agentIdIdx] || '') : '';
-        const agentNameRaw = agentNameIdx >= 0 ? (values[agentNameIdx] || '') : '';
-        
-        // Skip PH training accounts
-        if (agentNameRaw && /^PH(?![A-Za-z])/i.test(agentNameRaw)) continue;
-        if (!agentNameRaw.trim() || agentNameRaw.trim() === 'UNKNOWN') continue;
-        
-        const status = statusIdx >= 0 ? (values[statusIdx] || '').toUpperCase() : '';
-        const durationRaw = durationIdx >= 0 ? (values[durationIdx] || '0') : '0';
-        const leadNumber = leadNumberIdx >= 0 ? (values[leadNumberIdx] || '') : '';
-        
-        // Determine team from agent name prefix if not provided
+
+    for (
+        let index =
+            headerIndex + 1;
+        index <
+        lines.length;
+        index++
+    ) {
+        const line =
+            lines[index].trim();
+
+        if (!line) {
+            continue;
+        }
+
+        const values =
+            parseCSVRow(
+                line,
+                delimiter
+            );
+
+        if (
+            values.length < 3
+        ) {
+            continue;
+        }
+
+        const agentId =
+            agentIdIndex >= 0
+                ? values[
+                    agentIdIndex
+                ] || ''
+                : '';
+
+        const agentNameRaw =
+            agentNameIndex >= 0
+                ? values[
+                    agentNameIndex
+                ] || ''
+                : '';
+
+        if (
+            agentNameRaw &&
+            /^PH(?![A-Za-z])/i.test(
+                agentNameRaw
+            )
+        ) {
+            continue;
+        }
+
+        if (
+            !agentNameRaw.trim() ||
+            agentNameRaw
+                .trim()
+                .toUpperCase() ===
+                'UNKNOWN'
+        ) {
+            continue;
+        }
+
+        const status =
+            statusIndex >= 0
+                ? String(
+                    values[
+                        statusIndex
+                    ] || ''
+                ).toUpperCase()
+                : '';
+
+        const durationRaw =
+            durationIndex >= 0
+                ? String(
+                    values[
+                        durationIndex
+                    ] || '0'
+                )
+                : '0';
+
+        const leadNumber =
+            leadNumberIndex >= 0
+                ? values[
+                    leadNumberIndex
+                ] || ''
+                : '';
+
         let team = 'PR';
-        const upperRaw = agentNameRaw.toUpperCase().trim();
-        if (upperRaw.startsWith('GYB ') || upperRaw.startsWith('GYB\t')) team = 'BB';
-        else if (upperRaw.startsWith('GYP ') || upperRaw.startsWith('GYP\t')) team = 'PR';
-        else if (upperRaw.startsWith('GTM ') || upperRaw.startsWith('GTM\t')) team = 'RM';
-        else if (upperRaw.startsWith('RM ') || upperRaw.startsWith('RM\t')) team = 'RM';
-        
-        // If team column exists and has value, use it
-        if (teamIdx >= 0 && values[teamIdx] && values[teamIdx].trim()) {
-            const teamVal = values[teamIdx].trim().toUpperCase();
-            if (teamVal === 'BB' || teamVal === 'BERB' || teamVal === 'BERBICE') team = 'BB';
-            else if (teamVal === 'RM' || teamVal === 'REMOTE') team = 'RM';
-            else if (teamVal === 'PR' || teamVal === 'PROV' || teamVal === 'PROVIDENCE') team = 'PR';
+
+        const upperRaw =
+            agentNameRaw
+                .toUpperCase()
+                .trim();
+
+        if (
+            upperRaw.startsWith(
+                'GYB '
+            ) ||
+            upperRaw.startsWith(
+                'GYB\t'
+            )
+        ) {
+            team = 'BB';
+        } else if (
+            upperRaw.startsWith(
+                'GYP '
+            ) ||
+            upperRaw.startsWith(
+                'GYP\t'
+            )
+        ) {
+            team = 'PR';
+        } else if (
+            upperRaw.startsWith(
+                'GTM '
+            ) ||
+            upperRaw.startsWith(
+                'GTM\t'
+            )
+        ) {
+            team = 'RM';
+        } else if (
+            upperRaw.startsWith(
+                'RM '
+            ) ||
+            upperRaw.startsWith(
+                'RM\t'
+            )
+        ) {
+            team = 'RM';
         }
-        
-        // Clean agent name
-        const agentName = agentNameRaw.replace(/^(GYP|GYB|GTM|RM)\s+/i, '').trim();
-        
-        // Parse duration (handles both seconds and MM:SS format)
+
+        if (
+            teamIndex >= 0 &&
+            values[teamIndex] &&
+            values[
+                teamIndex
+            ].trim()
+        ) {
+            const teamValue =
+                values[
+                    teamIndex
+                ]
+                    .trim()
+                    .toUpperCase();
+
+            if (
+                teamValue ===
+                    'BB' ||
+                teamValue ===
+                    'BERB' ||
+                teamValue ===
+                    'BERBICE'
+            ) {
+                team = 'BB';
+            } else if (
+                teamValue ===
+                    'RM' ||
+                teamValue ===
+                    'REMOTE'
+            ) {
+                team = 'RM';
+            } else if (
+                teamValue ===
+                    'PR' ||
+                teamValue ===
+                    'PROV' ||
+                teamValue ===
+                    'PROVIDENCE'
+            ) {
+                team = 'PR';
+            }
+        }
+
+        const agentName =
+            agentNameRaw
+                .replace(
+                    /^(GYP|GYB|GTM|RM)\s+/i,
+                    ''
+                )
+                .trim();
+
         let duration = 0;
-        if (durationRaw.includes(':')) {
-            const parts = durationRaw.split(':').map(Number);
-            if (parts.length === 2) duration = parts[0] * 60 + parts[1];
-            else if (parts.length === 3) duration = parts[0] * 3600 + parts[1] * 60 + parts[2];
+
+        if (
+            durationRaw.includes(
+                ':'
+            )
+        ) {
+            const parts =
+                durationRaw
+                    .split(':')
+                    .map(Number);
+
+            if (
+                parts.length === 2
+            ) {
+                duration =
+                    parts[0] * 60 +
+                    parts[1];
+            } else if (
+                parts.length === 3
+            ) {
+                duration =
+                    parts[0] *
+                        3600 +
+                    parts[1] *
+                        60 +
+                    parts[2];
+            }
         } else {
-            duration = parseInt(durationRaw, 10) || 0;
+            duration =
+                parseInt(
+                    durationRaw,
+                    10
+                ) || 0;
         }
-        
+
         parsedData.push({
-            agentId: agentId,
-            agentName: agentName,
-            rawName: agentNameRaw,
-            team: team,
-            status: status,
-            duration: duration,
-            leadNumber: leadNumber
+            agentId,
+            agentName,
+            rawName:
+                agentNameRaw,
+            team,
+            status,
+            duration,
+            leadNumber
         });
     }
-    
-    if (parsedData.length === 0) {
-        updateStatsStatus('❌ No valid data rows found in CSV. Check that columns are correctly detected.', true);
+
+    if (
+        parsedData.length === 0
+    ) {
+        updateStatsStatus(
+            '❌ No valid data rows found in CSV. Check that columns are correctly detected.',
+            true
+        );
+
         return;
     }
-    
-    _asStagedFile = file;
-    _asStagedParsed = parsedData;
-    _asStagedDateStr = fileDateStr;
+
+    _asStagedFile =
+        file;
+
+    _asStagedParsed =
+        parsedData;
+
+    _asStagedDateStr =
+        fileDateStr;
+
     if (dateMatch) {
-        _asStagedParsedDate = new Date(`${dateMatch[3]}-${dateMatch[1]}-${dateMatch[2]}`);
-        if (isNaN(_asStagedParsedDate.getTime())) _asStagedParsedDate = new Date();
+        _asStagedParsedDate =
+            new Date(
+                `${dateMatch[3]}-${dateMatch[1]}-${dateMatch[2]}T12:00:00`
+            );
+
+        if (
+            isNaN(
+                _asStagedParsedDate
+                    .getTime()
+            )
+        ) {
+            _asStagedParsedDate =
+                new Date();
+        }
     } else {
-        _asStagedParsedDate = new Date();
+        _asStagedParsedDate =
+            new Date();
     }
+
     _asRetentionDays = 30;
-    
-    const dateInput = document.getElementById('as-report-date-input');
-    if (dateInput) dateInput.value = normalizeReportDateLabel(fileDateStr);
-    
-    asSetRetention(_asRetentionDays || 30);
-    
-    const panel = document.getElementById('as-upload-panel');
-    if (panel) panel.classList.remove('hidden');
-    
-    // Show preview of what will be counted with per-agent breakdown
+
+    const dateInput =
+        document.getElementById(
+            'as-report-date-input'
+        );
+
+    if (dateInput) {
+        dateInput.value =
+            normalizeReportDateLabel(
+                fileDateStr
+            );
+    }
+
+    asSetRetention(
+        _asRetentionDays || 30
+    );
+
+    const panel =
+        document.getElementById(
+            'as-upload-panel'
+        );
+
+    if (panel) {
+        panel.classList.remove(
+            'hidden'
+        );
+    }
+
     const agentLeadMap = {};
-    const previewCountable = getCountableLeadSet(parsedData);
-    parsedData.forEach(row => {
-        const agentName = row.agentName;
-        if (!agentName) return;
-        if (!agentLeadMap[agentName]) agentLeadMap[agentName] = 0;
-        if (isLead(row, previewCountable)) agentLeadMap[agentName]++;
-    });
-    
-    const leadCount = Object.values(agentLeadMap).reduce((a, b) => a + b, 0);
-    const agentSummary = Object.entries(agentLeadMap).slice(0, 5).map(([name, count]) => `${name}: ${count}`).join(', ');
-    
-    updateStatsStatus(`✅ Ready: ${parsedData.length} rows, ${leadCount} qualified leads (duration >= 120 sec). ${agentSummary}${Object.keys(agentLeadMap).length > 5 ? '...' : ''}. This will REPLACE previous data.`, false);
-    
-    console.log('[File Upload] Delimiter used:', delimiter);
-    console.log('[File Upload] Per-agent lead counts:', agentLeadMap);
+
+    const previewCountable =
+        getCountableLeadSet(
+            parsedData
+        );
+
+    parsedData.forEach(
+        row => {
+            const agentKey =
+                normalizeAgentKey(
+                    row.agentName ||
+                    row.rawName
+                );
+
+            if (!agentKey) {
+                return;
+            }
+
+            if (
+                !Object.prototype
+                    .hasOwnProperty
+                    .call(
+                        agentLeadMap,
+                        agentKey
+                    )
+            ) {
+                agentLeadMap[
+                    agentKey
+                ] = {
+                    name:
+                        row.agentName ||
+                        row.rawName ||
+                        agentKey,
+
+                    count: 0
+                };
+            }
+
+            if (
+                isLead(
+                    row,
+                    previewCountable
+                )
+            ) {
+                agentLeadMap[
+                    agentKey
+                ].count += 1;
+            }
+        }
+    );
+
+    const leadCount =
+        Object.values(
+            agentLeadMap
+        ).reduce(
+            (total, agent) => {
+                return (
+                    total +
+                    agent.count
+                );
+            },
+            0
+        );
+
+    const agentSummary =
+        Object.values(
+            agentLeadMap
+        )
+            .slice(0, 5)
+            .map(agent => {
+                return (
+                    `${agent.name}: ${agent.count}`
+                );
+            })
+            .join(', ');
+
+    updateStatsStatus(
+        `✅ Ready: ${parsedData.length} rows, ${leadCount} qualified leads (duration >= 120 sec). ${agentSummary}${
+            Object.keys(
+                agentLeadMap
+            ).length > 5
+                ? '...'
+                : ''
+        }. This will REPLACE previous data.`,
+        false
+    );
+
+    console.log(
+        '[File Upload] Delimiter used:',
+        delimiter
+    );
+
+    console.log(
+        '[File Upload] Per-agent lead counts:',
+        agentLeadMap
+    );
 }
 
-function updateStatsStatus(msg, isError) {
-    const el = document.getElementById('as-upload-status');
-    if (el) {
-        el.innerHTML = msg;
-        el.className = 'mt-4 text-[10px] text-center font-bold ' + (isError ? 'text-red-400' : 'text-cyan-400');
+function updateStatsStatus(
+    message,
+    isError
+) {
+    const element =
+        document.getElementById(
+            'as-upload-status'
+        );
+
+    if (!element) {
+        return;
     }
+
+    element.innerHTML =
+        message;
+
+    element.className =
+        'mt-4 text-[10px] text-center font-bold ' +
+        (
+            isError
+                ? 'text-red-400'
+                : 'text-cyan-400'
+        );
 }
 
 function renderHistoryList() {
-    const listHtml = document.getElementById('as-history-list');
-    if (!listHtml) return;
-    
-    if (allReports.length === 0) {
-        listHtml.innerHTML = '<div class="text-center text-slate-500 text-xs py-8">No reports found.</div>';
+    const list =
+        document.getElementById(
+            'as-history-list'
+        );
+
+    if (!list) {
         return;
     }
-    
-    const sorted = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-    
-    listHtml.innerHTML = sorted.map(r => {
-        const isActive = currentReportData && currentReportData.id === r.id;
-        const uploadDateTime = new Date(r.uploadedAt).toLocaleString();
-        const niceDate = normalizeReportDateLabel(r.reportDate);
-        const _ca = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-        // 🔥 FIXED: Allow momo to see delete button
-        const canDelete = _ca.email === 'rose' || _ca.email === 'momo' || _ca.role === 'super_admin' || _ca.isSuper;
-        const delBtn = canDelete ? `<button onclick="event.stopPropagation(); window.asDeleteReport('${r.id}')" class="text-[10px] text-red-400 hover:text-red-300 ml-2 px-2 py-1 rounded-md hover:bg-red-500/10" title="Delete this report"><i class="fas fa-trash"></i></button>` : '';
-        return `
-            <div onclick="window.viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl cursor-pointer flex items-center justify-between gap-2 ${isActive ? 'active' : ''}">
-                <div class="min-w-0">
-                    <div class="text-xs font-bold text-white truncate">📊 ${niceDate}</div>
-                    <div class="text-[8px] text-slate-500 mt-1 truncate">${r.author || 'Admin'} • ${uploadDateTime}</div>
-                </div>
-                ${delBtn}
+
+    if (
+        allReports.length === 0
+    ) {
+        list.innerHTML = `
+            <div class="text-center text-slate-500 text-xs py-8">
+                No reports found.
             </div>
         `;
-    }).join('');
+
+        return;
+    }
+
+    const sorted = [
+        ...allReports
+    ].sort((a, b) => {
+        return (
+            new Date(
+                b.uploadedAt || 0
+            ) -
+            new Date(
+                a.uploadedAt || 0
+            )
+        );
+    });
+
+    list.innerHTML =
+        sorted.map(report => {
+            const isActive =
+                currentReportData &&
+                currentReportData.id ===
+                    report.id;
+
+            const uploadDateTime =
+                new Date(
+                    report.uploadedAt
+                ).toLocaleString();
+
+            const niceDate =
+                normalizeReportDateLabel(
+                    report.reportDate
+                );
+
+            const currentAdmin =
+                JSON.parse(
+                    sessionStorage.getItem(
+                        'currentAdmin'
+                    ) || '{}'
+                );
+
+            const currentEmail =
+                String(
+                    currentAdmin.email ||
+                    ''
+                ).toLowerCase();
+
+            const canDelete =
+                currentEmail ===
+                    'rose' ||
+                currentEmail ===
+                    'momo' ||
+                currentAdmin.role ===
+                    'super_admin' ||
+                currentAdmin.isSuper;
+
+            const deleteButton =
+                canDelete
+                    ? `
+                        <button
+                            onclick="event.stopPropagation(); window.asDeleteReport('${report.id}')"
+                            class="text-[10px] text-red-400 hover:text-red-300 ml-2 px-2 py-1 rounded-md hover:bg-red-500/10"
+                            title="Delete this report"
+                        >
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    `
+                    : '';
+
+            return `
+                <div
+                    onclick="window.viewReport('${report.id}')"
+                    class="report-item bg-black/20 p-3 rounded-xl cursor-pointer flex items-center justify-between gap-2 ${
+                        isActive
+                            ? 'active'
+                            : ''
+                    }"
+                >
+                    <div class="min-w-0">
+                        <div class="text-xs font-bold text-white truncate">
+                            📊 ${niceDate}
+                        </div>
+
+                        <div class="text-[8px] text-slate-500 mt-1 truncate">
+                            ${escapeHtml(
+                                report.author ||
+                                'Admin'
+                            )} • ${uploadDateTime}
+                        </div>
+                    </div>
+
+                    ${deleteButton}
+                </div>
+            `;
+        }).join('');
 }
 
-window.viewReport = function(id) {
-    const report = allReports.find(r => r.id === id);
-    if (!report) return;
-    
-    if (currentReportData && currentReportData.data) {
-        previousReportData = currentReportData;
-    }
-    
-    currentReportData = report;
-    
-    renderHistoryList();
-    
-    const uploadDateTime = new Date(report.uploadedAt).toLocaleString();
-    document.querySelectorAll('#as-report-title').forEach(el => el.innerText = '📊 Report: ' + normalizeReportDateLabel(report.reportDate));
-    document.querySelectorAll('#as-report-date').forEach(el => el.innerHTML = `<i class="far fa-calendar-alt mr-1"></i> ${uploadDateTime}`);
-    document.querySelectorAll('#as-report-author').forEach(el => el.innerHTML = `<i class="far fa-user mr-1"></i> ${report.author}`);
-    
-    const delBtns = document.querySelectorAll('#as-delete-btn');
-    delBtns.forEach(delBtn => {
-        const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-        // 🔥 FIXED: Allow momo to delete reports
-        const canDelete = cAdmin.email === 'rose' || cAdmin.email === 'momo' || cAdmin.role === 'super_admin' || cAdmin.isSuper;
-        if (canDelete) {
-            delBtn.classList.remove('hidden');
-            delBtn.onclick = () => {
-                if (confirm('Delete this report?')) {
-                    if (typeof window.deleteAgentReportFromFirebase === 'function') {
-                        window.deleteAgentReportFromFirebase(id);
-                        currentReportData = null;
-                    }
+window.viewReport =
+    function (id) {
+        const report =
+            allReports.find(
+                item => {
+                    return (
+                        item.id === id
+                    );
                 }
-            };
-        } else {
-            delBtn.classList.add('hidden');
+            );
+
+        if (!report) {
+            return;
         }
-    });
-    
-    const pushBtns = document.querySelectorAll('#as-push-btn');
-    pushBtns.forEach(pushBtn => {
-        const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-        // 🔥 FIXED: Allow momo to push reports
-        const canPush = cAdmin.email === 'rose' || cAdmin.email === 'momo' || cAdmin.role === 'super_admin' || cAdmin.isSuper;
-        if (canPush) {
-            pushBtn.classList.remove('hidden');
-            pushBtn.onclick = async () => {
-                if (confirm(`Push ${report.reportDate} to Live Dashboard?`)) {
-                    const aggMap = {};
-                    const pushCountable = getCountableLeadSet(report.data);
-                    report.data.forEach(d => {
-                        const nameKey = d.agentName.toUpperCase().trim();
-                        if (!aggMap[nameKey]) aggMap[nameKey] = { name: d.agentName, transfers: 0 };
-                        if (isLead(d, pushCountable)) aggMap[nameKey].transfers++;
-                    });
-                    const pushState = {
-                        dateLabel: report.reportDate,
-                        pushedAt: new Date().toISOString(),
-                        pushedBy: report.author,
-                        agents: Object.values(aggMap).map(d => ({
-                            name: d.name,
-                            team: 'PR',
-                            dailyLeads: d.transfers
-                        }))
-                    };
-                    if (typeof window.saveLiveDashboardState === 'function') {
-                        await window.saveLiveDashboardState(pushState);
-                        pushBtn.innerHTML = '✅ Pushed!';
-                        setTimeout(() => pushBtn.innerHTML = '🚀 Push to Daily Board', 2000);
-                    }
+
+        currentReportData =
+            report;
+
+        renderHistoryList();
+
+        const uploadDateTime =
+            new Date(
+                report.uploadedAt
+            ).toLocaleString();
+
+        document
+            .querySelectorAll(
+                '#as-report-title'
+            )
+            .forEach(element => {
+                element.innerText =
+                    '📊 Report: ' +
+                    normalizeReportDateLabel(
+                        report.reportDate
+                    );
+            });
+
+        document
+            .querySelectorAll(
+                '#as-report-date'
+            )
+            .forEach(element => {
+                element.innerHTML = `
+                    <i class="far fa-calendar-alt mr-1"></i>
+                    ${uploadDateTime}
+                `;
+            });
+
+        document
+            .querySelectorAll(
+                '#as-report-author'
+            )
+            .forEach(element => {
+                element.innerHTML = `
+                    <i class="far fa-user mr-1"></i>
+                    ${escapeHtml(
+                        report.author ||
+                        'Admin'
+                    )}
+                `;
+            });
+
+        const deleteButtons =
+            document.querySelectorAll(
+                '#as-delete-btn'
+            );
+
+        deleteButtons.forEach(
+            deleteButton => {
+                const currentAdmin =
+                    JSON.parse(
+                        sessionStorage.getItem(
+                            'currentAdmin'
+                        ) || '{}'
+                    );
+
+                const currentEmail =
+                    String(
+                        currentAdmin.email ||
+                        ''
+                    ).toLowerCase();
+
+                const canDelete =
+                    currentEmail ===
+                        'rose' ||
+                    currentEmail ===
+                        'momo' ||
+                    currentAdmin.role ===
+                        'super_admin' ||
+                    currentAdmin.isSuper;
+
+                if (canDelete) {
+                    deleteButton.classList.remove(
+                        'hidden'
+                    );
+
+                    deleteButton.onclick =
+                        () => {
+                            if (
+                                confirm(
+                                    'Delete this report?'
+                                )
+                            ) {
+                                if (
+                                    typeof window.deleteAgentReportFromFirebase ===
+                                    'function'
+                                ) {
+                                    window.deleteAgentReportFromFirebase(
+                                        id
+                                    );
+
+                                    currentReportData =
+                                        null;
+                                }
+                            }
+                        };
+                } else {
+                    deleteButton.classList.add(
+                        'hidden'
+                    );
                 }
-            };
-        } else {
-            pushBtn.classList.add('hidden');
-        }
-    });
-    
-    renderActiveReportTable();
-};
+            }
+        );
+
+        const pushButtons =
+            document.querySelectorAll(
+                '#as-push-btn'
+            );
+
+        pushButtons.forEach(
+            pushButton => {
+                const currentAdmin =
+                    JSON.parse(
+                        sessionStorage.getItem(
+                            'currentAdmin'
+                        ) || '{}'
+                    );
+
+                const currentEmail =
+                    String(
+                        currentAdmin.email ||
+                        ''
+                    ).toLowerCase();
+
+                const canPush =
+                    currentEmail ===
+                        'rose' ||
+                    currentEmail ===
+                        'momo' ||
+                    currentAdmin.role ===
+                        'super_admin' ||
+                    currentAdmin.isSuper;
+
+                if (canPush) {
+                    pushButton.classList.remove(
+                        'hidden'
+                    );
+
+                    pushButton.onclick =
+                        async () => {
+                            if (
+                                confirm(
+                                    `Push ${report.reportDate} to Live Dashboard?`
+                                )
+                            ) {
+                                await autoPushReportToDashboard(
+                                    report
+                                );
+
+                                pushButton.innerHTML =
+                                    '✅ Pushed!';
+
+                                setTimeout(
+                                    () => {
+                                        pushButton.innerHTML =
+                                            '🚀 Push to Daily Board';
+                                    },
+                                    2000
+                                );
+                            }
+                        };
+                } else {
+                    pushButton.classList.add(
+                        'hidden'
+                    );
+                }
+            }
+        );
+
+        renderActiveReportTable();
+    };
 
 function renderActiveReportTable() {
-    if (!currentReportData) return;
-    
-    const rawRows = (currentReportData.data || []).filter(d => !isPhTrainingName(d && (d.rawName || d.agentName)));
-    const activeCountable = getCountableLeadSet(rawRows);
-    
-    // Count leads per agent based ONLY on duration >= 120
-    const agentLeadCount = {};
-    rawRows.forEach(row => {
-        const agentName = row.agentName;
-        if (!agentName) return;
-        if (!agentLeadCount[agentName]) agentLeadCount[agentName] = 0;
-        if (isLead(row, activeCountable)) agentLeadCount[agentName]++;
-    });
-    
-    const totalLeads = Object.values(agentLeadCount).reduce((a, b) => a + b, 0);
-    const agentCount = Object.keys(agentLeadCount).length;
-    
-    document.querySelectorAll('#as-stat-agents').forEach(el => el.innerText = agentCount);
-    document.querySelectorAll('#as-stat-calls').forEach(el => el.innerText = rawRows.length);
-    document.querySelectorAll('#as-stat-transfers').forEach(el => el.innerText = totalLeads);
-    document.querySelectorAll('#as-stat-rate').forEach(el => el.innerText = agentCount > 0 ? ((totalLeads / agentCount) * 100).toFixed(1) + '%' : '0%');
-    
-    let searchVal = '';
-    const searchInput = document.getElementById('as-search-input');
-    if (searchInput) searchVal = searchInput.value.toLowerCase().trim();
-    
-    let displayRows = rawRows;
-    if (searchVal) {
-        displayRows = rawRows.filter(d => d.agentName.toLowerCase().includes(searchVal) || d.agentId.toLowerCase().includes(searchVal));
-    }
-    
-    const tbodies = document.querySelectorAll('#as-table-body');
-    if (displayRows.length === 0) {
-        tbodies.forEach(tbody => tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500">No matches found.基督</tr>`);
+    if (!currentReportData) {
         return;
     }
-    
-    const html = displayRows.map(d => {
-        const isLeadRow = isLead(d, activeCountable);
-        const typeColor = isLeadRow ? 'text-cyan-400 font-bold' : 'text-slate-600';
-        
-        // Show duration and status for context
-        let typeLabel = '';
-        const meetsDuration = (Number(d.duration) || 0) >= 120;
-        if (isLeadRow) {
-            typeLabel = `✅ LEAD (${d.duration}s)`;
-        } else if (d.duration === 0) {
-            typeLabel = `⏳ 0s - No lead`;
-        } else if (meetsDuration && !activeCountable.has(d)) {
-            typeLabel = `🔁 ${d.duration}s - Duplicate number (not last call)`;
-        } else {
-            typeLabel = `⏳ ${d.duration}s - No lead (needs 120s)`;
+
+    const rawRows =
+        (
+            currentReportData.data ||
+            []
+        ).filter(row => {
+            return !isPhTrainingName(
+                row &&
+                (
+                    row.rawName ||
+                    row.agentName
+                )
+            );
+        });
+
+    const activeCountable =
+        getCountableLeadSet(
+            rawRows
+        );
+
+    const agentMap = {};
+
+    rawRows.forEach(row => {
+        const agentKey =
+            normalizeAgentKey(
+                row.agentName ||
+                row.rawName
+            );
+
+        if (!agentKey) {
+            return;
         }
-        
-        return `
-            <tr class="border-b border-white/5 hover:bg-white/5 transition">
-                <td class="p-3 text-slate-500 text-[11px] font-mono">${escapeHtml(d.agentId)}<\/td>
-                <td class="p-3 font-bold text-white text-[12px] uppercase">
-                    ${escapeHtml(d.rawName || d.agentName)}
-                <\/td>
-                <td class="p-3 text-center text-slate-400 text-[11px]">${escapeHtml(d.status)}<\/td>
-                <td class="p-3 text-center text-slate-300 text-[11px] font-mono">${d.duration}s<\/td>
-                <td class="p-3 text-right ${typeColor} text-[11px] font-bold">${typeLabel}<\/td>
-            <\/tr>
-        `;
-    }).join('');
-    
-    tbodies.forEach(tbody => tbody.innerHTML = html);
+
+        if (!agentMap[agentKey]) {
+            agentMap[agentKey] = {
+                name:
+                    row.agentName ||
+                    row.rawName ||
+                    agentKey,
+
+                rawName:
+                    row.rawName ||
+                    row.agentName ||
+                    agentKey,
+
+                agentId:
+                    row.agentId ||
+                    '',
+
+                team:
+                    row.team ||
+                    'PR',
+
+                calls: 0,
+                leads: 0,
+                rows: []
+            };
+        }
+
+        agentMap[
+            agentKey
+        ].calls += 1;
+
+        agentMap[
+            agentKey
+        ].rows.push(row);
+
+        if (
+            isLead(
+                row,
+                activeCountable
+            )
+        ) {
+            agentMap[
+                agentKey
+            ].leads += 1;
+        }
+    });
+
+    const agentRows =
+        Object.values(
+            agentMap
+        );
+
+    const totalLeads =
+        agentRows.reduce(
+            (total, agent) => {
+                return (
+                    total +
+                    agent.leads
+                );
+            },
+            0
+        );
+
+    const totalCalls =
+        rawRows.length;
+
+    const agentCount =
+        agentRows.length;
+
+    document
+        .querySelectorAll(
+            '#as-stat-agents'
+        )
+        .forEach(element => {
+            element.innerText =
+                agentCount;
+        });
+
+    document
+        .querySelectorAll(
+            '#as-stat-calls'
+        )
+        .forEach(element => {
+            element.innerText =
+                totalCalls;
+        });
+
+    document
+        .querySelectorAll(
+            '#as-stat-transfers'
+        )
+        .forEach(element => {
+            element.innerText =
+                totalLeads;
+        });
+
+    document
+        .querySelectorAll(
+            '#as-stat-rate'
+        )
+        .forEach(element => {
+            element.innerText =
+                totalCalls > 0
+                    ? (
+                        (
+                            totalLeads /
+                            totalCalls
+                        ) *
+                        100
+                    ).toFixed(1) +
+                    '%'
+                    : '0%';
+        });
+
+    let searchValue = '';
+
+    const searchInput =
+        document.getElementById(
+            'as-search-input'
+        );
+
+    if (searchInput) {
+        searchValue =
+            searchInput.value
+                .toLowerCase()
+                .trim();
+    }
+
+    let displayAgents =
+        agentRows;
+
+    if (searchValue) {
+        displayAgents =
+            agentRows.filter(agent => {
+                return (
+                    agent.name
+                        .toLowerCase()
+                        .includes(
+                            searchValue
+                        ) ||
+                    agent.rawName
+                        .toLowerCase()
+                        .includes(
+                            searchValue
+                        ) ||
+                    String(
+                        agent.agentId
+                    )
+                        .toLowerCase()
+                        .includes(
+                            searchValue
+                        )
+                );
+            });
+    }
+
+    const tableBodies =
+        document.querySelectorAll(
+            '#as-table-body'
+        );
+
+    if (
+        displayAgents.length === 0
+    ) {
+        tableBodies.forEach(
+            tableBody => {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td
+                            colspan="5"
+                            class="p-8 text-center text-slate-500"
+                        >
+                            No agents found.
+                        </td>
+                    </tr>
+                `;
+            }
+        );
+
+        return;
+    }
+
+    const html =
+        displayAgents.map(
+            agent => {
+                const leadRate =
+                    agent.calls > 0
+                        ? (
+                            (
+                                agent.leads /
+                                agent.calls
+                            ) *
+                            100
+                        ).toFixed(1)
+                        : '0.0';
+
+                return `
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                        <td class="p-3 text-slate-500 text-[11px] font-mono">
+                            ${escapeHtml(
+                                agent.agentId
+                            )}
+                        </td>
+
+                        <td class="p-3">
+                            <div class="font-bold text-white text-[12px] uppercase">
+                                ${escapeHtml(
+                                    agent.rawName ||
+                                    agent.name
+                                )}
+                            </div>
+
+                            <div class="text-[9px] text-slate-500 mt-1">
+                                ${escapeHtml(
+                                    agent.team
+                                )}
+                            </div>
+                        </td>
+
+                        <td class="p-3 text-center text-slate-300 text-[11px]">
+                            ${agent.calls}
+                        </td>
+
+                        <td class="p-3 text-center text-cyan-400 text-[12px] font-black">
+                            ${agent.leads}
+                        </td>
+
+                        <td class="p-3 text-right text-slate-400 text-[11px] font-bold">
+                            ${leadRate}%
+                        </td>
+                    </tr>
+                `;
+            }
+        ).join('');
+
+    tableBodies.forEach(
+        tableBody => {
+            tableBody.innerHTML =
+                html;
+        }
+    );
 }
 
-window.asDeleteReport = async function(id) {
-    if (!id) return;
-    if (!confirm("Delete this report? This cannot be undone.")) return;
-    if (typeof window.deleteAgentReportFromFirebase === "function") {
-        await window.deleteAgentReportFromFirebase(id);
-        if (currentReportData && currentReportData.id === id) {
-            currentReportData = null;
+window.asDeleteReport =
+    async function (id) {
+        if (!id) {
+            return;
         }
-    }
-};
 
-window.asDeleteAllPrevious = async function() {
-    if (!Array.isArray(allReports) || allReports.length === 0) return;
-    const sorted = [...allReports].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-    const latest = sorted[0];
-    const toDelete = sorted.slice(1);
-    if (toDelete.length === 0) {
-        alert("No previous reports to delete.");
-        return;
-    }
-    if (!confirm("Delete " + toDelete.length + " previous report" + (toDelete.length === 1 ? "" : "s") + "? The most recent (" + normalizeReportDateLabel(latest.reportDate) + ") will be kept.")) return;
-    for (const r of toDelete) {
-        if (typeof window.deleteAgentReportFromFirebase === "function") {
-            await window.deleteAgentReportFromFirebase(r.id);
+        if (
+            !confirm(
+                'Delete this report? This cannot be undone.'
+            )
+        ) {
+            return;
         }
-    }
-    if (typeof window.writeAdminActivityLog === "function") {
-        window.writeAdminActivityLog("delete_previous_reports", "Deleted " + toDelete.length + " previous reports");
-    }
-};
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str).replace(/[&<>]/g, function(m) {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
+        if (
+            typeof window.deleteAgentReportFromFirebase ===
+            'function'
+        ) {
+            await window.deleteAgentReportFromFirebase(
+                id
+            );
+
+            allReports =
+                allReports.filter(
+                    report => {
+                        return (
+                            report.id !== id
+                        );
+                    }
+                );
+
+            window.allAgentReports =
+                allReports;
+
+            if (
+                currentReportData &&
+                currentReportData.id ===
+                    id
+            ) {
+                currentReportData =
+                    null;
+
+                const sorted = [
+                    ...allReports
+                ].sort((a, b) => {
+                    return (
+                        new Date(
+                            b.uploadedAt || 0
+                        ) -
+                        new Date(
+                            a.uploadedAt || 0
+                        )
+                    );
+                });
+
+                if (sorted[0]) {
+                    currentReportData =
+                        sorted[0];
+
+                    viewReport(
+                        sorted[0].id
+                    );
+                } else {
+                    renderHistoryList();
+
+                    const tableBodies =
+                        document.querySelectorAll(
+                            '#as-table-body'
+                        );
+
+                    tableBodies.forEach(
+                        tableBody => {
+                            tableBody.innerHTML = `
+                                <tr>
+                                    <td
+                                        colspan="5"
+                                        class="p-8 text-center text-slate-500"
+                                    >
+                                        No report selected.
+                                    </td>
+                                </tr>
+                            `;
+                        }
+                    );
+                }
+            } else {
+                renderHistoryList();
+            }
+        }
+    };
+
+window.asDeleteAllPrevious =
+    async function () {
+        if (
+            !Array.isArray(
+                allReports
+            ) ||
+            allReports.length === 0
+        ) {
+            return;
+        }
+
+        const sorted = [
+            ...allReports
+        ].sort((a, b) => {
+            return (
+                new Date(
+                    b.uploadedAt || 0
+                ) -
+                new Date(
+                    a.uploadedAt || 0
+                )
+            );
+        });
+
+        const latest =
+            sorted[0];
+
+        const toDelete =
+            sorted.slice(1);
+
+        if (
+            toDelete.length === 0
+        ) {
+            alert(
+                'No previous reports to delete.'
+            );
+
+            return;
+        }
+
+        if (
+            !confirm(
+                `Delete ${toDelete.length} previous report${
+                    toDelete.length === 1
+                        ? ''
+                        : 's'
+                }? The most recent (${normalizeReportDateLabel(
+                    latest.reportDate
+                )}) will be kept.`
+            )
+        ) {
+            return;
+        }
+
+        for (
+            const report of toDelete
+        ) {
+            if (
+                typeof window.deleteAgentReportFromFirebase ===
+                'function'
+            ) {
+                await window.deleteAgentReportFromFirebase(
+                    report.id
+                );
+            }
+        }
+
+        allReports = [
+            latest
+        ];
+
+        window.allAgentReports =
+            allReports;
+
+        currentReportData =
+            latest;
+
+        renderHistoryList();
+
+        viewReport(
+            latest.id
+        );
+
+        if (
+            typeof window.writeAdminActivityLog ===
+            'function'
+        ) {
+            window.writeAdminActivityLog(
+                'delete_previous_reports',
+                `Deleted ${toDelete.length} previous reports`
+            );
+        }
+    };
+
+function escapeHtml(value) {
+    if (
+        value === null ||
+        value === undefined
+    ) {
+        return '';
+    }
+
+    return String(value).replace(
+        /[&<>"']/g,
+        character => {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+
+            return map[
+                character
+            ];
+        }
+    );
 }
