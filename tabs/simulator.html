@@ -112,14 +112,6 @@
         <!-- Chat transcript -->
         <div id="sim-transcript" class="space-y-3 mb-5 max-h-72 overflow-y-auto pr-1"></div>
 
-        <!-- Full script reference -->
-        <details class="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 mb-5">
-            <summary class="cursor-pointer text-[10px] font-black uppercase tracking-widest text-indigo-300">
-                <i class="fas fa-file-alt mr-2"></i>View Full Call Script
-            </summary>
-            <div id="sim-full-script" class="space-y-3 mt-4"></div>
-        </details>
-
         <!-- Response options -->
         <div id="sim-options-wrap" class="space-y-2">
             <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Your response:</div>
@@ -278,10 +270,20 @@
         _showSection('sim-active');
         document.getElementById('sim-script-title').textContent = sc.title;
         _renderTranscript();
-        _renderFullScript();
         _renderMood();
         _renderProgress();
-        _renderStep();
+
+        // The call always begins with the agent opening.
+        // The customer then replies automatically before choices appear.
+        const optWrap = document.getElementById('sim-options-wrap');
+        const thinking = document.getElementById('sim-thinking');
+        if (optWrap) optWrap.classList.add('hidden');
+        if (thinking) thinking.classList.remove('hidden');
+        setTimeout(() => {
+            if (thinking) thinking.classList.add('hidden');
+            if (optWrap) optWrap.classList.remove('hidden');
+            _renderStep(true);
+        }, 700);
     };
 
     function _shuffleSteps(steps) {
@@ -294,7 +296,7 @@
     }
 
     // ── Render one step ──────────────────────────────────
-    function _renderStep() {
+    function _renderStep(showCustomer = true) {
         const step = _steps[_stepIdx];
         if (!step) { _showResults(); return; }
 
@@ -302,7 +304,7 @@
         const tensorIdx = _tension > 60 ? (lines.length - 1) : Math.floor(Math.random() * lines.length);
         const customerLine = lines[Math.min(tensorIdx, lines.length - 1)] || lines[0];
 
-        _addBubble('customer', customerLine);
+        if (showCustomer) _addBubble('customer', customerLine);
 
         const opts = _shuffleOptions(step.options || []);
         const optWrap = document.getElementById('sim-options');
@@ -371,12 +373,16 @@
             if (active) { active.classList.add('sim-shake'); setTimeout(() => active.classList.remove('sim-shake'), 500); }
         }
 
+        // Every selected agent response has its own automatic customer reply.
+        // An option-level customer_reply takes priority, then the step reaction
+        // matching the selected response quality.
         const reactions = {
-            ok:    step.reaction_ok    || null,
-            weak:  step.reaction_weak  || "I'm not really convinced by that.",
+            best:  step.reaction_best  || step.reaction_ok || 'That makes sense. Please continue.',
+            ok:    step.reaction_ok    || 'Okay. Please continue.',
+            weak:  step.reaction_weak  || "I'm still not convinced.",
             wrong: step.reaction_wrong || "That's not what I want to hear. Let me stop you there."
         };
-        const reaction = reactions[chosen.quality];
+        const reaction = chosen.customer_reply || reactions[chosen.quality] || null;
 
         setTimeout(() => {
             if (thinking) thinking.classList.add('hidden');
@@ -390,7 +396,10 @@
             if (_stepIdx >= _steps.length) {
                 setTimeout(_showResults, 600);
             } else {
-                setTimeout(_renderStep, reaction ? 700 : 300);
+                // The customer reaction already becomes the next customer turn,
+                // so show only the next set of agent choices. This prevents the
+                // customer from being repeated twice.
+                setTimeout(() => _renderStep(!reaction), reaction ? 700 : 300);
             }
         }, 900);
     };
@@ -444,13 +453,13 @@
 
     function _getOpeningLine() {
         if (!_activeScript) return '';
+        // Only use a line explicitly saved as the agent's opening.
+        // Never fall back to the first customer line, because that makes
+        // the same sentence appear once as the agent and again as the customer.
         return _activeScript.opening_line
+            || _activeScript.openingLine
             || _activeScript.intro
             || _activeScript.starting_line
-            || (_steps[0] && (
-                (_steps[0].customer_lines && _steps[0].customer_lines[0])
-                || _steps[0].customer_line
-            ))
             || '';
     }
 
@@ -472,42 +481,6 @@
         } else {
             _addBubble('customer', intros[_customerMood] || intros.Calm);
         }
-    }
-
-    function _renderFullScript() {
-        const wrap = document.getElementById('sim-full-script');
-        if (!wrap || !_activeScript) return;
-
-        const opening = _getOpeningLine();
-        const rows = [];
-
-        if (opening) {
-            rows.push(`<div class="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
-                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Opening</div>
-                <div class="text-xs text-slate-200"><span class="font-black text-indigo-400">You:</span> ${_esc(opening)}</div>
-            </div>`);
-        }
-
-        _steps.forEach((step, index) => {
-            const customerLines = (step.customer_lines && step.customer_lines.length)
-                ? step.customer_lines
-                : [step.customer_line || ''];
-            const best = (step.options || []).find(opt => opt.quality === 'best')
-                || (step.options || [])[0];
-
-            rows.push(`<div class="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
-                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
-                    ${_esc(step.label || ('Step ' + (index + 1)))}
-                </div>
-                ${customerLines.filter(Boolean).map(line =>
-                    `<div class="text-xs text-slate-200 mb-1"><span class="font-black text-slate-400">Customer:</span> ${_esc(line)}</div>`
-                ).join('')}
-                ${best ? `<div class="text-xs text-indigo-200 mt-2"><span class="font-black text-indigo-400">Recommended response:</span> ${_esc(best.text)}</div>` : ''}
-                ${step.reaction_ok ? `<div class="text-xs text-slate-300 mt-2"><span class="font-black text-slate-400">Customer continues:</span> ${_esc(step.reaction_ok)}</div>` : ''}
-            </div>`);
-        });
-
-        wrap.innerHTML = rows.join('');
     }
 
     function _showResults() {
