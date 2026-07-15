@@ -542,7 +542,7 @@ function checkLeadAlerts(newAgents) {
     const prev = Number(prevLeadCounts[name]) || 0;
     if (c > prev) {
       const agentObj = newAgents.find(a => a.name === name) || { name };
-      newReps.push({ name, count: c, isFirst: prev === 0, agentObj });
+      newReps.push({ name, count: c, prev, isFirst: prev === 0, agentObj });
     }
     prevLeadCounts[name] = c;
   });
@@ -562,9 +562,9 @@ function checkLeadAlerts(newAgents) {
     const hasFirst  = newReps.some(r => r.isFirst);
     const icon      = hasFirst ? '🥇' : '⚡';
     
-    // Calculate total daily leads count for reps in this upload
-    const totalDailyLeads = newReps.reduce((sum, r) => sum + r.count, 0);
-    const title = totalDailyLeads + ' lead' + (totalDailyLeads !== 1 ? 's' : '') + ' on board';
+    // Calculate NEW leads (delta) for reps in this upload, not their total on-board count
+    const totalNewLeads = newReps.reduce((sum, r) => sum + (r.count - r.prev), 0);
+    const title = totalNewLeads + ' new lead' + (totalNewLeads !== 1 ? 's' : '') + ' on board';
     
     // Format agent list: Name (Count) if count > 1, else just Name. Joined by commas.
     const agentList = newReps.map(r => {
