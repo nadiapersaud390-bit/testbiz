@@ -1210,9 +1210,9 @@
                     </div>
                     <div>
                         <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                            Script Content (JSON steps or plain text)
+                            Script Content (Plain Text)
                         </label>
-                        <textarea id="simscript-body" rows="8" placeholder='Paste JSON steps or plain text script here&#10;&#10;JSON format example:&#10;[{"label":"Opening","customer_lines":["I am not interested"],"options":[{"text":"I understand...","quality":"best"}],"reaction_ok":"Tell me more"}]'
+                        <textarea id="simscript-body" rows="8" placeholder='Plain text script format example:&#10;&#10;Agent opening: Hi, this is Sarah&#10;First customer reply: Maybe. What is the name of your company?&#10;Step 1:&#10;Customer: Maybe. What is the name of your company?&#10;Agent best response: We are a licensed lender that specializes in...&#10;If customer reacts Best: Tell me more&#10;Agent OK response: We help businesses like yours get funded fast.&#10;If customer reacts OK: Okay, go on...'
                                   class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono outline-none focus:border-indigo-400 transition placeholder-slate-600 resize-none"></textarea>
                     </div>
                     <button onclick="simScriptSaveManual()"
