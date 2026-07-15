@@ -39,7 +39,7 @@
 .sim-shake { animation: sim-shake 0.45s ease; }
 </style>
 
-<div class="max-w-2xl mx-auto px-2 py-4" id="simulator-root">
+<div class="max-w-2xl mx-auto px-2 py-4 overflow-hidden" id="simulator-root">
 
     <!-- ── LOBBY ── -->
     <div id="sim-lobby">
@@ -369,8 +369,8 @@
         if (optWrap)  optWrap.classList.add('hidden');
 
         if (chosen.quality === 'wrong' || chosen.quality === 'weak') {
-            const active = document.getElementById('sim-active');
-            if (active) { active.classList.add('sim-shake'); setTimeout(() => active.classList.remove('sim-shake'), 500); }
+            const shakeEl = document.getElementById('sim-options-wrap');
+            if (shakeEl) { shakeEl.classList.add('sim-shake'); setTimeout(() => shakeEl.classList.remove('sim-shake'), 500); }
         }
 
         // Every selected agent response has its own automatic customer reply.
