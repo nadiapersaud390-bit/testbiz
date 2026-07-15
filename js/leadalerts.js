@@ -503,11 +503,20 @@ function checkLeadAlerts(newAgents) {
 
   resolveViewerIdentity();
 
-  // Build snapshot keyed by agent name - no longer using berbiceTracker (stops personal tracker sync)
+  // Build snapshot keyed by NORMALIZED agent name (collapses stray/double
+  // spaces and case) - no longer using berbiceTracker (stops personal tracker sync).
+  // Raw names can differ slightly (e.g. a double space in an uploaded CSV) between
+  // the code paths that call this function, which used to make the same agent look
+  // like a "new" agent every time and re-trigger the banner. Keying off the
+  // normalized name fixes that, while displayNames keeps a clean name to show.
   let snapshot = {};
+  let displayNames = {};
   newAgents.forEach(a => {
     if (!a || !a.name) return;
-    snapshot[a.name] = a.dailyLeads || 0;
+    const key = normalizeName(a.name);
+    if (!key) return;
+    snapshot[key] = a.dailyLeads || 0;
+    displayNames[key] = a.name.trim().replace(/\s+/g, ' ');
   });
   if (!Object.keys(snapshot).length) return;
 
@@ -537,14 +546,15 @@ function checkLeadAlerts(newAgents) {
 
   // ── Subsequent polls: detect new leads ──
   const newReps = [];
-  Object.entries(snapshot).forEach(([name, count]) => {
+  Object.entries(snapshot).forEach(([key, count]) => {
     const c    = Number(count) || 0;
-    const prev = Number(prevLeadCounts[name]) || 0;
+    const prev = Number(prevLeadCounts[key]) || 0;
     if (c > prev) {
-      const agentObj = newAgents.find(a => a.name === name) || { name };
+      const name     = displayNames[key] || key;
+      const agentObj = newAgents.find(a => normalizeName(a.name) === key) || { name };
       newReps.push({ name, count: c, prev, isFirst: prev === 0, agentObj });
     }
-    prevLeadCounts[name] = c;
+    prevLeadCounts[key] = c;
   });
 
   if (!newReps.length) return;
