@@ -489,8 +489,12 @@ function apInjectIntoDashboard(pushData) {
   });
 
   // Re-render the dashboard immediately
+  // NOTE: checkLeadAlerts is intentionally NOT called here — the Firebase
+  // live-state listener (dashboard.js) fires it once the push round-trips,
+  // using its own roster-built agent list. Calling it here too caused a
+  // race where two differently-keyed snapshots both fired the banner,
+  // producing a flicker where a second/old-looking alert replaced the new one.
   if (typeof render === 'function') render();
-  if (typeof checkLeadAlerts === 'function') checkLeadAlerts(agents);
 }
 
 // ── History ────────────────────────────────────────────────────────────────────
