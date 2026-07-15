@@ -3148,32 +3148,133 @@
         reader.readAsText(file);
     };
 
-    function _parseScriptContent(raw, title, category, difficulty) {
-        var steps = [];
-        try {
-            var parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) steps = parsed;
-            else if (parsed && Array.isArray(parsed.steps)) steps = parsed.steps;
-        } catch(e) {
-            // Plain text: each non-empty line becomes a step with one customer line
-            var lines = raw.split(/\n/).map(function(l){ return l.trim(); }).filter(Boolean);
-            steps = lines.map(function(line, i) {
-                return {
-                    label: 'Step ' + (i + 1),
-                    customer_lines: [line],
-                    options: [
-                        { text: 'I understand your concern. Let me address that.', quality: 'best' },
-                        { text: 'That is a valid point. Here is what we can do.', quality: 'ok' },
-                        { text: 'I am not sure about that.', quality: 'weak' },
-                        { text: 'That is just how it is.', quality: 'wrong' }
-                    ],
-                    reaction_ok: 'Thank you for understanding.',
-                    reaction_weak: 'I am still not convinced.',
-                    reaction_wrong: 'This conversation is not going well.'
-                };
-            });
+    function _cleanVal(v) {
+        return String(v || '').trim().replace(/^['"]|['"]$/g, '').trim();
+    }
+
+    function _parseStructuredScript(raw) {
+        var source = String(raw || '').trim();
+        var openingLine = '', firstCustomerReply = '', steps = [];
+
+        // JSON / JSON-in-txt
+        if (/^[\[{]/.test(source)) {
+            try {
+                var data = JSON.parse(source);
+                var root = Array.isArray(data) ? { steps: data } : data;
+                openingLine = _cleanVal(root.agent_opening || root.opening_line || root.openingLine || root.intro || '');
+                firstCustomerReply = _cleanVal(root.first_customer_reply || root.firstCustomerReply || root.customer_opening || '');
+                steps = (root.steps || []).map(function(step, index) {
+                    var responses = step.responses || step.options || [];
+                    var opts = responses.map(function(opt) {
+                        return {
+                            quality: String(opt.quality || 'ok').toLowerCase(),
+                            text: _cleanVal(opt.text),
+                            customer_reply: _cleanVal(opt.customer_reply || opt.customerReply || opt.reaction || ''),
+                            next_step: _cleanVal(opt.next_step || opt.nextStep || '')
+                        };
+                    }).filter(function(o) { return o.text; });
+                    var custMsg = _cleanVal(step.customer_message || step.customer_line || (step.customer_lines || [])[0] || '');
+                    return {
+                        id: _cleanVal(step.id || ''),
+                        label: step.label || ('Step ' + (index + 1)),
+                        customer_lines: custMsg ? [custMsg] : [],
+                        options: opts,
+                        reaction_best:  _cleanVal(step.reaction_best  || ''),
+                        reaction_ok:    _cleanVal(step.reaction_ok    || ''),
+                        reaction_weak:  _cleanVal(step.reaction_weak  || ''),
+                        reaction_wrong: _cleanVal(step.reaction_wrong || '')
+                    };
+                }).filter(function(s) { return s.options.length; });
+                return { openingLine: openingLine, firstCustomerReply: firstCustomerReply, steps: steps };
+            } catch(e) {
+                console.warn('[SimScript] Looks like JSON but could not be parsed:', e);
+            }
         }
-        return { title: title, category: category || 'General', difficulty: difficulty || 'Medium', steps: steps, createdAt: Date.now() };
+
+        // Plain-text structured format:
+        //   Agent opening: Hi, this is Sarah\u2026
+        //   First customer reply: Maybe. What's the name of your company?
+        //   Step 1:
+        //   Customer: Maybe. What's the name of your company?
+        //   Agent best response: \u2026
+        //   If customer reacts Best: \u2026   (etc.)
+        var lines = source.split(/\r?\n/).map(function(l) { return l.trim(); });
+        var current = null;
+
+        function pushCurrent() {
+            if (!current) return;
+            var opts = [];
+            ['best', 'ok', 'weak', 'wrong'].forEach(function(q) {
+                if (current[q]) opts.push({ text: current[q], quality: q, customer_reply: current['reply_' + q] || '' });
+            });
+            if (!opts.length) { current = null; return; }
+            steps.push({
+                label: current.label || ('Step ' + (steps.length + 1)),
+                customer_lines: current.customer ? [current.customer] : [],
+                options: opts,
+                reaction_best:  current.reply_best  || current.reply_ok || '',
+                reaction_ok:    current.reply_ok    || '',
+                reaction_weak:  current.reply_weak  || '',
+                reaction_wrong: current.reply_wrong || ''
+            });
+            current = null;
+        }
+
+        lines.forEach(function(line) {
+            if (!line || /^End of Script$/i.test(line)) return;
+            var m;
+            if ((m = line.match(/^Agent opening:\s*(.+)$/i)) || (m = line.match(/^Opening agent:\s*(.+)$/i))) {
+                openingLine = _cleanVal(m[1]); return;
+            }
+            if ((m = line.match(/^First customer reply:\s*(.+)$/i)) || (m = line.match(/^Customer opening:\s*(.+)$/i))) {
+                firstCustomerReply = _cleanVal(m[1]); return;
+            }
+            if ((m = line.match(/^Agent:\s*(.+)$/i)) && !openingLine && !current) {
+                openingLine = _cleanVal(m[1]); return;
+            }
+            if ((m = line.match(/^Step\s*\d*\s*:\s*(.*)$/i))) {
+                pushCurrent();
+                current = { label: _cleanVal(m[1]) || ('Step ' + (steps.length + 1)) };
+                return;
+            }
+            if ((m = line.match(/^Customer:\s*(.+)$/i))) {
+                if (!current) current = {};
+                current.customer = _cleanVal(m[1]);
+                if (!firstCustomerReply && !steps.length) firstCustomerReply = current.customer;
+                return;
+            }
+            if (!current) return;
+            if      ((m = line.match(/^Agent best response:\s*(.+)$/i)))      current.best        = _cleanVal(m[1]);
+            else if ((m = line.match(/^Agent OK response:\s*(.+)$/i)))        current.ok          = _cleanVal(m[1]);
+            else if ((m = line.match(/^Agent weak response:\s*(.+)$/i)))      current.weak        = _cleanVal(m[1]);
+            else if ((m = line.match(/^Agent wrong response:\s*(.+)$/i)))     current.wrong       = _cleanVal(m[1]);
+            else if ((m = line.match(/^If customer reacts Best:\s*(.+)$/i)))  current.reply_best  = _cleanVal(m[1]);
+            else if ((m = line.match(/^If customer reacts OK:\s*(.+)$/i)))    current.reply_ok    = _cleanVal(m[1]);
+            else if ((m = line.match(/^If customer reacts Weak:\s*(.+)$/i)))  current.reply_weak  = _cleanVal(m[1]);
+            else if ((m = line.match(/^If customer reacts Wrong:\s*(.+)$/i))) current.reply_wrong = _cleanVal(m[1]);
+        });
+        pushCurrent();
+
+        return { openingLine: openingLine, firstCustomerReply: firstCustomerReply, steps: steps };
+    }
+
+    function _parseScriptContent(raw, title, category, difficulty) {
+        var parsed = _parseStructuredScript(raw);
+        return {
+            title:                title,
+            category:             category  || 'General',
+            difficulty:           difficulty || 'Medium',
+            opening_line:         parsed.openingLine,
+            openingLine:          parsed.openingLine,
+            agent_opening:        parsed.openingLine,
+            first_customer_reply: parsed.firstCustomerReply,
+            firstCustomerReply:   parsed.firstCustomerReply,
+            auto_customer_reply:       true,
+            start_with_agent_opening:  true,
+            show_full_script:          false,
+            steps:     parsed.steps,
+            createdAt: Date.now()
+        };
     }
 
     var _simScriptEditId = null;
