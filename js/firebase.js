@@ -1082,6 +1082,13 @@ function listenForLeadAlerts() {
         const data = snapshot.val();
         if (!data) return;
 
+        // Ignore stale alerts — onValue fires immediately on subscription with
+        // whatever is currently in Firebase, even data from a previous session.
+        // Only process alerts written within the last 15 seconds so re-subscribing
+        // (page load, tab switch) never replays an old banner.
+        const alertAge = Date.now() - (data.timestamp || 0);
+        if (alertAge > 15000) return;
+
         // CSV upload alert — show banner with agent names + rotating color
         if (data.csvAlert) {
             if (typeof window._renderLeadAlert === 'function') {
