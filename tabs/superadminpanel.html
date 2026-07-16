@@ -3372,6 +3372,69 @@
         }
     };
 
+    window.simScriptDownload = function(id) {
+        var sc = _simScriptListCache.find(function(item) { return item.id === id; });
+        if (!sc) return;
+
+        var lines = [];
+        var sep = '==========================================';
+
+        lines.push('TITLE: ' + (sc.title || 'Untitled'));
+        lines.push('CATEGORY: ' + (sc.category || 'General'));
+        lines.push('DIFFICULTY: ' + (sc.difficulty || 'Medium'));
+        if (sc.createdAt) lines.push('DATE: ' + new Date(sc.createdAt).toLocaleDateString());
+        lines.push('');
+        lines.push(sep);
+        lines.push('');
+
+        var opening = sc.agent_opening || sc.opening_line || sc.openingLine || '';
+        if (opening) {
+            lines.push('Agent Opening: ' + opening);
+            lines.push('');
+        }
+
+        var firstReply = sc.first_customer_reply || sc.firstCustomerReply || '';
+        if (firstReply) {
+            lines.push('First Customer Reply: ' + firstReply);
+            lines.push('');
+        }
+
+        var steps = Array.isArray(sc.steps) ? sc.steps : [];
+        steps.forEach(function(step, i) {
+            lines.push(sep);
+            lines.push('Step ' + (i + 1) + ': ' + (step.label || ''));
+            lines.push('');
+
+            var custLine = (step.customer_lines && step.customer_lines[0]) || '';
+            if (custLine) {
+                lines.push('Customer: ' + custLine);
+                lines.push('');
+            }
+
+            var opts = step.options || [];
+            opts.forEach(function(opt) {
+                var q = String(opt.quality || 'ok');
+                var label = q.charAt(0).toUpperCase() + q.slice(1);
+                lines.push('Agent ' + label + ' Response: ' + (opt.text || ''));
+                if (opt.customer_reply) lines.push('If Customer Reacts ' + label + ': ' + opt.customer_reply);
+                lines.push('');
+            });
+        });
+
+        lines.push(sep);
+        lines.push('End of Script');
+
+        var txt = lines.join('\n');
+        var blob = new Blob([txt], { type: 'text/plain' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = (sc.title || 'script').replace(/[^a-z0-9_\-]/gi, '_') + '.txt';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+    };
+
     window.simScriptLoadList = function() {
         const listEl = document.getElementById('simscript-list');
         const countEl = document.getElementById('simscript-total-count');
@@ -3407,6 +3470,9 @@
                         '<div class="text-[10px] text-slate-500 mt-0.5">' + stepsCount + ' steps &middot; ' + (sc.category || 'General') + (date ? ' &middot; ' + date : '') + '</div>' +
                     '</div>' +
                     '<span class="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-full border flex-shrink-0 ' + dc + '">' + diff + '</span>' +
+                    '<button onclick="simScriptDownload(\'' + sc.id + '\')" class="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-green-500/10 hover:bg-green-500/25 border border-green-500/20 hover:border-green-500/40 text-green-400 transition active:scale-90" title="Download .txt">' +
+                        '<i class="fas fa-download text-[10px]"></i>' +
+                    '</button>' +
                     '<button onclick="simScriptEdit(\'' + sc.id + '\')" class="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-blue-500/10 hover:bg-blue-500/25 border border-blue-500/20 hover:border-blue-500/40 text-blue-400 transition active:scale-90" title="Edit">' +
                         '<i class="fas fa-pen text-[10px]"></i>' +
                     '</button>' +
