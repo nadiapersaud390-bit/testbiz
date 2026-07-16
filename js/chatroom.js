@@ -1435,9 +1435,6 @@
                     <button onclick="window._crNextSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">Next →</button>
                 </div>
             </div>
-            <div id="cr-members-panel" style="display:none;background:rgba(10,15,35,0.97);border-bottom:1px solid rgba(255,255,255,0.06);max-height:340px;overflow-y:auto;">
-                <div id="cr-members-panel-content" style="padding:14px 18px;"></div>
-            </div>
             <div style="display:flex;gap:8px;padding:10px 16px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;flex-shrink:0;">
                 <button onclick="window._crSendQuickActionToGroup('come_quick', '${channelId}')" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:20px;padding:6px 14px;color:#f87171;font-size:11px;font-weight:700;cursor:pointer;">🚨 Come Quick</button>
                 <button onclick="window._crSendQuickActionToGroup('help', '${channelId}')" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);border-radius:20px;padding:6px 14px;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;">🆘 Help</button>
@@ -1477,145 +1474,249 @@
     };
 
     // ===========================================
-    // GROUP MEMBERS PANEL
+    // GROUP MEMBERS MODAL
     // ===========================================
 
     window._crToggleGroupMembers = function(channelId) {
-        var panel = document.getElementById('cr-members-panel');
-        if (!panel) return;
-        var isVisible = panel.style.display !== 'none';
-        panel.style.display = isVisible ? 'none' : 'block';
-        var btn = document.getElementById('cr-members-toggle-btn');
-        if (btn) {
-            btn.style.background = isVisible ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.25)';
-            btn.style.borderColor = isVisible ? 'rgba(16,185,129,0.3)' : 'rgba(16,185,129,0.6)';
-        }
-        if (!isVisible) window._crRenderGroupMembersPanel(channelId);
+        window._crOpenMembersModal(channelId);
     };
 
-    window._crRenderGroupMembersPanel = function(channelId) {
-        var container = document.getElementById('cr-members-panel-content');
-        if (!container) return;
+    window._crOpenMembersModal = function(channelId) {
+        var old = document.getElementById('cr-members-modal-overlay');
+        if (old) old.remove();
+
         var me = _getMyIdentity();
         var ch = _crChannels[channelId];
-        if (!ch) { container.innerHTML = '<div style="color:#64748b;font-size:12px;">Loading...</div>'; return; }
-        var members = ch.members || [];
+        if (!ch) return;
         var isAdmin = (me.role === 'admin' || me.role === 'super_admin');
         var isCreator = String(ch.createdBy) === String(me.id);
         var canManage = isAdmin || isCreator;
 
-        var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
-        html += '<div style="font-size:10px;font-weight:900;color:#10b981;text-transform:uppercase;letter-spacing:0.1em;">👥 Group Members (' + members.length + ')</div>';
-        if (canManage) {
-            html += '<button onclick="window._crGroupShowAddMember(\'' + channelId + '\')" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);border-radius:8px;padding:4px 12px;color:#10b981;font-size:10px;font-weight:700;cursor:pointer;">+ Add Member</button>';
-        }
-        html += '</div>';
+        var overlay = document.createElement('div');
+        overlay.id = 'cr-members-modal-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+        overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
 
-        if (canManage) {
-            html += '<div id="cr-add-member-area" style="display:none;margin-bottom:12px;padding:10px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">';
-            html += '<input type="text" id="cr-add-member-search" placeholder="Search users to add..." style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:white;font-size:11px;margin-bottom:8px;box-sizing:border-box;" oninput="window._crFilterAddMember(\'' + channelId + '\')"/>';
-            html += '<div id="cr-add-member-list" style="max-height:130px;overflow-y:auto;"></div>';
-            html += '</div>';
-        }
+        var modal = document.createElement('div');
+        modal.style.cssText = 'background:#0d1b2a;border:1px solid rgba(255,255,255,0.1);border-radius:18px;width:100%;max-width:520px;max-height:82vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,0.7);';
 
-        html += '<div style="display:flex;flex-direction:column;gap:6px;">';
-        members.forEach(function(member) {
-            var memberId = String(member.id || member);
-            var memberName = member.name || memberId;
-            var memberType = member.type || 'agent';
-            var isSelf = memberId === String(me.id);
-            var isGroupCreator = memberId === String(ch.createdBy);
-            var avatarColor = memberType === 'agent' ? '#3b82f6' : '#10b981';
-            var nameColor = isSelf ? '#10b981' : '#e2e8f0';
-            var roleBadge = memberType === 'agent' ? 'Agent' : 'Admin';
-            var roleColor = memberType === 'agent' ? '#3b82f6' : '#10b981';
-            if (isGroupCreator) { roleBadge = 'Creator'; roleColor = '#facc15'; }
-            html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.05);">';
-            html += '<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:' + avatarColor + ';flex-shrink:0;">' + _escHtml((memberName.charAt(0)||'?').toUpperCase()) + '</div>';
-            html += '<div style="flex:1;min-width:0;">';
-            html += '<div style="font-size:12px;font-weight:700;color:' + nameColor + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _escHtml(memberName) + (isSelf ? ' <span style="opacity:0.6;font-size:10px;">(you)</span>' : '') + '</div>';
-            html += '<div style="font-size:9px;font-weight:800;color:' + roleColor + ';text-transform:uppercase;margin-top:2px;letter-spacing:0.05em;">' + roleBadge + '</div>';
-            html += '</div>';
-            if (canManage && !isSelf && !isGroupCreator) {
-                html += '<button onclick="window._crGroupRemoveMember(\'' + channelId + '\',\'' + memberId + '\')" title="Remove from group" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:3px 9px;color:#ef4444;font-size:14px;font-weight:900;cursor:pointer;flex-shrink:0;line-height:1;">&times;</button>';
-            }
-            html += '</div>';
-        });
-        html += '</div>';
-        container.innerHTML = html;
-        if (canManage) window._crPopulateAddMemberList(channelId, '');
+        var roomName = (ch.roomName || 'Group Chat').replace(/</g,'&lt;');
+        modal.innerHTML =
+          '<div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,0.07);">'
+          + '<div>'
+          + '<div style="font-size:15px;font-weight:800;color:#f8fafc;">\xf0\x9f\x91\xa5 ' + roomName + '</div>'
+          + '<div style="font-size:10px;color:#64748b;margin-top:2px;font-weight:600;">MANAGE MEMBERS</div>'
+          + '</div>'
+          + '<button onclick="document.getElementById(\'cr-members-modal-overlay\').remove()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;width:32px;height:32px;color:#94a3b8;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;">&times;</button>'
+          + '</div>'
+          + '<div id="cr-mm-tabs" style="display:flex;border-bottom:1px solid rgba(255,255,255,0.07);">'
+          + '<button id="cr-mm-tab-current" onclick="window._crMmSwitchTab(\'current\',\'' + channelId + '\')" style="flex:1;padding:10px;font-size:11px;font-weight:800;color:#10b981;border:none;background:rgba(16,185,129,0.07);border-bottom:2px solid #10b981;cursor:pointer;text-transform:uppercase;letter-spacing:0.07em;">\xf0\x9f\x93\x8b Current Members</button>'
+          + '<button id="cr-mm-tab-add" onclick="window._crMmSwitchTab(\'add\',\'' + channelId + '\')" style="flex:1;padding:10px;font-size:11px;font-weight:800;color:#64748b;border:none;background:transparent;border-bottom:2px solid transparent;cursor:pointer;text-transform:uppercase;letter-spacing:0.07em;">\xe2\x9e\x95 Add Members</button>'
+          + '</div>'
+          + '<div style="padding:12px 16px 8px;">'
+          + '<input id="cr-mm-search" type="text" placeholder="Search..." oninput="window._crMmOnSearch(\'' + channelId + '\')" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:8px 12px;color:white;font-size:12px;box-sizing:border-box;outline:none;">'
+          + '</div>'
+          + '<div id="cr-mm-list" style="flex:1;overflow-y:auto;padding:6px 16px 10px;"></div>'
+          + '<div id="cr-mm-footer" style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;gap:10px;">'
+          + '<span id="cr-mm-sel-count" style="font-size:11px;color:#64748b;font-weight:700;">0 selected</span>'
+          + '<div style="display:flex;gap:8px;">'
+          + '<button onclick="window._crMmSelectAll()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:9px;padding:6px 14px;color:#94a3b8;font-size:11px;font-weight:700;cursor:pointer;">Select All</button>'
+          + '<button id="cr-mm-action-btn" onclick="window._crMmCommitAction(\'' + channelId + '\')" style="border-radius:9px;padding:6px 18px;font-size:11px;font-weight:800;cursor:pointer;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444;">Remove Selected</button>'
+          + '</div>'
+          + '</div>';
+
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        window._crMmState = { tab: 'current', channelId: channelId, selected: new Set(), canManage: canManage };
+        window._crMmSwitchTab('current', channelId);
     };
 
-    window._crGroupShowAddMember = function(channelId) {
-        var area = document.getElementById('cr-add-member-area');
-        if (!area) return;
-        var isOpen = area.style.display !== 'none';
-        area.style.display = isOpen ? 'none' : 'block';
-        if (!isOpen) {
-            window._crPopulateAddMemberList(channelId, '');
-            var inp = document.getElementById('cr-add-member-search');
-            if (inp) setTimeout(function() { inp.focus(); }, 50);
+    window._crMmSwitchTab = function(tab, channelId) {
+        var st = window._crMmState;
+        if (!st) return;
+        st.tab = tab;
+        st.selected = new Set();
+        var tCur = document.getElementById('cr-mm-tab-current');
+        var tAdd = document.getElementById('cr-mm-tab-add');
+        if (tCur) { tCur.style.color=tab==='current'?'#10b981':'#64748b'; tCur.style.background=tab==='current'?'rgba(16,185,129,0.07)':''; tCur.style.borderBottomColor=tab==='current'?'#10b981':'transparent'; }
+        if (tAdd) { tAdd.style.color=tab==='add'?'#10b981':'#64748b'; tAdd.style.background=tab==='add'?'rgba(16,185,129,0.07)':''; tAdd.style.borderBottomColor=tab==='add'?'#10b981':'transparent'; }
+        var btn = document.getElementById('cr-mm-action-btn');
+        if (btn) {
+            if (tab==='add') { btn.textContent='Add Selected'; btn.style.background='rgba(16,185,129,0.15)'; btn.style.borderColor='rgba(16,185,129,0.4)'; btn.style.color='#10b981'; }
+            else { btn.textContent='Remove Selected'; btn.style.background='rgba(239,68,68,0.15)'; btn.style.borderColor='rgba(239,68,68,0.4)'; btn.style.color='#ef4444'; }
         }
+        var si = document.getElementById('cr-mm-search');
+        if (si) si.value='';
+        window._crMmRender(channelId, '');
     };
 
-    window._crFilterAddMember = function(channelId) {
-        var inp = document.getElementById('cr-add-member-search');
-        window._crPopulateAddMemberList(channelId, inp ? inp.value : '');
+    window._crMmOnSearch = function(channelId) {
+        var si = document.getElementById('cr-mm-search');
+        window._crMmRender(channelId, si ? si.value : '');
     };
 
-    window._crPopulateAddMemberList = function(channelId, filter) {
-        var listEl = document.getElementById('cr-add-member-list');
-        if (!listEl) return;
-        var ch = _crChannels[channelId];
-        if (!ch) return;
-        var currentIds = new Set((ch.members || []).map(function(m) { return String(m.id || m); }));
-        var all = _getAllChatParticipants();
-        var lf = (filter || '').toLowerCase();
-        var available = all.filter(function(p) {
-            if (currentIds.has(String(p.id))) return false;
-            if (lf) return (p.name || '').toLowerCase().includes(lf);
-            return true;
-        });
-        if (!available.length) {
-            listEl.innerHTML = '<div style="color:#64748b;font-size:10px;text-align:center;padding:8px;">All users are already members</div>';
-            return;
-        }
-        listEl.innerHTML = available.map(function(p) {
-            var sn = (p.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-            return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 6px;border-radius:6px;">'
-              + '<span style="font-size:11px;color:#e2e8f0;">'+_escHtml(p.name)+'<span style="color:#475569;font-size:9px;margin-left:5px;text-transform:uppercase;">'+(p.type||'')+'</span></span>'
-              + '<button onclick="window._crGroupAddMemberById(\'' + channelId + '\',\'' + p.id + '\',\'' + sn + '\',\'' + (p.type||'agent') + '\')" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:6px;padding:2px 9px;color:#10b981;font-size:10px;font-weight:700;cursor:pointer;">Add</button>'
-              + '</div>';
-        }).join('');
-    };
-
-    window._crGroupRemoveMember = async function(channelId, memberId) {
-        if (!_fbFunctions) return;
+    window._crMmRender = function(channelId, filter) {
+        var st = window._crMmState;
+        var listEl = document.getElementById('cr-mm-list');
+        if (!st || !listEl) return;
         var me = _getMyIdentity();
         var ch = _crChannels[channelId];
         if (!ch) return;
-        if (me.role !== 'admin' && me.role !== 'super_admin' && String(ch.createdBy) !== String(me.id)) return;
-        var updated = (ch.members||[]).filter(function(m){ return String(m.id||m) !== String(memberId); });
-        try {
-            await _fbFunctions.update(_ref(GROUP_CHAT_PATH+'/'+channelId), { members: updated, memberIds: updated.map(function(m){return m.id||m;}) });
-            ch.members = updated;
-            window._crRenderGroupMembersPanel(channelId);
-        } catch(e) { console.error('[Chat] Remove member failed:', e); }
+        var lf = (filter || '').toLowerCase();
+        var html = '';
+
+        if (st.tab === 'current') {
+            var members = (ch.members || []).filter(function(m) {
+                if (!lf) return true;
+                return (m.name||String(m.id||m)).toLowerCase().includes(lf);
+            });
+            if (!members.length) {
+                listEl.innerHTML = '<div style="color:#64748b;font-size:12px;text-align:center;padding:24px;">No members found</div>';
+                return;
+            }
+            members.forEach(function(member) {
+                var mid = String(member.id || member);
+                var mname = member.name || mid;
+                var mtype = member.type || 'agent';
+                var isSelf = mid === String(me.id);
+                var isGroupCreator = mid === String(ch.createdBy);
+                var removable = st.canManage && !isSelf && !isGroupCreator;
+                var isChecked = st.selected.has(mid);
+                var roleBadge = isGroupCreator ? 'Creator' : (mtype==='agent'?'Agent':'Admin');
+                var roleColor = isGroupCreator ? '#facc15' : (mtype==='agent'?'#3b82f6':'#10b981');
+                var avatarColor = mtype==='agent'?'#3b82f6':'#10b981';
+                var rowBg = isChecked ? 'background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);' : 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);';
+                html += '<div' + (removable ? ' onclick="window._crMmToggle(\''+mid+'\')"' : '') + ' style="display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:12px;margin-bottom:4px;cursor:' + (removable?'pointer':'default') + ';' + rowBg + '">';
+                if (removable) {
+                    var chkBorder = isChecked ? '#ef4444' : 'rgba(255,255,255,0.2)';
+                    var chkBg = isChecked ? 'rgba(239,68,68,0.25)' : 'transparent';
+                    html += '<div style="width:18px;height:18px;border-radius:5px;border:2px solid ' + chkBorder + ';background:' + chkBg + ';flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#ef4444;">' + (isChecked?'&#x2713;':'')+'</div>';
+                } else {
+                    html += '<div style="width:18px;flex-shrink:0;"></div>';
+                }
+                html += '<div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:' + avatarColor + ';flex-shrink:0;">' + _escHtml((mname.charAt(0)||'?').toUpperCase()) + '</div>';
+                html += '<div style="flex:1;min-width:0;">';
+                html += '<div style="font-size:12px;font-weight:700;color:' + (isSelf?'#10b981':'#e2e8f0') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _escHtml(mname) + (isSelf?' <span style="opacity:0.5;font-size:10px;">(you)</span>':'') + '</div>';
+                html += '<div style="font-size:9px;font-weight:800;color:' + roleColor + ';text-transform:uppercase;margin-top:1px;letter-spacing:0.05em;">' + roleBadge + '</div>';
+                html += '</div>';
+                if (!removable) html += '<div style="font-size:9px;color:#475569;font-weight:600;">' + (isGroupCreator?'Creator':'\xf0\x9f\x94\x92') + '</div>';
+                html += '</div>';
+            });
+        } else {
+            var currentIds = new Set((ch.members||[]).map(function(m){ return String(m.id||m); }));
+            var all = _getAllChatParticipants();
+            var available = all.filter(function(p) {
+                if (currentIds.has(String(p.id))) return false;
+                if (lf) return (p.name||'').toLowerCase().includes(lf);
+                return true;
+            });
+            if (!available.length) {
+                listEl.innerHTML = '<div style="color:#64748b;font-size:12px;text-align:center;padding:24px;">' + (lf?'No users match your search':'Everyone is already a member') + '</div>';
+                return;
+            }
+            available.forEach(function(p) {
+                var pid = String(p.id);
+                var isChecked = st.selected.has(pid);
+                var ptype = p.type || 'agent';
+                var avatarColor = ptype==='agent'?'#3b82f6':'#10b981';
+                var rowBg = isChecked ? 'background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);' : 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);';
+                var chkBorder = isChecked ? '#10b981' : 'rgba(255,255,255,0.2)';
+                var chkBg = isChecked ? 'rgba(16,185,129,0.25)' : 'transparent';
+                html += '<div onclick="window._crMmToggle(\''+pid+'\')" style="display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:12px;margin-bottom:4px;cursor:pointer;' + rowBg + '">';
+                html += '<div style="width:18px;height:18px;border-radius:5px;border:2px solid ' + chkBorder + ';background:' + chkBg + ';flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#10b981;">' + (isChecked?'&#x2713;':'')+'</div>';
+                html += '<div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:' + avatarColor + ';flex-shrink:0;">' + _escHtml((p.name||'?').charAt(0).toUpperCase()) + '</div>';
+                html += '<div style="flex:1;min-width:0;">';
+                html += '<div style="font-size:12px;font-weight:700;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _escHtml(p.name) + '</div>';
+                html += '<div style="font-size:9px;font-weight:800;color:' + avatarColor + ';text-transform:uppercase;margin-top:1px;letter-spacing:0.05em;">' + ptype + '</div>';
+                html += '</div>';
+                html += '</div>';
+            });
+        }
+
+        listEl.innerHTML = html;
+        window._crMmUpdateCount();
     };
 
-    window._crGroupAddMemberById = async function(channelId, userId, userName, userType) {
+    window._crMmToggle = function(id) {
+        var st = window._crMmState;
+        if (!st) return;
+        if (st.selected.has(id)) st.selected.delete(id);
+        else st.selected.add(id);
+        var si = document.getElementById('cr-mm-search');
+        window._crMmRender(st.channelId, si?si.value:'');
+    };
+
+    window._crMmSelectAll = function() {
+        var st = window._crMmState;
+        if (!st) return;
+        var ch = _crChannels[st.channelId];
+        var me = _getMyIdentity();
+        if (st.tab === 'current') {
+            (ch.members||[]).forEach(function(m) {
+                var mid=String(m.id||m);
+                if (mid!==String(me.id) && mid!==String(ch.createdBy)) st.selected.add(mid);
+            });
+        } else {
+            var currentIds=new Set((ch.members||[]).map(function(m){return String(m.id||m);}));
+            _getAllChatParticipants().forEach(function(p){ if(!currentIds.has(String(p.id))) st.selected.add(String(p.id)); });
+        }
+        var si=document.getElementById('cr-mm-search');
+        window._crMmRender(st.channelId, si?si.value:'');
+    };
+
+    window._crMmUpdateCount = function() {
+        var st = window._crMmState;
+        var el = document.getElementById('cr-mm-sel-count');
+        if (!el || !st) return;
+        var n = st.selected.size;
+        el.textContent = n + ' selected';
+    };
+
+    window._crMmCommitAction = async function(channelId) {
+        var st = window._crMmState;
+        if (!st || !st.selected.size) return;
         if (!_fbFunctions) return;
         var ch = _crChannels[channelId];
         if (!ch) return;
-        var currentIds = new Set((ch.members||[]).map(function(m){ return String(m.id||m); }));
-        if (currentIds.has(String(userId))) return;
-        var updated = (ch.members||[]).concat([{ id: userId, name: userName, type: userType||'agent' }]);
+        if (!st.canManage) return;
+        var btn = document.getElementById('cr-mm-action-btn');
+        if (btn) { btn.disabled=true; btn.textContent='Saving...'; }
         try {
+            var updated;
+            if (st.tab === 'current') {
+                updated = (ch.members||[]).filter(function(m){ return !st.selected.has(String(m.id||m)); });
+            } else {
+                var all = _getAllChatParticipants();
+                var toAdd = all.filter(function(p){ return st.selected.has(String(p.id)); });
+                var currentIds = new Set((ch.members||[]).map(function(m){return String(m.id||m);}));
+                var newOnes = toAdd.filter(function(p){return !currentIds.has(String(p.id));}).map(function(p){return {id:p.id,name:p.name,type:p.type||'agent'};});
+                updated = (ch.members||[]).concat(newOnes);
+            }
             await _fbFunctions.update(_ref(GROUP_CHAT_PATH+'/'+channelId), { members: updated, memberIds: updated.map(function(m){return m.id||m;}) });
             ch.members = updated;
-            window._crRenderGroupMembersPanel(channelId);
-        } catch(e) { console.error('[Chat] Add member failed:', e); }
+            st.selected = new Set();
+            window._crMmSwitchTab(st.tab, channelId);
+        } catch(e) {
+            console.error('[Chat] Member update failed:', e);
+            if (btn) { btn.disabled=false; btn.textContent=st.tab==='add'?'Add Selected':'Remove Selected'; }
+        }
     };
+
+    window._crGroupRemoveMember = async function(channelId, memberId) {
+        window._crMmState = { tab: 'current', channelId: channelId, selected: new Set([memberId]), canManage: true };
+        await window._crMmCommitAction(channelId);
+    };
+
+    window._crGroupAddMemberById = async function(channelId, userId, userName, userType) {
+        var ch = _crChannels[channelId]; if (!ch) return;
+        var currentIds = new Set((ch.members||[]).map(function(m){return String(m.id||m);}));
+        if (currentIds.has(String(userId))) return;
+        var updated = (ch.members||[]).concat([{id:userId,name:userName,type:userType||'agent'}]);
+        if (!_fbFunctions) return;
+        await _fbFunctions.update(_ref(GROUP_CHAT_PATH+'/'+channelId), { members: updated, memberIds: updated.map(function(m){return m.id||m;}) });
+        ch.members = updated;
+    };
+
 
     window._crSendGroupMessage = async function(channelId) {
         const input = document.getElementById('cr-msg-input');
