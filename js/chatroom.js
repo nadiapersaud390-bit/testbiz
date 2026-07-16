@@ -23,6 +23,7 @@
     const PRESENCE_DB_PATH = 'chat_presence';
     const PINS_DB_PATH = 'chat_pins';
     const NOTIF_SETTINGS_KEY = 'chat_notification_settings';
+    const TYPING_DB_PATH = 'chat_typing';
     const DRAFTS_KEY = 'chat_message_drafts';
 
     // Quick action messages
@@ -697,6 +698,13 @@
     // ═══════════════════════════════════════════
     // GENERAL CHAT - with server timestamps
     // ═══════════════════════════════════════════
+    function _loadNotificationSettings() {
+        try {
+            const saved = localStorage.getItem(NOTIF_SETTINGS_KEY);
+            if (saved) _crNotificationSettings = JSON.parse(saved);
+        } catch(e) {}
+    }
+
     function _listenToGeneralChat(me) {
         if (!_fbFunctions) return;
         const generalRef = _ref(GENERAL_CHAT_PATH);
@@ -2545,6 +2553,17 @@
     // ═══════════════════════════════════════════
     // EMOJI PICKER FUNCTIONS
     // ═══════════════════════════════════════════
+    function _buildEmojiPickerWithClose(pickerId) {
+        var html = '<div class="cr-emoji-picker-header" style="display:flex;align-items:center;justify-content:space-between;grid-column:span 8;">';
+        html += '<span>Emojis</span>';
+        html += '<button class="cr-emoji-close-btn" style="background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:0 4px;line-height:1;">x</button>';
+        html += '</div>';
+        COMMON_EMOJIS.forEach(function(emoji) {
+            html += '<div class="cr-emoji-option" data-emoji="' + emoji + '">' + emoji + '</div>';
+        });
+        return html;
+    }
+
     function _buildEmojiPicker() {
         let html = '<div class="cr-emoji-picker-header">😊 Common Emojis</div>';
         COMMON_EMOJIS.forEach(emoji => {
@@ -2552,6 +2571,8 @@
         });
         return html;
     }
+
+    var _emojiCloseHandlers = {};
 
     window._crToggleEmojiPicker = function(event, pickerId) {
         event.stopPropagation();
@@ -2564,77 +2585,121 @@
             }
         });
         
+        var isNowOpen = !picker.classList.contains('show');
         picker.classList.toggle('show');
-        
+
         if (picker.innerHTML === '') {
-            picker.innerHTML = _buildEmojiPicker();
-            picker.querySelectorAll('.cr-emoji-option').forEach(opt => {
-                opt.addEventListener('click', (e) => {
+            picker.innerHTML = _buildEmojiPickerWithClose(pickerId);
+            picker.querySelectorAll('.cr-emoji-option').forEach(function(opt) {
+                opt.addEventListener('click', function(e) {
                     e.stopPropagation();
-                    const emoji = opt.getAttribute('data-emoji');
-                    const input = document.getElementById('cr-msg-input');
+                    var emoji = opt.getAttribute('data-emoji');
+                    var input = document.getElementById('cr-msg-input');
                     if (input) {
-                        const start = input.selectionStart;
-                        const end = input.selectionEnd;
-                        const text = input.value;
+                        var start = input.selectionStart;
+                        var end = input.selectionEnd;
+                        var text = input.value;
                         input.value = text.substring(0, start) + emoji + text.substring(end);
                         input.focus();
                         input.selectionStart = input.selectionEnd = start + emoji.length;
                         input.dispatchEvent(new Event('input'));
                     }
                     picker.classList.remove('show');
+                    if (_emojiCloseHandlers[pickerId]) {
+                        document.removeEventListener('click', _emojiCloseHandlers[pickerId]);
+                        delete _emojiCloseHandlers[pickerId];
+                    }
                 });
             });
-        }
-        
-        const closePicker = (e) => {
-            if (!picker.contains(e.target) && !e.target.classList.contains('cr-emoji-btn')) {
-                picker.classList.remove('show');
-                document.removeEventListener('click', closePicker);
+            var closeBtn = picker.querySelector('.cr-emoji-close-btn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    picker.classList.remove('show');
+                    if (_emojiCloseHandlers[pickerId]) {
+                        document.removeEventListener('click', _emojiCloseHandlers[pickerId]);
+                        delete _emojiCloseHandlers[pickerId];
+                    }
+                });
             }
-        };
-        setTimeout(() => {
-            document.addEventListener('click', closePicker);
-        }, 100);
+        }
+
+        if (_emojiCloseHandlers[pickerId]) {
+            document.removeEventListener('click', _emojiCloseHandlers[pickerId]);
+            delete _emojiCloseHandlers[pickerId];
+        }
+        if (isNowOpen) {
+            var closePicker = function(e) {
+                if (!picker.contains(e.target) && !e.target.closest('.cr-emoji-btn')) {
+                    picker.classList.remove('show');
+                    document.removeEventListener('click', _emojiCloseHandlers[pickerId]);
+                    delete _emojiCloseHandlers[pickerId];
+                }
+            };
+            _emojiCloseHandlers[pickerId] = closePicker;
+            setTimeout(function() { document.addEventListener('click', closePicker); }, 100);
+        }
     };
 
     window._crToggleFloatEmojiPicker = function(event) {
         event.stopPropagation();
-        const picker = document.getElementById('cr-float-emoji-picker');
+        var picker = document.getElementById('cr-float-emoji-picker');
         if (!picker) return;
-        
+
+        var isNowOpen = !picker.classList.contains('show');
         picker.classList.toggle('show');
-        
+
         if (picker.innerHTML === '') {
-            picker.innerHTML = _buildEmojiPicker();
-            picker.querySelectorAll('.cr-emoji-option').forEach(opt => {
-                opt.addEventListener('click', (e) => {
+            picker.innerHTML = _buildEmojiPickerWithClose('float');
+            picker.querySelectorAll('.cr-emoji-option').forEach(function(opt) {
+                opt.addEventListener('click', function(e) {
                     e.stopPropagation();
-                    const emoji = opt.getAttribute('data-emoji');
-                    const input = document.getElementById('cr-float-input');
+                    var emoji = opt.getAttribute('data-emoji');
+                    var input = document.getElementById('cr-float-input');
                     if (input) {
-                        const start = input.selectionStart;
-                        const end = input.selectionEnd;
-                        const text = input.value;
+                        var start = input.selectionStart;
+                        var end = input.selectionEnd;
+                        var text = input.value;
                         input.value = text.substring(0, start) + emoji + text.substring(end);
                         input.focus();
                         input.selectionStart = input.selectionEnd = start + emoji.length;
                         input.dispatchEvent(new Event('input'));
                     }
                     picker.classList.remove('show');
+                    if (_emojiCloseHandlers['float']) {
+                        document.removeEventListener('click', _emojiCloseHandlers['float']);
+                        delete _emojiCloseHandlers['float'];
+                    }
                 });
             });
-        }
-        
-        const closePicker = (e) => {
-            if (!picker.contains(e.target) && !e.target.classList.contains('cr-emoji-btn')) {
-                picker.classList.remove('show');
-                document.removeEventListener('click', closePicker);
+            var closeBtn = picker.querySelector('.cr-emoji-close-btn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    picker.classList.remove('show');
+                    if (_emojiCloseHandlers['float']) {
+                        document.removeEventListener('click', _emojiCloseHandlers['float']);
+                        delete _emojiCloseHandlers['float'];
+                    }
+                });
             }
-        };
-        setTimeout(() => {
-            document.addEventListener('click', closePicker);
-        }, 100);
+        }
+
+        if (_emojiCloseHandlers['float']) {
+            document.removeEventListener('click', _emojiCloseHandlers['float']);
+            delete _emojiCloseHandlers['float'];
+        }
+        if (isNowOpen) {
+            var closePicker = function(e) {
+                if (!picker.contains(e.target) && !e.target.closest('.cr-emoji-btn')) {
+                    picker.classList.remove('show');
+                    document.removeEventListener('click', _emojiCloseHandlers['float']);
+                    delete _emojiCloseHandlers['float'];
+                }
+            };
+            _emojiCloseHandlers['float'] = closePicker;
+            setTimeout(function() { document.addEventListener('click', closePicker); }, 100);
+        }
     };
 
     // ═══════════════════════════════════════════
@@ -3257,8 +3322,15 @@
         const me = _getMyIdentity();
         if (!me || !me.id) return;
         _renderMainLayout(me);
-        _loadPrivateChannels(me);
-        _listenToGeneralChat(me);
+        if (!_initialized) {
+            _loadPrivateChannels(me);
+            _listenToGeneralChat(me);
+            _listenToReactions();
+            _initialized = true;
+        } else {
+            _listenToReactions();
+            if (_crCurrentChannelType === 'general') _renderGeneralChatMessages(me);
+        }
     };
 
     console.log('[Chat] chatroom.js loaded - Full feature chat with instant floating updates');
