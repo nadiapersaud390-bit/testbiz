@@ -1448,8 +1448,11 @@
                     <button class="cr-emoji-btn" onclick="window._crToggleEmojiPicker(event, 'group_${channelId}')" style="position:absolute;right:8px;bottom:8px;width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,0.05);border:none;cursor:pointer;font-size:18px;">😊</button>
                     <div id="cr-emoji-picker-group_${channelId}" class="cr-emoji-picker"></div>
                 </div>
+                    <button id="cr-file-btn" onclick="document.getElementById('cr-file-input').click()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">📎</button>
+                <button id="cr-voice-btn" onclick="window._crToggleVoiceRecording()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">🎙️</button>
                 <button class="cr-send-btn" onclick="window._crSendGroupMessage('${channelId}')" style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">➤</button>
-            </div>`;
+            </div>
+             <input type="file" id="cr-file-input" style="display:none" multiple onchange="window._crHandleFileSelect(this)">`;
 
         _renderGroupChatMessages(channelId, me);
         _markPrivateChannelRead(channelId, me);
@@ -2605,8 +2608,11 @@
                     <button class="cr-emoji-btn" onclick="window._crToggleEmojiPicker(event, 'private_${channelId}')" style="position:absolute;right:8px;bottom:8px;width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,0.05);border:none;cursor:pointer;font-size:18px;">😊</button>
                     <div id="cr-emoji-picker-private_${channelId}" class="cr-emoji-picker"></div>
                 </div>
+                    <button id="cr-file-btn" onclick="document.getElementById('cr-file-input').click()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">📎</button>
+                <button id="cr-voice-btn" onclick="window._crToggleVoiceRecording()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">🎙️</button>
                 <button class="cr-send-btn" onclick="window._crSendPrivateMessage('${channelId}')" style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">➤</button>
-            </div>`;
+            </div>
+             <input type="file" id="cr-file-input" style="display:none" multiple onchange="window._crHandleFileSelect(this)">`;
 
         _renderPrivateChatMessages(channelId, me);
         _markPrivateChannelRead(channelId, me);
