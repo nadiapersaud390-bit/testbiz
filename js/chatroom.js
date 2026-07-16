@@ -1064,6 +1064,8 @@
                         channelId: groupKey,
                         roomName: group.roomName || 'Group Chat',
                         members: group.members,
+                        createdBy: group.createdBy || '',
+                        createdByName: group.createdByName || '',
                         messages: [],
                         unread: 0,
                         lastMsg: null,
@@ -1361,6 +1363,8 @@
                 channelId: channelId,
                 roomName: roomName,
                 members: uniqueMembers,
+                createdBy: me.id,
+                createdByName: me.name,
                 messages: [],
                 unread: 0,
                 lastMsg: null,
@@ -1414,6 +1418,7 @@
                 </div>
                 <div class="cr-chat-actions" style="display:flex;gap:4px;">
                     <button class="cr-search-btn" onclick="window._crToggleSearch()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:#94a3b8;cursor:pointer;font-size:12px;">🔍</button>
+                    <button id="cr-members-toggle-btn" onclick="window._crToggleGroupMembers('${channelId}')" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:6px 10px;color:#10b981;cursor:pointer;font-size:12px;font-weight:700;">👥 Members</button>
                     <button class="cr-clear-chat-btn" onclick="window._crClearPrivateChat('${channelId}')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#ef4444;padding:6px 12px;font-size:10px;font-weight:900;cursor:pointer;">🗑️ Clear</button>
                 </div>
             </div>
@@ -1429,6 +1434,9 @@
                     <button onclick="window._crPrevSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">← Previous</button>
                     <button onclick="window._crNextSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">Next →</button>
                 </div>
+            </div>
+            <div id="cr-members-panel" style="display:none;background:rgba(10,15,35,0.97);border-bottom:1px solid rgba(255,255,255,0.06);max-height:340px;overflow-y:auto;">
+                <div id="cr-members-panel-content" style="padding:14px 18px;"></div>
             </div>
             <div style="display:flex;gap:8px;padding:10px 16px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;flex-shrink:0;">
                 <button onclick="window._crSendQuickActionToGroup('come_quick', '${channelId}')" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:20px;padding:6px 14px;color:#f87171;font-size:11px;font-weight:700;cursor:pointer;">🚨 Come Quick</button>
@@ -1466,6 +1474,147 @@
             const backBtn = document.querySelector('#cr-chat-panel .cr-back-btn');
             if (backBtn) backBtn.style.display = 'flex';
         }
+    };
+
+    // ===========================================
+    // GROUP MEMBERS PANEL
+    // ===========================================
+
+    window._crToggleGroupMembers = function(channelId) {
+        var panel = document.getElementById('cr-members-panel');
+        if (!panel) return;
+        var isVisible = panel.style.display !== 'none';
+        panel.style.display = isVisible ? 'none' : 'block';
+        var btn = document.getElementById('cr-members-toggle-btn');
+        if (btn) {
+            btn.style.background = isVisible ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.25)';
+            btn.style.borderColor = isVisible ? 'rgba(16,185,129,0.3)' : 'rgba(16,185,129,0.6)';
+        }
+        if (!isVisible) window._crRenderGroupMembersPanel(channelId);
+    };
+
+    window._crRenderGroupMembersPanel = function(channelId) {
+        var container = document.getElementById('cr-members-panel-content');
+        if (!container) return;
+        var me = _getMyIdentity();
+        var ch = _crChannels[channelId];
+        if (!ch) { container.innerHTML = '<div style="color:#64748b;font-size:12px;">Loading...</div>'; return; }
+        var members = ch.members || [];
+        var isAdmin = (me.role === 'admin' || me.role === 'super_admin');
+        var isCreator = String(ch.createdBy) === String(me.id);
+        var canManage = isAdmin || isCreator;
+
+        var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
+        html += '<div style="font-size:10px;font-weight:900;color:#10b981;text-transform:uppercase;letter-spacing:0.1em;">👥 Group Members (' + members.length + ')</div>';
+        if (canManage) {
+            html += '<button onclick="window._crGroupShowAddMember(\'' + channelId + '\')" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);border-radius:8px;padding:4px 12px;color:#10b981;font-size:10px;font-weight:700;cursor:pointer;">+ Add Member</button>';
+        }
+        html += '</div>';
+
+        if (canManage) {
+            html += '<div id="cr-add-member-area" style="display:none;margin-bottom:12px;padding:10px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">';
+            html += '<input type="text" id="cr-add-member-search" placeholder="Search users to add..." style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:white;font-size:11px;margin-bottom:8px;box-sizing:border-box;" oninput="window._crFilterAddMember(\'' + channelId + '\')"/>';
+            html += '<div id="cr-add-member-list" style="max-height:130px;overflow-y:auto;"></div>';
+            html += '</div>';
+        }
+
+        html += '<div style="display:flex;flex-direction:column;gap:6px;">';
+        members.forEach(function(member) {
+            var memberId = String(member.id || member);
+            var memberName = member.name || memberId;
+            var memberType = member.type || 'agent';
+            var isSelf = memberId === String(me.id);
+            var isGroupCreator = memberId === String(ch.createdBy);
+            var avatarColor = memberType === 'agent' ? '#3b82f6' : '#10b981';
+            var nameColor = isSelf ? '#10b981' : '#e2e8f0';
+            var roleBadge = memberType === 'agent' ? 'Agent' : 'Admin';
+            var roleColor = memberType === 'agent' ? '#3b82f6' : '#10b981';
+            if (isGroupCreator) { roleBadge = 'Creator'; roleColor = '#facc15'; }
+            html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.05);">';
+            html += '<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:' + avatarColor + ';flex-shrink:0;">' + _escHtml((memberName.charAt(0)||'?').toUpperCase()) + '</div>';
+            html += '<div style="flex:1;min-width:0;">';
+            html += '<div style="font-size:12px;font-weight:700;color:' + nameColor + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _escHtml(memberName) + (isSelf ? ' <span style="opacity:0.6;font-size:10px;">(you)</span>' : '') + '</div>';
+            html += '<div style="font-size:9px;font-weight:800;color:' + roleColor + ';text-transform:uppercase;margin-top:2px;letter-spacing:0.05em;">' + roleBadge + '</div>';
+            html += '</div>';
+            if (canManage && !isSelf && !isGroupCreator) {
+                html += '<button onclick="window._crGroupRemoveMember(\'' + channelId + '\',\'' + memberId + '\')" title="Remove from group" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:3px 9px;color:#ef4444;font-size:14px;font-weight:900;cursor:pointer;flex-shrink:0;line-height:1;">&times;</button>';
+            }
+            html += '</div>';
+        });
+        html += '</div>';
+        container.innerHTML = html;
+        if (canManage) window._crPopulateAddMemberList(channelId, '');
+    };
+
+    window._crGroupShowAddMember = function(channelId) {
+        var area = document.getElementById('cr-add-member-area');
+        if (!area) return;
+        var isOpen = area.style.display !== 'none';
+        area.style.display = isOpen ? 'none' : 'block';
+        if (!isOpen) {
+            window._crPopulateAddMemberList(channelId, '');
+            var inp = document.getElementById('cr-add-member-search');
+            if (inp) setTimeout(function() { inp.focus(); }, 50);
+        }
+    };
+
+    window._crFilterAddMember = function(channelId) {
+        var inp = document.getElementById('cr-add-member-search');
+        window._crPopulateAddMemberList(channelId, inp ? inp.value : '');
+    };
+
+    window._crPopulateAddMemberList = function(channelId, filter) {
+        var listEl = document.getElementById('cr-add-member-list');
+        if (!listEl) return;
+        var ch = _crChannels[channelId];
+        if (!ch) return;
+        var currentIds = new Set((ch.members || []).map(function(m) { return String(m.id || m); }));
+        var all = _getAllChatParticipants();
+        var lf = (filter || '').toLowerCase();
+        var available = all.filter(function(p) {
+            if (currentIds.has(String(p.id))) return false;
+            if (lf) return (p.name || '').toLowerCase().includes(lf);
+            return true;
+        });
+        if (!available.length) {
+            listEl.innerHTML = '<div style="color:#64748b;font-size:10px;text-align:center;padding:8px;">All users are already members</div>';
+            return;
+        }
+        listEl.innerHTML = available.map(function(p) {
+            var sn = (p.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+            return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 6px;border-radius:6px;">'
+              + '<span style="font-size:11px;color:#e2e8f0;">'+_escHtml(p.name)+'<span style="color:#475569;font-size:9px;margin-left:5px;text-transform:uppercase;">'+(p.type||'')+'</span></span>'
+              + '<button onclick="window._crGroupAddMemberById(\'' + channelId + '\',\'' + p.id + '\',\'' + sn + '\',\'' + (p.type||'agent') + '\')" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:6px;padding:2px 9px;color:#10b981;font-size:10px;font-weight:700;cursor:pointer;">Add</button>'
+              + '</div>';
+        }).join('');
+    };
+
+    window._crGroupRemoveMember = async function(channelId, memberId) {
+        if (!_fbFunctions) return;
+        var me = _getMyIdentity();
+        var ch = _crChannels[channelId];
+        if (!ch) return;
+        if (me.role !== 'admin' && me.role !== 'super_admin' && String(ch.createdBy) !== String(me.id)) return;
+        var updated = (ch.members||[]).filter(function(m){ return String(m.id||m) !== String(memberId); });
+        try {
+            await _fbFunctions.update(_ref(GROUP_CHAT_PATH+'/'+channelId), { members: updated, memberIds: updated.map(function(m){return m.id||m;}) });
+            ch.members = updated;
+            window._crRenderGroupMembersPanel(channelId);
+        } catch(e) { console.error('[Chat] Remove member failed:', e); }
+    };
+
+    window._crGroupAddMemberById = async function(channelId, userId, userName, userType) {
+        if (!_fbFunctions) return;
+        var ch = _crChannels[channelId];
+        if (!ch) return;
+        var currentIds = new Set((ch.members||[]).map(function(m){ return String(m.id||m); }));
+        if (currentIds.has(String(userId))) return;
+        var updated = (ch.members||[]).concat([{ id: userId, name: userName, type: userType||'agent' }]);
+        try {
+            await _fbFunctions.update(_ref(GROUP_CHAT_PATH+'/'+channelId), { members: updated, memberIds: updated.map(function(m){return m.id||m;}) });
+            ch.members = updated;
+            window._crRenderGroupMembersPanel(channelId);
+        } catch(e) { console.error('[Chat] Add member failed:', e); }
     };
 
     window._crSendGroupMessage = async function(channelId) {
