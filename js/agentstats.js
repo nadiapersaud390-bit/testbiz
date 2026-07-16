@@ -56,22 +56,39 @@ function normalizeLeadNumber(raw) {
 // 🔥 NEW: When the same Lead Number (column F) appears multiple times in a report,
 // only the LAST time it was called counts toward lead detection. Earlier calls
 // to the same number are ignored even if they also show duration >= 120.
+// Uses the Xfer/Call Date column when available so the ACTUAL last call wins,
+// since CSV row order is not guaranteed (some exports list newest calls first).
 // Rows without a usable Lead Number are evaluated individually (no dedup possible).
 function getCountableLeadSet(data) {
     const countable = new Set();
     if (!Array.isArray(data)) return countable;
     
     const lastRowByNumber = new Map();
-    data.forEach(row => {
+    data.forEach((row, idx) => {
         const num = normalizeLeadNumber(row.leadNumber);
-        if (num) lastRowByNumber.set(num, row); // later occurrences overwrite earlier ones
+        if (!num) return;
+        
+        const existing = lastRowByNumber.get(num);
+        if (!existing) {
+            lastRowByNumber.set(num, { row, idx });
+            return;
+        }
+        
+        const hasTimes = typeof row.callTime === 'number' && typeof existing.row.callTime === 'number';
+        if (hasTimes) {
+            // Prefer whichever row actually happened later in time
+            if (row.callTime > existing.row.callTime) lastRowByNumber.set(num, { row, idx });
+        } else {
+            // No timestamps to compare - fall back to later row in the file
+            lastRowByNumber.set(num, { row, idx });
+        }
     });
     
     data.forEach(row => {
         const num = normalizeLeadNumber(row.leadNumber);
         if (!num) {
             countable.add(row); // no number to dedupe by, evaluate on its own
-        } else if (lastRowByNumber.get(num) === row) {
+        } else if (lastRowByNumber.get(num) && lastRowByNumber.get(num).row === row) {
             countable.add(row); // this is the last call made to this number
         }
     });
@@ -522,6 +539,7 @@ async function handleFileUpload(file) {
     let durationIdx = -1;
     let teamIdx = -1;
     let leadNumberIdx = -1;
+    let callDateIdx = -1;
     
     headers.forEach((h, idx) => {
         const lower = h.toLowerCase().replace(/[\s_-]/g, '');
@@ -531,6 +549,8 @@ async function handleFileUpload(file) {
         if (lower.includes('duration') || lower === 'duration' || lower === 'dur' || lower === 'talktime') durationIdx = idx;
         if (lower.includes('team') || lower === 'team' || lower.includes('prefix')) teamIdx = idx;
         if (lower.includes('leadnumber') || lower === 'leadnumber' || lower.includes('phonenumber') || lower === 'number' || lower === 'customernumber' || lower === 'dialednumber') leadNumberIdx = idx;
+        // 🔥 NEW: Xfer/Call Date column - used to find the call that actually happened LAST
+        if (lower.includes('xferdate') || lower === 'xferdate' || lower.includes('calldate') || lower.includes('callstarttime') || lower === 'date' || lower === 'timestamp' || lower.includes('starttime')) callDateIdx = idx;
     });
     
     // Fallbacks if not found
@@ -539,7 +559,7 @@ async function handleFileUpload(file) {
     if (durationIdx === -1 && headers.length > 3) durationIdx = 3;
     if (leadNumberIdx === -1 && headers.length > 5) leadNumberIdx = 5;
     
-    console.log(`[Upload] Column mapping - Name:${agentNameIdx}, Status:${statusIdx}, Duration:${durationIdx}, AgentId:${agentIdIdx}, Team:${teamIdx}, LeadNumber:${leadNumberIdx}`);
+    console.log(`[Upload] Column mapping - Name:${agentNameIdx}, Status:${statusIdx}, Duration:${durationIdx}, AgentId:${agentIdIdx}, Team:${teamIdx}, LeadNumber:${leadNumberIdx}, CallDate:${callDateIdx}`);
     
     const parsedData = [];
     
@@ -560,6 +580,7 @@ async function handleFileUpload(file) {
         const status = statusIdx >= 0 ? (values[statusIdx] || '').toUpperCase() : '';
         const durationRaw = durationIdx >= 0 ? (values[durationIdx] || '0') : '0';
         const leadNumber = leadNumberIdx >= 0 ? (values[leadNumberIdx] || '') : '';
+        const callDateRaw = callDateIdx >= 0 ? (values[callDateIdx] || '') : '';
         
         // Determine team from agent name prefix if not provided
         let team = 'PR';
@@ -590,6 +611,14 @@ async function handleFileUpload(file) {
             duration = parseInt(durationRaw, 10) || 0;
         }
         
+        // Parse call date/time so duplicate numbers can be ranked by the ACTUAL last call
+        // (CSV row order is not guaranteed - some exports list newest calls first)
+        let callTime = null;
+        if (callDateRaw) {
+            const parsedDate = new Date(callDateRaw.replace(' ', 'T'));
+            if (!isNaN(parsedDate.getTime())) callTime = parsedDate.getTime();
+        }
+        
         parsedData.push({
             agentId: agentId,
             agentName: agentName,
@@ -597,7 +626,8 @@ async function handleFileUpload(file) {
             team: team,
             status: status,
             duration: duration,
-            leadNumber: leadNumber
+            leadNumber: leadNumber,
+            callTime: callTime
         });
     }
     
