@@ -352,6 +352,45 @@
 if (sessionStorage.getItem('agentLoggedIn') !== '1' && sessionStorage.getItem('adminLoggedIn') !== 'true') {
     window.location.replace('agent-login.html');
 }
+
+// ── MIDNIGHT AUTO-LOGOUT (Guyana time) ──────────────────────────────────
+(function() {
+    function _guyanaDateStr() {
+        return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guyana' });
+    }
+
+    function _midnightLogout() {
+        sessionStorage.clear();
+        window.location.replace('agent-login.html');
+    }
+
+    function _msTillGuyanaMidnight() {
+        // Build a "fake-local" Date for the current Guyana wall-clock time
+        var gNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+        var gMid = new Date(gNow);
+        gMid.setHours(24, 0, 0, 0);          // next midnight, same "fake-local" scale
+        return Math.max(gMid - gNow, 1000);  // always at least 1s
+    }
+
+    // 1. Check immediately: if the stored login date is not today in Guyana, log out
+    var loginDate = sessionStorage.getItem('bizLoginDate');
+    if (loginDate && loginDate !== _guyanaDateStr()) {
+        _midnightLogout();
+    }
+
+    // 2. Schedule logout at the next Guyana midnight; re-arm each day in case the
+    //    tab stays open across multiple days.
+    function _arm() {
+        var ms = _msTillGuyanaMidnight();
+        setTimeout(function() {
+            _midnightLogout();
+            // _arm() is not needed after logout, but defence-in-depth:
+            _arm();
+        }, ms);
+    }
+    _arm();
+})();
+// ────────────────────────────────────────────────────────────────────────
 function showKickedOutOverlay() {
     const overlay = document.getElementById('kicked-out-overlay');
     if (!overlay) return;
