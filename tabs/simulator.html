@@ -163,14 +163,15 @@
 <script>
 (function() {
     // ── State ──────────────────────────────────────────────
-    let _scripts      = [];       // all Firebase scripts
-    let _activeScript = null;     // selected script object
-    let _steps        = [];       // shuffled steps for this run
-    let _stepIdx      = 0;        // current step index
-    let _tension      = 0;        // 0–100 tension level
-    let _history      = [];       // { stepLabel, chosen, quality, idealText }
-    let _customerMood = 'Calm';   // Calm / Skeptical / Frustrated / In a rush
+    let _scripts            = [];       // all Firebase scripts
+    let _activeScript       = null;     // selected script object
+    let _steps              = [];       // steps for this run
+    let _stepIdx            = 0;        // current step index
+    let _tension            = 0;        // 0–100 tension level
+    let _history            = [];       // { stepLabel, chosen, quality, idealText }
+    let _customerMood       = 'Calm';   // Calm / Skeptical / Frustrated / In a rush
     let _scriptIdForRestart = null;
+    let _usedThisWeek       = [];       // script IDs used by this agent this week (RTDB-synced)
 
     const MOODS = ['Calm', 'Skeptical', 'Frustrated', 'In a rush'];
 
@@ -185,61 +186,105 @@
         return               { label: 'Furious',     color: 'text-red-400',    bar: 'bg-red-500' };
     }
 
+    // ── Per-agent, per-week rotation helpers (Firebase RTDB) ─────────────
+    function _guyanaWeekKey() {
+        // Monday date of the current Guyana week — YYYY-MM-DD.
+        const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+        const day = now.getDay();
+        const diffToMon = (day === 0) ? -6 : 1 - day;
+        const mon = new Date(now);
+        mon.setDate(now.getDate() + diffToMon);
+        return mon.getFullYear() + '-' +
+               String(mon.getMonth() + 1).padStart(2, '0') + '-' +
+               String(mon.getDate()).padStart(2, '0');
+    }
+
+    function _agentKey() {
+        // Sanitise to characters safe for RTDB keys (no . # $ / [ ])
+        const name = sessionStorage.getItem('currentAgentName') ||
+                     (() => { try { return JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}').name || ''; } catch(e) { return ''; } })();
+        return (name || 'agent').toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'agent';
+    }
+
+    function _simUsedPath() {
+        return 'sim_week_used/' + _guyanaWeekKey() + '/' + _agentKey();
+    }
+
+    function _markScriptUsed(scriptId) {
+        if (!window.rtdbRef || !window.rtdbUpdate) return;
+        const patch = {};
+        patch[scriptId] = true;
+        window.rtdbUpdate(window.rtdbRef(_simUsedPath()), patch).catch(() => {});
+    }
+
+    function _resetWeekUsed() {
+        if (!window.rtdbRef || !window.rtdbSet) return;
+        window.rtdbSet(window.rtdbRef(_simUsedPath()), null).catch(() => {});
+    }
+
+    // Subscribe to this agent's used-scripts node; keep _usedThisWeek in sync
+    // and re-render the lobby list whenever Firebase pushes a change.
+    function _subscribeUsedThisWeek() {
+        if (!window.rtdbRef || !window.rtdbOnValue) return;
+        window.rtdbOnValue(window.rtdbRef(_simUsedPath()), (snapshot) => {
+            const data = snapshot.val() || {};
+            _usedThisWeek = Object.keys(data);
+            _renderScriptList();   // refresh "done this week" badges live
+        });
+    }
+
+    // ── Script list renderer (module-scope so RTDB subscription can call it) ──
+    function _renderScriptList() {
+        const listEl    = document.getElementById('sim-script-list');
+        const noEl      = document.getElementById('sim-no-scripts');
+        const startWrap = document.getElementById('sim-start-wrap');
+        if (!listEl) return;
+        if (!_scripts.length) {
+            listEl.innerHTML = '';
+            if (noEl)      noEl.classList.remove('hidden');
+            if (startWrap) startWrap.classList.add('hidden');
+            return;
+        }
+        if (noEl)      noEl.classList.add('hidden');
+        if (startWrap) startWrap.classList.remove('hidden');
+        listEl.innerHTML = _scripts.map((sc) => {
+            const diff = sc.difficulty || 'Medium';
+            const diffCfg = {
+                Easy:   'bg-green-500/15 text-green-400 border-green-500/30',
+                Medium: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+                Hard:   'bg-red-500/15 text-red-400 border-red-500/30'
+            }[diff] || 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+            const done = _usedThisWeek.includes(sc.id);
+            return `<div onclick="simStart('${_esc(sc.id)}')"
+                title="${done ? 'Done this week — click to repeat anyway' : 'Start this call'}"
+                class="flex items-center gap-4 p-4 rounded-2xl border ${done ? 'border-white/[0.04] bg-white/[0.015] opacity-60' : 'border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-indigo-500/40'} cursor-pointer transition-all group">
+                <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center" style="background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);">
+                    <i class="fas ${done ? 'fa-check text-slate-500' : 'fa-phone-alt text-indigo-400'}"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-black ${done ? 'text-slate-500' : 'text-white group-hover:text-indigo-300'} transition truncate">${_esc(sc.title)}</div>
+                    <div class="text-[10px] text-slate-500 mt-0.5">${sc.steps.length} steps · ${_esc(sc.category || 'General')}${done ? ' · <span class="text-slate-600">done this week</span>' : ''}</div>
+                </div>
+                <span class="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${diffCfg} flex-shrink-0">${diff}</span>
+            </div>`;
+        }).join('');
+    }
+
     // ── Load scripts from Firebase ──
     function simInit() {
-        const listEl = document.getElementById('sim-script-list');
-        const noEl   = document.getElementById('sim-no-scripts');
-        const startWrap = document.getElementById('sim-start-wrap');
-
-        function renderScriptList() {
-            if (!listEl) return;
-            if (!_scripts.length) {
-                listEl.innerHTML = '';
-                if (noEl) noEl.classList.remove('hidden');
-                if (startWrap) startWrap.classList.add('hidden');
-                return;
-            }
-            if (noEl) noEl.classList.add('hidden');
-            if (startWrap) startWrap.classList.remove('hidden');
-            listEl.innerHTML = _scripts.map((sc, i) => {
-                const diff = sc.difficulty || 'Medium';
-                const diffCfg = {
-                    Easy:   'bg-green-500/15 text-green-400 border-green-500/30',
-                    Medium: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
-                    Hard:   'bg-red-500/15 text-red-400 border-red-500/30'
-                }[diff] || 'bg-slate-500/15 text-slate-400 border-slate-500/30';
-                return `<div onclick="simStart('${_esc(sc.id)}')"
-                    title="Start this specific call"
-                    class="flex items-center gap-4 p-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-indigo-500/40 cursor-pointer transition-all group">
-                    <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center" style="background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);">
-                        <i class="fas fa-phone-alt text-indigo-400"></i>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-sm font-black text-white group-hover:text-indigo-300 transition truncate">${_esc(sc.title)}</div>
-                        <div class="text-[10px] text-slate-500 mt-0.5">${sc.steps.length} steps · ${_esc(sc.category || 'General')}</div>
-                    </div>
-                    <span class="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${diffCfg} flex-shrink-0">${diff}</span>
-                </div>`;
-            }).join('');
-        }
-
-        // Wait for Firebase listener then subscribe — show empty state if no scripts
+        // Wait for Firebase, then subscribe to scripts + this agent's weekly usage.
         function waitForFirebase(cb, tries) {
             tries = tries || 0;
-            if (typeof window.listenForSimScripts === 'function') { cb(); return; }
-            if (tries > 20) {
-                // Firebase not available — show empty state
-                _scripts = [];
-                renderScriptList();
-                return;
-            }
+            if (typeof window.listenForSimScripts === 'function' && window.rtdbRef) { cb(); return; }
+            if (tries > 40) { _scripts = []; _renderScriptList(); return; }
             setTimeout(() => waitForFirebase(cb, tries + 1), 150);
         }
 
         waitForFirebase(() => {
+            _subscribeUsedThisWeek();   // live-sync per-agent weekly usage from RTDB
             window.listenForSimScripts(function(scripts) {
                 _scripts = (scripts || []).filter(s => s && s.title && s.steps && s.steps.length);
-                renderScriptList();
+                _renderScriptList();
             });
         });
     }
@@ -247,13 +292,19 @@
     // ── Start a run ──────────────────────────────────────
     window.simStartRandom = function() {
         if (!_scripts.length) return;
-        const randomScript = _scripts[Math.floor(Math.random() * _scripts.length)];
-        simStart(randomScript.id);
+        let pool = _scripts.filter(s => !_usedThisWeek.includes(s.id));
+        // All scripts done this week — reset the record and use the full pool.
+        if (!pool.length) {
+            _resetWeekUsed();
+            pool = _scripts.slice();
+        }
+        simStart(pool[Math.floor(Math.random() * pool.length)].id);
     };
 
     window.simStart = function(scriptId) {
         const sc = _scripts.find(s => s.id === scriptId);
         if (!sc) return;
+        _markScriptUsed(scriptId);   // record in RTDB for weekly rotation
         _scriptIdForRestart = scriptId;
         _activeScript = sc;
 
