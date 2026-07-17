@@ -22,10 +22,28 @@ function isSameWeek(d1, d2) {
 }
 
 // ============================================================
-// CLOCK UPDATE
+// CLOCK UPDATE — synced to Firebase server time
 // ============================================================
+let _serverTimeOffset = 0; // ms: serverTime = Date.now() + _serverTimeOffset
+
+function _initServerTimeSync() {
+  if (typeof window.rtdbRef !== 'function' || typeof window.rtdbOnValue !== 'function') {
+    setTimeout(_initServerTimeSync, 500);
+    return;
+  }
+  try {
+    window.rtdbOnValue(window.rtdbRef('.info/serverTimeOffset'), function(snap) {
+      const offset = snap.val();
+      if (typeof offset === 'number') _serverTimeOffset = offset;
+    });
+  } catch(e) {
+    console.warn('[Clock] Could not sync server time from Firebase:', e);
+  }
+}
+_initServerTimeSync();
+
 function updateClocks(){
-  const now=new Date();
+  const now=new Date(Date.now() + _serverTimeOffset);
   const guyanaTime=new Date(now.toLocaleString('en-US',{timeZone:'America/Guyana'}));
   const californiaTime=new Date(now.toLocaleString('en-US',{timeZone:'America/Los_Angeles'}));
   const fmt=d=>{let h=d.getHours(),m=d.getMinutes(),s=d.getSeconds(),ampm=h>=12?'PM':'AM';h=h%12||12;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+' '+ampm;};
