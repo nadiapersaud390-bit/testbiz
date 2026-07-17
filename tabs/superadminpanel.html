@@ -1210,7 +1210,7 @@
                     </div>
                     <div>
                         <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                            Script Content (Plain Text)
+                            Simulator Script Text
                         </label>
                         <textarea id="simscript-body" rows="8" placeholder='Plain text script format example:&#10;&#10;Agent opening: Hi, this is Sarah&#10;First customer reply: Maybe. What is the name of your company?&#10;Step 1:&#10;Customer: Maybe. What is the name of your company?&#10;Agent best response: We are a licensed lender that specializes in...&#10;If customer reacts Best: Tell me more&#10;Agent OK response: We help businesses like yours get funded fast.&#10;If customer reacts OK: Okay, go on...'
                                   class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono outline-none focus:border-indigo-400 transition placeholder-slate-600 resize-none"></textarea>
@@ -3720,5 +3720,70 @@
     // ═══════════════════════════════════════════════════════
     // END REBUTTALS ADMIN
     // ═══════════════════════════════════════════════════════
+
+
+    // ── Sim Script: auto-convert plain text → JSON in textarea ──
+    (function() {
+        var _convertTimer = null;
+
+        function convertBodyToJson() {
+            var bodyEl = document.getElementById('simscript-body');
+            if (!bodyEl) return;
+            var raw = bodyEl.value.trim();
+            // Only convert if it looks like plain text (not already JSON)
+            if (!raw || /^[\[{]/.test(raw)) return;
+            try {
+                var parsed = _parseStructuredScript(raw);
+                if (!parsed || !parsed.steps || !parsed.steps.length) return;
+                bodyEl.value = JSON.stringify(parsed.steps, null, 2);
+            } catch(e) { /* leave as-is if parse fails */ }
+        }
+
+        function attachBodyListener() {
+            var bodyEl = document.getElementById('simscript-body');
+            if (!bodyEl || bodyEl._simAutoConvertAttached) return;
+            bodyEl._simAutoConvertAttached = true;
+            bodyEl.addEventListener('input', function() {
+                clearTimeout(_convertTimer);
+                _convertTimer = setTimeout(convertBodyToJson, 900);
+            });
+            bodyEl.addEventListener('paste', function() {
+                clearTimeout(_convertTimer);
+                _convertTimer = setTimeout(convertBodyToJson, 300);
+            });
+        }
+
+        // Also patch simScriptFileChosen to preview JSON in the left textarea
+        var _origFileChosen = window.simScriptFileChosen;
+        window.simScriptFileChosen = function(input) {
+            if (_origFileChosen) _origFileChosen(input);
+            var file = input.files && input.files[0];
+            if (!file || !/\.txt$/i.test(file.name)) return;
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var raw = e.target.result;
+                try {
+                    var parsed = _parseStructuredScript(raw);
+                    if (!parsed || !parsed.steps || !parsed.steps.length) return;
+                    var titleEl = document.getElementById('simscript-title');
+                    var bodyEl  = document.getElementById('simscript-body');
+                    // Pre-fill the title from filename if empty
+                    if (titleEl && !titleEl.value.trim()) {
+                        titleEl.value = (file.name || '').replace(/\.txt$/i, '').replace(/_/g, ' ');
+                    }
+                    if (bodyEl) bodyEl.value = JSON.stringify(parsed.steps, null, 2);
+                } catch(e2) { /* ignore */ }
+            };
+            reader.readAsText(file);
+        };
+
+        // Attach listener once DOM is ready (tab may load after page init)
+        var _attachAttempts = 0;
+        var _attachTimer = setInterval(function() {
+            attachBodyListener();
+            _attachAttempts++;
+            if (_attachAttempts >= 40) clearInterval(_attachTimer);
+        }, 250);
+    })();
 
 </script>
