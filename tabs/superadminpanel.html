@@ -3302,7 +3302,14 @@
         if (titleEl) titleEl.value = sc.title || '';
         if (categoryEl) categoryEl.value = sc.category || 'General';
         if (difficultyEl) difficultyEl.value = sc.difficulty || 'Medium';
-        if (bodyEl) bodyEl.value = JSON.stringify(sc.steps || [], null, 2);
+        // Serialize the full script object (not just steps) so that
+        // agent_opening and first_customer_reply survive a round-trip edit.
+        var _editObj = {
+            agent_opening:        sc.opening_line || sc.agent_opening || sc.openingLine || '',
+            first_customer_reply: sc.first_customer_reply || sc.firstCustomerReply || '',
+            steps:                sc.steps || []
+        };
+        if (bodyEl) bodyEl.value = JSON.stringify(_editObj, null, 2);
 
         if (titleEl) titleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         if (titleEl) titleEl.focus();
