@@ -733,6 +733,7 @@
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizUserRole', 'agent');
     sessionStorage.setItem('currentAgentName', data.name || '');
+    sessionStorage.setItem('bizLoginDate', new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guyana' }));
     
     const profile = {
       name: data.name || 'Agent',
