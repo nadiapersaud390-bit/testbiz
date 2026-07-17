@@ -396,10 +396,9 @@
             if (_stepIdx >= _steps.length) {
                 setTimeout(_showResults, 600);
             } else {
-                // The customer reaction already becomes the next customer turn,
-                // so show only the next set of agent choices. This prevents the
-                // customer from being repeated twice.
-                setTimeout(() => _renderStep(!reaction), reaction ? 700 : 300);
+                // Show the next step's customer_lines so each exchange follows
+                // the authored script in order: customer speaks → agent picks → customer reacts.
+                setTimeout(() => _renderStep(true), reaction ? 700 : 300);
             }
         }, 900);
     };
@@ -478,9 +477,9 @@
         if (scriptedOpening) {
             // The scripted opening line is the agent's own line that kicks off the call.
             _addBubble('agent', scriptedOpening);
-        } else {
-            _addBubble('customer', intros[_customerMood] || intros.Calm);
         }
+        // When there is no scripted agent opening, skip the random customer intro.
+        // Step 1's customer_lines will appear as the first bubble via _renderStep(true).
     }
 
     function _showResults() {
