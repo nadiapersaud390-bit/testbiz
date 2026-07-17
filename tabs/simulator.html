@@ -396,9 +396,13 @@
             if (_stepIdx >= _steps.length) {
                 setTimeout(_showResults, 600);
             } else {
-                // Show the next step's customer_lines so each exchange follows
-                // the authored script in order: customer speaks → agent picks → customer reacts.
-                setTimeout(() => _renderStep(true), reaction ? 700 : 300);
+                // Only show the next step's customer_lines if the text is different
+                // from the reaction we just displayed — otherwise it appears twice.
+                const _nextStep = _steps[_stepIdx];
+                const _nextLine = _nextStep && _nextStep.customer_lines && _nextStep.customer_lines[0];
+                const _showCust = !reaction || !_nextLine ||
+                    _nextLine.trim().toLowerCase() !== reaction.trim().toLowerCase();
+                setTimeout(() => _renderStep(_showCust), reaction ? 700 : 300);
             }
         }, 900);
     };
