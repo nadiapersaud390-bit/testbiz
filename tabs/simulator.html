@@ -189,7 +189,7 @@
 
     <!-- ── END CALL DISPOSITION MODAL ── -->
     <div id="sim-end-modal" class="hidden fixed inset-0 z-[9999] sim-end-modal-backdrop items-center justify-center p-4">
-        <div class="w-full max-w-lg rounded-3xl border border-rose-500/25 bg-slate-950 shadow-2xl overflow-hidden">
+        <div class="w-full max-w-lg rounded-3xl border border-rose-500/25 bg-slate-950 shadow-2xl overflow-hidden flex flex-col" style="max-height:calc(100vh - 2rem);">
             <div class="p-5 border-b border-white/[0.08] bg-gradient-to-r from-rose-500/10 to-transparent">
                 <div class="flex items-start justify-between gap-3">
                     <div>
@@ -202,7 +202,7 @@
                     </button>
                 </div>
             </div>
-            <div class="p-5">
+            <div class="p-5 overflow-y-auto">
                 <div id="sim-end-reasons" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
                 <div id="sim-end-feedback" class="hidden mt-4 rounded-2xl border p-4 text-sm font-bold leading-relaxed"></div>
                 <div id="sim-end-error" class="hidden mt-3 text-[10px] font-bold text-red-400 text-center">Select a reason before ending the call.</div>
@@ -243,6 +243,8 @@
         { key:'wrong_number',        label:'Wrong Number',              icon:'fa-phone-slash' },
         { key:'no_answer_voicemail', label:'No Answer / Voicemail',     icon:'fa-voicemail' },
         { key:'disconnected',        label:'Call Disconnected',         icon:'fa-unlink' },
+        { key:'prank_call',          label:'Prank Call',                icon:'fa-user-secret' },
+        { key:'didnt_ask_1m_revenue', label:"Didn't Ask $1M Revenue",     icon:'fa-dollar-sign' },
         { key:'other',               label:'Other',                     icon:'fa-ellipsis-h' }
     ];
 
@@ -260,7 +262,11 @@
             'dnc':'do_not_call', 'do not call':'do_not_call', 'do not call request':'do_not_call',
             'wrong number':'wrong_number',
             'no answer':'no_answer_voicemail', 'voicemail':'no_answer_voicemail', 'no answer / voicemail':'no_answer_voicemail',
-            'call disconnected':'disconnected', 'disconnected':'disconnected'
+            'call disconnected':'disconnected', 'disconnected':'disconnected',
+            'prank':'prank_call', 'prank call':'prank_call',
+            "didn't ask 1m revenue":'didnt_ask_1m_revenue', "didn't ask $1m revenue":'didnt_ask_1m_revenue',
+            'did not ask 1m revenue':'didnt_ask_1m_revenue', 'did not ask $1m revenue':'didnt_ask_1m_revenue',
+            'didnt ask 1m revenue':'didnt_ask_1m_revenue', 'didnt ask $1m revenue':'didnt_ask_1m_revenue'
         };
         if (END_REASONS.some(r => r.key === raw)) return raw;
         return aliases[raw] || raw.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');

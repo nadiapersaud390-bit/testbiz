@@ -1225,6 +1225,8 @@
                                 <option value="wrong_number">Wrong Number</option>
                                 <option value="no_answer_voicemail">No Answer / Voicemail</option>
                                 <option value="disconnected">Call Disconnected</option>
+                                <option value="prank_call">Prank Call</option>
+                                <option value="didnt_ask_1m_revenue">Didn't Ask $1M Revenue</option>
                                 <option value="other">Other</option>
                             </select>
                         </div>
@@ -1293,6 +1295,8 @@
                             <option value="wrong_number">Wrong Number</option>
                             <option value="no_answer_voicemail">No Answer / Voicemail</option>
                             <option value="disconnected">Call Disconnected</option>
+                            <option value="prank_call">Prank Call</option>
+                            <option value="didnt_ask_1m_revenue">Didn't Ask $1M Revenue</option>
                             <option value="other">Other</option>
                         </select>
                     </div>
@@ -3196,6 +3200,8 @@
         wrong_number: 'Wrong Number',
         no_answer_voicemail: 'No Answer / Voicemail',
         disconnected: 'Call Disconnected',
+        prank_call: 'Prank Call',
+        didnt_ask_1m_revenue: "Didn't Ask $1M Revenue",
         other: 'Other'
     };
 
@@ -3218,7 +3224,15 @@
             'voicemail': 'no_answer_voicemail',
             'no answer / voicemail': 'no_answer_voicemail',
             'call disconnected': 'disconnected',
-            'disconnected': 'disconnected'
+            'disconnected': 'disconnected',
+            'prank': 'prank_call',
+            'prank call': 'prank_call',
+            "didn't ask 1m revenue": 'didnt_ask_1m_revenue',
+            "didn't ask $1m revenue": 'didnt_ask_1m_revenue',
+            'did not ask 1m revenue': 'didnt_ask_1m_revenue',
+            'did not ask $1m revenue': 'didnt_ask_1m_revenue',
+            'didnt ask 1m revenue': 'didnt_ask_1m_revenue',
+            'didnt ask $1m revenue': 'didnt_ask_1m_revenue'
         };
         if (_simEndReasonLabels[raw]) return raw;
         return aliases[raw] || raw.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
