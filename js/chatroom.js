@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- * SECURE CHATROOM — E2E Encrypted Agent ↔ Admin Messaging
+ * SECURE CHATROOM — Secure workspace Agent ↔ Admin Messaging
  * ═══════════════════════════════════════════════════════════════
  * 
  * FIXED: Server timestamps for correct message ordering across all devices
@@ -25,6 +25,8 @@
     const NOTIF_SETTINGS_KEY = 'chat_notification_settings';
     const TYPING_DB_PATH = 'chat_typing';
     const DRAFTS_KEY = 'chat_message_drafts';
+    const MAX_ATTACHMENT_BYTES = 600 * 1024;
+    const MAX_VOICE_SECONDS = 20;
 
     // Quick action messages
     const QUICK_ACTIONS = {
@@ -84,6 +86,15 @@
     let _fbFunctions = null;
     let _initialized = false;
     let _isFirstLoad = true;
+    let _backgroundInitRetryTimer = null;
+    let _foregroundInitRetryTimer = null;
+    let _generalListenerStarted = false;
+    let _reactionListenerStarted = false;
+    let _presenceListenerStarted = false;
+    let _groupsListenerStarted = false;
+    const _activeMessageListeners = new Set();
+    const _activeTypingListeners = new Set();
+    const _activePinListeners = new Set();
 
     // ═══════════════════════════════════════════
     // FIXED: Consistent timestamp handling
@@ -166,24 +177,38 @@
         
         if (isAdmin) {
             const adminData = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-            let adminName = adminData.name || 'JAMAL';
-            if (adminName.toUpperCase() === 'JAMAL') adminName = 'JAMAL';
-            else if (adminName.toUpperCase() === 'ROSE') adminName = 'ROSE';
-            else if (adminName.toUpperCase() === 'MOMO' || adminName.toUpperCase() === 'MOHENIE') adminName = 'MOHENIE';
-            else if (adminName.toUpperCase() === 'MEL' || adminName.toUpperCase().includes('MEL')) adminName = 'MEL';
-            else if (adminName.toUpperCase() === 'NADIA' || adminName.toUpperCase().includes('NADIA')) adminName = 'NADIA';
+            const rawIdentity = String(adminData.name || adminData.email || 'JAMAL').toUpperCase();
+            let adminName = String(adminData.name || 'JAMAL').toUpperCase();
+            if (rawIdentity.includes('ROSE')) adminName = 'ROSE';
+            else if (rawIdentity.includes('MOMO') || rawIdentity.includes('MOHENIE')) adminName = 'MOHENIE';
+            else if (rawIdentity.includes('MEL')) adminName = 'MEL';
+            else if (rawIdentity.includes('NADIA')) adminName = 'NADIA';
+            else if (rawIdentity.includes('JAMAL')) adminName = 'JAMAL';
+
+            const adminIdMap = {
+                JAMAL: 'jamal',
+                ROSE: 'rose',
+                MOHENIE: 'momo',
+                MEL: 'mel',
+                NADIA: 'nadia'
+            };
+            const fallbackId = String(adminData.email || adminData.name || 'admin')
+                .split('@')[0]
+                .replace(/[^a-z0-9_-]/gi, '_')
+                .toLowerCase();
             
             return {
-                id: (adminData.email || adminData.name || 'admin').replace(/[.#$\[\]]/g, '_').toLowerCase(),
+                id: adminIdMap[adminName] || fallbackId || 'admin',
                 name: adminName,
                 role: 'admin',
                 isSuper: adminData.role === 'super_admin' || adminData.isSuper
             };
         } else {
             const profile = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}');
+            const rawAgentId = profile.userId || profile.ytelId || profile.id || 'unknown';
             return {
-                id: 'agent_' + (profile.ytelId || 'unknown'),
-                name: profile.name || 'Agent',
+                id: 'agent_' + rawAgentId,
+                name: profile.fullName || profile.name || 'Agent',
                 role: 'agent',
                 ytelId: profile.ytelId || '',
                 team: profile.team || ''
@@ -292,6 +317,64 @@
             console.warn('[Chat] Decryption failed:', e);
             return '[🔒 Unable to decrypt]';
         }
+    }
+
+    async function _encryptAttachment(attachment, channelId) {
+        if (!attachment) return null;
+        return _encrypt(JSON.stringify(attachment), channelId);
+    }
+
+    async function _decryptAttachment(ciphertext, iv, channelId) {
+        if (!ciphertext || !iv) return null;
+        try {
+            const json = await _decrypt(ciphertext, iv, channelId);
+            if (!json || json.startsWith('[🔒')) return null;
+            const parsed = JSON.parse(json);
+            return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (e) {
+            console.warn('[Chat] Attachment decryption failed:', e);
+            return null;
+        }
+    }
+
+    function _safeAttachment(attachment) {
+        if (!attachment || typeof attachment !== 'object') return null;
+        const name = String(attachment.name || 'Attachment').slice(0, 160);
+        const rawMime = String(attachment.mime || 'application/octet-stream').toLowerCase();
+        const mime = rawMime.split(';')[0].trim();
+        const dataUrl = String(attachment.dataUrl || '');
+        const dataHeader = dataUrl.match(/^data:([^;,]+)(?:;[^,]*)?;base64,/i);
+        const dataMime = dataHeader ? dataHeader[1].toLowerCase() : '';
+        const allowedMime = /^(image\/(png|jpeg|gif|webp)|audio\/(webm|mpeg|mp4|ogg|wav)|application\/pdf|text\/plain)$/i.test(mime);
+        if (!allowedMime || dataMime !== mime) return null;
+        return {
+            kind: String(attachment.kind || (mime.startsWith('image/') ? 'image' : mime.startsWith('audio/') ? 'audio' : 'file')),
+            name,
+            mime,
+            dataUrl,
+            size: Number(attachment.size) || 0
+        };
+    }
+
+    function _formatFileSize(bytes) {
+        const size = Number(bytes) || 0;
+        if (size < 1024) return `${size} B`;
+        if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+        return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    function _renderAttachment(attachment) {
+        const safe = _safeAttachment(attachment);
+        if (!safe) return '';
+        const safeName = _escAttr(safe.name);
+        const sizeLabel = _formatFileSize(safe.size);
+        if (safe.mime.startsWith('image/')) {
+            return `<a class="cr-attachment cr-attachment-image" href="${safe.dataUrl}" download="${safeName}" title="Download ${safeName}"><img src="${safe.dataUrl}" alt="${safeName}" loading="lazy"><span><strong>${safeName}</strong><small>${sizeLabel}</small></span></a>`;
+        }
+        if (safe.mime.startsWith('audio/')) {
+            return `<div class="cr-attachment cr-attachment-audio"><div class="cr-attachment-label"><strong>Voice message</strong><small>${sizeLabel}</small></div><audio controls preload="metadata" src="${safe.dataUrl}"></audio></div>`;
+        }
+        return `<a class="cr-attachment cr-attachment-file" href="${safe.dataUrl}" download="${safeName}"><span class="cr-attachment-file-icon">📄</span><span><strong>${safeName}</strong><small>${sizeLabel} · Click to download</small></span></a>`;
     }
 
     function _bufToBase64(buf) {
@@ -408,6 +491,7 @@
                 remove: mod.remove,
                 onValue: mod.onValue,
                 off: mod.off,
+                onDisconnect: mod.onDisconnect,
                 serverTimestamp: mod.serverTimestamp
             };
             console.log('[Chat] Firebase functions loaded');
@@ -439,6 +523,7 @@
     function _getAdminList() {
         return [
             { id: 'jamal', name: 'JAMAL' },
+            { id: 'rose', name: 'ROSE' },
             { id: 'mel', name: 'MEL' },
             { id: 'momo', name: 'MOHENIE' },
             { id: 'nadia', name: 'NADIA' }
@@ -475,9 +560,10 @@
     }
     
     function _listenForTyping(channelId) {
-        if (!_fbFunctions || !channelId) return;
+        if (!_fbFunctions || !channelId || _activeTypingListeners.has(channelId)) return;
         const typingRef = _ref(TYPING_DB_PATH + '/' + channelId);
         if (!typingRef) return;
+        _activeTypingListeners.add(channelId);
         
         _fbFunctions.onValue(typingRef, (snapshot) => {
             const data = snapshot.val() || {};
@@ -522,11 +608,18 @@
     // ═══════════════════════════════════════════
     // MESSAGE EDIT/DELETE
     // ═══════════════════════════════════════════
+    function _getMessageRef(channelId, messageId) {
+        if (channelId === GENERAL_CHAT_PATH) {
+            return _ref(GENERAL_CHAT_PATH + '/' + messageId);
+        }
+        return _ref(CHAT_DB_PATH + '/' + channelId + '/' + messageId);
+    }
+
     async function _editMessage(channelId, messageId, newText) {
         if (!_fbFunctions || !channelId || !messageId) return false;
         
         const me = _getMyIdentity();
-        const msgRef = _ref(CHAT_DB_PATH + '/' + channelId + '/' + messageId);
+        const msgRef = _getMessageRef(channelId, messageId);
         if (!msgRef) return false;
         
         try {
@@ -558,7 +651,7 @@
         if (!_fbFunctions || !channelId || !messageId) return false;
         
         const me = _getMyIdentity();
-        const msgRef = _ref(CHAT_DB_PATH + '/' + channelId + '/' + messageId);
+        const msgRef = _getMessageRef(channelId, messageId);
         if (!msgRef) return false;
         
         try {
@@ -664,9 +757,10 @@
     }
     
     function _listenForPins(channelId) {
-        if (!_fbFunctions) return;
+        if (!_fbFunctions || !channelId || _activePinListeners.has(channelId)) return;
         const pinsRef = _ref(PINS_DB_PATH + '/' + channelId);
         if (!pinsRef) return;
+        _activePinListeners.add(channelId);
         
         _fbFunctions.onValue(pinsRef, (snapshot) => {
             _crPinnedMessages[channelId] = snapshot.val() || {};
@@ -679,7 +773,7 @@
         if (!container) return;
         
         const pins = _crPinnedMessages[channelId] || {};
-        const pinList = Object.values(pins);
+        const pinList = Object.entries(pins).map(([id, pin]) => ({ id, ...pin }));
         
         if (pinList.length === 0) {
             container.innerHTML = '<div class="cr-pinned-header" style="display:none;"></div>';
@@ -692,7 +786,7 @@
             </div>
             <div class="cr-pinned-list" style="max-height:150px;overflow-y:auto;padding:8px;">
                 ${pinList.slice(0, 5).map(pin => `
-                    <div class="cr-pinned-item" style="padding:6px 10px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:4px;cursor:pointer;" onclick="window._crScrollToMessage('${channelId}')">
+                    <div class="cr-pinned-item" style="padding:6px 10px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:4px;cursor:pointer;" onclick="window._crScrollToMessage('${channelId}', '${pin.id}')">
                         <div style="font-size:9px;color:#facc15;font-weight:800;">📌 ${_escHtml(pin.message?.fromName || 'Unknown')}</div>
                         <div style="font-size:11px;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escHtml(pin.message?.text?.substring(0, 50) || '')}</div>
                     </div>
@@ -716,22 +810,26 @@
                 lastSeen: _getServerTimestamp()
             });
             
-            const onDisconnectRef = _fbFunctions.ref(_getDb(), PRESENCE_DB_PATH + '/' + me.id);
-            if (onDisconnectRef && onDisconnectRef.onDisconnect) {
-                onDisconnectRef.onDisconnect().set({
-                    name: me.name,
-                    role: me.role,
-                    online: false,
-                    lastSeen: _getServerTimestamp()
-                });
+            if (_fbFunctions.onDisconnect) {
+                try {
+                    _fbFunctions.onDisconnect(presenceRef).set({
+                        name: me.name,
+                        role: me.role,
+                        online: false,
+                        lastSeen: _getServerTimestamp()
+                    });
+                } catch (e) {
+                    console.warn('[Chat] Presence disconnect handler unavailable:', e);
+                }
             }
         }
     }
     
     function _listenForPresence() {
-        if (!_fbFunctions) return;
+        if (!_fbFunctions || _presenceListenerStarted) return;
         const presenceRef = _ref(PRESENCE_DB_PATH);
         if (!presenceRef) return;
+        _presenceListenerStarted = true;
         
         _fbFunctions.onValue(presenceRef, (snapshot) => {
             const data = snapshot.val() || {};
@@ -774,9 +872,10 @@
     }
 
     function _listenToGeneralChat(me) {
-        if (!_fbFunctions) return;
+        if (!_fbFunctions || _generalListenerStarted) return;
         const generalRef = _ref(GENERAL_CHAT_PATH);
         if (!generalRef) return;
+        _generalListenerStarted = true;
 
         let initialLoad = true;
 
@@ -784,9 +883,14 @@
             const data = snapshot.val();
             if (!data) {
                 _generalChatMessages = [];
+                _generalChatUnread = 0;
+                initialLoad = false;
+                _updateFloatBubbleBadge();
+                _updateTabBadge();
                 if (_crCurrentChannelType === 'general') {
                     _renderGeneralChatMessages(me);
                 }
+                if (document.getElementById('cr-channel-list')) _renderChannelList();
                 return;
             }
 
@@ -803,6 +907,16 @@
                     _decryptCache[cacheKey] = plaintext;
                 }
                 
+                let attachment = null;
+                if (raw.attachmentCiphertext && raw.attachmentIv) {
+                    const attachmentCacheKey = cacheKey + '_attachment';
+                    attachment = _decryptCache[attachmentCacheKey];
+                    if (attachment === undefined) {
+                        attachment = await _decryptAttachment(raw.attachmentCiphertext, raw.attachmentIv, GENERAL_CHAT_PATH);
+                        _decryptCache[attachmentCacheKey] = attachment;
+                    }
+                }
+
                 let timestamp = 0;
                 if (raw.timestamp) {
                     timestamp = _toMillis(raw.timestamp);
@@ -815,6 +929,7 @@
                     from: raw.from || '',
                     fromName: raw.fromName || '',
                     text: plaintext,
+                    attachment: attachment,
                     timestamp: timestamp,
                     isQuickAction: raw.isQuickAction || false,
                     edited: raw.edited || false
@@ -866,7 +981,7 @@
         }
     }
 
-    async function _sendToGeneralChat(text, me, isQuickAction = false) {
+    async function _sendToGeneralChat(text, me, isQuickAction = false, attachment = null) {
         if (!_fbFunctions || !text) return false;
         if (!_keyCache[GENERAL_CHAT_PATH]) await _deriveKey(GENERAL_CHAT_PATH);
         
@@ -877,6 +992,7 @@
             from: me.id,
             fromName: me.name,
             text: text,
+            attachment: attachment,
             timestamp: tempTimestamp,
             isQuickAction: isQuickAction,
             isTemp: true
@@ -890,7 +1006,8 @@
         }
         
         const encrypted = await _encrypt(text, GENERAL_CHAT_PATH);
-        if (!encrypted) {
+        const encryptedAttachment = attachment ? await _encryptAttachment(attachment, GENERAL_CHAT_PATH) : null;
+        if (!encrypted || (attachment && !encryptedAttachment)) {
             _generalChatMessages = _generalChatMessages.filter(m => m.id !== tempId);
             if (_crCurrentChannelType === 'general') {
                 _renderGeneralChatMessages(me);
@@ -904,6 +1021,10 @@
                 fromName: me.name,
                 ciphertext: encrypted.ciphertext,
                 iv: encrypted.iv,
+                ...(encryptedAttachment ? {
+                    attachmentCiphertext: encryptedAttachment.ciphertext,
+                    attachmentIv: encryptedAttachment.iv
+                } : {}),
                 isQuickAction: isQuickAction,
                 timestamp: _getServerTimestamp()
             };
@@ -930,9 +1051,10 @@
     }
 
     function _listenToReactions() {
-        if (!_fbFunctions) return;
+        if (!_fbFunctions || _reactionListenerStarted) return;
         const reactionsRef = _ref(REACTIONS_DB_PATH);
         if (!reactionsRef) return;
+        _reactionListenerStarted = true;
         _fbFunctions.onValue(reactionsRef, (snapshot) => {
             _crReactions = snapshot.val() || {};
             const me = _getMyIdentity();
@@ -1004,12 +1126,13 @@
             const ri = _getReactionInfo(msg.id, me.id);
             html += `
                 <div class="cr-msg-row ${isSent ? 'sent' : 'received'}" data-msg-id="${msg.id}" data-msg-index="${idx}" style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:12px;animation:fadeIn 0.2s ease;">
-                    <div style="max-width:75%;">
+                    <div class="cr-msg-content">
                         <div class="cr-msg-bubble" style="padding:10px 14px;border-radius:16px;${actionStyle} ${isSent ? 'background:linear-gradient(135deg,rgba(16,185,129,0.18),rgba(5,150,105,0.22));border-bottom-right-radius:6px;' : 'background:rgba(255,255,255,0.04);border-bottom-left-radius:6px;'}">
                             <div class="cr-msg-sender" style="font-size:10px;${senderClass} font-weight:800;margin-bottom:4px;white-space:nowrap;">
                                 ${senderIcon}${_escHtml(senderName)}${onlineDot}${pinIcon}
                             </div>
                             <div class="cr-msg-text" style="font-size:13px;color:#e2e8f0;line-height:1.5;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
+                            ${_renderAttachment(msg.attachment)}
                             <div class="cr-msg-meta" style="display:flex;align-items:center;gap:6px;margin-top:6px;justify-content:flex-end;">
                                 <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
                                         onclick="window._crToggleThumbsUp('${msg.id}')"
@@ -1108,9 +1231,10 @@
     }
 
     function _loadGroupChats(me) {
-        if (!_fbFunctions) return;
+        if (!_fbFunctions || _groupsListenerStarted) return;
         const groupsRef = _ref(GROUP_CHAT_PATH);
         if (!groupsRef) return;
+        _groupsListenerStarted = true;
 
         _fbFunctions.onValue(groupsRef, async (snapshot) => {
             const data = snapshot.val();
@@ -1151,15 +1275,33 @@
     }
 
     function _listenToGroupChannel(channelId, me) {
-        if (!_fbFunctions) return;
+        const listenerKey = 'group:' + channelId;
+        if (!_fbFunctions || _activeMessageListeners.has(listenerKey)) return;
         const msgRef = _ref(CHAT_DB_PATH + '/' + channelId);
         if (!msgRef) return;
+        _activeMessageListeners.add(listenerKey);
 
         let initialLoad = true;
 
         _fbFunctions.onValue(msgRef, async (snapshot) => {
             const data = snapshot.val();
-            if (!data) return;
+            if (!data) {
+                const ch = _crChannels[channelId];
+                if (ch) {
+                    ch.messages = [];
+                    ch.unread = 0;
+                    ch.lastMsg = null;
+                    ch.lastMsgTime = 0;
+                }
+                initialLoad = false;
+                _updateFloatBubbleBadge();
+                _updateTabBadge();
+                if (_crCurrentChannel === channelId && _crCurrentChannelType === 'group') {
+                    _renderGroupChatMessages(channelId, me);
+                }
+                if (document.getElementById('cr-channel-list')) _renderChannelList();
+                return;
+            }
 
             const messages = [];
             let unread = 0;
@@ -1178,6 +1320,16 @@
                     _decryptCache[cacheKey] = plaintext;
                 }
                 
+                let attachment = null;
+                if (raw.attachmentCiphertext && raw.attachmentIv) {
+                    const attachmentCacheKey = cacheKey + '_attachment';
+                    attachment = _decryptCache[attachmentCacheKey];
+                    if (attachment === undefined) {
+                        attachment = await _decryptAttachment(raw.attachmentCiphertext, raw.attachmentIv, channelId);
+                        _decryptCache[attachmentCacheKey] = attachment;
+                    }
+                }
+
                 let timestamp = _toMillis(raw.timestamp);
                 
                 const msg = {
@@ -1185,6 +1337,7 @@
                     from: raw.from || '',
                     fromName: raw.fromName || '',
                     text: plaintext,
+                    attachment: attachment,
                     timestamp: timestamp,
                     read: raw.read || false,
                     isQuickAction: raw.isQuickAction || false,
@@ -1203,9 +1356,6 @@
             const ch = _crChannels[channelId];
             if (ch) {
                 ch.messages = messages;
-                if (!initialLoad && unread > ch.unread) {
-                    _playNotificationSound();
-                }
                 ch.unread = unread;
                 ch.lastMsg = lastMsg;
                 ch.lastMsgTime = lastMsgTime;
@@ -1234,7 +1384,7 @@
         });
     }
 
-    async function _sendToGroupChannel(channelId, text, me, isQuickAction = false) {
+    async function _sendToGroupChannel(channelId, text, me, isQuickAction = false, attachment = null) {
         if (!_fbFunctions || !text || !channelId) return false;
         
         const tempId = 'temp_' + Date.now() + '_' + Math.random();
@@ -1244,6 +1394,7 @@
             from: me.id,
             fromName: me.name,
             text: text,
+            attachment: attachment,
             timestamp: tempTimestamp,
             isQuickAction: isQuickAction,
             isTemp: true
@@ -1258,7 +1409,8 @@
         }
         
         const encrypted = await _encrypt(text, channelId);
-        if (!encrypted) {
+        const encryptedAttachment = attachment ? await _encryptAttachment(attachment, channelId) : null;
+        if (!encrypted || (attachment && !encryptedAttachment)) {
             if (_crChannels[channelId]) {
                 _crChannels[channelId].messages = _crChannels[channelId].messages.filter(m => m.id !== tempId);
                 if (_crCurrentChannel === channelId && _crCurrentChannelType === 'group') {
@@ -1274,6 +1426,10 @@
                 fromName: me.name,
                 ciphertext: encrypted.ciphertext,
                 iv: encrypted.iv,
+                ...(encryptedAttachment ? {
+                    attachmentCiphertext: encryptedAttachment.ciphertext,
+                    attachmentIv: encryptedAttachment.iv
+                } : {}),
                 read: false,
                 isQuickAction: isQuickAction,
                 timestamp: _getServerTimestamp()
@@ -1302,7 +1458,7 @@
 
         const ch = _crChannels[channelId];
         if (!ch || ch.messages.length === 0) {
-            area.innerHTML = `<div class="cr-empty-state" style="padding:60px 20px;text-align:center;"><div class="cr-empty-icon" style="font-size:48px;margin-bottom:16px;">👥</div><div class="cr-empty-title" style="font-size:16px;font-weight:800;margin-bottom:8px;">${_escHtml(ch?.roomName || 'Group Chat')}</div><div class="cr-empty-desc" style="font-size:12px;color:#64748b;">Group messages are end-to-end encrypted.</div></div>`;
+            area.innerHTML = `<div class="cr-empty-state" style="padding:60px 20px;text-align:center;"><div class="cr-empty-icon" style="font-size:48px;margin-bottom:16px;">👥</div><div class="cr-empty-title" style="font-size:16px;font-weight:800;margin-bottom:8px;">${_escHtml(ch?.roomName || 'Group Chat')}</div><div class="cr-empty-desc" style="font-size:12px;color:#64748b;">Group messages are protected in this workspace.</div></div>`;
             return;
         }
 
@@ -1352,10 +1508,11 @@
             const ri = _getReactionInfo(msg.id, me.id);
             html += `
                 <div class="cr-msg-row ${isSent ? 'sent' : 'received'}" data-msg-id="${msg.id}" data-msg-index="${idx}" style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:12px;">
-                    <div style="max-width:75%;">
+                    <div class="cr-msg-content">
                         <div class="cr-msg-bubble" style="padding:10px 14px;border-radius:16px;${actionStyle} ${isSent ? 'background:linear-gradient(135deg,rgba(16,185,129,0.18),rgba(5,150,105,0.22));border-bottom-right-radius:6px;' : 'background:rgba(255,255,255,0.04);border-bottom-left-radius:6px;'}">
                             ${!isSent ? `<div class="cr-msg-sender" style="font-size:10px;color:${senderColor};font-weight:800;margin-bottom:4px;">${senderIcon}${_escHtml(displayName)}${onlineDot}${pinIcon}</div>` : ''}
                             <div class="cr-msg-text" style="font-size:13px;color:#e2e8f0;line-height:1.5;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
+                            ${_renderAttachment(msg.attachment)}
                             <div class="cr-msg-meta" style="display:flex;align-items:center;gap:6px;margin-top:6px;justify-content:flex-end;">
                                 <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
                                         onclick="window._crToggleThumbsUp('${msg.id}')"
@@ -1480,7 +1637,7 @@
                 <div class="cr-chat-header-info" style="flex:1;">
                     <div class="cr-chat-header-name" style="font-size:14px;font-weight:900;color:white;">${_escHtml(title)}</div>
                     <div class="cr-chat-header-status" style="font-size:10px;color:#64748b;margin-top:2px;">
-                        <span class="cr-e2e-badge" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:2px 8px;font-size:8px;color:#10b981;">🔐 E2E Encrypted</span>
+                        <span class="cr-e2e-badge" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:2px 8px;font-size:8px;color:#10b981;">🔐 Secure workspace</span>
                         <span style="margin-left:8px;" id="cr-online-status">Loading...</span>
                     </div>
                 </div>
@@ -1504,7 +1661,7 @@
                     <button onclick="window._crNextSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">Next →</button>
                 </div>
             </div>
-            <div style="display:flex;gap:8px;padding:10px 16px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;flex-shrink:0;">
+            <div class="cr-quick-actions">
                 <button onclick="window._crSendQuickActionToGroup('come_quick', '${channelId}')" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:20px;padding:6px 14px;color:#f87171;font-size:11px;font-weight:700;cursor:pointer;">🚨 Come Quick</button>
                 <button onclick="window._crSendQuickActionToGroup('help', '${channelId}')" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);border-radius:20px;padding:6px 14px;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;">🆘 Help</button>
                 <button onclick="window._crMentionUser()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);border-radius:20px;padding:6px 14px;color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer;">@ Mention</button>
@@ -1513,15 +1670,15 @@
             <div class="cr-typing-indicator hidden" id="cr-typing-indicator" style="padding:8px 16px;flex-shrink:0;"><div class="cr-typing-dots" style="display:flex;gap:3px;"><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div></div><span class="cr-typing-text" style="font-size:10px;color:#475569;margin-left:8px;">typing...</span></div>
             <div class="cr-input-bar" style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:10px;flex-shrink:0;">
                 <div class="cr-input-wrap" style="flex:1;position:relative;">
-                    <textarea class="cr-msg-input" id="cr-msg-input" placeholder="Type a message to the group..." rows="1" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;color:#e2e8f0;font-size:13px;padding:12px 16px;resize:none;line-height:1.4;padding-right:50px;" onkeydown="window._crHandleGroupKeydown(event, '${channelId}')" oninput="window._crHandleGroupTyping(event, '${channelId}')">${_escHtml(savedDraft)}</textarea>
+                    <textarea class="cr-msg-input" id="cr-msg-input" placeholder="Type a message…" rows="1" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;color:#e2e8f0;font-size:13px;padding:12px 16px;resize:none;line-height:1.4;padding-right:50px;" onkeydown="window._crHandleGroupKeydown(event, '${channelId}')" oninput="window._crHandleGroupTyping(event, '${channelId}')">${_escHtml(savedDraft)}</textarea>
                     <button class="cr-emoji-btn" onclick="window._crToggleEmojiPicker(event, 'group_${channelId}')" style="position:absolute;right:8px;bottom:8px;width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,0.05);border:none;cursor:pointer;font-size:18px;">😊</button>
                     <div id="cr-emoji-picker-group_${channelId}" class="cr-emoji-picker"></div>
                 </div>
-                    <button id="cr-file-btn" onclick="document.getElementById('cr-file-input').click()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">📎</button>
-                <button id="cr-voice-btn" onclick="window._crToggleVoiceRecording()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">🎙️</button>
-                <button class="cr-send-btn" onclick="window._crSendGroupMessage('${channelId}')" style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">➤</button>
+                    <button id="cr-file-btn" class="cr-composer-tool" title="Attach a file (max 600 KB)" aria-label="Attach a file" onclick="document.getElementById('cr-file-input').click()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">📎</button>
+                <button id="cr-voice-btn" class="cr-composer-tool" title="Record a voice message" aria-label="Record a voice message" onclick="window._crToggleVoiceRecording()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">🎙️</button>
+                <button class="cr-send-btn" title="Send message" aria-label="Send message" onclick="window._crSendGroupMessage('${channelId}')" style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">➤</button>
             </div>
-             <input type="file" id="cr-file-input" style="display:none" multiple onchange="window._crHandleFileSelect(this)">`;
+             <input type="file" id="cr-file-input" style="display:none" multiple accept="image/png,image/jpeg,image/gif,image/webp,audio/*,application/pdf,text/plain" onchange="window._crHandleFileSelect(this)">`;
 
         _renderGroupChatMessages(channelId, me);
         _markPrivateChannelRead(channelId, me);
@@ -1892,15 +2049,33 @@
     }
 
     function _listenToPrivateChannel(channelId, me) {
-        if (!_fbFunctions) return;
+        const listenerKey = 'dm:' + channelId;
+        if (!_fbFunctions || _activeMessageListeners.has(listenerKey)) return;
         const msgRef = _ref(CHAT_DB_PATH + '/' + channelId);
         if (!msgRef) return;
+        _activeMessageListeners.add(listenerKey);
 
         let initialLoad = true;
 
         _fbFunctions.onValue(msgRef, async (snapshot) => {
             const data = snapshot.val();
-            if (!data) return;
+            if (!data) {
+                const ch = _crChannels[channelId];
+                if (ch) {
+                    ch.messages = [];
+                    ch.unread = 0;
+                    ch.lastMsg = null;
+                    ch.lastMsgTime = 0;
+                }
+                initialLoad = false;
+                _updateFloatBubbleBadge();
+                _updateTabBadge();
+                if (_crCurrentChannel === channelId && _crCurrentChannelType === 'dm') {
+                    _renderPrivateChatMessages(channelId, me);
+                }
+                if (document.getElementById('cr-channel-list')) _renderChannelList();
+                return;
+            }
 
             const messages = [];
             let unread = 0;
@@ -1919,6 +2094,16 @@
                     _decryptCache[cacheKey] = plaintext;
                 }
                 
+                let attachment = null;
+                if (raw.attachmentCiphertext && raw.attachmentIv) {
+                    const attachmentCacheKey = cacheKey + '_attachment';
+                    attachment = _decryptCache[attachmentCacheKey];
+                    if (attachment === undefined) {
+                        attachment = await _decryptAttachment(raw.attachmentCiphertext, raw.attachmentIv, channelId);
+                        _decryptCache[attachmentCacheKey] = attachment;
+                    }
+                }
+
                 let timestamp = _toMillis(raw.timestamp);
                 
                 const msg = {
@@ -1926,6 +2111,7 @@
                     from: raw.from || '',
                     fromName: raw.fromName || '',
                     text: plaintext,
+                    attachment: attachment,
                     timestamp: timestamp,
                     read: raw.read || false,
                     isQuickAction: raw.isQuickAction || false,
@@ -1944,9 +2130,6 @@
             const ch = _crChannels[channelId];
             if (ch) {
                 ch.messages = messages;
-                if (!initialLoad && unread > ch.unread) {
-                    _playNotificationSound();
-                }
                 ch.unread = unread;
                 ch.lastMsg = lastMsg;
                 ch.lastMsgTime = lastMsgTime;
@@ -1975,7 +2158,7 @@
         });
     }
 
-    async function _sendToPrivateChannel(channelId, text, me, isQuickAction = false) {
+    async function _sendToPrivateChannel(channelId, text, me, isQuickAction = false, attachment = null) {
         if (!_fbFunctions || !text || !channelId) return false;
         
         const tempId = 'temp_' + Date.now() + '_' + Math.random();
@@ -1985,6 +2168,7 @@
             from: me.id,
             fromName: me.name,
             text: text,
+            attachment: attachment,
             timestamp: tempTimestamp,
             isQuickAction: isQuickAction,
             isTemp: true
@@ -1999,7 +2183,8 @@
         }
         
         const encrypted = await _encrypt(text, channelId);
-        if (!encrypted) {
+        const encryptedAttachment = attachment ? await _encryptAttachment(attachment, channelId) : null;
+        if (!encrypted || (attachment && !encryptedAttachment)) {
             if (_crChannels[channelId]) {
                 _crChannels[channelId].messages = _crChannels[channelId].messages.filter(m => m.id !== tempId);
                 if (_crCurrentChannel === channelId && _crCurrentChannelType === 'dm') {
@@ -2015,6 +2200,10 @@
                 fromName: me.name,
                 ciphertext: encrypted.ciphertext,
                 iv: encrypted.iv,
+                ...(encryptedAttachment ? {
+                    attachmentCiphertext: encryptedAttachment.ciphertext,
+                    attachmentIv: encryptedAttachment.iv
+                } : {}),
                 read: false,
                 isQuickAction: isQuickAction,
                 timestamp: _getServerTimestamp()
@@ -2043,7 +2232,7 @@
 
         const ch = _crChannels[channelId];
         if (!ch || ch.messages.length === 0) {
-            area.innerHTML = `<div class="cr-empty-state" style="padding:60px 20px;text-align:center;"><div class="cr-empty-icon" style="font-size:48px;margin-bottom:16px;">🔒</div><div class="cr-empty-title" style="font-size:16px;font-weight:800;margin-bottom:8px;">Private Chat</div><div class="cr-empty-desc" style="font-size:12px;color:#64748b;">Messages are end-to-end encrypted.</div></div>`;
+            area.innerHTML = `<div class="cr-empty-state" style="padding:60px 20px;text-align:center;"><div class="cr-empty-icon" style="font-size:48px;margin-bottom:16px;">🔒</div><div class="cr-empty-title" style="font-size:16px;font-weight:800;margin-bottom:8px;">Private Chat</div><div class="cr-empty-desc" style="font-size:12px;color:#64748b;">Messages are protected in this workspace.</div></div>`;
             return;
         }
 
@@ -2093,10 +2282,11 @@
             const ri = _getReactionInfo(msg.id, me.id);
             html += `
                 <div class="cr-msg-row ${isSent ? 'sent' : 'received'}" data-msg-id="${msg.id}" data-msg-index="${idx}" style="display:flex;justify-content:${isSent ? 'flex-end' : 'flex-start'};margin-bottom:12px;">
-                    <div style="max-width:75%;">
+                    <div class="cr-msg-content">
                         <div class="cr-msg-bubble" style="padding:10px 14px;border-radius:16px;${actionStyle} ${isSent ? 'background:linear-gradient(135deg,rgba(16,185,129,0.18),rgba(5,150,105,0.22));border-bottom-right-radius:6px;' : 'background:rgba(255,255,255,0.04);border-bottom-left-radius:6px;'}">
                             ${!isSent ? `<div class="cr-msg-sender" style="font-size:10px;color:${senderColor};font-weight:800;margin-bottom:4px;">${senderIcon}${_escHtml(displayName)}${onlineDot}${pinIcon}</div>` : ''}
                             <div class="cr-msg-text" style="font-size:13px;color:#e2e8f0;line-height:1.5;${isQuickAction ? 'font-weight:800;color:#f87171;' : ''}">${_escHtml(msg.text)}${editedBadge}</div>
+                            ${_renderAttachment(msg.attachment)}
                             <div class="cr-msg-meta" style="display:flex;align-items:center;gap:6px;margin-top:6px;justify-content:flex-end;">
                                 <button class="cr-tb" data-has="${ri.count > 0 || ri.iReacted ? '1' : '0'}"
                                         onclick="window._crToggleThumbsUp('${msg.id}')"
@@ -2158,8 +2348,17 @@
     // EDIT/DELETE/PIN MESSAGE FUNCTIONS
     // ═══════════════════════════════════════════
     window._crEditMessage = async function(channelId, messageId, btn) {
-        const newText = prompt('Edit your message:', '');
-        if (!newText) return;
+        let currentMessage = null;
+        if (channelId === GENERAL_CHAT_PATH) {
+            currentMessage = _generalChatMessages.find(m => m.id === messageId);
+        } else if (_crChannels[channelId]) {
+            currentMessage = _crChannels[channelId].messages.find(m => m.id === messageId);
+        }
+        const currentText = currentMessage?.text || '';
+        const editedText = prompt('Edit your message:', currentText);
+        if (editedText === null) return;
+        const newText = editedText.trim();
+        if (!newText || newText === currentText.trim()) return;
         
         const success = await _editMessage(channelId, messageId, newText);
         if (success) {
@@ -2208,7 +2407,16 @@
         }
     };
     
-    window._crScrollToMessage = function(channelId) {};
+    window._crScrollToMessage = function(channelId, messageId) {
+        if (!messageId) return;
+        const messageEl = document.querySelector(`.cr-msg-row[data-msg-id="${CSS.escape(String(messageId))}"]`);
+        if (!messageEl) return;
+        messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        messageEl.classList.remove('cr-message-focus');
+        void messageEl.offsetWidth;
+        messageEl.classList.add('cr-message-focus');
+        setTimeout(() => messageEl.classList.remove('cr-message-focus'), 1800);
+    };
 
     // ═══════════════════════════════════════════
     // SEARCH FUNCTIONS
@@ -2279,104 +2487,128 @@
     // ═══════════════════════════════════════════
     // VOICE RECORDING & FILE SHARING
     // ═══════════════════════════════════════════
+    async function _sendAttachmentToCurrentChannel(attachment, label) {
+        const safe = _safeAttachment(attachment);
+        if (!safe) {
+            alert('This file type is not supported. Use an image, PDF, text file, or audio file.');
+            return false;
+        }
+        const me = _getMyIdentity();
+        const text = label || `Shared ${safe.name}`;
+        if (_crCurrentChannelType === 'general') {
+            return _sendToGeneralChat(text, me, false, safe);
+        }
+        if (_crCurrentChannelType === 'dm' && _crCurrentChannel) {
+            return _sendToPrivateChannel(_crCurrentChannel, text, me, false, safe);
+        }
+        if (_crCurrentChannelType === 'group' && _crCurrentChannel) {
+            return _sendToGroupChannel(_crCurrentChannel, text, me, false, safe);
+        }
+        return false;
+    }
+
     async function _startVoiceRecording() {
         if (_crIsRecording) {
             _stopVoiceRecording();
             return;
         }
-        
+        if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+            alert('Voice recording is not supported in this browser.');
+            return;
+        }
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             _crMediaRecorder = new MediaRecorder(stream);
             _crAudioChunks = [];
-            
-            _crMediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    _crAudioChunks.push(event.data);
-                }
+            _crMediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) _crAudioChunks.push(event.data);
             };
-            
             _crMediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(_crAudioChunks, { type: 'audio/webm' });
+                const mime = (_crMediaRecorder?.mimeType || 'audio/webm').split(';')[0].toLowerCase();
+                const audioBlob = new Blob(_crAudioChunks, { type: mime });
+                stream.getTracks().forEach(track => track.stop());
+                _updateVoiceButtonUI(false);
+                if (audioBlob.size > MAX_ATTACHMENT_BYTES) {
+                    alert('The voice message is too large. Please record a shorter message.');
+                    return;
+                }
                 const reader = new FileReader();
                 reader.onloadend = async () => {
-                    const audioData = reader.result.split(',')[1];
-                    const me = _getMyIdentity();
-                    const messageText = '🎤 Voice message';
-                    if (_crCurrentChannelType === 'general') {
-                        await _sendToGeneralChat(messageText, me, false);
-                    } else if (_crCurrentChannelType === 'dm') {
-                        await _sendToPrivateChannel(_crCurrentChannel, messageText, me, false);
-                    } else if (_crCurrentChannelType === 'group') {
-                        await _sendToGroupChannel(_crCurrentChannel, messageText, me, false);
-                    }
-                    stream.getTracks().forEach(track => track.stop());
+                    const attachment = {
+                        kind: 'audio',
+                        name: `Voice message ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.webm`,
+                        mime,
+                        size: audioBlob.size,
+                        dataUrl: reader.result
+                    };
+                    const sent = await _sendAttachmentToCurrentChannel(attachment, '🎤 Voice message');
+                    if (!sent) alert('Voice message could not be sent. Please try again.');
                 };
                 reader.readAsDataURL(audioBlob);
-                _updateVoiceButtonUI(false);
             };
-            
-            _crMediaRecorder.start(1000);
+            _crMediaRecorder.start(500);
             _crIsRecording = true;
             _updateVoiceButtonUI(true);
-            
             setTimeout(() => {
                 if (_crIsRecording) _stopVoiceRecording();
-            }, 30000);
+            }, MAX_VOICE_SECONDS * 1000);
         } catch (e) {
             console.error('[Chat] Voice recording failed:', e);
-            alert('Microphone access denied or not available');
+            alert('Microphone access was denied or is unavailable.');
         }
     }
-    
+
     function _stopVoiceRecording() {
         if (_crMediaRecorder && _crIsRecording) {
-            _crMediaRecorder.stop();
             _crIsRecording = false;
+            _crMediaRecorder.stop();
             _updateVoiceButtonUI(false);
         }
     }
-    
+
     function _updateVoiceButtonUI(isRecording) {
         const voiceBtn = document.getElementById('cr-voice-btn');
-        if (voiceBtn) {
-            if (isRecording) {
-                voiceBtn.innerHTML = '🔴';
-                voiceBtn.style.background = 'rgba(239,68,68,0.2)';
-                voiceBtn.style.borderColor = '#ef4444';
-            } else {
-                voiceBtn.innerHTML = '🎙️';
-                voiceBtn.style.background = 'rgba(255,255,255,0.05)';
-                voiceBtn.style.borderColor = 'rgba(255,255,255,0.1)';
-            }
-        }
+        if (!voiceBtn) return;
+        voiceBtn.innerHTML = isRecording ? '■' : '🎙️';
+        voiceBtn.classList.toggle('is-recording', isRecording);
+        voiceBtn.setAttribute('title', isRecording ? 'Stop recording' : `Record a voice message (max ${MAX_VOICE_SECONDS}s)`);
     }
-    
+
     window._crHandleFileSelect = async function(input) {
-        const files = Array.from(input.files);
+        const files = Array.from(input.files || []);
+        input.value = '';
         for (const file of files) {
-            if (file.size > 10 * 1024 * 1024) {
-                alert(`File ${file.name} is too large (max 10MB)`);
+            if (file.size > MAX_ATTACHMENT_BYTES) {
+                alert(`${file.name} is too large. The maximum attachment size is ${_formatFileSize(MAX_ATTACHMENT_BYTES)}.`);
                 continue;
             }
-            const reader = new FileReader();
-            reader.onloadend = async () => {
-                const fileData = reader.result.split(',')[1];
-                const me = _getMyIdentity();
-                const messageText = `📎 ${file.name}`;
-                if (_crCurrentChannelType === 'general') {
-                    await _sendToGeneralChat(messageText, me, false);
-                } else if (_crCurrentChannelType === 'dm') {
-                    await _sendToPrivateChannel(_crCurrentChannel, messageText, me, false);
-                } else if (_crCurrentChannelType === 'group') {
-                    await _sendToGroupChannel(_crCurrentChannel, messageText, me, false);
-                }
+            const mime = (file.type || 'application/octet-stream').toLowerCase();
+            if (!/^(image\/(png|jpeg|gif|webp)|audio\/(webm|mpeg|mp4|ogg|wav)|application\/pdf|text\/plain)$/i.test(mime)) {
+                alert(`${file.name} is not a supported file type.`);
+                continue;
+            }
+            const dataUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(file);
+            }).catch(() => null);
+            if (!dataUrl) {
+                alert(`${file.name} could not be read.`);
+                continue;
+            }
+            const attachment = {
+                kind: mime.startsWith('image/') ? 'image' : mime.startsWith('audio/') ? 'audio' : 'file',
+                name: file.name,
+                mime,
+                size: file.size,
+                dataUrl
             };
-            reader.readAsDataURL(file);
+            const sent = await _sendAttachmentToCurrentChannel(attachment, `📎 ${file.name}`);
+            if (!sent) alert(`${file.name} could not be sent. Please try again.`);
         }
-        input.value = '';
     };
-    
+
     window._crToggleVoiceRecording = function() {
         if (_crIsRecording) {
             _stopVoiceRecording();
@@ -2389,11 +2621,19 @@
     // MENTION FUNCTION
     // ═══════════════════════════════════════════
     window._crMentionUser = function() {
-        const participants = _getAllChatParticipants();
-        const mentionList = participants.map(p => p.name).join(', ');
+        const me = _getMyIdentity();
+        const participants = _getAllChatParticipants().filter(p => p.id !== me.id);
+        const names = participants.map(p => p.name);
+        const selected = prompt('Who would you like to mention?\n\n' + names.join(', '));
+        if (selected === null) return;
+        const match = participants.find(p => p.name.toLowerCase() === selected.trim().toLowerCase());
+        const mentionName = match ? match.name : selected.trim();
+        if (!mentionName) return;
         const input = document.getElementById('cr-msg-input');
         if (input) {
-            input.value += '@';
+            const spacer = input.value && !/\s$/.test(input.value) ? ' ' : '';
+            input.value += `${spacer}@${mentionName} `;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
             input.focus();
         }
     };
@@ -2405,8 +2645,8 @@
         const container = document.getElementById('cr-main-container');
         if (!container) return;
 
-        container.style.height = 'calc(100vh - 180px)';
-        container.style.minHeight = '550px';
+        container.style.height = 'clamp(620px, calc(100vh - 230px), 880px)';
+        container.style.minHeight = '620px';
 
         const allParticipants = _getAllChatParticipants();
         const checklist = document.getElementById('cr-agent-checklist');
@@ -2441,13 +2681,13 @@
             <div class="cr-container" id="cr-chat-container" style="height: 100%; display: flex; gap: 0;">
                 <div class="cr-sidebar" id="cr-sidebar" style="width: 280px; min-width: 280px; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; height: 100%;">
                     <div class="cr-sidebar-header" style="padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.06);">
-                        <div class="cr-sidebar-title" style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;color:#10b981;"><span class="lock-icon">🔒</span> Chat</div>
-                        <button class="cr-create-room-btn" onclick="document.getElementById('cr-create-room-modal').classList.remove('hidden')" title="Create Group Chat">➕</button>
+                        <div class="cr-sidebar-title" style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;color:#10b981;"><span class="lock-icon">💬</span> Conversations</div>
+                        <button class="cr-create-room-btn" onclick="document.getElementById('cr-create-room-modal').classList.remove('hidden')" title="Create group chat" aria-label="Create group chat">＋</button>
                     </div>
                     <div class="cr-sidebar-tabs" style="display:flex;gap:2px;padding:12px;">
-                        <button class="cr-sidebar-tab active" id="cr-tab-general" onclick="window._crSwitchSidebarTab('general')" style="flex:1;padding:8px;border-radius:10px;font-size:10px;font-weight:900;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);color:#10b981;">🌍 General</button>
-                        <button class="cr-sidebar-tab" id="cr-tab-dms" onclick="window._crSwitchSidebarTab('dms')" style="flex:1;padding:8px;border-radius:10px;font-size:10px;font-weight:900;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:#64748b;">💬 Private</button>
-                        <button class="cr-sidebar-tab" id="cr-tab-groups" onclick="window._crSwitchSidebarTab('groups')" style="flex:1;padding:8px;border-radius:10px;font-size:10px;font-weight:900;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:#64748b;">👥 Groups</button>
+                        <button class="cr-sidebar-tab active" id="cr-tab-general" onclick="window._crSwitchSidebarTab('general')" style="flex:1;padding:8px;border-radius:10px;font-size:10px;font-weight:900;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);color:#10b981;">General</button>
+                        <button class="cr-sidebar-tab" id="cr-tab-dms" onclick="window._crSwitchSidebarTab('dms')" style="flex:1;padding:8px;border-radius:10px;font-size:10px;font-weight:900;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:#64748b;">Private</button>
+                        <button class="cr-sidebar-tab" id="cr-tab-groups" onclick="window._crSwitchSidebarTab('groups')" style="flex:1;padding:8px;border-radius:10px;font-size:10px;font-weight:900;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:#64748b;">Groups</button>
                     </div>
                     <div class="cr-search-wrap" style="padding:0 12px 12px;position:relative;">
                         <span class="cr-search-icon" style="position:absolute;left:22px;top:50%;transform:translateY(-50%);font-size:11px;color:#334155;">🔍</span>
@@ -2556,7 +2796,7 @@
                 <div class="cr-chat-header-info" style="flex:1;">
                     <div class="cr-chat-header-name" style="font-size:14px;font-weight:900;color:white;">General Chat</div>
                     <div class="cr-chat-header-status" style="font-size:10px;color:#64748b;margin-top:2px;">
-                        <span class="cr-e2e-badge" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:2px 8px;font-size:8px;color:#10b981;">🔐 E2E Encrypted</span>
+                        <span class="cr-e2e-badge" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:2px 8px;font-size:8px;color:#10b981;">🔐 Secure workspace</span>
                         <span style="margin-left:8px;" id="cr-online-status">Everyone in the room</span>
                     </div>
                 </div>
@@ -2578,7 +2818,7 @@
                     <button onclick="window._crNextSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">Next →</button>
                 </div>
             </div>
-            <div style="display:flex;gap:8px;padding:10px 16px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;flex-shrink:0;align-items:center;">
+            <div class="cr-quick-actions">
                 <button onclick="window._crSendQuickActionToGeneral('come_quick')" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:20px;padding:6px 14px;color:#f87171;font-size:11px;font-weight:700;cursor:pointer;">🚨 Come Quick</button>
                 <button onclick="window._crSendQuickActionToGeneral('help')" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);border-radius:20px;padding:6px 14px;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;">🆘 Help</button>
                 <button onclick="window._crMentionUser()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);border-radius:20px;padding:6px 14px;color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer;">@ Mention</button>
@@ -2588,15 +2828,15 @@
             <div class="cr-typing-indicator hidden" id="cr-typing-indicator" style="padding:8px 16px;flex-shrink:0;"><div class="cr-typing-dots" style="display:flex;gap:3px;"><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div></div><span class="cr-typing-text" style="font-size:10px;color:#475569;margin-left:8px;">typing...</span></div>
             <div class="cr-input-bar" style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:10px;flex-shrink:0;">
                 <div class="cr-input-wrap" style="flex:1;position:relative;">
-                    <textarea class="cr-msg-input" id="cr-msg-input" placeholder="Type a message to everyone... (use @ to mention)" rows="1" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;color:#e2e8f0;font-size:13px;padding:12px 16px;resize:none;line-height:1.4;padding-right:50px;" onkeydown="window._crHandleGeneralKeydown(event)" oninput="window._crHandleGeneralTyping(event)">${_escHtml(savedDraft)}</textarea>
+                    <textarea class="cr-msg-input" id="cr-msg-input" placeholder="Type a message…" rows="1" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;color:#e2e8f0;font-size:13px;padding:12px 16px;resize:none;line-height:1.4;padding-right:50px;" onkeydown="window._crHandleGeneralKeydown(event)" oninput="window._crHandleGeneralTyping(event)">${_escHtml(savedDraft)}</textarea>
                     <button class="cr-emoji-btn" onclick="window._crToggleEmojiPicker(event, 'general')" style="position:absolute;right:8px;bottom:8px;width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,0.05);border:none;cursor:pointer;font-size:18px;">😊</button>
                     <div id="cr-emoji-picker-general" class="cr-emoji-picker"></div>
                 </div>
-                <button id="cr-file-btn" onclick="document.getElementById('cr-file-input').click()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">📎</button>
-                <button id="cr-voice-btn" onclick="window._crToggleVoiceRecording()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">🎙️</button>
-                <button class="cr-send-btn" onclick="window._crSendGeneralMessage()" style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">➤</button>
+                <button id="cr-file-btn" class="cr-composer-tool" title="Attach a file (max 600 KB)" aria-label="Attach a file" onclick="document.getElementById('cr-file-input').click()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">📎</button>
+                <button id="cr-voice-btn" class="cr-composer-tool" title="Record a voice message" aria-label="Record a voice message" onclick="window._crToggleVoiceRecording()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">🎙️</button>
+                <button class="cr-send-btn" title="Send message" aria-label="Send message" onclick="window._crSendGeneralMessage()" style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">➤</button>
             </div>
-            <input type="file" id="cr-file-input" style="display:none" multiple onchange="window._crHandleFileSelect(this)">`;
+            <input type="file" id="cr-file-input" style="display:none" multiple accept="image/png,image/jpeg,image/gif,image/webp,audio/*,application/pdf,text/plain" onchange="window._crHandleFileSelect(this)">`;
 
         _renderGeneralChatMessages(me);
         _listenForTyping(GENERAL_CHAT_PATH);
@@ -2643,7 +2883,7 @@
                 <div class="cr-chat-header-info" style="flex:1;">
                     <div class="cr-chat-header-name" style="font-size:14px;font-weight:900;color:white;">${_escHtml(title)}</div>
                     <div class="cr-chat-header-status" style="font-size:10px;color:#64748b;margin-top:2px;">
-                        <span class="cr-e2e-badge" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:2px 8px;font-size:8px;color:#10b981;">🔐 E2E Encrypted</span>
+                        <span class="cr-e2e-badge" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:2px 8px;font-size:8px;color:#10b981;">🔐 Secure workspace</span>
                         <span style="margin-left:8px;" id="cr-online-status">Private conversation</span>
                     </div>
                 </div>
@@ -2666,7 +2906,7 @@
                     <button onclick="window._crNextSearchResult()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 8px;font-size:10px;">Next →</button>
                 </div>
             </div>
-            <div style="display:flex;gap:8px;padding:10px 16px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;flex-shrink:0;">
+            <div class="cr-quick-actions">
                 <button onclick="window._crSendQuickActionToPrivate('come_quick', '${channelId}')" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:20px;padding:6px 14px;color:#f87171;font-size:11px;font-weight:700;cursor:pointer;">🚨 Come Quick</button>
                 <button onclick="window._crSendQuickActionToPrivate('help', '${channelId}')" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);border-radius:20px;padding:6px 14px;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;">🆘 Help</button>
                 <button onclick="window._crMentionUser()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);border-radius:20px;padding:6px 14px;color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer;">@ Mention</button>
@@ -2675,15 +2915,15 @@
             <div class="cr-typing-indicator hidden" id="cr-typing-indicator" style="padding:8px 16px;flex-shrink:0;"><div class="cr-typing-dots" style="display:flex;gap:3px;"><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div><div class="cr-typing-dot" style="width:5px;height:5px;border-radius:50%;background:#475569;"></div></div><span class="cr-typing-text" style="font-size:10px;color:#475569;margin-left:8px;">typing...</span></div>
             <div class="cr-input-bar" style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:10px;flex-shrink:0;">
                 <div class="cr-input-wrap" style="flex:1;position:relative;">
-                    <textarea class="cr-msg-input" id="cr-msg-input" placeholder="Type a private message... (use @ to mention)" rows="1" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;color:#e2e8f0;font-size:13px;padding:12px 16px;resize:none;line-height:1.4;padding-right:50px;" onkeydown="window._crHandlePrivateKeydown(event, '${channelId}')" oninput="window._crHandlePrivateTyping(event, '${channelId}')">${_escHtml(savedDraft)}</textarea>
+                    <textarea class="cr-msg-input" id="cr-msg-input" placeholder="Type a message…" rows="1" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;color:#e2e8f0;font-size:13px;padding:12px 16px;resize:none;line-height:1.4;padding-right:50px;" onkeydown="window._crHandlePrivateKeydown(event, '${channelId}')" oninput="window._crHandlePrivateTyping(event, '${channelId}')">${_escHtml(savedDraft)}</textarea>
                     <button class="cr-emoji-btn" onclick="window._crToggleEmojiPicker(event, 'private_${channelId}')" style="position:absolute;right:8px;bottom:8px;width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,0.05);border:none;cursor:pointer;font-size:18px;">😊</button>
                     <div id="cr-emoji-picker-private_${channelId}" class="cr-emoji-picker"></div>
                 </div>
-                    <button id="cr-file-btn" onclick="document.getElementById('cr-file-input').click()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">📎</button>
-                <button id="cr-voice-btn" onclick="window._crToggleVoiceRecording()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">🎙️</button>
-                <button class="cr-send-btn" onclick="window._crSendPrivateMessage('${channelId}')" style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">➤</button>
+                    <button id="cr-file-btn" class="cr-composer-tool" title="Attach a file (max 600 KB)" aria-label="Attach a file" onclick="document.getElementById('cr-file-input').click()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">📎</button>
+                <button id="cr-voice-btn" class="cr-composer-tool" title="Record a voice message" aria-label="Record a voice message" onclick="window._crToggleVoiceRecording()" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;">🎙️</button>
+                <button class="cr-send-btn" title="Send message" aria-label="Send message" onclick="window._crSendPrivateMessage('${channelId}')" style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;">➤</button>
             </div>
-             <input type="file" id="cr-file-input" style="display:none" multiple onchange="window._crHandleFileSelect(this)">`;
+             <input type="file" id="cr-file-input" style="display:none" multiple accept="image/png,image/jpeg,image/gif,image/webp,audio/*,application/pdf,text/plain" onchange="window._crHandleFileSelect(this)">`;
 
         _renderPrivateChatMessages(channelId, me);
         _markPrivateChannelRead(channelId, me);
@@ -2820,7 +3060,7 @@
     };
 
     window._crClearPrivateChat = async function(channelId) {
-        if (!confirm('Clear this chat?')) return;
+        if (!confirm('Clear every message in this conversation? This cannot be undone.')) return;
         if (!_fbFunctions || !channelId) return;
         try {
             await _fbFunctions.remove(_ref(CHAT_DB_PATH + '/' + channelId));
@@ -2863,6 +3103,10 @@
             if (m === '>') return '&gt;';
             return m;
         });
+    }
+
+    function _escAttr(str) {
+        return _escHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function _getInitials(name) {
@@ -3617,6 +3861,14 @@
             const ok = await _initFirebaseFunctions();
             if (!ok) return;
         }
+        if (!_getDb()) {
+            clearTimeout(_backgroundInitRetryTimer);
+            _backgroundInitRetryTimer = setTimeout(() => window.initChatroomBackground(), 700);
+            return;
+        }
+        clearTimeout(_backgroundInitRetryTimer);
+        _backgroundInitRetryTimer = null;
+
         const me = _getMyIdentity();
         if (!me || !me.id) return;
         _loadPrivateChannels(me);
@@ -3647,10 +3899,20 @@
             const ok = await _initFirebaseFunctions();
             if (!ok) {
                 const container = document.getElementById('cr-main-container');
-                if (container) container.innerHTML = '<div class="cr-empty-state"><div class="cr-empty-icon">⚠️</div><div class="cr-empty-title">Connection Error</div></div>';
+                if (container) container.innerHTML = '<div class="cr-empty-state"><div class="cr-empty-icon">⚠️</div><div class="cr-empty-title">Connection Error</div><div class="cr-empty-subtitle">Refresh the page and check your internet connection.</div></div>';
                 return;
             }
         }
+        if (!_getDb()) {
+            const container = document.getElementById('cr-main-container');
+            if (container) container.innerHTML = '<div class="cr-empty-state"><div class="cr-empty-icon">💬</div><div class="cr-empty-title">Connecting to chat…</div><div class="cr-empty-subtitle">Your conversations will appear in a moment.</div></div>';
+            clearTimeout(_foregroundInitRetryTimer);
+            _foregroundInitRetryTimer = setTimeout(() => window.initChatroom(), 700);
+            return;
+        }
+        clearTimeout(_foregroundInitRetryTimer);
+        _foregroundInitRetryTimer = null;
+
         const me = _getMyIdentity();
         if (!me || !me.id) return;
         _renderMainLayout(me);
