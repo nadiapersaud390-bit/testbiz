@@ -70,52 +70,17 @@ function initializeDefaultSuperAdmin() {
     }
 }
 
-// Seed specific default regular admins if they don't exist
-// Default regular admin credentials (always guaranteed)
-const DEFAULT_ADMIN_ACCOUNTS = [
-    { id: "momo",  name: "Mohenie",  pass: "momo2424" },
-    { id: "nadia", name: "Nadia Persaud", pass: "nadia2024" },
-    { id: "0000", name: "Admin", pass: "admin" }
-];
-
-// IDs that exist as logins but get NO admin features (enforced in getAdminPermissions)
+// Regular admin accounts are authoritative in Firebase RTDB under admins_list.
+// Do not auto-create or re-seed deleted accounts. Re-seeding caused removed admins
+// to reappear and allowed stale localStorage credentials to keep working.
+const DEFAULT_ADMIN_ACCOUNTS = [];
 const RESTRICTED_ADMIN_IDS = ['0000'];
 
 function seedDefaultAdmins() {
-    const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
-    let changed = false;
-
-    // Cleanup old system accounts not in current defaults
-    const currentDefaultIds = DEFAULT_ADMIN_ACCOUNTS.map(d => d.id);
-    Object.keys(admins).forEach(id => {
-        if (admins[id].addedBy === 'system' && !currentDefaultIds.includes(id)) {
-            delete admins[id];
-            changed = true;
-        }
-    });
-
-    DEFAULT_ADMIN_ACCOUNTS.forEach(d => {
-        // ALWAYS overwrite default accounts (momo, 0000) so Firebase data
-        // can never break their guaranteed credentials.
-        const existing = admins[d.id];
-        admins[d.id] = {
-            email: d.id,
-            name: d.name,
-            password: btoa(d.pass),
-            role: 'admin',
-            addedBy: 'system',
-            addedAt: (existing && existing.addedAt) ? existing.addedAt : new Date().toISOString()
-        };
-        changed = true;
-    });
-
-    if (changed) {
-        localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-        // Attempt Firebase sync — may not be available on login page
-        if (typeof window.saveAdminsListToFirebase === 'function') {
-            window.saveAdminsListToFirebase(admins);
-        }
-        console.log('✅ Default admins seeded to localStorage.');
+    // Compatibility hook retained for older pages. It only ensures the cache exists;
+    // Firebase listeners replace this cache with the exact remote directory.
+    if (!localStorage.getItem(ADMINS_KEY)) {
+        localStorage.setItem(ADMINS_KEY, '{}');
     }
 }
 
@@ -127,51 +92,117 @@ window.initializeDefaultSuperAdmin = initializeDefaultSuperAdmin;
 initializeDefaultSuperAdmin();
 seedDefaultAdmins();
 
+function clearConflictingSessionForAdminLogin() {
+    sessionStorage.removeItem('agentLoggedIn');
+    sessionStorage.removeItem('currentAgentProfile');
+    sessionStorage.removeItem('currentAgentName');
+    sessionStorage.removeItem('adminEmail');
+    sessionStorage.removeItem('adminRole');
+    sessionStorage.removeItem('adminName');
+}
+
 // ========== LOGIN SYSTEM ==========
-function superAdminLogin(email, password) {
-    // Check super admin first
-    const superAdmin = localStorage.getItem(SUPER_ADMIN_KEY);
-    if (superAdmin) {
-        const admin = JSON.parse(superAdmin);
-        const isMatch = (admin.email === email || (String(email).toUpperCase() === 'ROSE' && admin.role === 'super_admin'));
-        if (isMatch && atob(admin.password) === password) {
+function _normalizeAdminKey(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function _safeDecodePassword(value) {
+    try { return atob(String(value || '')); } catch (e) { return ''; }
+}
+
+async function superAdminLogin(email, password) {
+    const lookupKey = _normalizeAdminKey(email);
+    const suppliedPassword = String(password || '');
+
+    if (!lookupKey || !suppliedPassword) {
+        return { success: false, error: 'Enter your login ID and password' };
+    }
+
+    // Super Admin is stored separately, but use the current Firebase record whenever
+    // the login page exposes the verifier. Local storage is only a cache/fallback for Rose.
+    let superRecord = null;
+    try {
+        if (typeof window.fetchSuperAdminForLogin === 'function') {
+            superRecord = await window.fetchSuperAdminForLogin();
+        }
+    } catch (e) {
+        console.warn('[AdminAuth] Could not read super admin from Firebase:', e);
+    }
+    if (!superRecord) {
+        try { superRecord = JSON.parse(localStorage.getItem(SUPER_ADMIN_KEY) || 'null'); } catch (e) {}
+    }
+
+    if (superRecord) {
+        const superKey = _normalizeAdminKey(superRecord.email);
+        const isSuperMatch = lookupKey === superKey || (lookupKey === 'rose' && superRecord.role === 'super_admin');
+        if (isSuperMatch && _safeDecodePassword(superRecord.password) === suppliedPassword) {
+            localStorage.setItem(SUPER_ADMIN_KEY, JSON.stringify(superRecord));
+            clearConflictingSessionForAdminLogin();
             sessionStorage.setItem('currentAdmin', JSON.stringify({
-                email: admin.email,
-                name: admin.name,
+                email: superRecord.email,
+                name: superRecord.name,
                 role: 'super_admin',
                 isSuper: true
             }));
             sessionStorage.setItem('adminLoggedIn', 'true');
             sessionStorage.setItem('bizAdminUnlocked', '1');
             sessionStorage.setItem('bizUserRole', 'admin');
-            window.writeAdminActivityLog('login', 'Super Admin logged in', {email: admin.email, name: admin.name, role: 'super_admin'});
+            window.writeAdminActivityLog('login', 'Super Admin logged in', {email: superRecord.email, name: superRecord.name, role: 'super_admin'});
             return { success: true, role: 'super_admin' };
         }
     }
-    
-    // Check regular admins
-    const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
-    const lookupKey = String(email || '').toLowerCase();
-    const admin = admins[lookupKey];
-    
-    if (admin && admin.password === btoa(password)) {
-        sessionStorage.setItem('currentAdmin', JSON.stringify({
-            email: admin.email,
-            name: admin.name,
-            role: admin.role || 'admin',
-            isSuper: false,
-            hiddenTabs: admin.hiddenTabs || [],
-            adminToolUploadScope: admin.adminToolUploadScope || 'all'
-        }));
-        sessionStorage.setItem('adminLoggedIn', 'true');
-        sessionStorage.setItem('bizAdminUnlocked', '1');
-        sessionStorage.setItem('bizUserRole', 'admin');
-        window.writeAdminActivityLog('login', 'Admin logged in', {email: admin.email, name: admin.name, role: admin.role || 'admin'});
-        return { success: true, role: admin.role || 'admin' };
+
+    // Regular admins must be verified against Firebase on every login. Never accept a
+    // stale localStorage record because the account may have been deleted by Super Admin.
+    if (typeof window.fetchAdminForLogin !== 'function') {
+        return { success: false, error: 'Cannot verify admin account. Check the internet connection and try again.' };
     }
-    
-    window.writeAdminActivityLog('login_failed', 'Failed admin login attempt: ' + email, {email: email, name: 'Unknown', role: 'unknown'});
-    return { success: false, error: 'Invalid credentials' };
+
+    let admin = null;
+    try {
+        admin = await window.fetchAdminForLogin(lookupKey);
+    } catch (e) {
+        console.error('[AdminAuth] Firebase verification failed:', e);
+        return { success: false, error: 'Cannot reach Firebase right now. Please try again.' };
+    }
+
+    if (!admin) {
+        // Remove any stale local copy immediately.
+        try {
+            const cached = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
+            delete cached[lookupKey];
+            localStorage.setItem(ADMINS_KEY, JSON.stringify(cached));
+        } catch (e) {}
+        window.writeAdminActivityLog('login_failed', 'Deleted or unauthorized admin attempted login: ' + lookupKey, {email: lookupKey, name: 'Unknown', role: 'unknown'});
+        return { success: false, error: 'This admin account is not authorized or has been removed.' };
+    }
+
+    if (admin.password !== btoa(suppliedPassword)) {
+        window.writeAdminActivityLog('login_failed', 'Failed admin login attempt: ' + lookupKey, {email: lookupKey, name: admin.name || 'Unknown', role: admin.role || 'admin'});
+        return { success: false, error: 'Invalid credentials' };
+    }
+
+    // Refresh the exact verified record in the local cache.
+    try {
+        const cached = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
+        cached[lookupKey] = { ...admin, email: admin.email || lookupKey };
+        localStorage.setItem(ADMINS_KEY, JSON.stringify(cached));
+    } catch (e) {}
+
+    clearConflictingSessionForAdminLogin();
+    sessionStorage.setItem('currentAdmin', JSON.stringify({
+        email: admin.email || lookupKey,
+        name: admin.name,
+        role: admin.role || 'admin',
+        isSuper: false,
+        hiddenTabs: admin.hiddenTabs || [],
+        adminToolUploadScope: admin.adminToolUploadScope || 'all'
+    }));
+    sessionStorage.setItem('adminLoggedIn', 'true');
+    sessionStorage.setItem('bizAdminUnlocked', '1');
+    sessionStorage.setItem('bizUserRole', 'admin');
+    window.writeAdminActivityLog('login', 'Admin logged in', {email: admin.email || lookupKey, name: admin.name, role: admin.role || 'admin'});
+    return { success: true, role: admin.role || 'admin' };
 }
 
 // ========== ADMIN MANAGEMENT ==========
@@ -191,113 +222,145 @@ function getAllAdmins() {
     };
 }
 
-function addNewAdmin(email, password, name, role = 'admin') {
+async function addNewAdmin(email, password, name, role = 'admin') {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    if (currentAdmin.role !== 'super_admin') {
+    if (currentAdmin.role !== 'super_admin' && !currentAdmin.isSuper) {
         return { success: false, error: 'Only super admin can add new admins' };
     }
-    
+
+    const saveKey = _normalizeAdminKey(email);
+    if (!saveKey || !name || !password) return { success: false, error: 'All fields are required' };
+    if (/[.#$\[\]\/]/.test(saveKey)) return { success: false, error: 'Login ID cannot contain . # $ [ ] or /' };
+
     const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
-    const saveKey = String(email || '').toLowerCase();
-    
-    if (admins[saveKey]) {
-        return { success: false, error: 'Admin already exists' };
+    if (admins[saveKey]) return { success: false, error: 'Admin already exists' };
+    if (typeof window.saveAdminRecordToFirebase !== 'function') {
+        return { success: false, error: 'Firebase is not connected. Admin was not added.' };
     }
-    
-    admins[saveKey] = {
+    if (typeof window.getAdminRecordFromFirebase === 'function') {
+        try {
+            const existingRemote = await window.getAdminRecordFromFirebase(saveKey);
+            if (existingRemote) return { success: false, error: 'Admin already exists in Firebase' };
+        } catch (e) {
+            return { success: false, error: 'Could not verify Firebase before adding the admin' };
+        }
+    }
+
+    const record = {
         email: saveKey,
-        name: name,
-        role: role,
-        password: btoa(password),
+        name: String(name).trim(),
+        role: role || 'admin',
+        password: btoa(String(password)),
         addedBy: currentAdmin.email,
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
+        hiddenTabs: [],
+        adminToolUploadScope: 'all'
     };
-    
-    localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-    if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-    window.writeAdminActivityLog('user_management', 'Added new admin: ' + email);
-    return { success: true, message: 'Admin added successfully' };
+
+    try {
+        await window.saveAdminRecordToFirebase(saveKey, record);
+        admins[saveKey] = record;
+        localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+        window.writeAdminActivityLog('user_management', 'Added new admin: ' + saveKey);
+        return { success: true, message: 'Admin added successfully' };
+    } catch (e) {
+        console.error('[AdminManagement] Add failed:', e);
+        return { success: false, error: 'Firebase save failed. No account was created.' };
+    }
 }
 
-function removeAdmin(email) {
+async function removeAdmin(email) {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    if (currentAdmin.role !== 'super_admin') {
+    if (currentAdmin.role !== 'super_admin' && !currentAdmin.isSuper) {
         return { success: false, error: 'Only super admin can remove admins' };
     }
-    
-    if (email === currentAdmin.email) {
-        return { success: false, error: 'Cannot remove yourself' };
+
+    const key = _normalizeAdminKey(email);
+    if (key === _normalizeAdminKey(currentAdmin.email)) return { success: false, error: 'Cannot remove yourself' };
+    if (typeof window.deleteAdminFromFirebase !== 'function') {
+        return { success: false, error: 'Firebase is not connected. Admin was not removed.' };
     }
-    
-    const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
-    delete admins[email];
-    localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-    if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-    
-    window.writeAdminActivityLog('user_management', 'Removed admin: ' + email);
-    return { success: true, message: 'Admin removed successfully' };
+
+    try {
+        await window.deleteAdminFromFirebase(key);
+        const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
+        delete admins[key];
+        localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+        window.writeAdminActivityLog('user_management', 'Removed admin: ' + key);
+        return { success: true, message: 'Admin removed and access revoked' };
+    } catch (e) {
+        console.error('[AdminManagement] Remove failed:', e);
+        return { success: false, error: 'Firebase delete failed. The admin still has access.' };
+    }
 }
 
-function updateAdminRole(email, newRole) {
+async function updateAdminRole(email, newRole) {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    if (currentAdmin.role !== 'super_admin') {
+    if (currentAdmin.role !== 'super_admin' && !currentAdmin.isSuper) {
         return { success: false, error: 'Only super admin can change roles' };
     }
-    
+
+    const key = _normalizeAdminKey(email);
     const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
-    if (!admins[email]) {
-        return { success: false, error: 'Admin not found' };
+    if (!admins[key]) return { success: false, error: 'Admin not found' };
+    if (typeof window.saveAdminRecordToFirebase !== 'function') return { success: false, error: 'Firebase is not connected' };
+
+    const updated = { ...admins[key], role: newRole };
+    try {
+        await window.saveAdminRecordToFirebase(key, updated);
+        admins[key] = updated;
+        localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+        window.writeAdminActivityLog('user_management', `Updated role for ${key} to ${newRole}`);
+        return { success: true, message: 'Role updated successfully' };
+    } catch (e) {
+        return { success: false, error: 'Firebase update failed' };
     }
-    
-    admins[email].role = newRole;
-    localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-    if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-    window.writeAdminActivityLog('user_management', `Updated role for ${email} to ${newRole}`);
-    return { success: true, message: 'Role updated successfully' };
 }
 
-function changeOwnPassword(email, oldPassword, newPassword) {
-    // Check super admin
+async function changeOwnPassword(email, oldPassword, newPassword) {
+    const key = _normalizeAdminKey(email);
     const superAdmin = localStorage.getItem(SUPER_ADMIN_KEY);
     if (superAdmin) {
         const admin = JSON.parse(superAdmin);
-        if (admin.email === email && atob(admin.password) === oldPassword) {
+        if (_normalizeAdminKey(admin.email) === key && _safeDecodePassword(admin.password) === oldPassword) {
             admin.password = btoa(newPassword);
-            localStorage.setItem(SUPER_ADMIN_KEY, JSON.stringify(admin));
-            if (typeof window.saveSuperAdminToFirebase === 'function') window.saveSuperAdminToFirebase(admin);
-            return { success: true, message: 'Password changed successfully' };
+            if (typeof window.saveSuperAdminToFirebase !== 'function') return { success: false, error: 'Firebase is not connected' };
+            try {
+                await window.saveSuperAdminToFirebase(admin);
+                localStorage.setItem(SUPER_ADMIN_KEY, JSON.stringify(admin));
+                return { success: true, message: 'Password changed successfully' };
+            } catch (e) { return { success: false, error: 'Firebase update failed' }; }
         }
     }
-    
-    // Check regular admins
+
     const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
-    const admin = admins[email];
-    if (admin && atob(admin.password) === oldPassword) {
-        admin.password = btoa(newPassword);
+    const admin = admins[key];
+    if (!admin || _safeDecodePassword(admin.password) !== oldPassword) return { success: false, error: 'Current password is incorrect' };
+    if (typeof window.saveAdminRecordToFirebase !== 'function') return { success: false, error: 'Firebase is not connected' };
+    const updated = { ...admin, password: btoa(newPassword) };
+    try {
+        await window.saveAdminRecordToFirebase(key, updated);
+        admins[key] = updated;
         localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-        if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
         return { success: true, message: 'Password changed successfully' };
-    }
-    
-    return { success: false, error: 'Current password is incorrect' };
+    } catch (e) { return { success: false, error: 'Firebase update failed' }; }
 }
 
-function superResetAdminPassword(email, newPassword) {
+async function superResetAdminPassword(email, newPassword) {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    if (currentAdmin.role !== 'super_admin' && !currentAdmin.isSuper) {
-        return { success: false, error: 'Only super admin can reset passwords' };
-    }
-    
+    if (currentAdmin.role !== 'super_admin' && !currentAdmin.isSuper) return { success: false, error: 'Only super admin can reset passwords' };
+    const key = _normalizeAdminKey(email);
     const admins = JSON.parse(localStorage.getItem(ADMINS_KEY) || '{}');
-    if (!admins[email]) {
-        return { success: false, error: 'Admin not found' };
-    }
-    
-    admins[email].password = btoa(newPassword);
-    localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-    if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-    window.writeAdminActivityLog('user_management', `Super Admin reset password for: ${email}`);
-    return { success: true, message: 'Password reset successfully' };
+    if (!admins[key]) return { success: false, error: 'Admin not found' };
+    if (typeof window.saveAdminRecordToFirebase !== 'function') return { success: false, error: 'Firebase is not connected' };
+    const updated = { ...admins[key], password: btoa(newPassword) };
+    try {
+        await window.saveAdminRecordToFirebase(key, updated);
+        admins[key] = updated;
+        localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+        window.writeAdminActivityLog('user_management', `Super Admin reset password for: ${key}`);
+        return { success: true, message: 'Password reset successfully' };
+    } catch (e) { return { success: false, error: 'Firebase update failed' }; }
 }
 
 function isLoggedIn() {

@@ -633,10 +633,62 @@ window.listenForAdmins = function(callback) {
 // Listen to a single admin's Firebase record in real-time (for live tab permission updates)
 window.listenForAdminRecord = function(adminKey, callback) {
     if (!database || !adminKey) return () => {};
-    const unsubscribe = onValue(ref(database, 'admins_list/' + adminKey), (snapshot) => {
+    const normalizedKey = String(adminKey).trim().toLowerCase();
+    const unsubscribe = onValue(ref(database, 'admins_list/' + normalizedKey), (snapshot) => {
         if (callback) callback(snapshot.val());
     });
     return unsubscribe;
+};
+
+// Direct Firebase-backed admin authorization helpers. These are the source of
+// truth for login and CRUD; localStorage is only a synchronized cache.
+window.getAdminRecordFromFirebase = async function(adminKey) {
+    if (!database || !adminKey) return null;
+    const normalizedKey = String(adminKey).trim().toLowerCase();
+    const snapshot = await get(ref(database, 'admins_list/' + normalizedKey));
+    return snapshot.exists() ? snapshot.val() : null;
+};
+
+window.getSuperAdminFromFirebase = async function() {
+    if (!database) return null;
+    const snapshot = await get(ref(database, 'super_admin'));
+    return snapshot.exists() ? snapshot.val() : null;
+};
+
+window.saveAdminRecordToFirebase = async function(adminKey, adminRecord) {
+    if (!database) throw new Error('Firebase database is not initialized');
+    const normalizedKey = String(adminKey || '').trim().toLowerCase();
+    if (!normalizedKey) throw new Error('Admin key is required');
+    if (/[.#$\[\]\/]/.test(normalizedKey)) throw new Error('Invalid Firebase admin key');
+    await set(ref(database, 'admins_list/' + normalizedKey), {
+        ...adminRecord,
+        email: adminRecord.email || normalizedKey
+    });
+};
+
+window.deleteAdminFromFirebase = async function(adminKey) {
+    if (!database) throw new Error('Firebase database is not initialized');
+    const normalizedKey = String(adminKey || '').trim().toLowerCase();
+    if (!normalizedKey) throw new Error('Admin key is required');
+
+    // Remove authorization first. Login reads this exact path, so once this
+    // succeeds the deleted admin cannot authenticate from any browser/device.
+    await remove(ref(database, 'admins_list/' + normalizedKey));
+
+    // End any active dashboard sessions for the deleted account.
+    const sessionKey = normalizedKey.replace(/[.#$\[\]]/g, '_');
+    try {
+        await update(ref(database, 'admin_sessions/' + sessionKey), {
+            status: 'offline',
+            forceLogout: true,
+            revokedAt: Date.now(),
+            lastSeen: Date.now()
+        });
+    } catch (e) {
+        console.warn('[AdminManagement] Could not flag legacy session for logout:', e);
+    }
+    try { await remove(ref(database, 'active_sessions/admins/' + sessionKey)); } catch (e) {}
+    try { await remove(ref(database, 'admin_concurrent_sessions/' + sessionKey)); } catch (e) {}
 };
 
 window.saveAdminsListToFirebase = async function(adminsObj) {
@@ -1029,10 +1081,19 @@ async function adminLogin(email, password) {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         
-        sessionStorage.setItem('agentLoggedIn', '1');
+        sessionStorage.removeItem('agentLoggedIn');
+        sessionStorage.removeItem('currentAgentProfile');
+        sessionStorage.removeItem('currentAgentName');
         sessionStorage.setItem('bizUserRole', 'admin');
         sessionStorage.setItem('bizAdminId', user.uid);
         sessionStorage.setItem('bizAdminEmail', user.email);
+        sessionStorage.setItem('currentAdmin', JSON.stringify({
+            email: user.email || user.uid,
+            name: user.displayName || user.email || 'Administrator',
+            role: 'admin',
+            isSuper: false,
+            hiddenTabs: []
+        }));
         sessionStorage.setItem('adminLoggedIn', 'true');
         
         if (typeof window.writeAdminActivityLog === 'function') {

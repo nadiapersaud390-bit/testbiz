@@ -331,17 +331,419 @@
             font-weight: 800;
             cursor: pointer;
         }
+
+
+        /* ── PROFESSIONAL WORKSPACE HEADER & NAVIGATION ── */
+        body.role-pending .dashboard-navigation {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .dashboard-navigation {
+            opacity: 1;
+            visibility: visible;
+            transition: opacity .18s ease, visibility .18s ease;
+        }
+        .dashboard-shell {
+            max-width: 1180px;
+            margin: 0 auto 28px;
+        }
+        .dashboard-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin: 6px 0 18px;
+            padding: 0 2px;
+        }
+        .dashboard-live-block {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+        .dashboard-live-copy { min-width: 0; }
+        .dashboard-live-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            font-weight: 900;
+            color: #f87171;
+            letter-spacing: .13em;
+            text-transform: uppercase;
+            font-style: italic;
+            line-height: 1.2;
+        }
+        .dashboard-live-meta {
+            margin-top: 5px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dashboard-refresh {
+            width: 46px;
+            height: 46px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 14px;
+            flex: 0 0 auto;
+        }
+        .dashboard-hero {
+            position: relative;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(330px, .65fr);
+            gap: 28px;
+            align-items: center;
+            padding: clamp(24px, 3vw, 38px);
+            border: 1px solid rgba(148,163,184,.14);
+            border-radius: 26px;
+            background:
+                radial-gradient(circle at 10% 0%, rgba(249,115,22,.13), transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(59,130,246,.10), transparent 34%),
+                linear-gradient(145deg, rgba(15,23,42,.92), rgba(3,7,18,.95));
+            box-shadow: 0 24px 70px rgba(0,0,0,.27);
+        }
+        .dashboard-hero::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(110deg, transparent 0 62%, rgba(255,255,255,.018) 62% 63%, transparent 63%);
+        }
+        .dashboard-hero-copy,
+        .dashboard-hero-side { position: relative; z-index: 1; }
+        .dashboard-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #fb923c;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: .15em;
+            text-transform: uppercase;
+        }
+        .dashboard-eyebrow::before {
+            content: '';
+            width: 26px;
+            height: 2px;
+            border-radius: 99px;
+            background: linear-gradient(90deg, #facc15, #f97316);
+        }
+        .dashboard-title {
+            margin: 12px 0 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(31px, 4.3vw, 58px);
+            line-height: .98;
+            font-weight: 900;
+            letter-spacing: -.055em;
+            text-transform: uppercase;
+            font-style: italic;
+            background: linear-gradient(92deg, #facc15 0%, #fb923c 48%, #f43f5e 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .dashboard-subtitle {
+            max-width: 640px;
+            margin: 0;
+            color: #94a3b8;
+            font-size: 13px;
+            font-weight: 650;
+            line-height: 1.65;
+        }
+        .dashboard-hero-side {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .dashboard-user-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 13px 14px;
+            border: 1px solid rgba(148,163,184,.14);
+            border-radius: 16px;
+            background: rgba(2,6,23,.55);
+        }
+        .dashboard-user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 13px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #f8fafc;
+            background: linear-gradient(145deg, rgba(59,130,246,.35), rgba(99,102,241,.2));
+            border: 1px solid rgba(96,165,250,.25);
+            flex: 0 0 auto;
+        }
+        .dashboard-user-copy { min-width: 0; }
+        .dashboard-user-name {
+            color: #f8fafc;
+            font-size: 13px;
+            font-weight: 900;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dashboard-user-role {
+            margin-top: 3px;
+            color: #64748b;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 8px;
+            font-weight: 900;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+        .dashboard-clocks {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .dashboard-clock-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            padding: 11px 12px;
+            border-radius: 15px;
+            border: 1px solid rgba(148,163,184,.13);
+            background: rgba(2,6,23,.48);
+        }
+        .dashboard-clock-code {
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: .1em;
+        }
+        .dashboard-clock-place {
+            color: #64748b;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 7px;
+            font-weight: 900;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+        .dashboard-clock-time {
+            margin-top: 3px;
+            color: #f8fafc;
+            font-size: clamp(13px, 1.3vw, 18px);
+            font-weight: 900;
+            white-space: nowrap;
+        }
+        .dashboard-nav-shell {
+            margin-top: 18px;
+            padding: 18px;
+            border: 1px solid rgba(148,163,184,.13);
+            border-radius: 22px;
+            background: rgba(8,15,29,.78);
+            box-shadow: 0 18px 50px rgba(0,0,0,.20);
+        }
+        .dashboard-nav-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 14px;
+            padding: 0 2px;
+        }
+        .dashboard-nav-label {
+            color: #e2e8f0;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: .13em;
+            text-transform: uppercase;
+        }
+        .dashboard-nav-hint {
+            margin-top: 4px;
+            color: #475569;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .dashboard-access-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 10px;
+            border: 1px solid rgba(16,185,129,.22);
+            border-radius: 999px;
+            background: rgba(16,185,129,.08);
+            color: #34d399;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 8px;
+            font-weight: 900;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .dashboard-nav-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .workspace-tab {
+            --tab-accent: #60a5fa;
+            --tab-rgb: 96,165,250;
+            position: relative;
+            min-width: 0;
+            min-height: 72px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 13px 14px !important;
+            text-align: left;
+            border-radius: 16px !important;
+            border: 1px solid rgba(148,163,184,.13) !important;
+            background: linear-gradient(145deg, rgba(15,23,42,.88), rgba(8,15,29,.9)) !important;
+            color: #cbd5e1 !important;
+            box-shadow: none;
+            overflow: hidden;
+            transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease !important;
+        }
+        .workspace-tab::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 2px;
+            opacity: .35;
+            background: linear-gradient(90deg, transparent, var(--tab-accent), transparent);
+        }
+        .workspace-tab:hover {
+            transform: translateY(-2px);
+            border-color: rgba(var(--tab-rgb), .42) !important;
+            background: linear-gradient(145deg, rgba(var(--tab-rgb), .11), rgba(8,15,29,.94)) !important;
+            box-shadow: 0 12px 26px rgba(0,0,0,.20);
+        }
+        .workspace-tab:focus-visible {
+            outline: 2px solid var(--tab-accent);
+            outline-offset: 2px;
+        }
+        .workspace-tab.tab-active {
+            border-color: rgba(var(--tab-rgb), .72) !important;
+            background: linear-gradient(145deg, rgba(var(--tab-rgb), .21), rgba(var(--tab-rgb), .07)) !important;
+            color: #fff !important;
+            box-shadow: 0 0 0 1px rgba(var(--tab-rgb), .08), 0 12px 30px rgba(0,0,0,.22);
+        }
+        .workspace-tab.tab-active::after { opacity: 1; }
+        .workspace-tab-icon {
+            width: 37px;
+            height: 37px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            border-radius: 12px;
+            color: var(--tab-accent);
+            background: rgba(var(--tab-rgb), .10);
+            border: 1px solid rgba(var(--tab-rgb), .19);
+            font-size: 13px;
+        }
+        .workspace-tab-copy { min-width: 0; }
+        .workspace-tab-title {
+            display: block;
+            color: inherit;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            font-weight: 900;
+            line-height: 1.25;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .workspace-tab-kicker {
+            display: block;
+            margin-top: 4px;
+            color: #475569;
+            font-size: 9px;
+            font-weight: 750;
+            line-height: 1.25;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .workspace-tab.tab-active .workspace-tab-kicker { color: #94a3b8; }
+        .workspace-tab[data-accent="cyan"] { --tab-accent:#22d3ee; --tab-rgb:34,211,238; }
+        .workspace-tab[data-accent="teal"] { --tab-accent:#2dd4bf; --tab-rgb:45,212,191; }
+        .workspace-tab[data-accent="violet"] { --tab-accent:#a78bfa; --tab-rgb:167,139,250; }
+        .workspace-tab[data-accent="amber"] { --tab-accent:#fbbf24; --tab-rgb:251,191,36; }
+        .workspace-tab[data-accent="emerald"] { --tab-accent:#34d399; --tab-rgb:52,211,153; }
+        .workspace-tab[data-accent="indigo"] { --tab-accent:#818cf8; --tab-rgb:129,140,248; }
+        .workspace-tab[data-accent="rose"] { --tab-accent:#fb7185; --tab-rgb:251,113,133; }
+        .workspace-tab[data-accent="red"] { --tab-accent:#f87171; --tab-rgb:248,113,113; }
+        .workspace-tab[data-accent="gold"] { --tab-accent:#facc15; --tab-rgb:250,204,21; }
+        .workspace-tab[aria-disabled="true"] { display: none !important; }
+        .access-denied-toast {
+            position: fixed;
+            left: 50%;
+            bottom: 28px;
+            z-index: 100000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: min(420px, calc(100vw - 32px));
+            padding: 12px 15px;
+            border: 1px solid rgba(248,113,113,.36);
+            border-radius: 14px;
+            background: rgba(15,23,42,.97);
+            color: #fecaca;
+            box-shadow: 0 18px 50px rgba(0,0,0,.45);
+            font-size: 11px;
+            font-weight: 800;
+            transform: translate(-50%, 18px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s ease, transform .2s ease;
+        }
+        .access-denied-toast.show { opacity: 1; transform: translate(-50%, 0); }
+        @media (max-width: 980px) {
+            .dashboard-hero { grid-template-columns: 1fr; }
+            .dashboard-hero-side { display: grid; grid-template-columns: minmax(220px,.8fr) minmax(360px,1.2fr); align-items: stretch; }
+            .dashboard-user-card { height: 100%; }
+            .dashboard-nav-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+        }
+        @media (max-width: 720px) {
+            body { padding-left: 10px !important; padding-right: 10px !important; }
+            .dashboard-topbar { margin-top: 2px; }
+            .dashboard-live-meta { max-width: 250px; }
+            .dashboard-hero { padding: 22px 18px; border-radius: 21px; }
+            .dashboard-hero-side { display: flex; }
+            .dashboard-nav-shell { padding: 14px; border-radius: 19px; }
+            .dashboard-nav-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+            .workspace-tab { min-height: 68px; padding: 11px !important; gap: 9px; }
+            .workspace-tab-icon { width: 34px; height: 34px; }
+            .dashboard-nav-hint { display: none; }
+        }
+        @media (max-width: 430px) {
+            .dashboard-title { font-size: 30px; }
+            .dashboard-subtitle { font-size: 11px; }
+            .dashboard-clocks { grid-template-columns: 1fr; }
+            .dashboard-nav-header { align-items: flex-start; }
+            .dashboard-access-badge { padding: 6px 8px; font-size: 7px; }
+            .workspace-tab-title { font-size: 9px; }
+            .workspace-tab-kicker { font-size: 8px; }
+        }
     </style>
 </head>
-<body class="p-4 pb-20">
+<body class="p-4 pb-20 role-pending">
 
 <!-- KICKED OUT OVERLAY — shown when another device logs in with the same ID -->
 <div id="kicked-out-overlay" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,0.98);z-index:99999;align-items:center;justify-content:center;flex-direction:column;gap:20px;animation:fadeSlideIn 0.4s ease;">
     <div style="text-align:center;max-width:380px;padding:40px 32px;background:rgba(239,68,68,0.07);border:2px solid rgba(239,68,68,0.4);border-radius:28px;box-shadow:0 0 60px rgba(239,68,68,0.2);">
         <div style="font-size:3.5rem;margin-bottom:16px;">🔒</div>
-        <div style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:0.14em;color:#ef4444;margin-bottom:10px;">Session Ended</div>
-        <div style="font-size:17px;font-weight:900;color:#f1f5f9;margin-bottom:10px;">You've been logged out</div>
-        <div style="font-size:13px;color:#94a3b8;font-weight:600;line-height:1.6;margin-bottom:24px;">Someone else logged in using your ID.<br>Only one session is allowed at a time.</div>
+        <div id="kicked-out-label" style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:0.14em;color:#ef4444;margin-bottom:10px;">Session Ended</div>
+        <div id="kicked-out-title" style="font-size:17px;font-weight:900;color:#f1f5f9;margin-bottom:10px;">You've been logged out</div>
+        <div id="kicked-out-message" style="font-size:13px;color:#94a3b8;font-weight:600;line-height:1.6;margin-bottom:24px;">Someone else logged in using your ID.<br>Only one session is allowed at a time.</div>
         <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Redirecting in</div>
         <div id="kicked-countdown" style="font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;color:#ef4444;">3</div>
     </div>
@@ -349,9 +751,43 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>
-if (sessionStorage.getItem('agentLoggedIn') !== '1' && sessionStorage.getItem('adminLoggedIn') !== 'true') {
+(function validateAndSanitizeSession() {
+    const role = sessionStorage.getItem('bizUserRole');
+    let admin = {};
+    let agent = {};
+    try { admin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch (e) {}
+    try { agent = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}'); } catch (e) {}
+
+    const validAdmin = role === 'admin' && sessionStorage.getItem('adminLoggedIn') === 'true' && !!admin.email;
+    const validAgent = role === 'agent' && sessionStorage.getItem('agentLoggedIn') === '1' && !!(agent.ytelId || agent.name);
+
+    if (validAdmin) {
+        // Never allow an old agent session to remain mixed with an admin session.
+        sessionStorage.removeItem('agentLoggedIn');
+        sessionStorage.removeItem('currentAgentProfile');
+        sessionStorage.removeItem('currentAgentName');
+        return;
+    }
+
+    if (validAgent) {
+        // Never allow an old admin session to remain mixed with an agent session.
+        sessionStorage.removeItem('adminLoggedIn');
+        sessionStorage.removeItem('currentAdmin');
+        sessionStorage.removeItem('bizAdminUnlocked');
+        sessionStorage.removeItem('bizAdminId');
+        sessionStorage.removeItem('bizAdminEmail');
+        return;
+    }
+
+    // Fail closed when the session is incomplete, stale, or contradictory.
+    sessionStorage.removeItem('agentLoggedIn');
+    sessionStorage.removeItem('adminLoggedIn');
+    sessionStorage.removeItem('currentAdmin');
+    sessionStorage.removeItem('currentAgentProfile');
+    sessionStorage.removeItem('currentAgentName');
+    sessionStorage.removeItem('bizUserRole');
     window.location.replace('agent-login.html');
-}
+})();
 
 // ── MIDNIGHT AUTO-LOGOUT (Guyana time) ──────────────────────────────────
 (function() {
@@ -391,11 +827,24 @@ if (sessionStorage.getItem('agentLoggedIn') !== '1' && sessionStorage.getItem('a
     _arm();
 })();
 // ────────────────────────────────────────────────────────────────────────
-function showKickedOutOverlay() {
+function showKickedOutOverlay(options) {
+    if (window._kickedOutOverlayActive) return;
+    window._kickedOutOverlayActive = true;
+
+    options = options || {};
     const overlay = document.getElementById('kicked-out-overlay');
     if (!overlay) return;
+    const labelEl = document.getElementById('kicked-out-label');
+    const titleEl = document.getElementById('kicked-out-title');
+    const messageEl = document.getElementById('kicked-out-message');
+    const redirectTo = options.redirectTo || 'agent-login.html';
+
+    if (labelEl) labelEl.textContent = options.label || 'Session Ended';
+    if (titleEl) titleEl.textContent = options.title || "You've been logged out";
+    if (messageEl) messageEl.innerHTML = options.message || 'Someone else logged in using your ID.<br>Only one session is allowed at a time.';
     overlay.style.display = 'flex';
-    // Log the kicked event to Firebase before session is cleared
+
+    // Log the kicked/revoked event before the session is cleared.
     try {
         const _ka = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
         const _kp = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}');
@@ -403,18 +852,20 @@ function showKickedOutOverlay() {
         const _kickedEmail = _ka.email || _kp.ytelId || '';
         const _kickedRole = sessionStorage.getItem('bizUserRole') || 'unknown';
         if (typeof window.logAdminSessionEvent === 'function') {
-            window.logAdminSessionEvent('kicked', { adminName: _kickedName, adminEmail: _kickedEmail, role: _kickedRole });
+            window.logAdminSessionEvent(options.eventType || 'kicked', { adminName: _kickedName, adminEmail: _kickedEmail, role: _kickedRole });
         }
     } catch(e) {}
+
     let count = 3;
     const countEl = document.getElementById('kicked-countdown');
+    if (countEl) countEl.textContent = count;
     const tick = setInterval(function() {
         count--;
         if (countEl) countEl.textContent = count;
         if (count <= 0) {
             clearInterval(tick);
             sessionStorage.clear();
-            window.location.replace('agent-login.html');
+            window.location.replace(redirectTo);
         }
     }, 1000);
 }
@@ -467,96 +918,150 @@ document.addEventListener('visibilitychange', function() {
 });
 window.addEventListener('focus', stopBlinkingOnInteraction);
 
-// Function to show/hide tabs based on user role
-let adminClickCount = 0;
-function setupRoleBasedTabs() {
+// Centralized dashboard access controller. The UI and tab router use the same rules.
+const DASHBOARD_TAB_IDS = [
+    'daily', 'lookup', 'playbook', 'rebuttals', 'prank', 'weekly',
+    'trivia', 'simulator', 'chatroom', 'tracker', 'adminpanel', 'superadminpanel'
+];
+const DASHBOARD_STANDARD_TABS = [
+    'daily', 'lookup', 'playbook', 'rebuttals', 'prank', 'weekly',
+    'trivia', 'simulator', 'chatroom'
+];
+
+function getDashboardAccessState() {
     const userRole = sessionStorage.getItem('bizUserRole');
-    const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    const isSuper = currentAdmin.role === 'super_admin' || currentAdmin.isSuper;
-    const restrictedIds = (window._RESTRICTED_ADMIN_IDS || ['0000']).map(s => String(s).toLowerCase());
-    const adminEmailLower = String(currentAdmin.email || '').toLowerCase();
-    const isRestrictedAdmin = userRole === 'admin' && restrictedIds.includes(adminEmailLower);
-    const isRegularAdmin = userRole === 'admin' && !isSuper && !isRestrictedAdmin;
-    
-    // Get all tab buttons
-    const tabs = {
-        daily: document.getElementById('tab-daily'),
-        lookup: document.getElementById('tab-lookup'),
-        playbook: document.getElementById('tab-playbook'),
-        rebuttals: document.getElementById('tab-rebuttals'),
-        prank: document.getElementById('tab-prank'),
-        weekly: document.getElementById('tab-weekly'),
-        trivia: document.getElementById('tab-trivia'),
-        simulator: document.getElementById('tab-simulator'),
-        chatroom: document.getElementById('tab-chatroom'),
-        tracker: document.getElementById('tab-tracker'),
-        adminpanel: document.getElementById('tab-adminpanel'),
-        superadminpanel: document.getElementById('tab-superadminpanel')
-    };
+    let currentAdmin = {};
+    let currentAgent = {};
+    try { currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch (e) {}
+    try { currentAgent = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}'); } catch (e) {}
 
-    // Reset: show all, clear any inline grid-column overrides
-    Object.values(tabs).forEach(tab => {
-        if (tab) {
-            tab.classList.remove('hidden', 'hidden-tab');
-            tab.style.display = '';
-            tab.style.gridColumn = 'auto';
+    const email = String(currentAdmin.email || '').trim().toLowerCase();
+
+    // Reconcile the session with the latest locally synced Firebase admin record.
+    // This prevents a stale login snapshot from briefly restoring tabs Rose already removed.
+    if (userRole === 'admin' && email) {
+        try {
+            const directory = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+            const latest = directory[email];
+            if (latest && typeof latest === 'object') {
+                if (Array.isArray(latest.hiddenTabs)) currentAdmin.hiddenTabs = latest.hiddenTabs;
+                if (latest.adminToolUploadScope) currentAdmin.adminToolUploadScope = latest.adminToolUploadScope;
+            }
+        } catch (e) {}
+    }
+
+    const isSuper = userRole === 'admin' && (currentAdmin.role === 'super_admin' || currentAdmin.isSuper === true || email === 'rose');
+    const restrictedIds = (window._RESTRICTED_ADMIN_IDS || ['0000']).map(v => String(v).trim().toLowerCase());
+    const isRestrictedAdmin = userRole === 'admin' && restrictedIds.includes(email);
+    const allowed = new Set(DASHBOARD_STANDARD_TABS);
+
+    if (userRole === 'admin') {
+        if (!isRestrictedAdmin) allowed.add('adminpanel');
+        if (isSuper) {
+            allowed.add('tracker');
+            allowed.add('superadminpanel');
         }
-    });
-
-    if (adminEmailLower === 'rose' || isSuper) {
-        // Row 3: Trivia | Simulator | Chatroom
-        // Row 4: Admin Tools | My Tracker | Super Admin
-        // All auto \u2014 nothing extra needed
-    } else if (adminEmailLower === 'momo') {
-        if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
-        if (tabs.tracker) tabs.tracker.classList.add('hidden');
-        // Row 3: Trivia | Simulator | Chatroom
-        // Row 4: Admin Tools full-width (alone)
-        if (tabs.adminpanel) tabs.adminpanel.style.gridColumn = '1 / -1';
-    } else if (isRestrictedAdmin) {
-        if (tabs.adminpanel) tabs.adminpanel.classList.add('hidden');
-        if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
-        if (tabs.tracker) tabs.tracker.classList.add('hidden');
-        // Row 3: Trivia | Simulator | Chatroom (all auto)
-    } else if (isRegularAdmin) {
-        if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
-        if (tabs.tracker) tabs.tracker.classList.add('hidden');
-        // Row 3: Trivia | Simulator | Chatroom
-        // Row 4: Admin Tools full-width (alone)
-        if (tabs.adminpanel) tabs.adminpanel.style.gridColumn = '1 / -1';
+    } else if (userRole === 'agent') {
+        allowed.add('tracker');
     } else {
-        // Agent: hide admin tabs
-        if (tabs.adminpanel) tabs.adminpanel.classList.add('hidden');
-        if (tabs.superadminpanel) tabs.superadminpanel.classList.add('hidden');
-        // Row 3: Trivia | Simulator | Chatroom
-        // Row 4: My Tracker full-width
-        if (tabs.tracker) tabs.tracker.style.gridColumn = '1 / -1';
-    }
-    
-    // Enforce per-admin hidden tabs saved by Rose in Super Admin panel
-    if (userRole === 'admin' && !isSuper) {
-        const hiddenTabs = currentAdmin.hiddenTabs || [];
-        hiddenTabs.forEach(t => { if (tabs[t]) tabs[t].classList.add('hidden'); });
+        allowed.clear();
     }
 
-    // Ensure all visible buttons have proper styling
-    Object.values(tabs).forEach(tab => {
-        if (tab && !tab.classList.contains('hidden')) {
-            tab.classList.add('glass', 'py-3', 'rounded-xl', 'font-black', 'uppercase', 'tracking-widest', 'transition-all');
-            tab.classList.remove('hidden-tab');
-        }
-    });
+    // Rose can remove individual tabs from a regular admin. Super Admin cannot lock herself out.
+    if (userRole === 'admin' && !isSuper) {
+        const hiddenTabs = Array.isArray(currentAdmin.hiddenTabs) ? currentAdmin.hiddenTabs : [];
+        hiddenTabs.forEach(tab => allowed.delete(String(tab || '').trim().toLowerCase()));
+    }
+
+    return {
+        userRole,
+        currentAdmin,
+        currentAgent,
+        email,
+        isSuper,
+        isRestrictedAdmin,
+        allowed
+    };
 }
 
-// Call setup when DOM loads
-document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
+window.canAccessDashboardTab = function(tab) {
+    return getDashboardAccessState().allowed.has(String(tab || '').trim().toLowerCase());
+};
+
+let _accessToastTimer = null;
+window.showDashboardAccessDenied = function() {
+    let toast = document.getElementById('dashboard-access-denied');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'dashboard-access-denied';
+        toast.className = 'access-denied-toast';
+        toast.innerHTML = '<i class="fas fa-lock"></i><span>This workspace is not assigned to your account.</span>';
+        document.body.appendChild(toast);
+    }
+    toast.classList.add('show');
+    clearTimeout(_accessToastTimer);
+    _accessToastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+};
+
+function updateDashboardIdentity(state) {
+    const isAdmin = state.userRole === 'admin';
+    const name = isAdmin
+        ? (state.currentAdmin.name || state.currentAdmin.email || 'Administrator')
+        : (state.currentAgent.name || 'Agent');
+    const roleLabel = state.isSuper ? 'Super Administrator' : (isAdmin ? 'Administrator' : 'Agent Workspace');
+    const navLabel = state.isSuper ? 'Full system access' : (isAdmin ? 'Assigned admin access' : 'Agent access');
+
+    const nameEl = document.getElementById('dashboard-user-name');
+    const roleEl = document.getElementById('dashboard-user-role');
+    const badgeEl = document.getElementById('dashboard-access-label');
+    const hintEl = document.getElementById('dashboard-nav-hint');
+    if (nameEl) nameEl.textContent = name;
+    if (roleEl) roleEl.textContent = roleLabel;
+    if (badgeEl) badgeEl.textContent = navLabel;
+    if (hintEl) hintEl.textContent = `Showing ${state.allowed.size} authorized workspaces for ${name}.`;
+}
+
+function setupRoleBasedTabs() {
+    const state = getDashboardAccessState();
+
+    DASHBOARD_TAB_IDS.forEach(tabId => {
+        const button = document.getElementById('tab-' + tabId);
+        if (!button) return;
+        const allowed = state.allowed.has(tabId);
+        button.classList.toggle('hidden', !allowed);
+        button.setAttribute('aria-disabled', allowed ? 'false' : 'true');
+        button.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+        button.tabIndex = allowed ? 0 : -1;
+    });
+
+    updateDashboardIdentity(state);
+    document.body.classList.remove('role-pending');
+
+    // If permissions change while a restricted workspace is open, close it immediately.
+    if (typeof currentTab !== 'undefined' && !state.allowed.has(currentTab)) {
+        currentTab = 'daily';
+        currentDayView = 'today';
+        if (typeof updateTabUI === 'function') updateTabUI();
+        if (typeof render === 'function') render();
+        if (typeof renderDaySubTabs === 'function') renderDaySubTabs();
+    }
+}
+
+// Apply access rules immediately for agents and the master Super Admin. Regular
+// Firebase admins stay hidden until their authorization record is verified below.
+document.addEventListener('DOMContentLoaded', function() {
+    let currentAdmin = {};
+    try { currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch (e) {}
+    const needsFirebaseVerification = sessionStorage.getItem('bizUserRole') === 'admin' && currentAdmin.isSuper !== true;
+    if (!needsFirebaseVerification) setupRoleBasedTabs();
+});
 </script>
 
 
 
 <div id="agent-session-banner" style="max-width:980px;margin:8px auto 12px;"></div>
 
-<script type="module" src="js/firebase.js?v=4"></script>
+<script type="module" src="js/firebase.js?v=6"></script>
 
 <div id="broadcast-bar">
   <div class="bc-inner">
@@ -627,57 +1132,103 @@ document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
 
 <div class="main-container mx-auto transition-all duration-500">
 
-    <div class="flex justify-between items-center mb-8 px-2 mt-4">
-        <div class="flex items-center gap-3">
-            <span class="live-pulse"></span>
-            <div class="flex flex-col">
-                <span class="text-[10px] md:text-xs font-black tracking-widest text-red-500 uppercase italic leading-none">Live System Performance</span>
-                <span id="timestamp" class="text-[8px] md:text-sm text-slate-500 font-bold uppercase mt-1">Live: --:--:--</span>
-            </div>
-        </div>
-        <button onclick="typeof updateDashboard==='function'?updateDashboard():window.location.reload()" id="refresh-btn" class="glass p-3 px-4 rounded-xl hover:bg-white/10 transition-all active:scale-95">
-            <i class="fas fa-sync-alt text-sm text-blue-400"></i>
-        </button>
-    </div>
-
-    <div class="text-center mb-10">
-        <h1 class="header-font text-4xl md:text-6xl font-black tracking-tighter bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 bg-clip-text text-transparent italic leading-tight uppercase" id="main-title" onclick="typeof handleTitleTap==='function'?handleTitleTap():null" style="cursor:default;user-select:none;">BIZ Level Up Dashboard</h1>
-        <div style="display:flex;justify-content:center;gap:16px;margin-top:12px;flex-wrap:wrap;">
-            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:8px 18px;display:flex;align-items:center;gap:10px;">
-                <span style="font-size:11px;font-weight:900;color:#f97316;letter-spacing:0.1em;opacity:0.8;">GY</span>
-                <div>
-                    <div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#64748b;">Guyana</div>
-                    <div id="clock-guyana" style="font-family:'Inter',sans-serif;font-size:20px;font-weight:900;color:#facc15;letter-spacing:0.02em;">--:-- --</div>
+    <div class="dashboard-shell">
+        <div class="dashboard-topbar">
+            <div class="dashboard-live-block">
+                <span class="live-pulse"></span>
+                <div class="dashboard-live-copy">
+                    <div class="dashboard-live-title">Live System Performance</div>
+                    <div id="timestamp" class="dashboard-live-meta">Live: --:--:--</div>
                 </div>
             </div>
-            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:8px 18px;display:flex;align-items:center;gap:10px;">
-                <span style="font-size:11px;font-weight:900;color:#38bdf8;letter-spacing:0.1em;opacity:0.8;">US</span>
-                <div>
-                    <div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#64748b;">California</div>
-                    <div id="clock-california" style="font-family:'Inter',sans-serif;font-size:20px;font-weight:900;color:#38bdf8;letter-spacing:0.02em;">--:-- --</div>
+            <button onclick="typeof updateDashboard==='function'?updateDashboard():window.location.reload()" id="refresh-btn" class="glass dashboard-refresh hover:bg-white/10 transition-all active:scale-95" aria-label="Refresh dashboard" title="Refresh dashboard">
+                <i class="fas fa-sync-alt text-sm text-blue-400"></i>
+            </button>
+        </div>
+
+        <section class="dashboard-hero" aria-label="BIZ Level Up dashboard overview">
+            <div class="dashboard-hero-copy">
+                <div class="dashboard-eyebrow">Operations Control Center</div>
+                <h1 class="dashboard-title" id="main-title" onclick="typeof handleTitleTap==='function'?handleTitleTap():null" style="cursor:default;user-select:none;">BIZ Level Up Dashboard</h1>
+                <p class="dashboard-subtitle">Live performance, coaching resources, team communication, and authorized administration tools in one secure workspace.</p>
+            </div>
+            <div class="dashboard-hero-side">
+                <div class="dashboard-user-card">
+                    <div class="dashboard-user-avatar"><i class="fas fa-user-shield"></i></div>
+                    <div class="dashboard-user-copy">
+                        <div id="dashboard-user-name" class="dashboard-user-name">Loading account…</div>
+                        <div id="dashboard-user-role" class="dashboard-user-role">Verifying access</div>
+                    </div>
+                </div>
+                <div class="dashboard-clocks">
+                    <div class="dashboard-clock-card">
+                        <span class="dashboard-clock-code" style="color:#fb923c;">GY</span>
+                        <div>
+                            <div class="dashboard-clock-place">Guyana</div>
+                            <div id="clock-guyana" class="dashboard-clock-time" style="color:#facc15;">--:-- --</div>
+                        </div>
+                    </div>
+                    <div class="dashboard-clock-card">
+                        <span class="dashboard-clock-code" style="color:#38bdf8;">US</span>
+                        <div>
+                            <div class="dashboard-clock-place">California</div>
+                            <div id="clock-california" class="dashboard-clock-time" style="color:#38bdf8;">--:-- --</div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
+        </section>
 
-    <!-- MAIN TABS GRID -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:0 8px;max-width:48rem;margin-left:auto;margin-right:auto;">
-        <button onclick="switchTab('daily')"     id="tab-daily"     class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all tab-active">Daily</button>
-        <button onclick="switchTab('lookup')"    id="tab-lookup"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-search text-[9px] mr-1 opacity-60"></i>Lookup</button>
-        <button onclick="switchTab('playbook')"  id="tab-playbook"  class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500">Playbook</button>
-        
-        <button onclick="switchTab('rebuttals')" id="tab-rebuttals" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#14b8a6;border-color:rgba(20,184,166,0.3);">💬 Rebuttals</button>
-        <button onclick="switchTab('prank')"     id="tab-prank"     class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#a855f7;">🚨 Prank</button>
-        <button onclick="requestWeekly()"        id="tab-weekly"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500"><i class="fas fa-lock text-[9px] mr-1 opacity-60"></i>Weekly</button>
-        
-        <button onclick="switchTab('trivia')"    id="tab-trivia"    class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#f59e0b;border-color:rgba(245,158,11,0.3);grid-column:1/-1;">🎯 Trivia Blitz</button>
-        <button onclick="switchTab('simulator')" id="tab-simulator" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#818cf8;border-color:rgba(129,140,248,0.3);grid-column:1/-1;">🎧 Call Simulator</button>
-        <button onclick="switchTab('chatroom')" id="tab-chatroom" class="glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#10b981;border-color:rgba(16,185,129,0.3);grid-column:1/-1;">💬 Chatroom</button>
-        
-        <!-- ADMIN/TRACKER TABS (Hidden by default, unlocked by setupRoleBasedTabs) -->
-        <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#ef4444;border-color:rgba(239,68,68,0.35);grid-column:1/-1;">🛡️ Admin Tools</button>
-        <button onclick="switchTab('tracker')" id="tab-tracker" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#818cf8;border-color:rgba(129,140,248,0.3);grid-column:1/-1;">📋 My Tracker</button>
-        <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden glass py-3 rounded-xl text-[10px] md:text-sm font-black uppercase tracking-widest transition-all text-slate-500" style="color:#eab308;border-color:rgba(234,179,8,0.35);grid-column:1/-1;">👑 Super Admin</button>
+        <section id="dashboard-navigation" class="dashboard-navigation dashboard-nav-shell" aria-label="Authorized workspaces">
+            <div class="dashboard-nav-header">
+                <div>
+                    <div class="dashboard-nav-label">Workspace Navigation</div>
+                    <div id="dashboard-nav-hint" class="dashboard-nav-hint">Loading your authorized tools…</div>
+                </div>
+                <div class="dashboard-access-badge"><i class="fas fa-shield-halved"></i><span id="dashboard-access-label">Secure access</span></div>
+            </div>
+
+            <div class="dashboard-nav-grid">
+                <button onclick="switchTab('daily')" id="tab-daily" class="workspace-tab tab-active" data-accent="cyan">
+                    <span class="workspace-tab-icon"><i class="fas fa-chart-line"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">Daily Dashboard</span><span class="workspace-tab-kicker">Live team performance</span></span>
+                </button>
+                <button onclick="switchTab('lookup')" id="tab-lookup" class="workspace-tab" data-accent="indigo">
+                    <span class="workspace-tab-icon"><i class="fas fa-search"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">Lead Lookup</span><span class="workspace-tab-kicker">Verify business details</span></span>
+                </button>
+                <button onclick="switchTab('playbook')" id="tab-playbook" class="workspace-tab" data-accent="amber">
+                    <span class="workspace-tab-icon"><i class="fas fa-book-open"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">Sales Playbook</span><span class="workspace-tab-kicker">Scripts and guidance</span></span>
+                </button>
+                <button onclick="switchTab('rebuttals')" id="tab-rebuttals" class="workspace-tab" data-accent="teal">
+                    <span class="workspace-tab-icon"><i class="fas fa-comments"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">Rebuttals</span><span class="workspace-tab-kicker">Handle objections</span></span>
+                </button>
+                <button onclick="switchTab('prank')" id="tab-prank" class="workspace-tab" data-accent="violet">
+                    <span class="workspace-tab-icon"><i class="fas fa-triangle-exclamation"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">Prank Calls</span><span class="workspace-tab-kicker">Review flagged calls</span></span>
+                </button>
+                <button onclick="requestWeekly()" id="tab-weekly" class="workspace-tab" data-accent="cyan">
+                    <span class="workspace-tab-icon"><i class="fas fa-calendar-week"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">Weekly Performance</span><span class="workspace-tab-kicker">Cumulative rankings</span></span>
+                </button>
+                <button onclick="switchTab('trivia')" id="tab-trivia" class="workspace-tab" data-accent="amber">
+                    <span class="workspace-tab-icon"><i class="fas fa-brain"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">Trivia Training</span><span class="workspace-tab-kicker">Knowledge practice</span></span>
+                </button>
+                <button onclick="switchTab('simulator')" id="tab-simulator" class="workspace-tab" data-accent="indigo">
+                    <span class="workspace-tab-icon"><i class="fas fa-headset"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">Call Simulator</span><span class="workspace-tab-kicker">Practice live scenarios</span></span>
+                </button>
+                <button onclick="switchTab('chatroom')" id="tab-chatroom" class="workspace-tab" data-accent="emerald">
+                    <span class="workspace-tab-icon"><i class="fas fa-message"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">Team Chatroom</span><span class="workspace-tab-kicker">Secure collaboration</span></span>
+                </button>
+
+                <!-- Role-gated workspaces: hidden until the access controller authorizes them. -->
+                <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden workspace-tab" data-accent="red" aria-disabled="true">
+                    <span class="workspace-tab-icon"><i class="fas fa-shield-halved"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">Admin Tools</span><span class="workspace-tab-kicker">Operations and reporting</span></span>
+                </button>
+                <button onclick="switchTab('tracker')" id="tab-tracker" class="hidden workspace-tab" data-accent="indigo" aria-disabled="true">
+                    <span class="workspace-tab-icon"><i class="fas fa-clipboard-check"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">My Tracker</span><span class="workspace-tab-kicker">Personal follow-up</span></span>
+                </button>
+                <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden workspace-tab" data-accent="gold" aria-disabled="true">
+                    <span class="workspace-tab-icon"><i class="fas fa-crown"></i></span><span class="workspace-tab-copy"><span class="workspace-tab-title">Super Admin</span><span class="workspace-tab-kicker">System management</span></span>
+                </button>
+            </div>
+        </section>
     </div>
 
     <div id="day-sub-tabs-wrapper" class="hidden px-2 mb-5 max-w-2xl mx-auto">
@@ -730,7 +1281,7 @@ document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
     <div id="trivia-view" class="hidden" data-tab-src="tabs/trivia.html"></div>
     <div id="chatroom-view" class="hidden" data-tab-src="tabs/chatroom.html"></div>
     <div id="adminpanel-view" class="hidden" data-tab-src="tabs/adminpanel.html"></div>
-    <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html?v=3"></div>
+    <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html?v=4"></div>
     <div id="agentstats-view" class="hidden" data-tab-src="tabs/agentstats.html"></div>
     <div id="tracker-view" class="hidden" data-tab-src="tabs/tracker.html"></div>
     <div id="simulator-view" class="hidden" data-tab-src="tabs/simulator.html?v=3"></div>
@@ -749,9 +1300,9 @@ document.addEventListener('DOMContentLoaded', setupRoleBasedTabs);
 <script src="js/broadcast.js?v=3"></script>
 <script src="js/topperformer.js"></script>
 <script src="js/agentstats.js"></script>
-<script src="js/super-admin.js"></script>
+<script src="js/super-admin.js?v=4"></script>
 <script src="js/agentprofiles.js"></script>
-<script src="js/adminhub.js"></script>
+<script src="js/adminhub.js?v=2"></script>
 <script src="js/tracker.js?v=3"></script>
 <script src="js/chatroom.js?v=3"></script>
 <script src="js/goals.js"></script>
@@ -786,6 +1337,17 @@ function _injectTab(tabId, html) {
 
 // Fetch + inject (shows spinner only if not pre-fetched yet)
 async function loadTab(tabId) {
+    const viewAccessMap = {
+        'lookup-view':'lookup', 'playbook-view':'playbook', 'rebuttals-view':'rebuttals',
+        'prank-view':'prank', 'trivia-view':'trivia', 'chatroom-view':'chatroom',
+        'adminpanel-view':'adminpanel', 'superadminpanel-view':'superadminpanel',
+        'tracker-view':'tracker', 'simulator-view':'simulator'
+    };
+    const requiredTab = viewAccessMap[tabId];
+    if (requiredTab && typeof window.canAccessDashboardTab === 'function' && !window.canAccessDashboardTab(requiredTab)) {
+        console.warn('[Access] Blocked unauthorized tab load:', requiredTab);
+        return;
+    }
     if (_loadedTabs.has(tabId)) return;
     const el = document.getElementById(tabId);
     if (!el) return;
@@ -804,15 +1366,38 @@ async function loadTab(tabId) {
 
 // Pre-fetch ALL tabs immediately on page load (background, no DOM changes)
 function prefetchAllTabs() {
-    ['lookup-view','playbook-view','rebuttals-view','prank-view',
-     'trivia-view','chatroom-view','adminpanel-view','superadminpanel-view','tracker-view','simulator-view'
-    ].forEach(prefetchTab);
+    const viewAccessMap = {
+        'lookup-view':'lookup', 'playbook-view':'playbook', 'rebuttals-view':'rebuttals',
+        'prank-view':'prank', 'trivia-view':'trivia', 'chatroom-view':'chatroom',
+        'adminpanel-view':'adminpanel', 'superadminpanel-view':'superadminpanel',
+        'tracker-view':'tracker', 'simulator-view':'simulator'
+    };
+    Object.entries(viewAccessMap).forEach(([viewId, tabId]) => {
+        if (typeof window.canAccessDashboardTab !== 'function' || window.canAccessDashboardTab(tabId)) {
+            prefetchTab(viewId);
+        }
+    });
 }
 
 const _origSwitchTab = window.switchTab;
+const _origRequestWeekly = window.requestWeekly;
+window.requestWeekly = function() {
+    if (typeof window.canAccessDashboardTab === 'function' && !window.canAccessDashboardTab('weekly')) {
+        if (typeof window.showDashboardAccessDenied === 'function') window.showDashboardAccessDenied();
+        return false;
+    }
+    return typeof _origRequestWeekly === 'function' ? _origRequestWeekly.apply(this, arguments) : undefined;
+};
 
 window.switchTab = function(tab) {
     if (typeof window.stopTabBlink === 'function') window.stopTabBlink();
+
+    if (typeof window.canAccessDashboardTab === 'function' && !window.canAccessDashboardTab(tab)) {
+        console.warn('[Access] Blocked unauthorized workspace:', tab);
+        if (typeof window.showDashboardAccessDenied === 'function') window.showDashboardAccessDenied();
+        setupRoleBasedTabs();
+        return false;
+    }
 
     const tabViewMap = {
         daily: 'leaderboard-view', lookup: 'lookup-view', playbook: 'playbook-view',
@@ -844,7 +1429,53 @@ window.switchTab = function(tab) {
     }
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    const roleAtLoad = sessionStorage.getItem('bizUserRole');
+    let adminAtLoad = {};
+    try { adminAtLoad = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch (e) {}
+
+    // Verify every non-master admin directly against Firebase before showing any
+    // dashboard navigation. This blocks stale sessions after an account is deleted.
+    if (roleAtLoad === 'admin' && adminAtLoad.isSuper !== true) {
+        try {
+            if (typeof window.getAdminRecordFromFirebase !== 'function') {
+                throw new Error('Firebase authorization service unavailable');
+            }
+            const adminKey = String(adminAtLoad.email || '').trim().toLowerCase();
+            const verifiedRecord = await window.getAdminRecordFromFirebase(adminKey);
+            if (!verifiedRecord) {
+                showKickedOutOverlay({
+                    label: 'Access Revoked',
+                    title: 'Your admin account was removed',
+                    message: 'This account is no longer listed in Firebase.<br>Please contact the Master Super Admin if access is required.',
+                    eventType: 'admin_access_revoked',
+                    redirectTo: 'agent-login.html'
+                });
+                return;
+            }
+            const verifiedSession = {
+                ...adminAtLoad,
+                email: verifiedRecord.email || adminKey,
+                name: verifiedRecord.name || adminAtLoad.name,
+                role: verifiedRecord.role || 'admin',
+                hiddenTabs: verifiedRecord.hiddenTabs || [],
+                adminToolUploadScope: verifiedRecord.adminToolUploadScope || 'all',
+                isSuper: false
+            };
+            sessionStorage.setItem('currentAdmin', JSON.stringify(verifiedSession));
+        } catch (e) {
+            console.error('[Access] Firebase admin verification failed:', e);
+            showKickedOutOverlay({
+                label: 'Verification Required',
+                title: 'Admin access could not be verified',
+                message: 'The dashboard could not confirm this account in Firebase.<br>Check the connection and sign in again.',
+                eventType: 'admin_verification_failed',
+                redirectTo: 'agent-login.html'
+            });
+            return;
+        }
+    }
+
     setupRoleBasedTabs();
 
     // Force re-render session banner when DOM is fully loaded
@@ -855,16 +1486,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Also set up a mutation observer to watch for changes to sessionStorage
     const originalSetItem = sessionStorage.setItem;
     sessionStorage.setItem = function(key, value) {
+        originalSetItem.apply(this, arguments);
         const event = new Event('storageChange');
         event.key = key;
         event.newValue = value;
         window.dispatchEvent(event);
-        originalSetItem.apply(this, arguments);
     };
     
     window.addEventListener('storageChange', function(e) {
-        if (e.key === 'currentAgentProfile' && typeof renderSessionBanner === 'function') {
+        if ((e.key === 'currentAgentProfile' || e.key === 'currentAdmin') && typeof renderSessionBanner === 'function') {
             renderSessionBanner();
+        }
+        if (e.key === 'currentAdmin' || e.key === 'bizUserRole') {
+            setupRoleBasedTabs();
         }
     });
 
@@ -877,21 +1511,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // Real-time tab permission watcher — updates tabs live when Rose changes an admin's permissions
     (function startTabPermsWatcher() {
         const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-        if (!cAdmin.email || cAdmin.isSuper || cAdmin.role === 'super_admin') return;
+        if (!cAdmin.email || cAdmin.isSuper === true) return;
         const adminKey = cAdmin.email.toLowerCase();
         function attach() {
             if (typeof window.listenForAdminRecord !== 'function') {
                 setTimeout(attach, 800); return;
             }
             window.listenForAdminRecord(adminKey, function(record) {
-                if (!record) return;
-                const newHidden = record.hiddenTabs || [];
                 const session = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-                const oldHidden = JSON.stringify(session.hiddenTabs || []);
-                if (JSON.stringify(newHidden) === oldHidden) return; // no change
+                if (!record) {
+                    // Firebase authorization record was deleted. Block the dashboard immediately,
+                    // clear the stale local cache and terminate the active session on this device.
+                    try {
+                        const directory = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+                        delete directory[adminKey];
+                        localStorage.setItem('biz_admins_list_v1', JSON.stringify(directory));
+                    } catch (e) {}
+                    session.hiddenTabs = DASHBOARD_TAB_IDS.slice();
+                    sessionStorage.setItem('currentAdmin', JSON.stringify(session));
+                    setupRoleBasedTabs();
+                    showKickedOutOverlay({
+                        label: 'Access Revoked',
+                        title: 'Your admin account was removed',
+                        message: 'A Super Admin removed this account from Firebase.<br>You no longer have access to the dashboard.',
+                        eventType: 'admin_access_revoked',
+                        redirectTo: 'agent-login.html'
+                    });
+                    return;
+                }
+                const newHidden = Array.isArray(record.hiddenTabs) ? record.hiddenTabs : [];
+                const newScope = record.adminToolUploadScope || session.adminToolUploadScope || 'all';
+                const oldSignature = JSON.stringify({ hiddenTabs: session.hiddenTabs || [], adminToolUploadScope: session.adminToolUploadScope || 'all' });
+                const newSignature = JSON.stringify({ hiddenTabs: newHidden, adminToolUploadScope: newScope });
+                if (newSignature === oldSignature) return;
                 session.hiddenTabs = newHidden;
+                session.adminToolUploadScope = newScope;
                 sessionStorage.setItem('currentAdmin', JSON.stringify(session));
-                if (typeof setupRoleBasedTabs === 'function') setupRoleBasedTabs();
+                setupRoleBasedTabs();
             });
         }
         attach();

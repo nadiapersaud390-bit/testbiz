@@ -210,7 +210,7 @@
   </div>
 
 </div>
-<script src="js/super-admin.js"></script>
+<script src="js/super-admin.js?v=4"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, onValue, set, get, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
@@ -231,14 +231,43 @@
     const db = getDatabase(app);
     const firestore = getFirestore(app);
 
-    // Sync admin accounts from Firebase RTDB
+    // Firebase is the only source of truth for regular admin authorization.
+    // Replace the local cache exactly so a deleted admin cannot use stale credentials.
+    let resolveAdminDirectoryReady;
+    const adminDirectoryReady = new Promise(resolve => { resolveAdminDirectoryReady = resolve; });
+    let adminDirectoryResolved = false;
+
     onValue(ref(db, 'admins_list'), (snapshot) => {
       const firebaseData = snapshot.val() || {};
-      const localData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
-      const merged = Object.assign({}, localData, firebaseData);
-      localStorage.setItem('biz_admins_list_v1', JSON.stringify(merged));
-      if (typeof window.seedDefaultAdmins === 'function') window.seedDefaultAdmins();
+      localStorage.setItem('biz_admins_list_v1', JSON.stringify(firebaseData));
+      if (!adminDirectoryResolved) {
+        adminDirectoryResolved = true;
+        resolveAdminDirectoryReady(firebaseData);
+      }
+      console.log('[login] Exact admin directory synced from Firebase');
+    }, (error) => {
+      console.error('[login] Admin directory sync failed:', error);
+      if (!adminDirectoryResolved) {
+        adminDirectoryResolved = true;
+        resolveAdminDirectoryReady(null);
+      }
     });
+
+    window.fetchAdminForLogin = async function(loginId) {
+      await Promise.race([
+        adminDirectoryReady,
+        new Promise(resolve => setTimeout(resolve, 8000))
+      ]);
+      const key = String(loginId || '').trim().toLowerCase();
+      if (!key) return null;
+      const snapshot = await get(ref(db, 'admins_list/' + key));
+      return snapshot.exists() ? snapshot.val() : null;
+    };
+
+    window.fetchSuperAdminForLogin = async function() {
+      const snapshot = await get(ref(db, 'super_admin'));
+      return snapshot.exists() ? snapshot.val() : null;
+    };
 
     // Sync super admin from Firebase RTDB
     onValue(ref(db, 'super_admin'), (snapshot) => {
@@ -525,14 +554,18 @@
     const inAdminMode = btn.dataset.mode === 'admin';
 
     if (inAdminMode) {
-      doAdminLogin(adminPasswordInput, errEl, btn);
+      await doAdminLogin(adminPasswordInput, errEl, btn);
       return;
     }
 
-    // 🔥 FIXED: Check for ROSE (case-insensitive) to trigger admin mode
-    const adminData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+    // Check Firebase directly before switching into admin login mode. This ensures
+    // newly added admins can sign in immediately and deleted admins are not recognized.
     const loginIdLower = loginId.toLowerCase();
-    const isPotentialAdmin = (loginIdLower === 'rose' || loginId === '0000' || !!adminData[loginIdLower]);
+    let firebaseAdminRecord = null;
+    if (loginIdLower !== 'rose' && loginIdLower && typeof window.fetchAdminForLogin === 'function') {
+      try { firebaseAdminRecord = await window.fetchAdminForLogin(loginIdLower); } catch (e) {}
+    }
+    const isPotentialAdmin = (loginIdLower === 'rose' || !!firebaseAdminRecord);
 
     if (isPotentialAdmin) {
       btn.dataset.mode = 'admin';
@@ -642,13 +675,14 @@
     const loginId = btn.dataset.adminId;
     const password = adminPasswordInput.value;
 
-    const result = window.superAdminLogin(loginId, password);
+    const result = await window.superAdminLogin(loginId, password);
 
     if (!result.success) {
       flashError(adminPasswordInput, errEl, btn, result.error || 'Incorrect admin password.');
       return;
     }
 
+    sessionStorage.setItem('bizLoginDate', new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guyana' }));
     window.location.href = 'index.html';
   }
 
@@ -730,6 +764,12 @@
     document.getElementById('result-panel').style.display = 'block';
     document.getElementById('redirect-note').style.display = 'block';
 
+    // Clear any stale admin identity before starting an agent session.
+    sessionStorage.removeItem('adminLoggedIn');
+    sessionStorage.removeItem('currentAdmin');
+    sessionStorage.removeItem('bizAdminUnlocked');
+    sessionStorage.removeItem('bizAdminId');
+    sessionStorage.removeItem('bizAdminEmail');
     sessionStorage.setItem('agentLoggedIn', '1');
     sessionStorage.setItem('bizUserRole', 'agent');
     sessionStorage.setItem('currentAgentName', data.name || '');

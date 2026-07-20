@@ -62,11 +62,11 @@
         </div>
     </div>
     
-    <script src="js/super-admin.js"></script>
+    <script src="js/super-admin.js?v=4"></script>
     <!-- Firebase RTDB sync so admin credentials work from any machine -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+        import { getDatabase, ref, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyA5u7B8UJQOFG8yhE0YKWCiWCHQgaNu1mY",
@@ -90,17 +90,43 @@
                 await set(ref(db, 'super_admin'), superAdminObj);
             };
 
-            // Sync admin accounts from Firebase RTDB
+            // Firebase is the only source of truth for regular admin authorization.
+            // Replace the local cache exactly so deleted admins never survive locally.
+            let resolveAdminDirectoryReady;
+            const adminDirectoryReady = new Promise(resolve => { resolveAdminDirectoryReady = resolve; });
+            let adminDirectoryResolved = false;
+
             onValue(ref(db, 'admins_list'), (snapshot) => {
                 const firebaseData = snapshot.val() || {};
-                const localData = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
-                const merged = Object.assign({}, localData, firebaseData);
-                localStorage.setItem('biz_admins_list_v1', JSON.stringify(merged));
-                // Re-seed defaults to ensure momo/rose credentials are correct,
-                // then push the authoritative list back to Firebase
-                if (typeof window.seedDefaultAdmins === 'function') window.seedDefaultAdmins();
-                console.log('✅ Admin list synced from Firebase');
+                localStorage.setItem('biz_admins_list_v1', JSON.stringify(firebaseData));
+                if (!adminDirectoryResolved) {
+                    adminDirectoryResolved = true;
+                    resolveAdminDirectoryReady(firebaseData);
+                }
+                console.log('✅ Exact admin directory synced from Firebase');
+            }, (error) => {
+                console.error('Admin directory sync failed:', error);
+                if (!adminDirectoryResolved) {
+                    adminDirectoryResolved = true;
+                    resolveAdminDirectoryReady(null);
+                }
             });
+
+            window.fetchAdminForLogin = async function(loginId) {
+                await Promise.race([
+                    adminDirectoryReady,
+                    new Promise(resolve => setTimeout(resolve, 8000))
+                ]);
+                const key = String(loginId || '').trim().toLowerCase();
+                if (!key) return null;
+                const snapshot = await get(ref(db, 'admins_list/' + key));
+                return snapshot.exists() ? snapshot.val() : null;
+            };
+
+            window.fetchSuperAdminForLogin = async function() {
+                const snapshot = await get(ref(db, 'super_admin'));
+                return snapshot.exists() ? snapshot.val() : null;
+            };
 
             // Sync super admin from Firebase RTDB
             onValue(ref(db, 'super_admin'), (snapshot) => {
@@ -119,7 +145,7 @@
         }
     </script>
     <script>
-        function login() {
+        async function login() {
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
             const errorDiv = document.getElementById('error-message');
@@ -131,7 +157,7 @@
                 return;
             }
             
-            const result = superAdminLogin(email, password);
+            const result = await superAdminLogin(email, password);
             
             if (result.success) {
                 // ── Live Tracker: start heartbeat, force-logout watcher, concurrent session ──

@@ -2484,7 +2484,7 @@ function ahToolsLoadUsers() {
     `).join('');
 }
 
-window.ahAddNewAdmin = function(e) {
+window.ahAddNewAdmin = async function(e) {
     e.preventDefault();
     const name = document.getElementById('aht-new-name').value;
     const email = document.getElementById('aht-new-id').value;
@@ -2493,7 +2493,7 @@ window.ahAddNewAdmin = function(e) {
     const status = document.getElementById('aht-add-status');
 
     if (typeof window.addNewAdmin === 'function') {
-        const res = window.addNewAdmin(email, pass, name, role);
+        const res = await window.addNewAdmin(email, pass, name, role);
         if (res.success) {
             status.innerHTML = '<span class="text-green-400">✅ Authorized successfully</span>';
             e.target.reset();
@@ -2505,10 +2505,10 @@ window.ahAddNewAdmin = function(e) {
     }
 };
 
-window.ahRemoveAdmin = function(email) {
+window.ahRemoveAdmin = async function(email) {
     if (!confirm(`Revoke all privileges for ${email}?`)) return;
     if (typeof window.removeAdmin === 'function') {
-        const res = window.removeAdmin(email);
+        const res = await window.removeAdmin(email);
         if (res.success) ahToolsLoadUsers();
         else alert(res.error);
     }
@@ -2519,7 +2519,7 @@ window.ahRemoveAdmin = function(email) {
 window.superLoadAdmins = function() {
     const container = document.getElementById('super-admins-list');
     if (!container) return;
-    const allAdmins = JSON.parse(localStorage.getItem('biz_admins_v1') || '[]');
+    const allAdmins = Object.values(JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}'));
     if (allAdmins.length === 0) {
         container.innerHTML = '<div class="py-6 text-center text-slate-500 text-[10px] font-bold uppercase tracking-widest">No admins configured yet.</div>';
         return;
@@ -2535,13 +2535,13 @@ window.superLoadAdmins = function() {
     `).join('');
 };
 
-window.superAddNewAdmin = function() {
+window.superAddNewAdmin = async function() {
     const email = (document.getElementById('super-new-admin-email').value || '').trim();
     const name = (document.getElementById('super-new-admin-name').value || '').trim();
     const password = (document.getElementById('super-new-admin-password').value || '').trim();
     if (!email || !name || !password) { alert('All fields are required.'); return; }
     if (typeof window.addNewAdmin === 'function') {
-        const res = window.addNewAdmin(email, password, name, 'admin');
+        const res = await window.addNewAdmin(email, password, name, 'admin');
         if (res.success) {
             document.getElementById('super-new-admin-email').value = '';
             document.getElementById('super-new-admin-name').value = '';
@@ -2551,10 +2551,10 @@ window.superAddNewAdmin = function() {
     }
 };
 
-window.superRemoveAdminUser = function(email) {
+window.superRemoveAdminUser = async function(email) {
     if (!confirm('Remove admin: ' + email + '?')) return;
     if (typeof window.removeAdmin === 'function') {
-        const res = window.removeAdmin(email);
+        const res = await window.removeAdmin(email);
         if (res.success) superLoadAdmins();
         else alert(res.error);
     }

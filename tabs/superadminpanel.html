@@ -2010,6 +2010,8 @@
 
     // Internal cache of all admins for the edit modal
     window._umAdminsCache = {};
+    window._umAdminListUnsubscribe = window._umAdminListUnsubscribe || null;
+    window._umSuperAdminUnsubscribe = window._umSuperAdminUnsubscribe || null;
 
     // Load admins from Firebase RTDB in real-time
     function superLoadAdmins() {
@@ -2089,39 +2091,44 @@
             }).join('');
         }
 
-        // Try Firebase RTDB first
+        // Firebase RTDB is authoritative. Keep a live listener so additions, edits and
+        // deletions made on another device appear immediately in this list.
         if (window.database && typeof window.rtdbRef === 'function' && typeof window.rtdbOnValue === 'function') {
-            let adminsData = null;
+            if (typeof window._umAdminListUnsubscribe === 'function') window._umAdminListUnsubscribe();
+            if (typeof window._umSuperAdminUnsubscribe === 'function') window._umSuperAdminUnsubscribe();
+
+            let adminsData = {};
             let superData = null;
-            let loadCount = 0;
+            let adminsLoaded = false;
+            let superLoaded = false;
 
             function tryRender() {
-                loadCount++;
-                if (loadCount >= 2) renderAdmins(adminsData, superData);
+                if (adminsLoaded && superLoaded) renderAdmins(adminsData, superData);
             }
 
-            window.rtdbOnValue(window.rtdbRef('admins_list'), snap => {
+            window._umAdminListUnsubscribe = window.rtdbOnValue(window.rtdbRef('admins_list'), snap => {
                 adminsData = snap.val() || {};
-                // Sync to localStorage
+                adminsLoaded = true;
                 try { localStorage.setItem('biz_admins_list_v1', JSON.stringify(adminsData)); } catch(e) {}
                 tryRender();
-            }, { onlyOnce: true });
+            }, error => {
+                console.error('Admin list listener failed:', error);
+                if (syncStatus) { syncStatus.textContent = 'Sync Error'; syncStatus.className = 'text-xs font-black text-red-400'; }
+            });
 
-            window.rtdbOnValue(window.rtdbRef('super_admin'), snap => {
+            window._umSuperAdminUnsubscribe = window.rtdbOnValue(window.rtdbRef('super_admin'), snap => {
                 superData = snap.val() || null;
-                // Sync to localStorage
+                superLoaded = true;
                 if (superData) { try { localStorage.setItem('biz_super_admin_v1', JSON.stringify(superData)); } catch(e) {} }
                 tryRender();
-            }, { onlyOnce: true });
+            }, error => {
+                console.error('Super admin listener failed:', error);
+                superLoaded = true;
+                tryRender();
+            });
         } else {
-            // Fallback to localStorage
-            try {
-                const adminsRaw = localStorage.getItem('biz_admins_list_v1');
-                const superRaw = localStorage.getItem('biz_super_admin_v1');
-                renderAdmins(adminsRaw ? JSON.parse(adminsRaw) : {}, superRaw ? JSON.parse(superRaw) : null);
-            } catch(e) {
-                container.innerHTML = '<div class="text-center text-red-400 py-4 text-xs font-bold">Error loading admin data</div>';
-            }
+            container.innerHTML = '<div class="text-center text-red-400 py-4 text-xs font-bold">Firebase is not connected. Admin authorization cannot be managed.</div>';
+            if (syncStatus) { syncStatus.textContent = 'Offline'; syncStatus.className = 'text-xs font-black text-red-400'; }
         }
     }
 
@@ -2178,7 +2185,7 @@
         }
     }
 
-    function superAddNewAdmin() {
+    async function superAddNewAdmin() {
         const email = (document.getElementById('super-new-admin-email').value || '').trim().toLowerCase();
         const name = (document.getElementById('super-new-admin-name').value || '').trim();
         const password = document.getElementById('super-new-admin-password').value;
@@ -2193,65 +2200,52 @@
             statusDiv.innerHTML = '<span class="text-red-400">❌ Password must be at least 4 characters</span>';
             return;
         }
-
-        // Check for duplicate
-        const adminsRaw = localStorage.getItem('biz_admins_list_v1');
-        const admins = adminsRaw ? JSON.parse(adminsRaw) : {};
-        if (admins[email]) {
+        if (/[.#$\[\]\/]/.test(email)) {
+            statusDiv.innerHTML = '<span class="text-red-400">❌ Login ID cannot contain . # $ [ ] or /</span>';
+            return;
+        }
+        if (window._umAdminsCache[email]) {
             statusDiv.innerHTML = '<span class="text-red-400">❌ Admin with this ID already exists</span>';
             return;
         }
+        if (typeof window.addNewAdmin !== 'function') {
+            statusDiv.innerHTML = '<span class="text-red-400">❌ Firebase admin service is unavailable</span>';
+            return;
+        }
 
-        const newAdmin = {
-            email: email,
-            name: name,
-            role: role,
-            password: btoa(password),
-            addedBy: (JSON.parse(sessionStorage.getItem('currentAdmin') || '{}')).email || 'super_admin',
-            addedAt: new Date().toISOString()
-        };
-
-        admins[email] = newAdmin;
-        localStorage.setItem('biz_admins_list_v1', JSON.stringify(admins));
-
-        // Save to Firebase
-        if (typeof window.saveAdminsListToFirebase === 'function') {
-            window.saveAdminsListToFirebase(admins).then(() => {
-                statusDiv.innerHTML = '<span class="text-green-400">✅ Admin added & saved to Firebase!</span>';
-            }).catch(() => {
-                statusDiv.innerHTML = '<span class="text-yellow-400">⚠️ Saved locally — Firebase sync may have failed</span>';
-            });
-        } else {
-            statusDiv.innerHTML = '<span class="text-green-400">✅ Admin added!</span>';
+        statusDiv.innerHTML = '<span class="text-yellow-400"><i class="fas fa-spinner fa-spin mr-1"></i>Saving to Firebase…</span>';
+        const result = await window.addNewAdmin(email, password, name, role);
+        if (!result.success) {
+            statusDiv.innerHTML = '<span class="text-red-400">❌ ' + escapeHtml(result.error || 'Unable to add admin') + '</span>';
+            return;
         }
 
         document.getElementById('super-new-admin-email').value = '';
         document.getElementById('super-new-admin-name').value = '';
         document.getElementById('super-new-admin-password').value = '';
-        if (typeof window.writeAdminActivityLog === 'function') window.writeAdminActivityLog('user_management', 'Added new admin: ' + email + ' (' + role + ')');
-        setTimeout(() => { statusDiv.innerHTML = ''; superLoadAdmins(); }, 2000);
+        statusDiv.innerHTML = '<span class="text-green-400">✅ Admin added to Firebase. Login is now active.</span>';
+        setTimeout(() => { statusDiv.innerHTML = ''; }, 2500);
     }
 
-    function superRemoveAdmin(email) {
-        if (!confirm('Remove admin ' + email + '? This cannot be undone.')) return;
-        const admins = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
-        delete admins[email];
-        localStorage.setItem('biz_admins_list_v1', JSON.stringify(admins));
-        if (typeof window.saveAdminsListToFirebase === 'function') window.saveAdminsListToFirebase(admins);
-        if (typeof window.writeAdminActivityLog === 'function') window.writeAdminActivityLog('user_management', 'Removed admin: ' + email);
-        superLoadAdmins();
-    }
+    async function superRemoveAdmin(email) {
+        if (!confirm('Remove admin ' + email + '? They will be logged out and unable to sign in again.')) return false;
+        const syncStatus = document.getElementById('um-sync-status');
+        if (syncStatus) { syncStatus.textContent = 'Revoking…'; syncStatus.className = 'text-xs font-black text-yellow-400'; }
 
-    async function superResetAdminPW(email) {
-        const newPass = prompt('Enter a new temporary password for ' + email + ':');
-        if (!newPass) return;
-        const admins = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
-        if (!admins[email]) { alert('Admin not found.'); return; }
-        admins[email].password = btoa(newPass);
-        localStorage.setItem('biz_admins_list_v1', JSON.stringify(admins));
-        if (typeof window.saveAdminsListToFirebase === 'function') await window.saveAdminsListToFirebase(admins);
-        alert('Password reset for ' + email + '. New password: ' + newPass);
-        if (typeof window.writeAdminActivityLog === 'function') window.writeAdminActivityLog('user_management', 'Reset password for: ' + email);
+        if (typeof window.removeAdmin !== 'function') {
+            alert('Firebase admin service is unavailable. Nothing was deleted.');
+            return false;
+        }
+
+        const result = await window.removeAdmin(email);
+        if (!result.success) {
+            if (syncStatus) { syncStatus.textContent = 'Delete Failed'; syncStatus.className = 'text-xs font-black text-red-400'; }
+            alert(result.error || 'Could not remove admin from Firebase.');
+            return false;
+        }
+
+        if (syncStatus) { syncStatus.textContent = 'Access Revoked ✓'; syncStatus.className = 'text-xs font-black text-green-400'; }
+        return true;
     }
 
     // ── Edit Modal ──────────────────────────────────────────────
@@ -2352,9 +2346,17 @@
             admins[key].hiddenTabs = hiddenTabs;
             admins[key].adminToolUploadScope = adminToolUploadScope;
             if (newPass) admins[key].password = btoa(newPass);
-            localStorage.setItem('biz_admins_list_v1', JSON.stringify(admins));
-            if (typeof window.saveAdminsListToFirebase === 'function') {
-                try { await window.saveAdminsListToFirebase(admins); } catch(e) {}
+            if (typeof window.saveAdminRecordToFirebase !== 'function') {
+                statusEl.innerHTML = '<span class="text-red-400">❌ Firebase is not connected</span>';
+                return;
+            }
+            try {
+                await window.saveAdminRecordToFirebase(key, admins[key]);
+                localStorage.setItem('biz_admins_list_v1', JSON.stringify(admins));
+            } catch (e) {
+                console.error('Admin edit failed:', e);
+                statusEl.innerHTML = '<span class="text-red-400">❌ Firebase save failed. Changes were not applied.</span>';
+                return;
             }
         }
 
@@ -2366,12 +2368,11 @@
         setTimeout(() => { umCloseEditModal(); superLoadAdmins(); }, 1000);
     };
 
-    window.umDeleteAdmin = function() {
+    window.umDeleteAdmin = async function() {
         const key = document.getElementById('um-edit-key').value;
         if (!key) return;
-        if (!confirm('Permanently delete admin "' + key + '"? This cannot be undone.')) return;
-        superRemoveAdmin(key);
-        umCloseEditModal();
+        const removed = await superRemoveAdmin(key);
+        if (removed) umCloseEditModal();
     };
 
         function superSendBroadcast() {
@@ -2392,15 +2393,18 @@
 
     async function superResetAdminPW(email) {
         const newPass = prompt(`Enter a new temporary password for ${email}:`);
-        if(!newPass) return;
-        
-        if (typeof superResetAdminPassword === 'function') {
-            const res = superResetAdminPassword(email, newPass);
-            if(res.success) {
-                alert(`✅ Password reset successful for ${email}\nNew Password: ${newPass}`);
-            } else {
-                alert('❌ Failed to reset password: ' + (res.error || 'Unknown Error'));
-            }
+        if (!newPass) return;
+
+        if (typeof window.superResetAdminPassword !== 'function') {
+            alert('❌ Firebase admin service is unavailable.');
+            return;
+        }
+        const res = await window.superResetAdminPassword(email, newPass);
+        if (res.success) {
+            alert(`✅ Password reset successful for ${email}
+New Password: ${newPass}`);
+        } else {
+            alert('❌ Failed to reset password: ' + (res.error || 'Unknown Error'));
         }
     }
 
