@@ -53,9 +53,9 @@ function normalizeLeadNumber(raw) {
     return digits.slice(-10);
 }
 
-// 🔥 NEW: When the same Lead Number (column F) appears multiple times in a report,
-// only the LAST time it was called counts toward lead detection. Earlier calls
-// to the same number are ignored even if they also show duration >= 120.
+// 🔥 NEW: When the same Agent Name + Lead Number combination appears multiple times,
+// only the LAST call by that agent to that number counts toward lead detection.
+// The same customer number can still count once for EACH different agent.
 // Uses the Xfer/Call Date column when available so the ACTUAL last call wins,
 // since CSV row order is not guaranteed (some exports list newest calls first).
 // Rows without a usable Lead Number are evaluated individually (no dedup possible).
@@ -63,24 +63,26 @@ function getCountableLeadSet(data) {
     const countable = new Set();
     if (!Array.isArray(data)) return countable;
     
-    const lastRowByNumber = new Map();
+    const lastRowByAgentAndNumber = new Map();
     data.forEach((row, idx) => {
         const num = normalizeLeadNumber(row.leadNumber);
         if (!num) return;
         
-        const existing = lastRowByNumber.get(num);
+        const agentKey = String(row.agentName || row.rawName || '').trim().toUpperCase();
+        const leadKey = `${agentKey}::${num}`;
+        const existing = lastRowByAgentAndNumber.get(leadKey);
         if (!existing) {
-            lastRowByNumber.set(num, { row, idx });
+            lastRowByAgentAndNumber.set(leadKey, { row, idx });
             return;
         }
         
         const hasTimes = typeof row.callTime === 'number' && typeof existing.row.callTime === 'number';
         if (hasTimes) {
             // Prefer whichever row actually happened later in time
-            if (row.callTime > existing.row.callTime) lastRowByNumber.set(num, { row, idx });
+            if (row.callTime > existing.row.callTime) lastRowByAgentAndNumber.set(leadKey, { row, idx });
         } else {
             // No timestamps to compare - fall back to later row in the file
-            lastRowByNumber.set(num, { row, idx });
+            lastRowByAgentAndNumber.set(leadKey, { row, idx });
         }
     });
     
@@ -88,8 +90,12 @@ function getCountableLeadSet(data) {
         const num = normalizeLeadNumber(row.leadNumber);
         if (!num) {
             countable.add(row); // no number to dedupe by, evaluate on its own
-        } else if (lastRowByNumber.get(num) && lastRowByNumber.get(num).row === row) {
-            countable.add(row); // this is the last call made to this number
+        } else {
+            const agentKey = String(row.agentName || row.rawName || '').trim().toUpperCase();
+            const leadKey = `${agentKey}::${num}`;
+            if (lastRowByAgentAndNumber.get(leadKey) && lastRowByAgentAndNumber.get(leadKey).row === row) {
+                countable.add(row); // this is the last call by this agent to this number
+            }
         }
     });
     
