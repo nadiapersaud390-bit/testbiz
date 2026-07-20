@@ -377,27 +377,38 @@ window.listenForSimScripts = function(callback) {
     if (!database) { setTimeout(() => window.listenForSimScripts(callback), 500); return; }
     onValue(ref(database, 'simulator_scripts'), (snapshot) => {
         const data = snapshot.val() || {};
-        const arr = Object.entries(data).map(([k, v]) => ({ id: k, ...v }));
+        // The Firebase node key is the authoritative script ID. Put it last so a
+        // stale `id` saved inside an older script cannot override the real key.
+        const arr = Object.entries(data).map(([k, v]) => ({ ...(v || {}), id: k }));
         arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         if (callback) callback(arr);
     });
 };
 
 window.saveSimScript = async function(scriptObj) {
-    if (!database) return { success: false };
+    if (!database) return { success: false, error: 'Firebase database is not ready.' };
     try {
-        let r;
-        if (scriptObj.id) {
-            r = ref(database, 'simulator_scripts/' + scriptObj.id);
-            await set(r, scriptObj);
-            return { success: true, id: scriptObj.id };
-        } else {
-            r = push(ref(database, 'simulator_scripts'));
-            scriptObj.id = r.key;
-            await set(r, scriptObj);
-            return { success: true, id: r.key };
-        }
-    } catch(e) { return { success: false, error: e.message }; }
+        const source = scriptObj && typeof scriptObj === 'object' ? scriptObj : {};
+        const existingId = String(source.id || '').trim();
+        const targetRef = existingId
+            ? ref(database, 'simulator_scripts/' + existingId)
+            : push(ref(database, 'simulator_scripts'));
+        const scriptId = existingId || targetRef.key;
+
+        // Never store `id` inside the record. The RTDB node key is the ID.
+        // This prevents old/stale embedded IDs from making Edit save to the
+        // wrong Firebase path.
+        const payload = { ...source };
+        delete payload.id;
+        payload.updatedAt = Date.now();
+        if (!payload.createdAt) payload.createdAt = payload.updatedAt;
+
+        await set(targetRef, payload);
+        return { success: true, id: scriptId };
+    } catch(e) {
+        console.error('[Firebase] Unable to save simulator script:', e);
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
 };
 
 window.deleteSimScript = async function(id) {

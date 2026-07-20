@@ -1243,9 +1243,9 @@
                         <textarea id="simscript-body" rows="8" placeholder='Plain text script format example:&#10;&#10;Call type: Outbound Sales Call&#10;Correct end reason: callback&#10;End call coaching: The customer asked to be contacted later.&#10;Agent opening: Hi, this is Sarah&#10;First customer reply: Maybe. What is the name of your company?&#10;Step 1:&#10;Customer: Maybe. What is the name of your company?&#10;Agent best response: We are a licensed lender that specializes in...&#10;If customer reacts Best: Tell me more&#10;Agent OK response: We help businesses like yours get funded fast.&#10;If customer reacts OK: Okay, go on...'
                                   class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono outline-none focus:border-indigo-400 transition placeholder-slate-600 resize-none"></textarea>
                     </div>
-                    <button onclick="simScriptSaveManual()"
+                    <button id="simscript-save-button" onclick="simScriptSaveManual()"
                             class="w-full bg-indigo-500/20 hover:bg-indigo-500/35 border border-indigo-500/35 text-indigo-300 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition active:scale-95 flex items-center justify-center gap-2">
-                        <i class="fas fa-cloud-upload-alt"></i> Save to Firebase
+                        <i class="fas fa-cloud-upload-alt"></i> <span id="simscript-save-button-label">Save to Firebase</span>
                     </button>
                     <div id="simscript-save-status" class="text-[10px] font-bold min-h-[14px] text-center"></div>
                 </div>
@@ -3427,6 +3427,7 @@
     }
 
     var _simScriptEditId = null;
+    var _simScriptEditCreatedAt = null;
     var _simScriptListCache = [];
 
     window.simScriptEdit = function(id) {
@@ -3434,6 +3435,10 @@
         if (!sc) return;
 
         _simScriptEditId = id;
+        _simScriptEditCreatedAt = sc.createdAt || null;
+
+        var saveButtonLabel = document.getElementById('simscript-save-button-label');
+        if (saveButtonLabel) saveButtonLabel.textContent = 'Update Script in Firebase';
 
         var titleEl = document.getElementById('simscript-title');
         var categoryEl = document.getElementById('simscript-category');
@@ -3471,21 +3476,53 @@
         const cat   = (document.getElementById('simscript-category') || {}).value || 'General';
         const diff  = (document.getElementById('simscript-difficulty') || {}).value || 'Medium';
         const callType = (document.getElementById('simscript-call-type') || {}).value || '';
-        const endReason = (document.getElementById('simscript-end-reason') || {}).value || '';
+        const endReason = _normalizeEndReason((document.getElementById('simscript-end-reason') || {}).value || '');
         const endNote = (document.getElementById('simscript-end-note') || {}).value || '';
         const statusEl = document.getElementById('simscript-save-status');
-        if (!title.trim()) { if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Please enter a script title.</span>'; return; }
-        if (!body.trim())  { if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Please enter script content.</span>'; return; }
+        const saveButton = document.getElementById('simscript-save-button');
+
+        if (!title.trim()) {
+            if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Please enter a script title.</span>';
+            return;
+        }
+        if (!body.trim()) {
+            if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Please enter script content.</span>';
+            return;
+        }
+
+        if (saveButton) saveButton.disabled = true;
         if (statusEl) statusEl.innerHTML = '<span class="text-yellow-400"><i class="fas fa-spinner fa-spin mr-1"></i> Saving...</span>';
+
         var scriptObj = _parseScriptContent(body, title.trim(), cat.trim(), diff, callType, endReason, endNote);
-        if (_simScriptEditId) scriptObj.id = _simScriptEditId;
+
+        // Form fields are authoritative during an edit. Write the selected grade
+        // explicitly after parsing so an older JSON body containing an empty
+        // correct_end_reason cannot overwrite the dropdown choice.
+        scriptObj.call_type = _cleanVal(callType) || scriptObj.call_type || 'Training Call';
+        scriptObj.callType = scriptObj.call_type;
+        scriptObj.correct_end_reason = endReason;
+        scriptObj.correctEndReason = endReason;
+        scriptObj.end_call_note = _cleanVal(endNote);
+        scriptObj.endCallNote = scriptObj.end_call_note;
+
+        if (_simScriptEditId) {
+            scriptObj.id = _simScriptEditId;
+            if (_simScriptEditCreatedAt) scriptObj.createdAt = _simScriptEditCreatedAt;
+        }
+
         if (typeof window.saveSimScript !== 'function') {
+            if (saveButton) saveButton.disabled = false;
             if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Firebase not ready. Try again.</span>';
             return;
         }
+
         var result = await window.saveSimScript(scriptObj);
+        if (saveButton) saveButton.disabled = false;
+
         if (result && result.success) {
-            if (statusEl) statusEl.innerHTML = '<span class="text-green-400"><i class="fas fa-check mr-1"></i> Saved!</span>';
+            var gradeLabel = endReason ? _endReasonLabel(endReason) : 'Not graded';
+            if (statusEl) statusEl.innerHTML = '<span class="text-green-400"><i class="fas fa-check mr-1"></i> Saved. Grade: ' + gradeLabel + '</span>';
+
             document.getElementById('simscript-title').value = '';
             document.getElementById('simscript-body').value  = '';
             var callTypeEl = document.getElementById('simscript-call-type');
@@ -3494,11 +3531,17 @@
             if (callTypeEl) callTypeEl.value = '';
             if (endReasonEl) endReasonEl.value = '';
             if (endNoteEl) endNoteEl.value = '';
+
             _simScriptEditId = null;
+            _simScriptEditCreatedAt = null;
+            var saveButtonLabel = document.getElementById('simscript-save-button-label');
+            if (saveButtonLabel) saveButtonLabel.textContent = 'Save to Firebase';
+
             simScriptLoadList();
-            setTimeout(function(){ if (statusEl) statusEl.innerHTML = ''; }, 4000);
+            setTimeout(function(){ if (statusEl) statusEl.innerHTML = ''; }, 5000);
         } else {
-            if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Error saving. Check Firebase.</span>';
+            var errorText = result && result.error ? result.error : 'Check Firebase permissions or connection.';
+            if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Error saving: ' + errorText + '</span>';
         }
     };
 
