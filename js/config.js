@@ -53,7 +53,7 @@ function getTeamMeta(team) {
 (function loadSimulatorTxtOnly() {
   if (document.querySelector('script[data-simulator-txt-only]')) return;
   const script = document.createElement('script');
-  script.src = 'js/simulator-txt-only.js?v=2';
+  script.src = 'js/simulator-txt-only.js?v=3';
   script.dataset.simulatorTxtOnly = 'true';
   script.defer = true;
   document.head.appendChild(script);

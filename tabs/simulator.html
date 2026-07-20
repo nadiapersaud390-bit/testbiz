@@ -37,6 +37,15 @@
 .sim-bubble { animation: sim-bubble-in 0.3s ease; }
 @keyframes sim-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
 .sim-shake { animation: sim-shake 0.45s ease; }
+.sim-end-option {
+    width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.035);
+    color: #cbd5e1; font-size: 11px; font-weight: 800; transition: all .16s; cursor: pointer;
+    display: flex; align-items: center; gap: 10px;
+}
+.sim-end-option:hover { border-color: rgba(244,63,94,.45); background: rgba(244,63,94,.08); color:#fff; }
+.sim-end-option.selected { border-color: rgba(244,63,94,.7); background: rgba(244,63,94,.14); color:#fecdd3; box-shadow:0 0 0 2px rgba(244,63,94,.08); }
+.sim-end-modal-backdrop { background: rgba(2,6,23,.84); backdrop-filter: blur(8px); }
 </style>
 
 <div class="max-w-2xl mx-auto px-2 py-4 overflow-hidden" id="simulator-root">
@@ -82,13 +91,21 @@
 
         <!-- Header bar -->
         <div class="flex items-center justify-between mb-4 gap-3">
-            <div>
+            <div class="min-w-0">
                 <div class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">Script</div>
-                <div id="sim-script-title" class="text-sm font-black text-white"></div>
+                <div id="sim-script-title" class="text-sm font-black text-white truncate"></div>
+                <div id="sim-call-type" class="inline-flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-[8px] font-black uppercase tracking-widest text-cyan-300">
+                    <i class="fas fa-phone-volume"></i><span>Training Call</span>
+                </div>
             </div>
-            <button onclick="simAbort()" class="text-[10px] font-black uppercase tracking-wider text-slate-500 hover:text-red-400 border border-white/10 hover:border-red-400/30 px-3 py-1.5 rounded-xl transition">
-                <i class="fas fa-times mr-1"></i>Quit
-            </button>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button onclick="simRequestEnd(false)" class="text-[10px] font-black uppercase tracking-wider text-rose-300 hover:text-white border border-rose-500/35 hover:border-rose-400/70 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-xl transition">
+                    <i class="fas fa-phone-slash mr-1"></i>End Call
+                </button>
+                <button onclick="simAbort()" class="text-[10px] font-black uppercase tracking-wider text-slate-500 hover:text-red-400 border border-white/10 hover:border-red-400/30 px-3 py-1.5 rounded-xl transition">
+                    <i class="fas fa-times mr-1"></i>Quit
+                </button>
+            </div>
         </div>
 
         <!-- Mood / tension bar -->
@@ -143,6 +160,17 @@
             </div>
         </div>
 
+        <!-- End-call decision -->
+        <div id="sim-end-result" class="hidden rounded-2xl border p-4 mb-4">
+            <div class="flex items-start gap-3">
+                <div id="sim-end-result-icon" class="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"></div>
+                <div class="min-w-0">
+                    <div id="sim-end-result-title" class="text-[10px] font-black uppercase tracking-widest"></div>
+                    <div id="sim-end-result-text" class="text-xs text-slate-300 mt-1 leading-relaxed"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Step-by-step breakdown -->
         <div class="bg-white/5 border border-white/[0.08] rounded-2xl p-4 mb-4">
             <div class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Step Breakdown</div>
@@ -156,6 +184,35 @@
             <button onclick="simBackToLobby()" class="sim-btn flex-1 justify-center" style="background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.12);color:#94a3b8;">
                 <i class="fas fa-list"></i> All Scripts
             </button>
+        </div>
+    </div>
+
+    <!-- ── END CALL DISPOSITION MODAL ── -->
+    <div id="sim-end-modal" class="hidden fixed inset-0 z-[9999] sim-end-modal-backdrop items-center justify-center p-4">
+        <div class="w-full max-w-lg rounded-3xl border border-rose-500/25 bg-slate-950 shadow-2xl overflow-hidden">
+            <div class="p-5 border-b border-white/[0.08] bg-gradient-to-r from-rose-500/10 to-transparent">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <div class="text-[9px] font-black uppercase tracking-widest text-rose-400">End Training Call</div>
+                        <div class="text-lg font-black text-white mt-1">Why are you ending this call?</div>
+                        <div id="sim-end-call-type" class="text-[10px] text-slate-500 mt-1"></div>
+                    </div>
+                    <button id="sim-end-close" onclick="simCloseEndModal()" class="w-8 h-8 rounded-xl border border-white/10 text-slate-500 hover:text-white hover:bg-white/5 transition">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-5">
+                <div id="sim-end-reasons" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+                <div id="sim-end-feedback" class="hidden mt-4 rounded-2xl border p-4 text-sm font-bold leading-relaxed"></div>
+                <div id="sim-end-error" class="hidden mt-3 text-[10px] font-bold text-red-400 text-center">Select a reason before ending the call.</div>
+            </div>
+            <div class="p-4 border-t border-white/[0.08] flex gap-3 bg-black/20">
+                <button id="sim-end-cancel" onclick="simCloseEndModal()" class="sim-btn flex-1 justify-center" style="background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);color:#94a3b8;">Continue Call</button>
+                <button id="sim-end-confirm" onclick="simConfirmEnd()" class="sim-btn flex-1 justify-center" style="background:rgba(244,63,94,0.16);border-color:rgba(244,63,94,0.45);color:#fecdd3;">
+                    <i class="fas fa-phone-slash"></i> End Call
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -172,12 +229,60 @@
     let _customerMood       = 'Calm';   // Calm / Skeptical / Frustrated / In a rush
     let _scriptIdForRestart = null;
     let _usedThisWeek       = [];       // script IDs used by this agent this week (RTDB-synced)
+    let _endReasonSelected  = '';
+    let _endDecision        = null;     // { selected, expected, correct, endedEarly, note }
+    let _endIsNatural       = false;
+    let _callEnded          = false;
 
     const MOODS = ['Calm', 'Skeptical', 'Frustrated', 'In a rush'];
+    const END_REASONS = [
+        { key:'sale_transfer',       label:'Sale / Transfer Completed', icon:'fa-handshake' },
+        { key:'callback',            label:'Callback Scheduled',        icon:'fa-calendar-check' },
+        { key:'not_interested',      label:'Customer Not Interested',   icon:'fa-user-times' },
+        { key:'do_not_call',         label:'Do Not Call Request',       icon:'fa-ban' },
+        { key:'wrong_number',        label:'Wrong Number',              icon:'fa-phone-slash' },
+        { key:'no_answer_voicemail', label:'No Answer / Voicemail',     icon:'fa-voicemail' },
+        { key:'disconnected',        label:'Call Disconnected',         icon:'fa-unlink' },
+        { key:'other',               label:'Other',                     icon:'fa-ellipsis-h' }
+    ];
 
     // ── Tension config ────────────────────────────────────
     const TENSION_DELTA = { best: -5, ok: 5, weak: 18, wrong: 30 };
     const TENSION_INIT  = { Calm: 15, Skeptical: 35, Frustrated: 55, 'In a rush': 45 };
+
+    function _normalizeEndReason(value) {
+        const raw = String(value || '').trim().toLowerCase();
+        const aliases = {
+            'sale':'sale_transfer', 'transfer':'sale_transfer',
+            'sale / transfer completed':'sale_transfer', 'sale/transfer completed':'sale_transfer',
+            'callback scheduled':'callback', 'call back':'callback',
+            'customer not interested':'not_interested', 'not interested':'not_interested',
+            'dnc':'do_not_call', 'do not call':'do_not_call', 'do not call request':'do_not_call',
+            'wrong number':'wrong_number',
+            'no answer':'no_answer_voicemail', 'voicemail':'no_answer_voicemail', 'no answer / voicemail':'no_answer_voicemail',
+            'call disconnected':'disconnected', 'disconnected':'disconnected'
+        };
+        if (END_REASONS.some(r => r.key === raw)) return raw;
+        return aliases[raw] || raw.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    }
+
+    function _endReasonLabel(value) {
+        const key = _normalizeEndReason(value);
+        const found = END_REASONS.find(r => r.key === key);
+        return found ? found.label : (String(value || '').trim() || 'Not graded');
+    }
+
+    function _getCallType(sc) {
+        return (sc && (sc.call_type || sc.callType || sc.type_of_call || sc.typeOfCall)) || 'Training Call';
+    }
+
+    function _getExpectedEndReason(sc) {
+        return _normalizeEndReason(sc && (sc.correct_end_reason || sc.correctEndReason || sc.expected_disposition || sc.expectedDisposition));
+    }
+
+    function _getEndCallNote(sc) {
+        return (sc && (sc.end_call_note || sc.endCallNote || sc.end_call_coaching || sc.endCallCoaching)) || '';
+    }
 
     function _tensionLabel(t) {
         if (t < 25)  return { label: 'Calm',        color: 'text-green-400',  bar: 'bg-green-500' };
@@ -290,15 +395,32 @@
     }
 
     // ── Start a run ──────────────────────────────────────
-    window.simStartRandom = function() {
-        if (!_scripts.length) return;
+    function _randomAvailableScript() {
+        if (!_scripts.length) return null;
         let pool = _scripts.filter(s => !_usedThisWeek.includes(s.id));
         // All scripts done this week — reset the record and use the full pool.
         if (!pool.length) {
             _resetWeekUsed();
             pool = _scripts.slice();
         }
-        simStart(pool[Math.floor(Math.random() * pool.length)].id);
+        return pool[Math.floor(Math.random() * pool.length)] || null;
+    }
+
+    window.simPrepareRandomCall = function() {
+        const sc = _randomAvailableScript();
+        if (!sc) return null;
+        window.__simPreparedRandomScriptId = sc.id;
+        return { id: sc.id, title: sc.title, callType: _getCallType(sc) };
+    };
+
+    window.simStartRandom = function() {
+        if (!_scripts.length) return;
+        let sc = null;
+        const preparedId = window.__simPreparedRandomScriptId;
+        if (preparedId) sc = _scripts.find(s => s.id === preparedId) || null;
+        window.__simPreparedRandomScriptId = null;
+        if (!sc) sc = _randomAvailableScript();
+        if (sc) simStart(sc.id);
     };
 
     window.simStart = function(scriptId) {
@@ -317,9 +439,16 @@
         _steps = JSON.parse(JSON.stringify(sc.steps));
         _stepIdx = 0;
         _history = [];
+        _endReasonSelected = '';
+        _endDecision = null;
+        _endIsNatural = false;
+        _callEnded = false;
+        _hideEndModal();
 
         _showSection('sim-active');
         document.getElementById('sim-script-title').textContent = sc.title;
+        const callTypeEl = document.getElementById('sim-call-type');
+        if (callTypeEl) callTypeEl.innerHTML = '<i class="fas fa-phone-volume"></i><span>' + _esc(_getCallType(sc)) + '</span>';
         _renderTranscript();
         _renderMood();
         _renderProgress();
@@ -331,6 +460,7 @@
         if (optWrap) optWrap.classList.add('hidden');
         if (thinking) thinking.classList.remove('hidden');
         setTimeout(() => {
+            if (_callEnded) return;
             if (thinking) thinking.classList.add('hidden');
             if (optWrap) optWrap.classList.remove('hidden');
             _renderStep(true);
@@ -383,6 +513,7 @@
 
     // ── Agent picks a response ───────────────────────────
     window.simPick = function(optIdx) {
+        if (_callEnded) return;
         const opts    = window._simCurrentOpts;
         const step    = window._simCurrentStep;
         const chosen  = opts[optIdx];
@@ -445,7 +576,7 @@
             _renderProgress();
 
             if (_stepIdx >= _steps.length) {
-                setTimeout(_showResults, 600);
+                setTimeout(() => simRequestEnd(true), 600);
             } else {
                 // Only show the next step's customer_lines if the text is different
                 // from the reaction we just displayed — otherwise it appears twice.
@@ -537,12 +668,138 @@
         // Step 1's customer_lines will appear as the first bubble via _renderStep(true).
     }
 
+    function _hideEndModal() {
+        const modal = document.getElementById('sim-end-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    }
+
+    window.simSelectEndReason = function(key) {
+        _endReasonSelected = _normalizeEndReason(key);
+        document.querySelectorAll('#sim-end-reasons .sim-end-option').forEach(btn => {
+            btn.classList.toggle('selected', btn.dataset.reason === _endReasonSelected);
+        });
+        const errorEl = document.getElementById('sim-end-error');
+        if (errorEl) errorEl.classList.add('hidden');
+    };
+
+    window.simRequestEnd = function(naturalEnd) {
+        if (!_activeScript || _callEnded) return;
+        _endIsNatural = !!naturalEnd;
+        _endReasonSelected = '';
+
+        const modal = document.getElementById('sim-end-modal');
+        const reasonsEl = document.getElementById('sim-end-reasons');
+        const feedbackEl = document.getElementById('sim-end-feedback');
+        const errorEl = document.getElementById('sim-end-error');
+        const cancelBtn = document.getElementById('sim-end-cancel');
+        const closeBtn = document.getElementById('sim-end-close');
+        const confirmBtn = document.getElementById('sim-end-confirm');
+        const typeEl = document.getElementById('sim-end-call-type');
+
+        if (typeEl) typeEl.textContent = _getCallType(_activeScript) + (_endIsNatural ? ' · Script completed' : ' · Ending before completion');
+        if (feedbackEl) {
+            feedbackEl.className = 'hidden mt-4 rounded-2xl border p-4 text-sm font-bold leading-relaxed';
+            feedbackEl.innerHTML = '';
+        }
+        if (errorEl) errorEl.classList.add('hidden');
+        if (cancelBtn) cancelBtn.classList.toggle('hidden', _endIsNatural);
+        if (closeBtn) closeBtn.classList.toggle('hidden', _endIsNatural);
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-phone-slash"></i> End Call';
+        }
+        if (reasonsEl) {
+            reasonsEl.innerHTML = END_REASONS.map(reason => `
+                <button type="button" class="sim-end-option" data-reason="${reason.key}" onclick="simSelectEndReason('${reason.key}')">
+                    <span class="w-8 h-8 rounded-lg flex items-center justify-center bg-white/5 border border-white/[0.08] flex-shrink-0"><i class="fas ${reason.icon}"></i></span>
+                    <span>${_esc(reason.label)}</span>
+                </button>`).join('');
+        }
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+    };
+
+    window.simCloseEndModal = function() {
+        if (_endIsNatural || _callEnded) return;
+        _hideEndModal();
+    };
+
+    window.simConfirmEnd = function() {
+        if (!_endReasonSelected || !_activeScript || _callEnded) {
+            const errorEl = document.getElementById('sim-end-error');
+            if (errorEl) errorEl.classList.remove('hidden');
+            return;
+        }
+
+        const expected = _getExpectedEndReason(_activeScript);
+        const correct = expected ? (_endReasonSelected === expected) : null;
+        const endedEarly = _stepIdx < _steps.length;
+        const note = _getEndCallNote(_activeScript);
+        _endDecision = {
+            selected: _endReasonSelected,
+            expected: expected,
+            correct: correct,
+            endedEarly: endedEarly,
+            note: note
+        };
+        _callEnded = true;
+
+        const feedbackEl = document.getElementById('sim-end-feedback');
+        const confirmBtn = document.getElementById('sim-end-confirm');
+        const cancelBtn = document.getElementById('sim-end-cancel');
+        const closeBtn = document.getElementById('sim-end-close');
+        if (cancelBtn) cancelBtn.classList.add('hidden');
+        if (closeBtn) closeBtn.classList.add('hidden');
+
+        if (feedbackEl) {
+            feedbackEl.classList.remove('hidden');
+            if (correct === true) {
+                feedbackEl.className = 'mt-4 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-sm font-bold leading-relaxed text-green-300';
+                feedbackEl.innerHTML = '<div class="text-base mb-1"><i class="fas fa-check-circle mr-2"></i>Correct disposition</div>' +
+                    '<div class="text-xs font-semibold text-green-200/80">You correctly ended this as <strong>' + _esc(_endReasonLabel(expected)) + '</strong>.</div>' +
+                    (note ? '<div class="text-[11px] mt-2 text-slate-300">' + _esc(note) + '</div>' : '');
+            } else if (correct === false) {
+                feedbackEl.className = 'mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold leading-relaxed text-red-300';
+                feedbackEl.innerHTML = '<div class="text-base mb-1"><i class="fas fa-times-circle mr-2"></i>Incorrect disposition</div>' +
+                    '<div class="text-xs font-semibold text-red-200/80">You selected <strong>' + _esc(_endReasonLabel(_endReasonSelected)) + '</strong>. The correct reason is <strong>' + _esc(_endReasonLabel(expected)) + '</strong>.</div>' +
+                    (note ? '<div class="text-[11px] mt-2 text-slate-300">' + _esc(note) + '</div>' : '');
+            } else {
+                feedbackEl.className = 'mt-4 rounded-2xl border border-slate-500/30 bg-slate-500/10 p-4 text-sm font-bold leading-relaxed text-slate-300';
+                feedbackEl.innerHTML = '<div class="text-base mb-1"><i class="fas fa-info-circle mr-2"></i>Disposition recorded</div>' +
+                    '<div class="text-xs font-semibold text-slate-400">The Super Admin did not set a correct end-call reason for this script, so this choice is not graded.</div>';
+            }
+            if (endedEarly) {
+                feedbackEl.innerHTML += '<div class="text-[11px] mt-2 text-orange-300"><i class="fas fa-exclamation-triangle mr-1"></i>You ended the call before completing all script steps.</div>';
+            }
+        }
+
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading Results';
+        }
+        setTimeout(() => {
+            _hideEndModal();
+            _showResults();
+        }, 1900);
+    };
+
     function _showResults() {
-        const total  = _history.length;
+        const totalAnswered = _history.length;
+        const totalAuthored = _steps.length;
         const points = { best: 3, ok: 2, weak: 1, wrong: 0 };
         const earned = _history.reduce((s, h) => s + (points[h.quality] || 0), 0);
-        const max    = total * 3;
-        const pct    = max > 0 ? Math.round((earned / max) * 100) : 0;
+        const max = totalAuthored * 3;
+        const handlingPct = max > 0 ? Math.round((earned / max) * 100) : 0;
+        const hasDispositionGrade = !!(_endDecision && _endDecision.expected);
+        const dispositionPct = hasDispositionGrade ? (_endDecision.correct ? 100 : 0) : null;
+        const pct = hasDispositionGrade
+            ? Math.round((handlingPct * 0.8) + (dispositionPct * 0.2))
+            : handlingPct;
 
         _showSection('sim-results');
 
@@ -552,6 +809,10 @@
         const scoreVal  = document.getElementById('sim-score-val');
         const scoreBar  = document.getElementById('sim-score-bar');
         const breakdown = document.getElementById('sim-breakdown');
+        const endResult = document.getElementById('sim-end-result');
+        const endResultIcon = document.getElementById('sim-end-result-icon');
+        const endResultTitle = document.getElementById('sim-end-result-title');
+        const endResultText = document.getElementById('sim-end-result-text');
 
         if (pct >= 80) { if(iconEl) iconEl.textContent='🏆'; if(headEl) headEl.textContent='Excellent Call!'; if(subEl) subEl.textContent='You nailed it. That customer would have converted.'; }
         else if (pct >= 55) { if(iconEl) iconEl.textContent='👍'; if(headEl) headEl.textContent='Solid Effort'; if(subEl) subEl.textContent='Good call — a few tweaks and you\'ll close consistently.'; }
@@ -564,6 +825,29 @@
             const barColor = pct >= 80 ? '#10b981' : pct >= 55 ? '#f59e0b' : pct >= 30 ? '#f97316' : '#ef4444';
             scoreBar.style.background = barColor;
             setTimeout(() => { scoreBar.style.width = pct + '%'; }, 100);
+        }
+
+        if (endResult && _endDecision) {
+            endResult.classList.remove('hidden');
+            if (_endDecision.correct === true) {
+                endResult.className = 'rounded-2xl border border-green-500/30 bg-green-500/10 p-4 mb-4';
+                if (endResultIcon) { endResultIcon.className = 'w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 bg-green-500/15 text-green-400'; endResultIcon.innerHTML = '<i class="fas fa-check"></i>'; }
+                if (endResultTitle) { endResultTitle.className = 'text-[10px] font-black uppercase tracking-widest text-green-400'; endResultTitle.textContent = 'Correct End-Call Reason'; }
+                if (endResultText) endResultText.innerHTML = 'You selected <strong>' + _esc(_endReasonLabel(_endDecision.selected)) + '</strong>, which matches the correct disposition.' + (_endDecision.note ? '<br><span class="text-slate-400">' + _esc(_endDecision.note) + '</span>' : '');
+            } else if (_endDecision.correct === false) {
+                endResult.className = 'rounded-2xl border border-red-500/30 bg-red-500/10 p-4 mb-4';
+                if (endResultIcon) { endResultIcon.className = 'w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 bg-red-500/15 text-red-400'; endResultIcon.innerHTML = '<i class="fas fa-times"></i>'; }
+                if (endResultTitle) { endResultTitle.className = 'text-[10px] font-black uppercase tracking-widest text-red-400'; endResultTitle.textContent = 'Incorrect End-Call Reason'; }
+                if (endResultText) endResultText.innerHTML = 'You selected <strong>' + _esc(_endReasonLabel(_endDecision.selected)) + '</strong>. The correct disposition was <strong>' + _esc(_endReasonLabel(_endDecision.expected)) + '</strong>.' + (_endDecision.note ? '<br><span class="text-slate-400">' + _esc(_endDecision.note) + '</span>' : '');
+            } else {
+                endResult.className = 'rounded-2xl border border-slate-500/25 bg-slate-500/10 p-4 mb-4';
+                if (endResultIcon) { endResultIcon.className = 'w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 bg-slate-500/15 text-slate-400'; endResultIcon.innerHTML = '<i class="fas fa-info"></i>'; }
+                if (endResultTitle) { endResultTitle.className = 'text-[10px] font-black uppercase tracking-widest text-slate-400'; endResultTitle.textContent = 'End-Call Reason Recorded'; }
+                if (endResultText) endResultText.innerHTML = 'You selected <strong>' + _esc(_endReasonLabel(_endDecision.selected)) + '</strong>. This script has no answer key set by the Super Admin.';
+            }
+            if (_endDecision.endedEarly && endResultText) endResultText.innerHTML += '<br><span class="text-orange-300">The call was ended before all ' + totalAuthored + ' steps were completed (' + totalAnswered + ' completed).</span>';
+        } else if (endResult) {
+            endResult.classList.add('hidden');
         }
 
         if (breakdown) {
@@ -590,7 +874,11 @@
     }
 
     window.simAbort      = function() { simBackToLobby(); };
-    window.simBackToLobby = function() { _showSection('sim-lobby'); };
+    window.simBackToLobby = function() {
+        _callEnded = true;
+        _hideEndModal();
+        _showSection('sim-lobby');
+    };
     window.simRestart    = function() { if (_scriptIdForRestart) simStart(_scriptIdForRestart); };
 
     function _showSection(id) {

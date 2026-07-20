@@ -461,7 +461,7 @@
 
           '<div class="sim-call-kicker">Training Call Ready</div>' +
           '<div id="sim-call-room-type" class="sim-call-type">' +
-            'Outbound Call' +
+            'Training Call' +
           '</div>' +
 
           '<div id="sim-call-room-status" class="sim-call-status">' +
@@ -500,13 +500,23 @@
     var originalStartRandom = window.simStartRandom;
 
     window.simStartRandom = function () {
+      var preview =
+        typeof window.simPrepareRandomCall === 'function'
+          ? window.simPrepareRandomCall()
+          : null;
+
       document.getElementById(
         'sim-call-room-type'
-      ).textContent = 'Outbound Call';
+      ).textContent =
+        (preview && preview.callType) ||
+        'Training Call';
 
       document.getElementById(
         'sim-call-room-system'
-      ).textContent = 'Outbound call connected';
+      ).textContent =
+        preview && preview.title
+          ? preview.title
+          : 'Training call connected';
 
       document.getElementById(
         'sim-call-room-customer'
@@ -642,6 +652,7 @@
       };
     };
 
+    if (typeof window.simScriptFileChosen !== 'function') {
     window.simScriptFileChosen = function (input) {
       var file =
         input.files &&
@@ -701,6 +712,7 @@
 
       reader.readAsText(file);
     };
+    }
 
     return true;
   }

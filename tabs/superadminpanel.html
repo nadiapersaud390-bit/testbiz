@@ -1208,11 +1208,37 @@
                             </select>
                         </div>
                     </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Call Type</label>
+                            <input type="text" id="simscript-call-type" placeholder="e.g. Outbound Sales Call"
+                                   class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold outline-none focus:border-indigo-400 transition placeholder-slate-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Correct End-Call Reason</label>
+                            <select id="simscript-end-reason" class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold outline-none focus:border-indigo-400 transition">
+                                <option value="">Not graded</option>
+                                <option value="sale_transfer">Sale / Transfer Completed</option>
+                                <option value="callback">Callback Scheduled</option>
+                                <option value="not_interested">Customer Not Interested</option>
+                                <option value="do_not_call">Do Not Call Request</option>
+                                <option value="wrong_number">Wrong Number</option>
+                                <option value="no_answer_voicemail">No Answer / Voicemail</option>
+                                <option value="disconnected">Call Disconnected</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">End-Call Coaching Note</label>
+                        <input type="text" id="simscript-end-note" placeholder="Explain why this is the correct disposition"
+                               class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold outline-none focus:border-indigo-400 transition placeholder-slate-600">
+                    </div>
                     <div>
                         <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
                             Simulator Script Text
                         </label>
-                        <textarea id="simscript-body" rows="8" placeholder='Plain text script format example:&#10;&#10;Agent opening: Hi, this is Sarah&#10;First customer reply: Maybe. What is the name of your company?&#10;Step 1:&#10;Customer: Maybe. What is the name of your company?&#10;Agent best response: We are a licensed lender that specializes in...&#10;If customer reacts Best: Tell me more&#10;Agent OK response: We help businesses like yours get funded fast.&#10;If customer reacts OK: Okay, go on...'
+                        <textarea id="simscript-body" rows="8" placeholder='Plain text script format example:&#10;&#10;Call type: Outbound Sales Call&#10;Correct end reason: callback&#10;End call coaching: The customer asked to be contacted later.&#10;Agent opening: Hi, this is Sarah&#10;First customer reply: Maybe. What is the name of your company?&#10;Step 1:&#10;Customer: Maybe. What is the name of your company?&#10;Agent best response: We are a licensed lender that specializes in...&#10;If customer reacts Best: Tell me more&#10;Agent OK response: We help businesses like yours get funded fast.&#10;If customer reacts OK: Okay, go on...'
                                   class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono outline-none focus:border-indigo-400 transition placeholder-slate-600 resize-none"></textarea>
                     </div>
                     <button onclick="simScriptSaveManual()"
@@ -1249,6 +1275,32 @@
                             <option value="Hard">Hard</option>
                         </select>
                     </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Call Type</label>
+                        <input type="text" id="simscript-file-call-type" placeholder="e.g. Follow-Up Call"
+                               class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold outline-none focus:border-purple-400 transition placeholder-slate-600">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Correct End-Call Reason</label>
+                        <select id="simscript-file-end-reason" class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold outline-none focus:border-purple-400 transition">
+                            <option value="">Use value inside TXT / Not graded</option>
+                            <option value="sale_transfer">Sale / Transfer Completed</option>
+                            <option value="callback">Callback Scheduled</option>
+                            <option value="not_interested">Customer Not Interested</option>
+                            <option value="do_not_call">Do Not Call Request</option>
+                            <option value="wrong_number">Wrong Number</option>
+                            <option value="no_answer_voicemail">No Answer / Voicemail</option>
+                            <option value="disconnected">Call Disconnected</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">End-Call Coaching Note</label>
+                    <input type="text" id="simscript-file-end-note" placeholder="Optional coaching explanation"
+                           class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold outline-none focus:border-purple-400 transition placeholder-slate-600">
                 </div>
                 <button onclick="simScriptSaveFile()"
                         class="w-full bg-purple-500/20 hover:bg-purple-500/35 border border-purple-500/35 text-purple-300 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition active:scale-95 flex items-center justify-center gap-2">
@@ -3136,6 +3188,46 @@
     // ── Sim Scripts Management ──────────────────────────────────────
     var _simScriptFileContent = null;
     var _simScriptFileName = null;
+    var _simEndReasonLabels = {
+        sale_transfer: 'Sale / Transfer Completed',
+        callback: 'Callback Scheduled',
+        not_interested: 'Customer Not Interested',
+        do_not_call: 'Do Not Call Request',
+        wrong_number: 'Wrong Number',
+        no_answer_voicemail: 'No Answer / Voicemail',
+        disconnected: 'Call Disconnected',
+        other: 'Other'
+    };
+
+    function _normalizeEndReason(value) {
+        var raw = _cleanVal(value).toLowerCase();
+        var aliases = {
+            'sale': 'sale_transfer',
+            'transfer': 'sale_transfer',
+            'sale / transfer completed': 'sale_transfer',
+            'sale/transfer completed': 'sale_transfer',
+            'callback scheduled': 'callback',
+            'call back': 'callback',
+            'customer not interested': 'not_interested',
+            'not interested': 'not_interested',
+            'dnc': 'do_not_call',
+            'do not call': 'do_not_call',
+            'do not call request': 'do_not_call',
+            'wrong number': 'wrong_number',
+            'no answer': 'no_answer_voicemail',
+            'voicemail': 'no_answer_voicemail',
+            'no answer / voicemail': 'no_answer_voicemail',
+            'call disconnected': 'disconnected',
+            'disconnected': 'disconnected'
+        };
+        if (_simEndReasonLabels[raw]) return raw;
+        return aliases[raw] || raw.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    }
+
+    function _endReasonLabel(value) {
+        var key = _normalizeEndReason(value);
+        return _simEndReasonLabels[key] || _cleanVal(value) || 'Not graded';
+    }
 
     window.simScriptFileChosen = function(input) {
         const file = input.files[0];
@@ -3162,7 +3254,7 @@
 
     function _parseStructuredScript(raw) {
         var source = String(raw || '').trim();
-        var openingLine = '', firstCustomerReply = '', steps = [];
+        var openingLine = '', firstCustomerReply = '', callType = '', correctEndReason = '', endCallNote = '', steps = [];
 
         // JSON / JSON-in-txt
         if (/^[\[{]/.test(source)) {
@@ -3171,6 +3263,9 @@
                 var root = Array.isArray(data) ? { steps: data } : data;
                 openingLine = _cleanVal(root.agent_opening || root.opening_line || root.openingLine || root.intro || '');
                 firstCustomerReply = _cleanVal(root.first_customer_reply || root.firstCustomerReply || root.customer_opening || '');
+                callType = _cleanVal(root.call_type || root.callType || root.type_of_call || root.typeOfCall || '');
+                correctEndReason = _normalizeEndReason(root.correct_end_reason || root.correctEndReason || root.expected_disposition || root.expectedDisposition || '');
+                endCallNote = _cleanVal(root.end_call_note || root.endCallNote || root.end_call_coaching || root.endCallCoaching || '');
                 steps = (root.steps || []).map(function(step, index) {
                     var responses = step.responses || step.options || [];
                     var opts = responses.map(function(opt) {
@@ -3193,7 +3288,14 @@
                         reaction_wrong: _cleanVal(step.reaction_wrong || '')
                     };
                 }).filter(function(s) { return s.options.length; });
-                return { openingLine: openingLine, firstCustomerReply: firstCustomerReply, steps: steps };
+                return {
+                    openingLine: openingLine,
+                    firstCustomerReply: firstCustomerReply,
+                    callType: callType,
+                    correctEndReason: correctEndReason,
+                    endCallNote: endCallNote,
+                    steps: steps
+                };
             } catch(e) {
                 console.warn('[SimScript] Looks like JSON but could not be parsed:', e);
             }
@@ -3231,6 +3333,15 @@
         lines.forEach(function(line) {
             if (!line || /^End of Script$/i.test(line)) return;
             var m;
+            if ((m = line.match(/^Call type:\s*(.+)$/i)) || (m = line.match(/^Type of call:\s*(.+)$/i))) {
+                callType = _cleanVal(m[1]); return;
+            }
+            if ((m = line.match(/^Correct end(?:-call)? reason:\s*(.+)$/i)) || (m = line.match(/^Expected disposition:\s*(.+)$/i))) {
+                correctEndReason = _normalizeEndReason(m[1]); return;
+            }
+            if ((m = line.match(/^End(?:[- ]call)? coaching(?: note)?:\s*(.+)$/i)) || (m = line.match(/^End call note:\s*(.+)$/i))) {
+                endCallNote = _cleanVal(m[1]); return;
+            }
             if ((m = line.match(/^Agent opening:\s*(.+)$/i)) || (m = line.match(/^Opening agent:\s*(.+)$/i))) {
                 openingLine = _cleanVal(m[1]); return;
             }
@@ -3263,15 +3374,31 @@
         });
         pushCurrent();
 
-        return { openingLine: openingLine, firstCustomerReply: firstCustomerReply, steps: steps };
+        return {
+            openingLine: openingLine,
+            firstCustomerReply: firstCustomerReply,
+            callType: callType,
+            correctEndReason: correctEndReason,
+            endCallNote: endCallNote,
+            steps: steps
+        };
     }
 
-    function _parseScriptContent(raw, title, category, difficulty) {
+    function _parseScriptContent(raw, title, category, difficulty, callTypeOverride, endReasonOverride, endNoteOverride) {
         var parsed = _parseStructuredScript(raw);
+        var callType = _cleanVal(callTypeOverride) || parsed.callType || 'Training Call';
+        var correctEndReason = _normalizeEndReason(endReasonOverride) || parsed.correctEndReason || '';
+        var endCallNote = _cleanVal(endNoteOverride) || parsed.endCallNote || '';
         return {
             title:                title,
             category:             category  || 'General',
             difficulty:           difficulty || 'Medium',
+            call_type:            callType,
+            callType:             callType,
+            correct_end_reason:   correctEndReason,
+            correctEndReason:     correctEndReason,
+            end_call_note:        endCallNote,
+            endCallNote:          endCallNote,
             opening_line:         parsed.openingLine,
             openingLine:          parsed.openingLine,
             agent_opening:        parsed.openingLine,
@@ -3297,14 +3424,23 @@
         var titleEl = document.getElementById('simscript-title');
         var categoryEl = document.getElementById('simscript-category');
         var difficultyEl = document.getElementById('simscript-difficulty');
+        var callTypeEl = document.getElementById('simscript-call-type');
+        var endReasonEl = document.getElementById('simscript-end-reason');
+        var endNoteEl = document.getElementById('simscript-end-note');
         var bodyEl = document.getElementById('simscript-body');
 
         if (titleEl) titleEl.value = sc.title || '';
         if (categoryEl) categoryEl.value = sc.category || 'General';
         if (difficultyEl) difficultyEl.value = sc.difficulty || 'Medium';
+        if (callTypeEl) callTypeEl.value = sc.call_type || sc.callType || 'Training Call';
+        if (endReasonEl) endReasonEl.value = _normalizeEndReason(sc.correct_end_reason || sc.correctEndReason || '');
+        if (endNoteEl) endNoteEl.value = sc.end_call_note || sc.endCallNote || '';
         // Serialize the full script object (not just steps) so that
         // agent_opening and first_customer_reply survive a round-trip edit.
         var _editObj = {
+            call_type:            sc.call_type || sc.callType || 'Training Call',
+            correct_end_reason:   _normalizeEndReason(sc.correct_end_reason || sc.correctEndReason || ''),
+            end_call_note:        sc.end_call_note || sc.endCallNote || '',
             agent_opening:        sc.opening_line || sc.agent_opening || sc.openingLine || '',
             first_customer_reply: sc.first_customer_reply || sc.firstCustomerReply || '',
             steps:                sc.steps || []
@@ -3320,11 +3456,14 @@
         const body  = (document.getElementById('simscript-body')  || {}).value || '';
         const cat   = (document.getElementById('simscript-category') || {}).value || 'General';
         const diff  = (document.getElementById('simscript-difficulty') || {}).value || 'Medium';
+        const callType = (document.getElementById('simscript-call-type') || {}).value || '';
+        const endReason = (document.getElementById('simscript-end-reason') || {}).value || '';
+        const endNote = (document.getElementById('simscript-end-note') || {}).value || '';
         const statusEl = document.getElementById('simscript-save-status');
         if (!title.trim()) { if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Please enter a script title.</span>'; return; }
         if (!body.trim())  { if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Please enter script content.</span>'; return; }
         if (statusEl) statusEl.innerHTML = '<span class="text-yellow-400"><i class="fas fa-spinner fa-spin mr-1"></i> Saving...</span>';
-        var scriptObj = _parseScriptContent(body, title.trim(), cat.trim(), diff);
+        var scriptObj = _parseScriptContent(body, title.trim(), cat.trim(), diff, callType, endReason, endNote);
         if (_simScriptEditId) scriptObj.id = _simScriptEditId;
         if (typeof window.saveSimScript !== 'function') {
             if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Firebase not ready. Try again.</span>';
@@ -3335,6 +3474,12 @@
             if (statusEl) statusEl.innerHTML = '<span class="text-green-400"><i class="fas fa-check mr-1"></i> Saved!</span>';
             document.getElementById('simscript-title').value = '';
             document.getElementById('simscript-body').value  = '';
+            var callTypeEl = document.getElementById('simscript-call-type');
+            var endReasonEl = document.getElementById('simscript-end-reason');
+            var endNoteEl = document.getElementById('simscript-end-note');
+            if (callTypeEl) callTypeEl.value = '';
+            if (endReasonEl) endReasonEl.value = '';
+            if (endNoteEl) endNoteEl.value = '';
             _simScriptEditId = null;
             simScriptLoadList();
             setTimeout(function(){ if (statusEl) statusEl.innerHTML = ''; }, 4000);
@@ -3348,9 +3493,12 @@
         if (!_simScriptFileContent) { if (statusEl) statusEl.innerHTML = '<span class="text-red-400">No file selected.</span>'; return; }
         const cat  = (document.getElementById('simscript-file-category') || {}).value || 'General';
         const diff = (document.getElementById('simscript-file-difficulty') || {}).value || 'Medium';
+        const callType = (document.getElementById('simscript-file-call-type') || {}).value || '';
+        const endReason = (document.getElementById('simscript-file-end-reason') || {}).value || '';
+        const endNote = (document.getElementById('simscript-file-end-note') || {}).value || '';
         const title = _simScriptFileName || 'Uploaded Script';
         if (statusEl) statusEl.innerHTML = '<span class="text-yellow-400"><i class="fas fa-spinner fa-spin mr-1"></i> Saving...</span>';
-        var scriptObj = _parseScriptContent(_simScriptFileContent, title, cat.trim(), diff);
+        var scriptObj = _parseScriptContent(_simScriptFileContent, title, cat.trim(), diff, callType, endReason, endNote);
         if (typeof window.saveSimScript !== 'function') {
             if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Firebase not ready. Try again.</span>';
             return;
@@ -3364,6 +3512,12 @@
             if (fi) fi.value = '';
             const fn = document.getElementById('simscript-file-name');
             if (fn) fn.textContent = '';
+            var fileCallTypeEl = document.getElementById('simscript-file-call-type');
+            var fileEndReasonEl = document.getElementById('simscript-file-end-reason');
+            var fileEndNoteEl = document.getElementById('simscript-file-end-note');
+            if (fileCallTypeEl) fileCallTypeEl.value = '';
+            if (fileEndReasonEl) fileEndReasonEl.value = '';
+            if (fileEndNoteEl) fileEndNoteEl.value = '';
             simScriptLoadList();
             setTimeout(function(){ if (statusEl) statusEl.innerHTML = ''; }, 4000);
         } else {
@@ -3389,6 +3543,11 @@
         lines.push('TITLE: ' + (sc.title || 'Untitled'));
         lines.push('CATEGORY: ' + (sc.category || 'General'));
         lines.push('DIFFICULTY: ' + (sc.difficulty || 'Medium'));
+        lines.push('CALL TYPE: ' + (sc.call_type || sc.callType || 'Training Call'));
+        var savedEndReason = sc.correct_end_reason || sc.correctEndReason || '';
+        if (savedEndReason) lines.push('CORRECT END REASON: ' + _endReasonLabel(savedEndReason));
+        var savedEndNote = sc.end_call_note || sc.endCallNote || '';
+        if (savedEndNote) lines.push('END CALL COACHING: ' + savedEndNote);
         if (sc.createdAt) lines.push('DATE: ' + new Date(sc.createdAt).toLocaleDateString());
         lines.push('');
         lines.push(sep);
@@ -3474,7 +3633,8 @@
                     '</div>' +
                     '<div class="flex-1 min-w-0">' +
                         '<div class="text-sm font-black text-white truncate">' + (sc.title || 'Untitled') + '</div>' +
-                        '<div class="text-[10px] text-slate-500 mt-0.5">' + stepsCount + ' steps &middot; ' + (sc.category || 'General') + (date ? ' &middot; ' + date : '') + '</div>' +
+                        '<div class="text-[10px] text-slate-500 mt-0.5">' + stepsCount + ' steps &middot; ' + (sc.category || 'General') + ' &middot; ' + (sc.call_type || sc.callType || 'Training Call') + (date ? ' &middot; ' + date : '') + '</div>' +
+                        '<div class="text-[9px] text-cyan-400/80 mt-1">Correct ending: ' + _endReasonLabel(sc.correct_end_reason || sc.correctEndReason || '') + '</div>' +
                     '</div>' +
                     '<span class="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-full border flex-shrink-0 ' + dc + '">' + diff + '</span>' +
                     '<button onclick="simScriptDownload(\'' + sc.id + '\')" class="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-green-500/10 hover:bg-green-500/25 border border-green-500/20 hover:border-green-500/40 text-green-400 transition active:scale-90" title="Download .txt">' +
