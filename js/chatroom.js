@@ -71,7 +71,7 @@
     let _localMessageIds = new Set();
     let _crReactions = {};
     let _crPinnedMessages = {};
-    let _crNotificationSettings = {};
+    let _crNotificationSettings = { muted: false };
     let _crMediaRecorder = null;
     let _crAudioChunks = [];
     let _crIsRecording = false;
@@ -309,8 +309,67 @@
 
     // ═══════════════════════════════════════════
     // SOUND SYSTEM
+    // Each user controls their own notification sound on this device.
     // ═══════════════════════════════════════════
+    function _isChatMuted() {
+        return _crNotificationSettings.muted === true;
+    }
+
+    function _getNotificationSettingsStorageKey() {
+        const me = _getMyIdentity();
+        return me && me.id ? `${NOTIF_SETTINGS_KEY}_${me.id}` : NOTIF_SETTINGS_KEY;
+    }
+
+    function _saveNotificationSettings() {
+        try {
+            localStorage.setItem(_getNotificationSettingsStorageKey(), JSON.stringify(_crNotificationSettings));
+        } catch(e) {}
+    }
+
+    function _muteButtonHtml(compact = false) {
+        const muted = _isChatMuted();
+        const label = muted ? 'Unmute' : 'Mute';
+        const icon = muted ? '🔇' : '🔊';
+        const compactStyle = compact
+            ? `min-height:30px;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:5px 8px;border-radius:8px;background:${muted ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.05)'};border:1px solid ${muted ? 'rgba(245,158,11,0.35)' : 'rgba(255,255,255,0.1)'};color:${muted ? '#fbbf24' : '#94a3b8'};font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;`
+            : '';
+        return `<button class="cr-mute-btn${muted ? ' is-muted' : ''}" data-compact="${compact}" onclick="window._crToggleMute()" aria-pressed="${muted}" title="${label} chat notification sounds" style="${compactStyle}"><span class="cr-mute-icon">${icon}</span><span class="cr-mute-label">${label}</span></button>`;
+    }
+
+    function _updateMuteButtons() {
+        const muted = _isChatMuted();
+        document.querySelectorAll('.cr-mute-btn').forEach(btn => {
+            btn.classList.toggle('is-muted', muted);
+            btn.setAttribute('aria-pressed', String(muted));
+            btn.setAttribute('title', `${muted ? 'Unmute' : 'Mute'} chat notification sounds`);
+            const icon = btn.querySelector('.cr-mute-icon');
+            const label = btn.querySelector('.cr-mute-label');
+            if (icon) icon.textContent = muted ? '🔇' : '🔊';
+            if (label) label.textContent = muted ? 'Unmute' : 'Mute';
+            if (btn.dataset.compact === 'true') {
+                btn.style.background = muted ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.05)';
+                btn.style.borderColor = muted ? 'rgba(245,158,11,0.35)' : 'rgba(255,255,255,0.1)';
+                btn.style.color = muted ? '#fbbf24' : '#94a3b8';
+            }
+        });
+    }
+
+    window._crToggleMute = function() {
+        _crNotificationSettings.muted = !_isChatMuted();
+        _saveNotificationSettings();
+
+        if (_crNotificationSettings.muted && _crAudioCtx && _crAudioCtx.state === 'running') {
+            _crAudioCtx.suspend().catch(() => {});
+        } else if (!_crNotificationSettings.muted && _crAudioCtx && _crAudioCtx.state === 'suspended') {
+            _crAudioCtx.resume().catch(() => {});
+        }
+
+        _updateMuteButtons();
+    };
+
     function _playNotificationSound() {
+        if (_isChatMuted()) return;
+
         try {
             if (!_crAudioCtx) _crAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const ctx = _crAudioCtx;
@@ -700,9 +759,18 @@
     // ═══════════════════════════════════════════
     function _loadNotificationSettings() {
         try {
-            const saved = localStorage.getItem(NOTIF_SETTINGS_KEY);
-            if (saved) _crNotificationSettings = JSON.parse(saved);
-        } catch(e) {}
+            const storageKey = _getNotificationSettingsStorageKey();
+            const saved = localStorage.getItem(storageKey) || localStorage.getItem(NOTIF_SETTINGS_KEY);
+            const parsed = saved ? JSON.parse(saved) : {};
+            _crNotificationSettings = {
+                ..._crNotificationSettings,
+                ...(parsed && typeof parsed === 'object' ? parsed : {}),
+                muted: !!(parsed && parsed.muted === true)
+            };
+        } catch(e) {
+            _crNotificationSettings = { ..._crNotificationSettings, muted: false };
+        }
+        _updateMuteButtons();
     }
 
     function _listenToGeneralChat(me) {
@@ -1417,6 +1485,7 @@
                     </div>
                 </div>
                 <div class="cr-chat-actions" style="display:flex;gap:4px;">
+                    ${_muteButtonHtml()}
                     <button class="cr-search-btn" onclick="window._crToggleSearch()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:#94a3b8;cursor:pointer;font-size:12px;">🔍</button>
                     <button id="cr-members-toggle-btn" onclick="window._crToggleGroupMembers('${channelId}')" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:6px 10px;color:#10b981;cursor:pointer;font-size:12px;font-weight:700;">👥 Members</button>
                     <button class="cr-clear-chat-btn" onclick="window._crClearPrivateChat('${channelId}')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#ef4444;padding:6px 12px;font-size:10px;font-weight:900;cursor:pointer;">🗑️ Clear</button>
@@ -2492,6 +2561,7 @@
                     </div>
                 </div>
                 <div class="cr-chat-actions" style="display:flex;gap:4px;">
+                    ${_muteButtonHtml()}
                     <button class="cr-search-btn" onclick="window._crToggleSearch()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:#94a3b8;cursor:pointer;font-size:12px;">🔍</button>
                 </div>
             </div>
@@ -2578,6 +2648,7 @@
                     </div>
                 </div>
                 <div class="cr-chat-actions" style="display:flex;gap:4px;">
+                    ${_muteButtonHtml()}
                     <button class="cr-search-btn" onclick="window._crToggleSearch()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:#94a3b8;cursor:pointer;font-size:12px;">🔍</button>
                     <button class="cr-clear-chat-btn" onclick="window._crClearPrivateChat('${channelId}')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#ef4444;padding:6px 12px;font-size:10px;font-weight:900;cursor:pointer;">🗑️ Clear</button>
                 </div>
@@ -3022,7 +3093,10 @@
         fw.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(16,185,129,0.15);border-bottom:1px solid rgba(16,185,129,0.3);cursor:pointer;">
                 <div style="font-family:Orbitron,sans-serif;font-size:11px;font-weight:900;color:#10b981;text-transform:uppercase;">💬 Chat</div>
-                <button id="cr-float-close" style="background:transparent;border:none;color:#94a3b8;font-size:14px;cursor:pointer;">✕</button>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    ${_muteButtonHtml(true)}
+                    <button id="cr-float-close" style="background:transparent;border:none;color:#94a3b8;font-size:14px;cursor:pointer;">✕</button>
+                </div>
             </div>
             <div id="cr-float-quick-actions" style="display:flex;gap:6px;padding:8px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;">
                 <button onclick="window._crFloatSendQuickAction('come_quick')" style="background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.4);border-radius:16px;padding:4px 10px;color:#f87171;font-size:9px;font-weight:700;cursor:pointer;">🚨 Come Quick</button>
@@ -3556,6 +3630,8 @@
     // ═══════════════════════════════════════════
     // INITIALIZE ON PAGE LOAD
     // ═══════════════════════════════════════════
+    _loadNotificationSettings();
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             _initFloatingWidget();
