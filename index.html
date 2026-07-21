@@ -775,6 +775,69 @@
             .dashboard-title { font-size: 29px; }
             .workspace-tab-title { font-size: 7px; }
         }
+
+        /* Final dashboard navigation styling — matches the original colorful BIZ layout. */
+        .dashboard-compact-nav {
+            max-width: 760px;
+        }
+        .dashboard-nav-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .workspace-tab,
+        .workspace-tab[data-span="full"] {
+            grid-column: auto !important;
+            min-height: 46px;
+            padding: 10px 12px !important;
+            border-radius: 12px !important;
+            background: #0b1120 !important;
+            border-color: rgba(var(--tab-rgb), .32) !important;
+            color: var(--tab-accent) !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.018) !important;
+        }
+        .workspace-tab:hover {
+            background: rgba(var(--tab-rgb), .10) !important;
+            border-color: rgba(var(--tab-rgb), .72) !important;
+            color: var(--tab-accent) !important;
+            transform: translateY(-1px);
+        }
+        .workspace-tab.tab-active {
+            background: #063b68 !important;
+            border-color: #00a7ff !important;
+            color: #ffffff !important;
+            box-shadow: none !important;
+        }
+        .workspace-tab[data-text="muted"]:not(.tab-active) {
+            color: #64748b !important;
+        }
+        .workspace-tab[data-text="muted"]:not(.tab-active) .workspace-tab-icon {
+            color: #64748b !important;
+        }
+        .workspace-tab-icon {
+            color: currentColor;
+            font-size: 12px;
+        }
+        .workspace-tab-title {
+            color: currentColor;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 13px;
+            font-weight: 900;
+            line-height: 1.15;
+            letter-spacing: .018em;
+            text-transform: uppercase;
+        }
+        #tab-adminpanel { --tab-accent:#fb7185; --tab-rgb:251,113,133; }
+        #tab-tracker { --tab-accent:#818cf8; --tab-rgb:129,140,248; }
+        #tab-superadminpanel { --tab-accent:#facc15; --tab-rgb:250,204,21; }
+        @media (max-width: 580px) {
+            .dashboard-nav-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .workspace-tab { padding: 9px 5px !important; }
+            .workspace-tab-title { font-size: 9px; letter-spacing: .005em; }
+            .workspace-tab-icon { font-size: 9px; }
+        }
+        @media (max-width: 390px) {
+            .workspace-tab-title { font-size: 7.5px; }
+        }
     </style>
 </head>
 <body class="p-4 pb-20 role-pending">
@@ -1229,10 +1292,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 <button onclick="switchTab('daily')" id="tab-daily" class="workspace-tab tab-active" data-accent="cyan">
                     <span class="workspace-tab-title">Daily</span>
                 </button>
-                <button onclick="switchTab('lookup')" id="tab-lookup" class="workspace-tab" data-accent="indigo">
+                <button onclick="switchTab('lookup')" id="tab-lookup" class="workspace-tab" data-accent="indigo" data-text="muted">
                     <span class="workspace-tab-icon"><i class="fas fa-search"></i></span><span class="workspace-tab-title">Lookup</span>
                 </button>
-                <button onclick="switchTab('playbook')" id="tab-playbook" class="workspace-tab" data-accent="amber">
+                <button onclick="switchTab('playbook')" id="tab-playbook" class="workspace-tab" data-accent="amber" data-text="muted">
                     <span class="workspace-tab-title">Playbook</span>
                 </button>
 
@@ -1242,7 +1305,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <button onclick="switchTab('prank')" id="tab-prank" class="workspace-tab" data-accent="violet">
                     <span class="workspace-tab-icon">🚨</span><span class="workspace-tab-title">Prank</span>
                 </button>
-                <button onclick="requestWeekly()" id="tab-weekly" class="workspace-tab" data-accent="cyan">
+                <button onclick="requestWeekly()" id="tab-weekly" class="workspace-tab" data-accent="cyan" data-text="muted">
                     <span class="workspace-tab-icon"><i class="fas fa-lock"></i></span><span class="workspace-tab-title">Weekly</span>
                 </button>
 
@@ -1257,13 +1320,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 </button>
 
                 <!-- Role-gated workspaces: hidden until the access controller authorizes them. -->
-                <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden workspace-tab" data-accent="red" data-span="full" aria-disabled="true">
+                <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden workspace-tab" data-accent="red" aria-disabled="true">
                     <span class="workspace-tab-icon"><i class="fas fa-shield-halved"></i></span><span class="workspace-tab-title">Admin Tools</span>
                 </button>
-                <button onclick="switchTab('tracker')" id="tab-tracker" class="hidden workspace-tab" data-accent="indigo" data-span="full" aria-disabled="true">
+                <button onclick="switchTab('tracker')" id="tab-tracker" class="hidden workspace-tab" data-accent="indigo" aria-disabled="true">
                     <span class="workspace-tab-icon"><i class="fas fa-clipboard-check"></i></span><span class="workspace-tab-title">My Tracker</span>
                 </button>
-                <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden workspace-tab" data-accent="gold" data-span="full" aria-disabled="true">
+                <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden workspace-tab" data-accent="gold" aria-disabled="true">
                     <span class="workspace-tab-icon"><i class="fas fa-crown"></i></span><span class="workspace-tab-title">Super Admin</span>
                 </button>
             </div>
