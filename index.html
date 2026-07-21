@@ -838,6 +838,183 @@
         @media (max-width: 390px) {
             .workspace-tab-title { font-size: 7.5px; }
         }
+
+
+        /* ── FINAL TOP SECTION — MATCHES THE APPROVED BIZ DASHBOARD HEADER ── */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 7px;
+            z-index: 999;
+            pointer-events: none;
+            background: linear-gradient(90deg,
+                rgba(127,29,29,.18) 0%,
+                rgba(239,68,68,.58) 18%,
+                rgba(248,113,113,.76) 50%,
+                rgba(239,68,68,.58) 82%,
+                rgba(127,29,29,.18) 100%);
+            box-shadow: 0 0 18px rgba(239,68,68,.65), 0 8px 28px rgba(127,29,29,.28);
+        }
+        #agent-session-banner {
+            width: calc(100% - 32px);
+            max-width: 1100px !important;
+            margin: 17px auto 17px !important;
+            min-height: 41px;
+        }
+        .biz-session-card {
+            min-height: 41px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 8px 14px;
+            border: 1px solid rgba(148,163,184,.34);
+            border-radius: 11px;
+            background: linear-gradient(180deg, rgba(30,41,59,.96), rgba(25,35,51,.96));
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 8px 24px rgba(0,0,0,.16);
+        }
+        .biz-session-label {
+            flex: 0 0 auto;
+            color: #22c55e;
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: .085em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .biz-session-card.is-admin .biz-session-label { color: #38bdf8; }
+        .biz-session-details {
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 14px;
+            flex-wrap: wrap;
+            color: #d7deea;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .biz-session-detail { white-space: nowrap; }
+        .biz-session-key { color: #94a3b8; font-weight: 900; }
+        .biz-session-lunch {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 7px;
+            border: 1px solid rgba(250,204,21,.38);
+            border-radius: 6px;
+            background: rgba(250,204,21,.14);
+            color: #facc15;
+            font-weight: 900;
+        }
+        .main-container {
+            max-width: 1600px !important;
+        }
+        .dashboard-shell {
+            max-width: 1540px !important;
+            margin: 0 auto 28px !important;
+        }
+        .dashboard-topbar {
+            min-height: 58px;
+            margin: 0 0 27px !important;
+            padding: 0 3px !important;
+            align-items: center !important;
+        }
+        .dashboard-live-block { gap: 15px !important; }
+        .dashboard-live-title {
+            font-size: 14px !important;
+            letter-spacing: .095em !important;
+            color: #ff4747 !important;
+        }
+        .dashboard-live-meta {
+            margin-top: 7px !important;
+            font-size: 15px !important;
+            letter-spacing: .01em !important;
+            color: #5f78a5 !important;
+        }
+        .dashboard-topbar .live-pulse {
+            width: 12px;
+            height: 12px;
+            margin-right: 8px;
+            background: #f04444;
+            box-shadow: 0 0 16px rgba(239,68,68,.28);
+        }
+        .dashboard-user-card { display: none !important; }
+        .dashboard-topbar-actions { gap: 0 !important; }
+        .dashboard-refresh {
+            width: 55px !important;
+            height: 57px !important;
+            border-radius: 15px !important;
+            background: rgba(15,23,42,.56) !important;
+            border: 1px solid rgba(148,163,184,.16) !important;
+        }
+        .dashboard-refresh i { font-size: 17px !important; }
+        .dashboard-title-area {
+            margin: 0 auto 39px !important;
+            text-align: center;
+        }
+        .dashboard-title {
+            font-size: clamp(48px, 5.8vw, 72px) !important;
+            line-height: .96 !important;
+            letter-spacing: -.058em !important;
+            filter: drop-shadow(0 8px 20px rgba(249,115,22,.08));
+        }
+        .dashboard-clocks {
+            gap: 18px !important;
+            margin-top: 16px !important;
+        }
+        .dashboard-clock-card {
+            min-width: 232px !important;
+            min-height: 70px;
+            padding: 9px 20px !important;
+            gap: 12px !important;
+            border-radius: 15px !important;
+            background: rgba(15,23,42,.72) !important;
+            border-color: rgba(148,163,184,.18) !important;
+        }
+        .dashboard-clock-code {
+            font-size: 11px !important;
+            opacity: .92;
+        }
+        .dashboard-clock-place {
+            font-size: 9px !important;
+            color: #60779e !important;
+        }
+        .dashboard-clock-time {
+            margin-top: 2px !important;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 25px !important;
+            letter-spacing: .01em !important;
+        }
+        @media (max-width: 900px) {
+            #agent-session-banner { width: calc(100% - 20px); }
+            .biz-session-card { align-items: flex-start; }
+            .biz-session-details { justify-content: flex-start; gap: 9px 13px; }
+            .dashboard-shell { max-width: 100% !important; }
+            .dashboard-live-title { font-size: 12px !important; }
+            .dashboard-live-meta { font-size: 12px !important; }
+        }
+        @media (max-width: 620px) {
+            #agent-session-banner { margin-top: 12px !important; }
+            .biz-session-card { display: block; padding: 10px 12px; }
+            .biz-session-label { margin-bottom: 7px; }
+            .biz-session-details { display: grid; grid-template-columns: 1fr 1fr; }
+            .dashboard-topbar { min-height: 52px; margin-bottom: 22px !important; }
+            .dashboard-live-meta { white-space: normal; }
+            .dashboard-refresh { width: 48px !important; height: 49px !important; }
+            .dashboard-title { font-size: clamp(34px, 10.8vw, 52px) !important; }
+            .dashboard-clock-card { min-width: 0 !important; flex: 1 1 145px; min-height: 60px; padding: 8px 10px !important; }
+            .dashboard-clock-time { font-size: 18px !important; }
+        }
+        @media (max-width: 430px) {
+            .biz-session-details { grid-template-columns: 1fr; }
+            .dashboard-live-title { font-size: 10px !important; }
+            .dashboard-live-meta { font-size: 10px !important; }
+            .dashboard-title { font-size: 30px !important; }
+        }
     </style>
 </head>
 <body class="p-4 pb-20 role-pending">
