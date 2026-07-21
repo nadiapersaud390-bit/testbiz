@@ -1,0 +1,6 @@
+ADMIN PERMISSIONS UPDATE
+
+- Added Call Simulator to the Edit Admin tab visibility controls.
+- Added My Tracker to the tab visibility controls so every regular-admin workspace can be managed from the same screen.
+- Both permissions save through the existing hiddenTabs Firebase field.
+- Increased the Super Admin panel cache version so the new controls appear immediately after deployment.
