@@ -1,0 +1,9 @@
+ANNOUNCEMENT CONFIRMATION UPDATE
+
+- Super Admin can send important announcements to agents, admins, or everyone.
+- Acknowledgement can be required; the popup cannot be closed until confirmed.
+- Each confirmation is written to Firebase with name, role, and timestamp.
+- Super Admin has a live Sent / Confirmed / Pending report.
+- Recipient filters show who acknowledged and who is still pending.
+- Announcement history preserves prior reports and confirmation progress.
+- Active announcements can be closed without deleting their history.

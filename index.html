@@ -1388,13 +1388,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <div id="agent-session-banner" style="max-width:980px;margin:8px auto 12px;"></div>
 
-<script type="module" src="js/firebase.js?v=6"></script>
+<script type="module" src="js/firebase.js?v=7"></script>
 
-<div id="broadcast-bar">
+<div id="broadcast-bar" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="bc-title">
+  <div class="bc-backdrop"></div>
   <div class="bc-inner">
-    <span class="bc-icon">📢</span>
-    <div class="bc-text" id="bc-message-text">Admin message here</div>
-    <button class="bc-close" onclick="dismissBroadcast()" title="Close">✕</button>
+    <div class="bc-topline"></div>
+    <div class="bc-heading-row">
+      <div class="bc-icon-wrap"><i class="fas fa-bullhorn"></i></div>
+      <div class="bc-heading-copy">
+        <div class="bc-label" id="bc-type-label">ACKNOWLEDGEMENT REQUIRED</div>
+        <h2 class="bc-title" id="bc-title">Important Announcement</h2>
+      </div>
+      <button class="bc-close" id="bc-close-btn" onclick="dismissBroadcast()" title="Close announcement" aria-label="Close announcement"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="bc-message" id="bc-message-text">Administration has posted an announcement.</div>
+    <div class="bc-meta"><span id="bc-sender">From Administration</span><span class="bc-meta-dot"></span><span id="bc-time"></span></div>
+    <div class="bc-actions">
+      <div class="bc-confirm-copy"><i class="fas fa-shield-alt"></i><span>Your confirmation is recorded in Firebase.</span></div>
+      <button id="bc-ack-btn" class="bc-ack-btn" onclick="acknowledgeAnnouncement()"><i class="fas fa-check-circle"></i><span>I ACKNOWLEDGE</span></button>
+    </div>
   </div>
 </div>
 
@@ -1406,14 +1419,14 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 </div>
 
-<button id="bc-admin-btn" class="hidden" onclick="toggleBcPanel()" title="Broadcast Admin">📣</button>
+<button id="bc-admin-btn" class="hidden" onclick="toggleBcPanel()" title="Quick Announcement">📣</button>
 <button id="bc-float-btn" onclick="toggleBcPanel()" title="Admin Panel">📣</button>
 
 <div id="bc-panel">
-  <div class="bc-panel-title"><span>📢</span> Admin Broadcast</div>
-  <textarea id="bc-input" class="bc-msg-input" rows="3" placeholder="Type your message to everyone..."></textarea>
-  <button class="bc-send-btn" onclick="sendBroadcast()">⚡ Send to Everyone</button>
-  <button class="bc-clear-btn" onclick="clearBroadcast()">🗑 Clear Message</button>
+  <div class="bc-panel-title"><span>📢</span> Quick Announcement</div>
+  <textarea id="bc-input" class="bc-msg-input" rows="3" placeholder="Type an important message to all agents..."></textarea>
+  <button class="bc-send-btn" onclick="sendBroadcast()">⚡ Send to Agents</button>
+  <button class="bc-clear-btn" onclick="clearBroadcast()">🗑 Close Active Announcement</button>
   <button class="bc-clear-btn" onclick="dismissLeadAlert()" style="margin-top:4px;color:#c084fc;border-color:rgba(168,85,247,0.3);">🔥 Clear Lead Alert</button>
   <div id="bc-status" class="bc-status"></div>
 </div>
@@ -1609,7 +1622,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div id="trivia-view" class="hidden" data-tab-src="tabs/trivia.html"></div>
     <div id="chatroom-view" class="hidden" data-tab-src="tabs/chatroom.html"></div>
     <div id="adminpanel-view" class="hidden" data-tab-src="tabs/adminpanel.html"></div>
-    <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html?v=5"></div>
+    <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html?v=6"></div>
     <div id="agentstats-view" class="hidden" data-tab-src="tabs/agentstats.html"></div>
     <div id="tracker-view" class="hidden" data-tab-src="tabs/tracker.html"></div>
     <div id="simulator-view" class="hidden" data-tab-src="tabs/simulator.html?v=3"></div>
@@ -1624,7 +1637,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="js/lookup.js?v=2"></script>
 <script src="js/trivia.js"></script>
 <script src="js/leadalerts.js?v=5"></script>
-<script src="js/broadcast.js?v=3"></script>
+<script src="js/broadcast.js?v=4"></script>
 <script src="js/topperformer.js"></script>
 <script src="js/agentstats.js"></script>
 <script src="js/super-admin.js?v=4"></script>

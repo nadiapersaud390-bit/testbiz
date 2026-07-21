@@ -449,86 +449,393 @@ window.deleteRebuttal = async function(id) {
 
 
 
-// ========== BROADCAST FUNCTIONS ==========
+// ========== ANNOUNCEMENTS + CONFIRMATION (RTDB) ==========
+// Data model:
+// announcements/current                  -> active announcement shown on dashboards
+// announcements/history/{announcementId} -> permanent copy with recipient confirmation state
+// Each recipient is snapshotted at send time so Super Admin can see exactly who
+// acknowledged and who is still pending.
 
-// Function to show broadcast bar
-function showBroadcastBar(message) {
-    const broadcastBar = document.getElementById('broadcast-bar');
-    const broadcastText = document.getElementById('bc-message-text');
-    
-    if (broadcastBar && broadcastText) {
-        broadcastText.textContent = message || 'Admin message';
-        broadcastBar.style.display = 'block';
-        
-        // Auto-hide after 10 seconds
-        setTimeout(() => {
-            if (broadcastBar) {
-                broadcastBar.style.display = 'none';
-            }
-        }, 10000);
-    }
+let _activeAnnouncementId = '';
+let _currentAnnouncement = null;
+let _currentAnnouncementRecipientKey = '';
+
+function announcementSafeKey(value) {
+    return String(value || 'unknown')
+        .trim()
+        .toLowerCase()
+        .replace(/[.#$\[\]\/]/g, '_')
+        .replace(/\s+/g, '_')
+        .slice(0, 120) || 'unknown';
 }
 
-// Function to hide broadcast bar
+function normalizeAnnouncementIdentity(value) {
+    return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function getCurrentAnnouncementUser() {
+    const role = sessionStorage.getItem('bizUserRole') || '';
+    if (role === 'agent') {
+        let profile = {};
+        try { profile = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}'); } catch (e) {}
+        const id = String(profile.ytelId || profile.userId || profile.id || profile.email || profile.name || '').trim();
+        return {
+            key: 'agent_' + announcementSafeKey(id),
+            id,
+            name: profile.name || profile.fullName || sessionStorage.getItem('currentAgentName') || 'Agent',
+            role: 'agent',
+            email: profile.email || ''
+        };
+    }
+
+    if (role === 'admin') {
+        let admin = {};
+        try { admin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch (e) {}
+        const id = String(admin.email || admin.username || admin.name || '').trim();
+        return {
+            key: 'admin_' + announcementSafeKey(id),
+            id,
+            name: admin.name || admin.email || 'Administrator',
+            role: admin.role === 'super_admin' || admin.isSuper ? 'super_admin' : 'admin',
+            email: admin.email || ''
+        };
+    }
+
+    return { key: '', id: '', name: '', role: role || 'guest', email: '' };
+}
+
+function audienceIncludesUser(audience, user) {
+    if (!user || !user.key) return false;
+    if (!audience || audience === 'all') return user.role === 'agent' || user.role === 'admin' || user.role === 'super_admin';
+    if (audience === 'agents') return user.role === 'agent';
+    if (audience === 'admins') return user.role === 'admin' || user.role === 'super_admin';
+    return false;
+}
+
+function resolveAnnouncementRecipientKey(announcement, user) {
+    if (!announcement || !user || !user.key) return '';
+    const recipients = announcement.recipients || {};
+    if (recipients[user.key]) return user.key;
+
+    const userIds = [user.id, user.email, user.name].map(normalizeAnnouncementIdentity).filter(Boolean);
+    const match = Object.entries(recipients).find(([, recipient]) => {
+        if (!recipient) return false;
+        if (recipient.role && user.role === 'agent' && recipient.role !== 'agent') return false;
+        if (recipient.role && user.role !== 'agent' && recipient.role === 'agent') return false;
+        const recipientIds = [recipient.id, recipient.email, recipient.name]
+            .map(normalizeAnnouncementIdentity)
+            .filter(Boolean);
+        return userIds.some(id => recipientIds.includes(id));
+    });
+    return match ? match[0] : '';
+}
+
+function formatAnnouncementTime(timestamp) {
+    if (!timestamp) return '';
+    try {
+        return new Date(timestamp).toLocaleString('en-US', {
+            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+        });
+    } catch (e) { return ''; }
+}
+
+function showBroadcastBar(announcementOrMessage) {
+    const announcement = typeof announcementOrMessage === 'string'
+        ? { id: 'legacy', title: 'Announcement', message: announcementOrMessage, requireAck: false, sentBy: 'Administration', timestamp: Date.now() }
+        : (announcementOrMessage || {});
+
+    const bar = document.getElementById('broadcast-bar');
+    const titleEl = document.getElementById('bc-title');
+    const textEl = document.getElementById('bc-message-text');
+    const senderEl = document.getElementById('bc-sender');
+    const timeEl = document.getElementById('bc-time');
+    const ackBtn = document.getElementById('bc-ack-btn');
+    const closeBtn = document.getElementById('bc-close-btn');
+    const labelEl = document.getElementById('bc-type-label');
+    if (!bar || !textEl) return;
+
+    if (titleEl) titleEl.textContent = announcement.title || 'Important Announcement';
+    textEl.textContent = announcement.message || 'Administration has posted an announcement.';
+    if (senderEl) senderEl.textContent = announcement.sentBy ? `From ${announcement.sentBy}` : 'From Administration';
+    if (timeEl) timeEl.textContent = formatAnnouncementTime(announcement.timestamp || announcement.createdAt);
+    if (labelEl) labelEl.textContent = announcement.requireAck === false ? 'TEAM ANNOUNCEMENT' : 'ACKNOWLEDGEMENT REQUIRED';
+
+    if (ackBtn) {
+        ackBtn.style.display = announcement.requireAck === false ? 'none' : 'inline-flex';
+        ackBtn.disabled = false;
+        ackBtn.innerHTML = '<i class="fas fa-check-circle"></i><span>I ACKNOWLEDGE</span>';
+    }
+    if (closeBtn) closeBtn.style.display = announcement.requireAck === false ? 'inline-flex' : 'none';
+
+    bar.classList.add('show');
+    bar.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('announcement-open');
+}
+
 function hideBroadcastBar() {
-    const broadcastBar = document.getElementById('broadcast-bar');
-    if (broadcastBar) {
-        broadcastBar.style.display = 'none';
+    const bar = document.getElementById('broadcast-bar');
+    if (bar) {
+        bar.classList.remove('show');
+        bar.setAttribute('aria-hidden', 'true');
     }
+    document.body.classList.remove('announcement-open');
 }
 
-// Listen for broadcast messages from Firebase
-function listenForBroadcasts() {
-    if (!database) {
-        console.warn("Firebase not initialized, skipping broadcast listener");
+function dismissBroadcast() {
+    if (_currentAnnouncement && _currentAnnouncement.id && _currentAnnouncement.requireAck === false) {
+        localStorage.setItem('biz_announcement_ack_' + _currentAnnouncement.id, String(Date.now()));
+    }
+    hideBroadcastBar();
+}
+
+async function buildAnnouncementRecipients(audience) {
+    const recipients = {};
+
+    if (audience === 'all' || audience === 'agents') {
+        const rosterSnap = await get(ref(database, 'biz_master_roster'));
+        let roster = rosterSnap.val() || [];
+        if (!Array.isArray(roster)) roster = Object.values(roster);
+        roster.filter(Boolean).forEach(agent => {
+            if (String(agent.status || '').toLowerCase() === 'inactive') return;
+            const id = String(agent.userId || agent.ytelId || agent.id || agent.email || agent.fullName || agent.name || '').trim();
+            if (!id) return;
+            const key = 'agent_' + announcementSafeKey(id);
+            recipients[key] = {
+                id,
+                name: agent.fullName || agent.name || id,
+                email: agent.email || '',
+                role: 'agent',
+                team: agent.team || '',
+                acknowledged: false,
+                acknowledgedAt: null
+            };
+        });
+    }
+
+    if (audience === 'all' || audience === 'admins') {
+        const [adminsSnap, superSnap] = await Promise.all([
+            get(ref(database, 'admins_list')),
+            get(ref(database, 'super_admin'))
+        ]);
+        const admins = adminsSnap.val() || {};
+        Object.entries(admins).forEach(([adminKey, admin]) => {
+            if (!admin) return;
+            const id = String(admin.email || adminKey || admin.name || '').trim();
+            if (!id) return;
+            const key = 'admin_' + announcementSafeKey(id);
+            recipients[key] = {
+                id,
+                name: admin.name || admin.email || adminKey,
+                email: admin.email || adminKey,
+                role: 'admin',
+                acknowledged: false,
+                acknowledgedAt: null
+            };
+        });
+        const superAdmin = superSnap.val();
+        if (superAdmin) {
+            const id = String(superAdmin.email || superAdmin.username || superAdmin.name || 'superadmin').trim();
+            const key = 'admin_' + announcementSafeKey(id);
+            recipients[key] = {
+                id,
+                name: superAdmin.name || superAdmin.email || 'Super Admin',
+                email: superAdmin.email || '',
+                role: 'super_admin',
+                acknowledged: false,
+                acknowledgedAt: null
+            };
+        }
+    }
+
+    return recipients;
+}
+
+window.sendAnnouncement = async function(options = {}) {
+    if (!database) return { success: false, error: 'Firebase database is not initialized.' };
+    const message = String(options.message || '').trim();
+    const title = String(options.title || 'Important Announcement').trim();
+    const audience = ['all', 'agents', 'admins'].includes(options.audience) ? options.audience : 'agents';
+    const requireAck = options.requireAck !== false;
+    if (!message) return { success: false, error: 'Announcement message is required.' };
+
+    try {
+        const previousSnap = await get(ref(database, 'announcements/current'));
+        const previous = previousSnap.val();
+        if (previous && previous.id) {
+            await update(ref(database, `announcements/history/${previous.id}`), {
+                status: 'closed',
+                closedAt: Date.now(),
+                closedReason: 'replaced'
+            });
+        }
+        const newRef = push(ref(database, 'announcements/history'));
+        const id = newRef.key;
+        const recipients = await buildAnnouncementRecipients(audience);
+        const sender = options.sentBy || getCurrentAnnouncementUser().name || 'Super Admin';
+        const announcement = {
+            id,
+            title,
+            message,
+            audience,
+            requireAck,
+            sentBy: sender,
+            timestamp: Date.now(),
+            status: 'active',
+            recipientCount: Object.keys(recipients).length,
+            recipients
+        };
+        await Promise.all([
+            set(newRef, announcement),
+            set(ref(database, 'announcements/current'), announcement)
+        ]);
+        return { success: true, id, recipientCount: announcement.recipientCount };
+    } catch (error) {
+        console.error('sendAnnouncement failed:', error);
+        return { success: false, error: error.message || 'Firebase save failed.' };
+    }
+};
+
+async function acknowledgeAnnouncement() {
+    if (!_currentAnnouncement || !_currentAnnouncement.id) return;
+    const user = getCurrentAnnouncementUser();
+    if (!user.key) {
+        alert('Your logged-in profile could not be identified. Please sign out and log in again.');
         return;
     }
-    
-    const broadcastsRef = ref(database, 'broadcasts/latest');
-    
-    onValue(broadcastsRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.message) {
-            showBroadcastBar(data.message);
+
+    const ackBtn = document.getElementById('bc-ack-btn');
+    if (ackBtn) {
+        ackBtn.disabled = true;
+        ackBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>SAVING...</span>';
+    }
+
+    const recipientKey = _currentAnnouncementRecipientKey || user.key;
+    const ackData = {
+        acknowledged: true,
+        acknowledgedAt: Date.now(),
+        acknowledgedBy: user.name,
+        id: user.id,
+        name: user.name,
+        email: user.email || '',
+        role: user.role
+    };
+
+    try {
+        const paths = {};
+        paths[`announcements/current/recipients/${recipientKey}`] = {
+            ...((_currentAnnouncement.recipients || {})[recipientKey] || {}),
+            ...ackData
+        };
+        paths[`announcements/history/${_currentAnnouncement.id}/recipients/${recipientKey}`] = {
+            ...((_currentAnnouncement.recipients || {})[recipientKey] || {}),
+            ...ackData
+        };
+        await update(ref(database), paths);
+        localStorage.setItem('biz_announcement_ack_' + _currentAnnouncement.id, String(Date.now()));
+        hideBroadcastBar();
+    } catch (error) {
+        console.error('acknowledgeAnnouncement failed:', error);
+        if (ackBtn) {
+            ackBtn.disabled = false;
+            ackBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i><span>RETRY ACKNOWLEDGEMENT</span>';
         }
-    }, (error) => {
-        console.error("Broadcast listener error:", error);
-    });
+        alert('Your acknowledgement could not be saved. Please check the connection and try again.');
+    }
 }
 
-// Send broadcast message (admin function)
-async function sendBroadcastMessage(message, adminId) {
-    if (!database) {
-        console.warn("Firebase not initialized");
-        alert("Firebase not configured. Using localStorage fallback.");
-        
-        // Fallback to localStorage
-        const broadcast = {
-            message: message,
-            timestamp: new Date().toISOString(),
-            sentBy: adminId || 'admin'
-        };
-        localStorage.setItem('biz_broadcast', JSON.stringify(broadcast));
-        showBroadcastBar(message);
-        return true;
-    }
-    
+window.acknowledgeAnnouncement = acknowledgeAnnouncement;
+
+window.clearCurrentAnnouncement = async function() {
+    if (!database) return { success: false, error: 'Firebase database is not initialized.' };
     try {
-        const broadcastData = {
-            message: message,
-            timestamp: Date.now(),
-            sentBy: adminId || 'admin'
-        };
-        
-        await set(ref(database, 'broadcasts/latest'), broadcastData);
-        console.log("Broadcast sent successfully");
-        showBroadcastBar(message);
-        return true;
+        const currentSnap = await get(ref(database, 'announcements/current'));
+        const current = currentSnap.val();
+        if (current && current.id) {
+            await update(ref(database, `announcements/history/${current.id}`), {
+                status: 'closed',
+                closedAt: Date.now()
+            });
+        }
+        await remove(ref(database, 'announcements/current'));
+        hideBroadcastBar();
+        return { success: true };
     } catch (error) {
-        console.error("Error sending broadcast:", error);
-        alert("Failed to send broadcast. Check Firebase configuration.");
-        return false;
+        return { success: false, error: error.message || 'Unable to clear announcement.' };
     }
+};
+
+window.deleteAnnouncementHistory = async function(announcementId) {
+    if (!database || !announcementId) return { success: false, error: 'Announcement ID is required.' };
+    try {
+        const currentSnap = await get(ref(database, 'announcements/current'));
+        const current = currentSnap.val();
+        if (current && current.id === announcementId) await remove(ref(database, 'announcements/current'));
+        await remove(ref(database, `announcements/history/${announcementId}`));
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message || 'Unable to delete announcement.' };
+    }
+};
+
+window.listenForAnnouncementHistory = function(callback) {
+    if (!database) return () => {};
+    return onValue(ref(database, 'announcements/history'), snapshot => {
+        const data = snapshot.val() || {};
+        const rows = Object.entries(data)
+            .map(([id, item]) => ({ id, ...(item || {}) }))
+            .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+        if (callback) callback(rows);
+    });
+};
+
+function listenForBroadcasts() {
+    if (!database) {
+        console.warn('Firebase not initialized, skipping announcement listener');
+        return;
+    }
+    onValue(ref(database, 'announcements/current'), snapshot => {
+        const announcement = snapshot.val();
+        _currentAnnouncement = announcement || null;
+        _currentAnnouncementRecipientKey = '';
+
+        if (!announcement || !announcement.message) {
+            _activeAnnouncementId = '';
+            hideBroadcastBar();
+            return;
+        }
+
+        const user = getCurrentAnnouncementUser();
+        if (!audienceIncludesUser(announcement.audience, user)) {
+            hideBroadcastBar();
+            return;
+        }
+
+        const recipientKey = resolveAnnouncementRecipientKey(announcement, user);
+        _currentAnnouncementRecipientKey = recipientKey || user.key;
+        const recipient = recipientKey ? (announcement.recipients || {})[recipientKey] : null;
+        const locallyAcked = localStorage.getItem('biz_announcement_ack_' + announcement.id);
+        if ((recipient && recipient.acknowledged) || locallyAcked) {
+            hideBroadcastBar();
+            return;
+        }
+
+        // Do not rebuild the same open modal whenever somebody else acknowledges.
+        const bar = document.getElementById('broadcast-bar');
+        if (_activeAnnouncementId === announcement.id && bar && bar.classList.contains('show')) return;
+        _activeAnnouncementId = announcement.id;
+        showBroadcastBar(announcement);
+    }, error => console.error('Announcement listener error:', error));
+}
+
+// Backwards-compatible broadcast API used by older Super Admin controls.
+async function sendBroadcastMessage(message, adminId, options = {}) {
+    return window.sendAnnouncement({
+        title: options.title || 'Important Announcement',
+        message,
+        audience: options.audience || 'agents',
+        requireAck: options.requireAck !== false,
+        sentBy: adminId || options.sentBy || 'Super Admin'
+    });
 }
 
 // ========== ACTIVITY LOGGING ==========
@@ -1492,23 +1799,6 @@ function initFirebaseListeners() {
         window.listenForSuperAdmin();
     }
     
-    // Check for stored broadcast on page load
-    const storedBroadcast = localStorage.getItem('biz_broadcast');
-    if (storedBroadcast) {
-        try {
-            const broadcast = JSON.parse(storedBroadcast);
-            // Only show if less than 1 hour old
-            const broadcastTime = new Date(broadcast.timestamp);
-            const now = new Date();
-            const hoursDiff = (now - broadcastTime) / (1000 * 60 * 60);
-            
-            if (hoursDiff < 1) {
-                showBroadcastBar(broadcast.message);
-            }
-        } catch (e) {
-            console.error("Error parsing stored broadcast:", e);
-        }
-    }
 }
 // ========== AGENT PROFILES (RTDB) ==========
 window.saveAgentProfileToRTDB = async function(agentData) {
@@ -1598,10 +1888,11 @@ window.getAttendanceForDate = async function(date) {
 window.showBroadcastBar = showBroadcastBar;
 window.hideBroadcastBar = hideBroadcastBar;
 window.sendBroadcastMessage = sendBroadcastMessage;
+window.listenForBroadcasts = listenForBroadcasts;
 window.adminLogin = adminLogin;
 window.adminLogout = adminLogout;
 window.showLeadAlert = showLeadAlert;
-window.dismissBroadcast = hideBroadcastBar;
+window.dismissBroadcast = dismissBroadcast;
 window.dismissLeadAlert = function() {
     const banner = document.getElementById('lead-alert-banner');
     if (banner) {

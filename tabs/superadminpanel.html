@@ -269,7 +269,7 @@
         <button onclick="switchSupTab('attendance')" id="suptab-attendance" class="sup-tab-btn">Attendance</button>
         <button onclick="switchSupTab('coaching')" id="suptab-coaching" class="sup-tab-btn">Coaching</button>
         <button onclick="switchSupTab('monitoring')" id="suptab-monitoring" class="sup-tab-btn">Monitoring</button>
-        <button onclick="switchSupTab('broadcast')" id="suptab-broadcast" class="sup-tab-btn">Broadcast</button>
+        <button onclick="switchSupTab('broadcast')" id="suptab-broadcast" class="sup-tab-btn">Announcements</button>
         <button onclick="switchSupTab('admintools')" id="suptab-admintools" class="sup-tab-btn">Admin Tools</button>
         <button onclick="switchSupTab('logs')" id="suptab-logs" class="sup-tab-btn">Activity Logs</button>
         <button onclick="switchSupTab('users')" id="suptab-users" class="sup-tab-btn">User Mgmt</button>
@@ -595,14 +595,83 @@
         </div>
         <div id="ah-monitoring-list" class="space-y-3"></div>
     </div>
-
-    <!-- BROADCAST TAB -->
+    <!-- ANNOUNCEMENTS TAB -->
     <div id="supsect-broadcast" class="supsect-container hidden">
-        <h3 class="text-xl font-black text-white uppercase mb-6">📢 Broadcast System</h3>
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <textarea id="super-broadcast-msg" rows="3" placeholder="Type your broadcast message to all active agents..." class="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white mb-4 outline-none focus:border-orange-500 transition"></textarea>
-            <button onclick="superSendBroadcast()" class="bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 px-6 py-3 rounded-xl font-black text-white uppercase tracking-widest transition">🚀 Send Broadcast</button>
-            <div id="super-bc-status" class="mt-3 text-center text-sm font-bold"></div>
+        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-6">
+            <div>
+                <div class="text-[10px] font-black text-orange-400 uppercase tracking-[.18em] mb-1">Team Communication</div>
+                <h3 class="text-xl md:text-2xl font-black text-white uppercase">📢 Announcements & Confirmation</h3>
+                <p class="text-xs text-slate-500 mt-2">Send important notices and see exactly who acknowledged them.</p>
+            </div>
+            <button onclick="superRefreshAnnouncementReports()" class="self-start md:self-auto px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-[10px] font-black uppercase tracking-widest transition"><i class="fas fa-sync-alt mr-2"></i>Refresh</button>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(380px,.9fr)] gap-5">
+            <div class="bg-gradient-to-br from-orange-500/[.08] to-purple-500/[.04] border border-orange-500/20 rounded-2xl p-5 md:p-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-11 h-11 rounded-xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center text-orange-400"><i class="fas fa-bullhorn"></i></div>
+                    <div><div class="text-white font-black">Create Announcement</div><div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Firebase synced in real time</div></div>
+                </div>
+
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Announcement Title</label>
+                <input id="super-announcement-title" type="text" maxlength="80" value="Important Announcement" placeholder="e.g. Mandatory Team Meeting" class="w-full bg-black/35 border border-white/10 rounded-xl px-4 py-3 text-white mb-4 outline-none focus:border-orange-500 transition" />
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Send To</label>
+                        <select id="super-announcement-audience" class="w-full bg-[#080d1a] border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-orange-500">
+                            <option value="agents" selected>All Active Agents</option>
+                            <option value="admins">All Administrators</option>
+                            <option value="all">Everyone</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Confirmation</label>
+                        <label class="min-h-[48px] flex items-center gap-3 bg-black/35 border border-emerald-500/20 rounded-xl px-4 cursor-pointer">
+                            <input id="super-announcement-require-ack" type="checkbox" checked class="w-4 h-4 accent-emerald-500" />
+                            <span><span class="block text-xs font-black text-emerald-400">Require Acknowledgement</span><span class="block text-[9px] text-slate-500 mt-0.5">Cannot be closed until confirmed</span></span>
+                        </label>
+                    </div>
+                </div>
+
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Message</label>
+                <textarea id="super-broadcast-msg" rows="6" maxlength="1200" placeholder="Type the important announcement here..." class="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white outline-none focus:border-orange-500 transition resize-y"></textarea>
+                <div class="flex flex-col sm:flex-row gap-3 mt-4">
+                    <button id="super-announcement-send-btn" onclick="superSendBroadcast()" class="flex-1 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 px-6 py-3.5 rounded-xl font-black text-white uppercase tracking-widest transition active:scale-[.99]"><i class="fas fa-paper-plane mr-2"></i>Send Announcement</button>
+                    <button onclick="superClearActiveAnnouncement()" class="px-5 py-3.5 rounded-xl bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-slate-400 hover:text-red-400 text-[10px] font-black uppercase tracking-widest transition"><i class="fas fa-times-circle mr-2"></i>Close Active</button>
+                </div>
+                <div id="super-bc-status" class="mt-3 text-center text-sm font-bold min-h-[20px]"></div>
+            </div>
+
+            <div class="bg-white/[.025] border border-white/10 rounded-2xl p-5 md:p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div><div class="text-white font-black">Confirmation Report</div><div id="super-announcement-live-label" class="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Waiting for an announcement</div></div>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase tracking-widest"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live</span>
+                </div>
+                <div id="super-announcement-summary" class="grid grid-cols-3 gap-2 mb-4">
+                    <div class="rounded-xl bg-black/25 border border-white/8 p-3 text-center"><div class="text-xl font-black text-white">0</div><div class="text-[8px] text-slate-500 font-black uppercase">Sent</div></div>
+                    <div class="rounded-xl bg-black/25 border border-emerald-500/15 p-3 text-center"><div class="text-xl font-black text-emerald-400">0</div><div class="text-[8px] text-slate-500 font-black uppercase">Confirmed</div></div>
+                    <div class="rounded-xl bg-black/25 border border-orange-500/15 p-3 text-center"><div class="text-xl font-black text-orange-400">0</div><div class="text-[8px] text-slate-500 font-black uppercase">Pending</div></div>
+                </div>
+                <div class="flex gap-2 mb-3">
+                    <button onclick="superFilterAnnouncementRecipients('all',this)" class="ann-recipient-filter is-active px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-blue-500/15 border border-blue-500/30 text-blue-300">All</button>
+                    <button onclick="superFilterAnnouncementRecipients('confirmed',this)" class="ann-recipient-filter px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-slate-500">Confirmed</button>
+                    <button onclick="superFilterAnnouncementRecipients('pending',this)" class="ann-recipient-filter px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-slate-500">Pending</button>
+                </div>
+                <div id="super-announcement-recipients" class="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+                    <div class="text-center text-slate-600 text-[10px] font-bold uppercase tracking-widest py-12">No confirmation data yet</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-5 bg-white/[.02] border border-white/10 rounded-2xl p-5 md:p-6">
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <div><div class="text-white font-black">Announcement History</div><div class="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Select any announcement to review confirmations</div></div>
+                <div id="super-announcement-history-count" class="text-[9px] text-slate-500 font-black uppercase">0 Records</div>
+            </div>
+            <div id="super-announcement-history" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div class="col-span-full text-center text-slate-600 text-[10px] font-bold uppercase tracking-widest py-10">No announcements sent yet</div>
+            </div>
         </div>
     </div>
 
@@ -2376,22 +2445,194 @@
         const removed = await superRemoveAdmin(key);
         if (removed) umCloseEditModal();
     };
+    window._superAnnouncementHistory = [];
+    window._superSelectedAnnouncementId = '';
+    window._superAnnouncementRecipientFilter = 'all';
+    window._superAnnouncementUnsubscribe = null;
 
-        function superSendBroadcast() {
-        const msg = document.getElementById('super-broadcast-msg').value;
-        if(!msg.trim()) return;
-        if (typeof window.sendBroadcastMessage === 'function') {
-            const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-            window.sendBroadcastMessage(msg, cAdmin.name || 'Super Admin');
-            if (typeof window.writeAdminActivityLog === 'function') {
-                window.writeAdminActivityLog('broadcast', `Super Admin Broadcast: ${msg.substring(0,30)}`);
-            }
-            document.getElementById('super-broadcast-msg').value = '';
-            const status = document.getElementById('super-bc-status');
-            status.innerHTML = '<span class="text-green-400">✅ BROADCAST DEPLOYED</span>';
-            setTimeout(() => status.innerHTML='', 3000);
-        }
+    function annEscape(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
     }
+
+    function annFormatTime(value) {
+        if (!value) return 'Not recorded';
+        try { return new Date(value).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
+        catch(e) { return 'Not recorded'; }
+    }
+
+    window.superSendBroadcast = async function() {
+        const msgEl = document.getElementById('super-broadcast-msg');
+        const titleEl = document.getElementById('super-announcement-title');
+        const audienceEl = document.getElementById('super-announcement-audience');
+        const ackEl = document.getElementById('super-announcement-require-ack');
+        const status = document.getElementById('super-bc-status');
+        const btn = document.getElementById('super-announcement-send-btn');
+        const message = msgEl?.value?.trim() || '';
+        if (!message) {
+            if (status) status.innerHTML = '<span class="text-red-400">❌ Enter the announcement message.</span>';
+            msgEl?.focus();
+            return;
+        }
+        if (typeof window.sendAnnouncement !== 'function') {
+            if (status) status.innerHTML = '<span class="text-red-400">❌ Firebase announcement service is still loading.</span>';
+            return;
+        }
+
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>SENDING...'; }
+        if (status) status.innerHTML = '<span class="text-yellow-400">Preparing recipient list and syncing to Firebase…</span>';
+        const cAdmin = (() => { try { return JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch(e) { return {}; } })();
+        const result = await window.sendAnnouncement({
+            title: titleEl?.value?.trim() || 'Important Announcement',
+            message,
+            audience: audienceEl?.value || 'agents',
+            requireAck: ackEl?.checked !== false,
+            sentBy: cAdmin.name || cAdmin.email || 'Super Admin'
+        });
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>SEND ANNOUNCEMENT'; }
+
+        if (result.success) {
+            msgEl.value = '';
+            window._superSelectedAnnouncementId = result.id;
+            if (status) status.innerHTML = `<span class="text-green-400">✅ Sent successfully to ${result.recipientCount || 0} recipient(s).</span>`;
+            if (typeof window.writeAdminActivityLog === 'function') {
+                window.writeAdminActivityLog('broadcast', `Announcement sent to ${audienceEl?.value || 'agents'}: ${message.substring(0,50)}`);
+            }
+            setTimeout(() => { if (status) status.innerHTML = ''; }, 5000);
+        } else if (status) {
+            status.innerHTML = `<span class="text-red-400">❌ ${annEscape(result.error || 'Announcement failed to send.')}</span>`;
+        }
+    };
+
+    window.superClearActiveAnnouncement = async function() {
+        if (typeof window.clearCurrentAnnouncement !== 'function') return;
+        if (!confirm('Close the active announcement? Anyone still pending will no longer see the popup. The report will remain in history.')) return;
+        const status = document.getElementById('super-bc-status');
+        const result = await window.clearCurrentAnnouncement();
+        if (status) status.innerHTML = result.success
+            ? '<span class="text-green-400">✅ Active announcement closed. History was preserved.</span>'
+            : `<span class="text-red-400">❌ ${annEscape(result.error || 'Unable to close announcement.')}</span>`;
+    };
+
+    window.superFilterAnnouncementRecipients = function(filter, btn) {
+        window._superAnnouncementRecipientFilter = filter || 'all';
+        document.querySelectorAll('.ann-recipient-filter').forEach(el => {
+            el.classList.remove('is-active','bg-blue-500/15','border-blue-500/30','text-blue-300');
+            el.classList.add('bg-white/5','border-white/10','text-slate-500');
+        });
+        if (btn) {
+            btn.classList.add('is-active','bg-blue-500/15','border-blue-500/30','text-blue-300');
+            btn.classList.remove('bg-white/5','border-white/10','text-slate-500');
+        }
+        superRenderSelectedAnnouncement();
+    };
+
+    window.superSelectAnnouncement = function(id) {
+        window._superSelectedAnnouncementId = id;
+        window._superAnnouncementRecipientFilter = 'all';
+        document.querySelectorAll('.ann-recipient-filter').forEach((el,index) => {
+            el.classList.toggle('is-active', index === 0);
+            el.classList.toggle('bg-blue-500/15', index === 0);
+            el.classList.toggle('border-blue-500/30', index === 0);
+            el.classList.toggle('text-blue-300', index === 0);
+            el.classList.toggle('bg-white/5', index !== 0);
+            el.classList.toggle('border-white/10', index !== 0);
+            el.classList.toggle('text-slate-500', index !== 0);
+        });
+        superRenderSelectedAnnouncement();
+        document.getElementById('super-announcement-summary')?.scrollIntoView({behavior:'smooth',block:'center'});
+    };
+
+    window.superDeleteAnnouncement = async function(id) {
+        if (!confirm('Permanently delete this announcement report?')) return;
+        if (typeof window.deleteAnnouncementHistory !== 'function') return;
+        const result = await window.deleteAnnouncementHistory(id);
+        if (!result.success) alert('Unable to delete: ' + (result.error || 'Unknown error'));
+    };
+
+    function superRenderSelectedAnnouncement() {
+        const history = window._superAnnouncementHistory || [];
+        let selected = history.find(item => item.id === window._superSelectedAnnouncementId);
+        if (!selected) selected = history[0];
+        if (!selected) {
+            document.getElementById('super-announcement-live-label').textContent = 'Waiting for an announcement';
+            document.getElementById('super-announcement-summary').innerHTML = '<div class="rounded-xl bg-black/25 border border-white/8 p-3 text-center"><div class="text-xl font-black text-white">0</div><div class="text-[8px] text-slate-500 font-black uppercase">Sent</div></div><div class="rounded-xl bg-black/25 border border-emerald-500/15 p-3 text-center"><div class="text-xl font-black text-emerald-400">0</div><div class="text-[8px] text-slate-500 font-black uppercase">Confirmed</div></div><div class="rounded-xl bg-black/25 border border-orange-500/15 p-3 text-center"><div class="text-xl font-black text-orange-400">0</div><div class="text-[8px] text-slate-500 font-black uppercase">Pending</div></div>';
+            document.getElementById('super-announcement-recipients').innerHTML = '<div class="text-center text-slate-600 text-[10px] font-bold uppercase tracking-widest py-12">No confirmation data yet</div>';
+            return;
+        }
+        window._superSelectedAnnouncementId = selected.id;
+        const recipients = Object.values(selected.recipients || {}).filter(Boolean);
+        const confirmed = recipients.filter(r => r.acknowledged);
+        const pending = recipients.filter(r => !r.acknowledged);
+        const label = document.getElementById('super-announcement-live-label');
+        if (label) label.textContent = `${selected.title || 'Announcement'} · ${annFormatTime(selected.timestamp)}`;
+        const summary = document.getElementById('super-announcement-summary');
+        if (summary) summary.innerHTML = `
+            <div class="rounded-xl bg-black/25 border border-white/8 p-3 text-center"><div class="text-xl font-black text-white">${recipients.length}</div><div class="text-[8px] text-slate-500 font-black uppercase">Sent</div></div>
+            <div class="rounded-xl bg-black/25 border border-emerald-500/15 p-3 text-center"><div class="text-xl font-black text-emerald-400">${confirmed.length}</div><div class="text-[8px] text-slate-500 font-black uppercase">Confirmed</div></div>
+            <div class="rounded-xl bg-black/25 border border-orange-500/15 p-3 text-center"><div class="text-xl font-black text-orange-400">${pending.length}</div><div class="text-[8px] text-slate-500 font-black uppercase">Pending</div></div>`;
+
+        const filter = window._superAnnouncementRecipientFilter || 'all';
+        const filtered = recipients
+            .filter(r => filter === 'all' || (filter === 'confirmed' ? r.acknowledged : !r.acknowledged))
+            .sort((a,b) => Number(b.acknowledged) - Number(a.acknowledged) || String(a.name||'').localeCompare(String(b.name||'')));
+        const box = document.getElementById('super-announcement-recipients');
+        if (!box) return;
+        box.innerHTML = filtered.length ? filtered.map(r => `
+            <div class="flex items-center gap-3 rounded-xl bg-black/25 border ${r.acknowledged ? 'border-emerald-500/15' : 'border-orange-500/12'} px-3 py-2.5">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center ${r.acknowledged ? 'bg-emerald-500/12 text-emerald-400' : 'bg-orange-500/10 text-orange-400'}"><i class="fas ${r.acknowledged ? 'fa-check' : 'fa-clock'} text-xs"></i></div>
+                <div class="min-w-0 flex-1"><div class="text-xs font-black text-white truncate">${annEscape(r.name || r.id || 'Unknown')}</div><div class="text-[9px] text-slate-600 uppercase tracking-wider truncate">${annEscape((r.role || 'recipient').replace('_',' '))}${r.team ? ' · ' + annEscape(r.team) : ''}</div></div>
+                <div class="text-right flex-shrink-0"><div class="text-[8px] font-black uppercase ${r.acknowledged ? 'text-emerald-400' : 'text-orange-400'}">${r.acknowledged ? 'Acknowledged' : 'Pending'}</div><div class="text-[8px] text-slate-600 mt-0.5">${r.acknowledged ? annFormatTime(r.acknowledgedAt) : 'Not yet'}</div></div>
+            </div>`).join('') : '<div class="text-center text-slate-600 text-[10px] font-bold uppercase tracking-widest py-10">No recipients in this filter</div>';
+    }
+
+    function superRenderAnnouncementHistory() {
+        const history = window._superAnnouncementHistory || [];
+        const count = document.getElementById('super-announcement-history-count');
+        if (count) count.textContent = `${history.length} Record${history.length === 1 ? '' : 's'}`;
+        const box = document.getElementById('super-announcement-history');
+        if (!box) return;
+        if (!history.length) {
+            box.innerHTML = '<div class="col-span-full text-center text-slate-600 text-[10px] font-bold uppercase tracking-widest py-10">No announcements sent yet</div>';
+            return;
+        }
+        box.innerHTML = history.slice(0,20).map(item => {
+            const recipients = Object.values(item.recipients || {}).filter(Boolean);
+            const confirmed = recipients.filter(r => r.acknowledged).length;
+            const pending = recipients.length - confirmed;
+            const pct = recipients.length ? Math.round((confirmed / recipients.length) * 100) : 0;
+            const selected = item.id === window._superSelectedAnnouncementId;
+            return `<div class="rounded-2xl border ${selected ? 'border-blue-500/40 bg-blue-500/[.06]' : 'border-white/8 bg-black/20 hover:bg-white/[.035]'} p-4 transition">
+                <div class="flex items-start gap-3">
+                    <button onclick="superSelectAnnouncement('${annEscape(item.id)}')" class="min-w-0 flex-1 text-left">
+                        <div class="flex items-center gap-2 mb-1.5"><span class="text-[8px] font-black uppercase tracking-widest ${item.status === 'active' ? 'text-emerald-400' : 'text-slate-600'}">${item.status === 'active' ? '● Active' : 'Closed'}</span><span class="text-[8px] text-slate-600 uppercase">${annEscape(item.audience || 'agents')}</span></div>
+                        <div class="text-sm font-black text-white truncate">${annEscape(item.title || 'Announcement')}</div>
+                        <div class="text-[10px] text-slate-500 mt-1 line-clamp-2">${annEscape(item.message || '')}</div>
+                    </button>
+                    <button onclick="event.stopPropagation();superDeleteAnnouncement('${annEscape(item.id)}')" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-red-500/15 border border-white/8 hover:border-red-500/30 text-slate-600 hover:text-red-400 transition"><i class="fas fa-trash text-[10px]"></i></button>
+                </div>
+                <div class="mt-3 h-1.5 rounded-full bg-black/40 overflow-hidden"><div class="h-full bg-gradient-to-r from-emerald-500 to-teal-400" style="width:${pct}%"></div></div>
+                <div class="flex items-center justify-between mt-2 text-[9px] font-bold"><span class="text-slate-600">${annFormatTime(item.timestamp)}</span><span><span class="text-emerald-400">${confirmed} confirmed</span><span class="text-slate-700 mx-1">·</span><span class="text-orange-400">${pending} pending</span></span></div>
+            </div>`;
+        }).join('');
+    }
+
+    window.superRefreshAnnouncementReports = function() {
+        if (typeof window.listenForAnnouncementHistory !== 'function') {
+            setTimeout(window.superRefreshAnnouncementReports, 500);
+            return;
+        }
+        if (typeof window._superAnnouncementUnsubscribe === 'function') window._superAnnouncementUnsubscribe();
+        window._superAnnouncementUnsubscribe = window.listenForAnnouncementHistory(items => {
+            window._superAnnouncementHistory = items || [];
+            if (!window._superSelectedAnnouncementId && items?.length) window._superSelectedAnnouncementId = items[0].id;
+            superRenderAnnouncementHistory();
+            superRenderSelectedAnnouncement();
+        });
+    };
+
+    setTimeout(window.superRefreshAnnouncementReports, 350);
 
     async function superResetAdminPW(email) {
         const newPass = prompt(`Enter a new temporary password for ${email}:`);
