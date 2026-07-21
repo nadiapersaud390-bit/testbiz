@@ -668,6 +668,113 @@
             .workspace-tab[data-span="full"] { grid-column: 1 / -1; }
             #tab-playbook, #tab-weekly { grid-column: auto; }
         }
+
+        /* Exact classic dashboard arrangement requested: compact header, large title,
+           two clocks, and three equal workspace buttons per row. */
+        .dashboard-shell {
+            max-width: 1000px;
+            margin: 0 auto 28px;
+        }
+        .dashboard-topbar {
+            margin: 4px 0 18px;
+        }
+        .dashboard-user-card {
+            min-width: 0;
+            max-width: 250px;
+            padding: 6px 9px;
+            gap: 8px;
+            border-radius: 11px;
+            background: rgba(15,23,42,.52);
+        }
+        .dashboard-user-avatar {
+            width: 29px;
+            height: 29px;
+            border-radius: 9px;
+            font-size: 10px;
+        }
+        .dashboard-user-label,
+        .dashboard-user-separator,
+        #dashboard-access-label {
+            display: none !important;
+        }
+        .dashboard-user-name {
+            margin-top: 0;
+            font-size: 10px;
+            line-height: 1.15;
+        }
+        .dashboard-user-meta {
+            margin-top: 2px;
+            font-size: 6px;
+        }
+        .dashboard-refresh {
+            width: 40px;
+            height: 40px;
+            border-radius: 11px;
+        }
+        .dashboard-title-area {
+            margin: 0 auto 40px;
+        }
+        .dashboard-title {
+            font-size: clamp(42px, 6.15vw, 72px);
+            line-height: .98;
+        }
+        .dashboard-clocks {
+            gap: 16px;
+            margin-top: 14px;
+        }
+        .dashboard-clock-card {
+            min-width: 200px;
+            padding: 8px 18px;
+            border-radius: 14px;
+            background: rgba(15,23,42,.62);
+        }
+        .dashboard-compact-nav {
+            max-width: 760px;
+            padding: 0 4px;
+        }
+        .dashboard-nav-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .workspace-tab {
+            min-height: 46px;
+            padding: 10px 8px !important;
+            border-radius: 12px !important;
+            background: rgba(13,18,34,.92) !important;
+        }
+        .workspace-tab.tab-active {
+            border-color: #0799ff !important;
+            background: #07345f !important;
+            color: #ffffff !important;
+            box-shadow: none !important;
+        }
+        .workspace-tab-title {
+            font-size: 11px;
+            letter-spacing: .055em;
+        }
+        #tab-trivia,
+        #tab-simulator,
+        #tab-chatroom {
+            grid-column: auto !important;
+        }
+        @media (max-width: 760px) {
+            .dashboard-topbar { margin-bottom: 16px; }
+            .dashboard-user-card { max-width: 210px; }
+            .dashboard-title-area { margin-bottom: 30px; }
+            .dashboard-title { font-size: clamp(34px, 9.2vw, 56px); }
+        }
+        @media (max-width: 580px) {
+            .dashboard-user-card { max-width: none; }
+            .dashboard-nav-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .workspace-tab { min-height: 44px; padding: 9px 4px !important; }
+            .workspace-tab-title { font-size: 8px; letter-spacing: .02em; }
+            .workspace-tab-icon { font-size: 9px; }
+        }
+        @media (max-width: 390px) {
+            .dashboard-nav-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .dashboard-title { font-size: 29px; }
+            .workspace-tab-title { font-size: 7px; }
+        }
     </style>
 </head>
 <body class="p-4 pb-20 role-pending">
@@ -1120,33 +1227,33 @@ document.addEventListener('DOMContentLoaded', function() {
             <div id="dashboard-nav-hint" class="dashboard-nav-hint">Loading your authorized tools…</div>
             <div class="dashboard-nav-grid">
                 <button onclick="switchTab('daily')" id="tab-daily" class="workspace-tab tab-active" data-accent="cyan">
-                    <span class="workspace-tab-icon"><i class="fas fa-chart-line"></i></span><span class="workspace-tab-title">Daily</span>
+                    <span class="workspace-tab-title">Daily</span>
                 </button>
                 <button onclick="switchTab('lookup')" id="tab-lookup" class="workspace-tab" data-accent="indigo">
                     <span class="workspace-tab-icon"><i class="fas fa-search"></i></span><span class="workspace-tab-title">Lookup</span>
                 </button>
                 <button onclick="switchTab('playbook')" id="tab-playbook" class="workspace-tab" data-accent="amber">
-                    <span class="workspace-tab-icon"><i class="fas fa-book-open"></i></span><span class="workspace-tab-title">Playbook</span>
+                    <span class="workspace-tab-title">Playbook</span>
                 </button>
 
                 <button onclick="switchTab('rebuttals')" id="tab-rebuttals" class="workspace-tab" data-accent="teal">
-                    <span class="workspace-tab-icon"><i class="fas fa-comment"></i></span><span class="workspace-tab-title">Rebuttals</span>
+                    <span class="workspace-tab-icon">💬</span><span class="workspace-tab-title">Rebuttals</span>
                 </button>
                 <button onclick="switchTab('prank')" id="tab-prank" class="workspace-tab" data-accent="violet">
-                    <span class="workspace-tab-icon"><i class="fas fa-triangle-exclamation"></i></span><span class="workspace-tab-title">Prank</span>
+                    <span class="workspace-tab-icon">🚨</span><span class="workspace-tab-title">Prank</span>
                 </button>
                 <button onclick="requestWeekly()" id="tab-weekly" class="workspace-tab" data-accent="cyan">
                     <span class="workspace-tab-icon"><i class="fas fa-lock"></i></span><span class="workspace-tab-title">Weekly</span>
                 </button>
 
-                <button onclick="switchTab('trivia')" id="tab-trivia" class="workspace-tab" data-accent="amber" data-span="full">
-                    <span class="workspace-tab-icon"><i class="fas fa-bullseye"></i></span><span class="workspace-tab-title">Trivia Blitz</span>
+                <button onclick="switchTab('trivia')" id="tab-trivia" class="workspace-tab" data-accent="amber">
+                    <span class="workspace-tab-icon">🎯</span><span class="workspace-tab-title">Trivia Blitz</span>
                 </button>
-                <button onclick="switchTab('simulator')" id="tab-simulator" class="workspace-tab" data-accent="indigo" data-span="full">
-                    <span class="workspace-tab-icon"><i class="fas fa-headset"></i></span><span class="workspace-tab-title">Call Simulator</span>
+                <button onclick="switchTab('simulator')" id="tab-simulator" class="workspace-tab" data-accent="indigo">
+                    <span class="workspace-tab-icon">🎧</span><span class="workspace-tab-title">Call Simulator</span>
                 </button>
-                <button onclick="switchTab('chatroom')" id="tab-chatroom" class="workspace-tab" data-accent="emerald" data-span="full">
-                    <span class="workspace-tab-icon"><i class="fas fa-comment-dots"></i></span><span class="workspace-tab-title">Chatroom</span>
+                <button onclick="switchTab('chatroom')" id="tab-chatroom" class="workspace-tab" data-accent="emerald">
+                    <span class="workspace-tab-icon">💬</span><span class="workspace-tab-title">Chatroom</span>
                 </button>
 
                 <!-- Role-gated workspaces: hidden until the access controller authorizes them. -->
