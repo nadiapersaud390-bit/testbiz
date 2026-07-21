@@ -1064,14 +1064,17 @@ function getLevel(l) {
 }
 
 function renderDaySubTabs() {
+    const toolsRow = document.getElementById('dashboard-daily-tools');
     const wrapper = document.getElementById('day-sub-tabs-wrapper');
     const container = document.getElementById('day-sub-tabs-container');
 
     if (currentTab !== 'daily') {
         if (wrapper) wrapper.classList.add('hidden');
+        if (toolsRow) toolsRow.classList.add('hidden');
         return;
     }
     
+    if (toolsRow) toolsRow.classList.remove('hidden');
     if (wrapper) wrapper.classList.remove('hidden');
     if (!container) return;
     

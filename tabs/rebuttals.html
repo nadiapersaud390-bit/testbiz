@@ -1,75 +1,333 @@
-<!-- Header -->
-<div style="border-radius:20px;overflow:hidden;border:2px solid rgba(20,184,166,0.4);box-shadow:0 0 30px rgba(20,184,166,0.1);">
-    <div style="background:linear-gradient(135deg,rgba(20,184,166,0.12),rgba(15,118,110,0.22));padding:18px 24px;position:relative;overflow:hidden;">
-        <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 10px,rgba(20,184,166,0.04) 10px,rgba(20,184,166,0.04) 20px);"></div>
-        <div style="position:relative;display:flex;align-items:center;gap:14px;">
-            <div style="width:44px;height:44px;border-radius:14px;background:rgba(20,184,166,0.15);border:1px solid rgba(20,184,166,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-comments" style="color:#14b8a6;font-size:1.1rem;"></i></div>
+<section class="rb-workspace" aria-label="Rebuttal workspace">
+    <header class="rb-hero">
+        <div class="rb-hero-pattern"></div>
+        <div class="rb-hero-main">
+            <span class="rb-hero-icon"><i class="fas fa-comments"></i></span>
             <div>
-                <div style="font-family:Orbitron,sans-serif;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.14em;color:#14b8a6;margin-bottom:3px;">Quick Reference</div>
-                <div style="font-family:Orbitron,sans-serif;font-size:17px;font-weight:900;text-transform:uppercase;color:white;line-height:1.1;">Rebuttals</div>
-                <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-top:2px;">Select an objection above to see your response</div>
+                <div class="rb-eyebrow">Live Call Assistance</div>
+                <h2>Rebuttals</h2>
+                <p>Type what the customer said, search by keyword, or choose an objection.</p>
             </div>
         </div>
+        <div class="rb-library-badge">
+            <span id="rb-total-count">0</span>
+            <small>Available</small>
+        </div>
+    </header>
+
+    <div class="rb-finder-grid">
+        <section class="rb-finder-card rb-smart-card">
+            <div class="rb-card-title-row">
+                <div>
+                    <span class="rb-card-kicker"><i class="fas fa-wand-magic-sparkles"></i> Smart Match</span>
+                    <h3>What did the customer say?</h3>
+                </div>
+                <button type="button" class="rb-text-action" onclick="clearCustomerSaid()">Clear</button>
+            </div>
+            <textarea id="customer-said-input"
+                oninput="handleCustomerSaidInput(this.value)"
+                placeholder="Example: Is this a real company? I never applied for a loan."></textarea>
+            <div class="rb-input-footer">
+                <div id="customer-said-match-hint" class="rb-match-hint">
+                    <i class="fas fa-bolt"></i> Start typing and the closest rebuttal will open automatically.
+                </div>
+                <span class="rb-auto-badge">Auto Match</span>
+            </div>
+        </section>
+
+        <section class="rb-finder-card rb-search-card">
+            <div class="rb-card-title-row">
+                <div>
+                    <span class="rb-card-kicker"><i class="fas fa-magnifying-glass"></i> Quick Search</span>
+                    <h3>Find an objection</h3>
+                </div>
+                <button type="button" class="rb-text-action" onclick="clearRebuttalSearch()">Clear</button>
+            </div>
+            <div class="rb-search-wrap">
+                <i class="fas fa-search"></i>
+                <input id="rebuttal-search" type="text"
+                    placeholder="Try company, credit, location, interest rate..."
+                    oninput="filterRebuttalSearch(this.value)"
+                    onkeydown="handleRebuttalSearchKey(event)"
+                    autocomplete="off">
+                <button type="button" class="rb-search-clear" aria-label="Clear search" onclick="clearRebuttalSearch()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="rb-search-help">
+                <span><kbd>Enter</kbd> opens the first result</span>
+                <span id="rb-visible-count">0 results</span>
+            </div>
+        </section>
     </div>
-</div>
 
-<!-- Live Match: What did the customer say? -->
-<div style="background:rgba(139,92,246,0.06);border:1.5px solid rgba(139,92,246,0.25);border-radius:16px;padding:14px 16px;">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        <i class="fas fa-magic" style="color:#a78bfa;font-size:13px;"></i>
-        <span style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#a78bfa;">Type what the customer said</span>
-    </div>
-    <textarea id="customer-said-input" oninput="handleCustomerSaidInput(this.value)"
-        placeholder="e.g. Is this even a real company? I never applied for a loan..."
-        style="width:100%;min-height:52px;resize:vertical;background:rgba(0,0,0,0.3);border:1.5px solid rgba(139,92,246,0.25);border-radius:12px;color:white;font-size:13px;font-weight:600;padding:10px 12px;outline:none;font-family:'Inter',sans-serif;box-sizing:border-box;transition:border-color 0.2s,box-shadow 0.2s;"
-        onfocus="this.style.borderColor='#a78bfa';this.style.boxShadow='0 0 0 3px rgba(139,92,246,0.15)'"
-        onblur="this.style.borderColor='rgba(139,92,246,0.25)';this.style.boxShadow='none'"></textarea>
-    <div id="customer-said-match-hint" style="margin-top:8px;font-size:11px;font-weight:700;min-height:14px;"></div>
-</div>
+    <section class="rb-browser-card">
+        <div class="rb-section-heading">
+            <div>
+                <span class="rb-card-kicker"><i class="fas fa-layer-group"></i> Objection Library</span>
+                <h3>Select an objection</h3>
+            </div>
+            <span class="rb-section-note">Tap once to open the recommended response</span>
+        </div>
 
-<!-- Search Box -->
-<div style="position:relative;">
-    <i class="fas fa-search" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);color:#14b8a6;font-size:13px;pointer-events:none;"></i>
-    <input id="rebuttal-search" type="text" placeholder="Search objections..."
-        oninput="filterRebuttalSearch(this.value)"
-        style="width:100%;background:rgba(20,184,166,0.06);border:1.5px solid rgba(20,184,166,0.3);border-radius:14px;color:white;font-size:13px;font-weight:600;padding:13px 16px 13px 44px;outline:none;font-family:'Inter',sans-serif;box-sizing:border-box;transition:border-color 0.2s,box-shadow 0.2s;"
-        onfocus="this.style.borderColor='#14b8a6';this.style.boxShadow='0 0 0 3px rgba(20,184,166,0.15)'"
-        onblur="this.style.borderColor='rgba(20,184,166,0.3)';this.style.boxShadow='none'"/>
-</div>
+        <div id="rb-btn-row" class="rb-chip-row">
+            <div class="rb-loading"><i class="fas fa-circle-notch fa-spin"></i> Loading rebuttals...</div>
+        </div>
 
-<!-- Objection Buttons -->
-<div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#475569;margin-bottom:-4px;">Select Objection</div>
-<div id="rb-btn-row" style="display:flex;gap:8px;flex-wrap:wrap;">
-    <div style="color:#475569;font-size:12px;font-weight:700;padding:8px 0;">Loading rebuttals...</div>
-</div>
+        <div id="rebuttal-no-results" class="rb-state-card" style="display:none;">
+            <i class="fas fa-search-minus"></i>
+            <strong>No matching objection</strong>
+            <span>Try a shorter keyword or clear the search.</span>
+        </div>
 
-<!-- No results -->
-<div id="rebuttal-no-results" style="display:none;text-align:center;padding:20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:14px;">
-    <div style="font-size:1.3rem;margin-bottom:6px;">🤔</div>
-    <div style="font-size:12px;font-weight:900;color:#475569;text-transform:uppercase;letter-spacing:0.08em;">No rebuttal found — try different keywords</div>
-</div>
+        <div id="rb-empty-state" class="rb-state-card" style="display:none;">
+            <i class="fas fa-comment-slash"></i>
+            <strong>No rebuttals added yet</strong>
+            <span>Ask the Super Admin to add rebuttals in Admin Tools.</span>
+        </div>
+    </section>
 
-<!-- Empty state -->
-<div id="rb-empty-state" style="display:none;text-align:center;padding:32px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:14px;">
-    <div style="font-size:2rem;margin-bottom:10px;">💬</div>
-    <div style="font-size:13px;font-weight:900;color:#475569;text-transform:uppercase;letter-spacing:0.08em;">No rebuttals added yet</div>
-    <div style="font-size:11px;font-weight:600;color:#334155;margin-top:6px;">Ask your Super Admin to add rebuttals in the admin panel.</div>
-</div>
+    <section class="rb-response-card">
+        <div class="rb-response-heading">
+            <div>
+                <span class="rb-card-kicker"><i class="fas fa-headset"></i> Agent Response</span>
+                <h3 id="rb-active-label">Choose an objection above</h3>
+            </div>
+            <span class="rb-live-pill"><span></span> Ready</span>
+        </div>
+        <div id="rb-panel-container" class="rb-panel-container"></div>
+    </section>
 
-<!-- Rebuttal Response Panel Container -->
-<div id="rb-panel-container" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:18px;padding:18px;min-height:60px;">
-</div>
-
-<!-- Tip bar -->
-<div style="background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.2);border-radius:14px;padding:14px 18px;display:flex;align-items:flex-start;gap:10px;">
-    <i class="fas fa-lightbulb" style="color:#3b82f6;flex-shrink:0;margin-top:2px;font-size:14px;"></i>
-    <p style="font-size:12px;font-weight:700;color:#93c5fd;line-height:1.65;">Stay calm, stay brief. Acknowledge their concern, give the short answer, and redirect back to qualification questions immediately. Use acknowledgment phrases every 2 objections: "Perfect, thank you." / "Got it, that helps." / "That's great to know."</p>
-</div>
+    <aside class="rb-coaching-tip">
+        <i class="fas fa-lightbulb"></i>
+        <div>
+            <strong>Call-control reminder</strong>
+            <p>Stay calm and brief. Acknowledge the concern, answer directly, then return to the next qualification question. Use phrases such as “Perfect, thank you,” “Got it, that helps,” or “That’s great to know.”</p>
+        </div>
+    </aside>
+</section>
 
 <style>
-@keyframes fadeSlideIn {
-    from { opacity:0; transform:translateY(6px); }
-    to   { opacity:1; transform:translateY(0); }
+.rb-workspace {
+    --rb-teal: #14b8a6;
+    --rb-purple: #a78bfa;
+    --rb-panel: rgba(7, 13, 29, .94);
+    display: grid;
+    gap: 14px;
+    width: 100%;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 2px 26px;
+    font-family: 'Inter', sans-serif;
+}
+.rb-hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    overflow: hidden;
+    min-height: 102px;
+    padding: 20px 24px;
+    border: 1px solid rgba(20,184,166,.38);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 8% 40%, rgba(20,184,166,.16), transparent 28%),
+        linear-gradient(135deg, rgba(5,35,46,.94), rgba(5,13,29,.97));
+    box-shadow: 0 18px 50px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.025);
+}
+.rb-hero-pattern {
+    position: absolute;
+    inset: 0;
+    opacity: .34;
+    background: repeating-linear-gradient(45deg, transparent, transparent 13px, rgba(20,184,166,.045) 13px, rgba(20,184,166,.045) 26px);
+    pointer-events: none;
+}
+.rb-hero-main { position: relative; display: flex; align-items: center; gap: 15px; min-width: 0; }
+.rb-hero-icon {
+    display: grid;
+    place-items: center;
+    width: 50px;
+    height: 50px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(45,212,191,.32);
+    border-radius: 15px;
+    color: #2dd4bf;
+    background: rgba(20,184,166,.12);
+    box-shadow: 0 0 26px rgba(20,184,166,.10);
+    font-size: 19px;
+}
+.rb-eyebrow, .rb-card-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #2dd4bf;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+.rb-hero h2 { margin: 4px 0 3px; color: #f8fafc; font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 900; text-transform: uppercase; }
+.rb-hero p { margin: 0; color: #8ea0b8; font-size: 11px; font-weight: 650; line-height: 1.45; }
+.rb-library-badge {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-width: 92px;
+    padding: 11px 14px;
+    border: 1px solid rgba(45,212,191,.18);
+    border-radius: 14px;
+    background: rgba(2,10,23,.48);
+}
+.rb-library-badge span { color: #2dd4bf; font-family: 'Orbitron', sans-serif; font-size: 20px; font-weight: 900; line-height: 1; }
+.rb-library-badge small { margin-top: 5px; color: #607089; font-size: 7px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+
+.rb-finder-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(310px, .7fr); gap: 14px; }
+.rb-finder-card, .rb-browser-card, .rb-response-card {
+    border: 1px solid rgba(148,163,184,.12);
+    border-radius: 17px;
+    background: linear-gradient(145deg, rgba(9,16,34,.96), rgba(4,9,22,.98));
+    box-shadow: 0 14px 38px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.018);
+}
+.rb-finder-card { padding: 16px; }
+.rb-smart-card { border-color: rgba(139,92,246,.25); background: linear-gradient(145deg, rgba(19,13,45,.78), rgba(5,10,24,.98)); }
+.rb-search-card { border-color: rgba(20,184,166,.23); }
+.rb-card-title-row, .rb-section-heading, .rb-response-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.rb-card-title-row h3, .rb-section-heading h3, .rb-response-heading h3 { margin: 5px 0 0; color: #e8eef7; font-size: 14px; font-weight: 900; line-height: 1.25; }
+.rb-smart-card .rb-card-kicker { color: #b69cff; }
+.rb-text-action {
+    padding: 5px 8px;
+    border: 1px solid rgba(148,163,184,.12);
+    border-radius: 8px;
+    background: rgba(255,255,255,.025);
+    color: #6f8098;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+.rb-text-action:hover { color: #d8e2ef; border-color: rgba(148,163,184,.25); }
+#customer-said-input {
+    width: 100%;
+    min-height: 86px;
+    margin-top: 13px;
+    resize: vertical;
+    box-sizing: border-box;
+    padding: 13px 14px;
+    border: 1px solid rgba(167,139,250,.24);
+    border-radius: 12px;
+    outline: none;
+    background: rgba(0,0,0,.25);
+    color: #f8fafc;
+    font: 650 13px/1.55 'Inter', sans-serif;
+    transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+#customer-said-input:focus { border-color: rgba(167,139,250,.75); background: rgba(3,5,16,.52); box-shadow: 0 0 0 3px rgba(139,92,246,.10); }
+#customer-said-input::placeholder, #rebuttal-search::placeholder { color: #4e5d74; }
+.rb-input-footer, .rb-search-help { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; }
+.rb-match-hint { min-width: 0; color: #65758c; font-size: 9px; font-weight: 700; line-height: 1.4; }
+.rb-match-hint i { margin-right: 4px; color: #8b5cf6; }
+.rb-auto-badge {
+    flex: 0 0 auto;
+    padding: 4px 7px;
+    border: 1px solid rgba(139,92,246,.2);
+    border-radius: 99px;
+    background: rgba(139,92,246,.08);
+    color: #a78bfa;
+    font-size: 7px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.rb-search-wrap { position: relative; margin-top: 13px; }
+.rb-search-wrap > i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #2dd4bf; font-size: 12px; pointer-events: none; }
+#rebuttal-search {
+    width: 100%;
+    height: 48px;
+    box-sizing: border-box;
+    padding: 0 42px 0 38px;
+    border: 1px solid rgba(20,184,166,.24);
+    border-radius: 12px;
+    outline: none;
+    background: rgba(0,0,0,.24);
+    color: #f8fafc;
+    font: 700 12px 'Inter', sans-serif;
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+#rebuttal-search:focus { border-color: rgba(45,212,191,.72); box-shadow: 0 0 0 3px rgba(20,184,166,.09); }
+.rb-search-clear {
+    position: absolute;
+    right: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 29px;
+    height: 29px;
+    border: 0;
+    border-radius: 8px;
+    background: rgba(255,255,255,.035);
+    color: #65758c;
+    cursor: pointer;
+}
+.rb-search-clear:hover { color: #e2e8f0; background: rgba(255,255,255,.07); }
+.rb-search-help { color: #586980; font-size: 8px; font-weight: 750; }
+.rb-search-help kbd { padding: 2px 5px; border: 1px solid rgba(148,163,184,.15); border-radius: 4px; color: #8da0b9; background: rgba(255,255,255,.03); font: inherit; }
+#rb-visible-count { color: #2dd4bf; }
+
+.rb-browser-card, .rb-response-card { padding: 17px; }
+.rb-section-note { align-self: center; color: #53637a; font-size: 8px; font-weight: 750; }
+.rb-chip-row { display: flex; flex-wrap: wrap; gap: 8px; max-height: 174px; overflow-y: auto; margin-top: 14px; padding: 2px 4px 4px 0; scrollbar-width: thin; scrollbar-color: rgba(20,184,166,.35) transparent; }
+.rb-chip {
+    padding: 9px 13px;
+    border: 1px solid rgba(148,163,184,.13);
+    border-radius: 10px;
+    background: rgba(255,255,255,.028);
+    color: #718099;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .045em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform .16s ease, color .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.rb-chip:hover { transform: translateY(-1px); color: #d5e1ef; border-color: rgba(45,212,191,.32); background: rgba(20,184,166,.06); }
+.rb-chip.is-active { color: #5eead4; border-color: rgba(45,212,191,.62); background: rgba(20,184,166,.13); box-shadow: 0 0 0 2px rgba(20,184,166,.05), 0 8px 22px rgba(0,0,0,.18); }
+.rb-loading { color: #5d6c82; font-size: 10px; font-weight: 750; padding: 8px 0; }
+.rb-loading i { margin-right: 7px; color: #14b8a6; }
+.rb-state-card { margin-top: 12px; padding: 22px; text-align: center; border: 1px dashed rgba(148,163,184,.13); border-radius: 12px; background: rgba(255,255,255,.015); }
+.rb-state-card i { display: block; margin-bottom: 8px; color: #66778e; font-size: 18px; }
+.rb-state-card strong { display: block; color: #9aabc0; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.rb-state-card span { display: block; margin-top: 5px; color: #4e5d73; font-size: 9px; font-weight: 650; }
+.rb-response-card { border-color: rgba(45,125,201,.22); }
+.rb-response-heading { align-items: center; padding-bottom: 13px; border-bottom: 1px solid rgba(148,163,184,.08); }
+.rb-response-heading .rb-card-kicker { color: #60a5fa; }
+.rb-live-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid rgba(34,197,94,.17); border-radius: 99px; color: #86efac; background: rgba(34,197,94,.055); font-size: 7px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.rb-live-pill span { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+.rb-panel-container { min-height: 126px; padding-top: 14px; }
+.rb-response-placeholder { display: grid; place-items: center; min-height: 104px; text-align: center; color: #53637a; }
+.rb-response-placeholder i { display: block; margin-bottom: 8px; color: #36516f; font-size: 20px; }
+.rb-response-placeholder strong { display: block; color: #7f91a8; font-size: 11px; font-weight: 900; }
+.rb-response-placeholder span { display: block; margin-top: 5px; color: #46566c; font-size: 9px; }
+.rb-coaching-tip { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid rgba(59,130,246,.17); border-radius: 14px; background: rgba(30,64,175,.06); }
+.rb-coaching-tip > i { margin-top: 2px; color: #60a5fa; font-size: 14px; }
+.rb-coaching-tip strong { color: #bfdbfe; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.rb-coaching-tip p { margin: 4px 0 0; color: #7e9bc4; font-size: 10px; font-weight: 650; line-height: 1.55; }
+@keyframes fadeSlideIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+@media (max-width: 820px) {
+    .rb-finder-grid { grid-template-columns: 1fr; }
+    .rb-chip-row { max-height: 220px; }
+}
+@media (max-width: 560px) {
+    .rb-workspace { gap: 11px; }
+    .rb-hero { padding: 16px; min-height: 88px; }
+    .rb-hero-icon { width: 43px; height: 43px; border-radius: 13px; }
+    .rb-hero h2 { font-size: 18px; }
+    .rb-library-badge { min-width: 70px; padding: 9px; }
+    .rb-library-badge span { font-size: 17px; }
+    .rb-finder-card, .rb-browser-card, .rb-response-card { padding: 14px; border-radius: 14px; }
+    .rb-section-heading, .rb-response-heading { align-items: flex-start; }
+    .rb-section-note { display: none; }
+    .rb-chip { flex: 1 1 calc(50% - 8px); text-align: center; padding: 9px 8px; }
+    .rb-input-footer { align-items: flex-start; }
 }
 </style>
 
@@ -112,31 +370,31 @@
         var rgb   = hexToRgb(color);
         var hasOpts = rb.options && rb.options.length > 0;
 
-        var catHtml = '<div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:'+color+';margin-bottom:12px;display:flex;align-items:center;gap:8px;">'
-            + '<div style="width:8px;height:8px;border-radius:50%;background:'+color+';flex-shrink:0;"></div>'
-            + esc(rb.category||'') + '</div>';
+        var catHtml = '<div style="font-family:Orbitron,sans-serif;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:'+color+';margin-bottom:11px;display:flex;align-items:center;gap:8px;">'
+            + '<div style="width:7px;height:7px;border-radius:50%;background:'+color+';box-shadow:0 0 10px '+color+';flex-shrink:0;"></div>'
+            + esc(rb.category||'General') + '</div>';
 
-        var qHtml = '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;">'
-            + '<div style="font-size:15px;font-weight:900;color:white;line-height:1.4;">&ldquo;'+esc(rb.question||'')+'&rdquo;</div>'
+        var qHtml = '<div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.075);border-radius:11px;padding:12px 14px;margin-bottom:12px;">'
+            + '<div style="font-size:14px;font-weight:900;color:#f8fafc;line-height:1.45;">&ldquo;'+esc(rb.question||'')+'&rdquo;</div>'
             + '</div>';
 
         var respHtml = '';
         if (hasOpts) {
             var optsInner = (rb.options||[]).map(function(opt) {
                 return '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;">'
-                    + '<span style="font-size:9px;font-weight:900;text-transform:uppercase;color:'+color+';letter-spacing:0.08em;">'+esc(opt.label||'')+'</span>'
-                    + '<p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin-top:5px;">&ldquo;'+esc(opt.text||'')+'&rdquo;</p>'
+                    + '<span style="font-size:8px;font-weight:900;text-transform:uppercase;color:'+color+';letter-spacing:0.08em;">'+esc(opt.label||'Option')+'</span>'
+                    + '<p style="font-size:14px;font-weight:700;color:white;font-style:italic;line-height:1.65;margin:5px 0 0;">&ldquo;'+esc(opt.text||'')+'&rdquo;</p>'
                     + '</div>';
             }).join('');
-            respHtml = '<div style="background:rgba('+rgb+',0.05);border:1px solid rgba('+rgb+',0.18);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">'
-                + '<div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:'+color+';margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Choose Your Response</div>'
+            respHtml = '<div style="background:rgba('+rgb+',0.05);border:1px solid rgba('+rgb+',0.18);border-radius:12px;padding:14px 15px;display:flex;flex-direction:column;gap:10px;">'
+                + '<div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:'+color+';margin-bottom:2px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:9px;"></i> Choose Your Response</div>'
                 + optsInner
                 + tipBox(rb.tip)
                 + '</div>';
         } else {
-            respHtml = '<div style="background:rgba('+rgb+',0.05);border:1px solid rgba('+rgb+',0.18);border-radius:12px;padding:14px 16px;">'
-                + '<div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:'+color+';margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:10px;"></i> Your Response</div>'
-                + '<p style="font-size:15px;font-weight:700;color:white;font-style:italic;line-height:1.7;">&ldquo;'+esc(rb.response||'')+'&rdquo;</p>'
+            respHtml = '<div style="background:rgba('+rgb+',0.05);border:1px solid rgba('+rgb+',0.18);border-radius:12px;padding:14px 15px;">'
+                + '<div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:'+color+';margin-bottom:9px;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply" style="font-size:9px;"></i> Recommended Response</div>'
+                + '<p style="font-size:14px;font-weight:700;color:white;font-style:italic;line-height:1.7;margin:0;">&ldquo;'+esc(rb.response||'')+'&rdquo;</p>'
                 + tipBox(rb.tip)
                 + '</div>';
         }
@@ -145,15 +403,33 @@
             + catHtml + qHtml + respHtml + '</div>';
     }
 
+    function placeholderHtml() {
+        return '<div id="rb-response-placeholder" class="rb-response-placeholder">'
+            + '<div><i class="fas fa-arrow-up"></i><strong>Select or search for an objection</strong>'
+            + '<span>The recommended response will appear here.</span></div></div>';
+    }
+
+    function updateCounts(visible) {
+        var totalEl = document.getElementById('rb-total-count');
+        var visibleEl = document.getElementById('rb-visible-count');
+        if (totalEl) totalEl.textContent = String(_rebuttals.length);
+        if (visibleEl) {
+            var amount = typeof visible === 'number' ? visible : _rebuttals.length;
+            visibleEl.textContent = amount + (amount === 1 ? ' result' : ' results');
+        }
+    }
+
     function renderAll() {
-        var btnRow   = document.getElementById('rb-btn-row');
+        var btnRow = document.getElementById('rb-btn-row');
         var container = document.getElementById('rb-panel-container');
-        var emptyEl  = document.getElementById('rb-empty-state');
+        var emptyEl = document.getElementById('rb-empty-state');
+
+        updateCounts(_rebuttals.length);
 
         if (!_rebuttals.length) {
-            if (btnRow)    btnRow.innerHTML = '';
-            if (container) container.innerHTML = '';
-            if (emptyEl)   emptyEl.style.display = '';
+            if (btnRow) btnRow.innerHTML = '';
+            if (container) container.innerHTML = placeholderHtml();
+            if (emptyEl) emptyEl.style.display = '';
             _lastAutoId = null;
             return;
         }
@@ -161,25 +437,22 @@
 
         if (btnRow) {
             btnRow.innerHTML = _rebuttals.map(function(rb, i) {
-                return '<button id="rb-btn-'+i+'" onclick="showRebuttal('+i+')" '
-                    + 'style="padding:8px 14px;border-radius:20px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;transition:all 0.18s;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;">'
-                    + esc(rb.buttonLabel||'Rebuttal '+i)
+                return '<button id="rb-btn-'+i+'" class="rb-chip" onclick="showRebuttal('+i+')">'
+                    + esc(rb.buttonLabel||'Rebuttal '+(i+1))
                     + '</button>';
             }).join('');
         }
 
         if (container) {
-            container.innerHTML = _rebuttals.map(function(rb, i) {
+            container.innerHTML = placeholderHtml() + _rebuttals.map(function(rb, i) {
                 return renderPanel(rb, i);
             }).join('');
         }
 
         _activeIdx = -1;
-        // Re-apply any in-progress search/customer-match now that the DOM exists,
-        // so a query typed while Firebase was still loading isn't silently dropped.
+        setActiveLabel(-1);
         applySearchFilter();
-        // Auto-match state is tracked by rebuttal id, not render index, so a Firebase
-        // update that reorders/removes items can't cause the wrong panel to reopen.
+
         if (_lastAutoId !== null) {
             var reIdx = -1;
             for (var ri = 0; ri < _rebuttals.length; ri++) {
@@ -189,25 +462,36 @@
         }
     }
 
+    function setActiveLabel(idx) {
+        var label = document.getElementById('rb-active-label');
+        if (!label) return;
+        label.textContent = idx >= 0 && _rebuttals[idx]
+            ? (_rebuttals[idx].buttonLabel || _rebuttals[idx].question || 'Recommended response')
+            : 'Choose an objection above';
+    }
+
+    function setPlaceholderVisible(visible) {
+        var placeholder = document.getElementById('rb-response-placeholder');
+        if (placeholder) placeholder.style.display = visible ? '' : 'none';
+    }
+
     function activatePanel(idx) {
+        if (idx < 0 || idx >= _rebuttals.length) return;
         if (_activeIdx !== -1 && _activeIdx !== idx) {
             var prev = document.getElementById('rb-panel-'+_activeIdx);
             if (prev) prev.style.display = 'none';
             var prevBtn = document.getElementById('rb-btn-'+_activeIdx);
-            if (prevBtn) {
-                prevBtn.style.background = 'rgba(255,255,255,0.04)';
-                prevBtn.style.border     = '1px solid rgba(255,255,255,0.1)';
-                prevBtn.style.color      = '#64748b';
-            }
+            if (prevBtn) prevBtn.classList.remove('is-active');
         }
         _activeIdx = idx;
+        setPlaceholderVisible(false);
+        setActiveLabel(idx);
         var panel = document.getElementById('rb-panel-'+idx);
-        if (panel) { panel.style.display = ''; }
+        if (panel) panel.style.display = '';
         var btn = document.getElementById('rb-btn-'+idx);
         if (btn) {
-            btn.style.background = 'rgba(20,184,166,0.15)';
-            btn.style.border     = '1px solid rgba(20,184,166,0.5)';
-            btn.style.color      = '#14b8a6';
+            btn.classList.add('is-active');
+            if (btn.scrollIntoView) btn.scrollIntoView({behavior:'smooth', block:'nearest', inline:'nearest'});
         }
     }
 
@@ -216,12 +500,10 @@
             var panel = document.getElementById('rb-panel-'+idx);
             if (panel) panel.style.display = 'none';
             var btn = document.getElementById('rb-btn-'+idx);
-            if (btn) {
-                btn.style.background = 'rgba(255,255,255,0.04)';
-                btn.style.border     = '1px solid rgba(255,255,255,0.1)';
-                btn.style.color      = '#64748b';
-            }
+            if (btn) btn.classList.remove('is-active');
             _activeIdx = -1;
+            setPlaceholderVisible(true);
+            setActiveLabel(-1);
             return;
         }
         activatePanel(idx);
@@ -231,23 +513,29 @@
         }
     };
 
-    // ── Search (operates on the data, not just what happens to be in the DOM,
-    // and is re-applied on every render so it can never miss panels that
-    // hadn't loaded from Firebase yet). ──
+    function fullSearchText(rb) {
+        var optionText = (rb.options || []).map(function(opt) { return (opt.label || '') + ' ' + (opt.text || ''); }).join(' ');
+        return ((rb.buttonLabel||'')+' '+(rb.category||'')+' '+(rb.question||'')+' '+(rb.response||'')+' '+(rb.tip||'')+' '+optionText).toLowerCase();
+    }
+
     function applySearchFilter() {
         var noRes = document.getElementById('rebuttal-no-results');
         var btnRow = document.getElementById('rb-btn-row');
-        if (!btnRow || !_rebuttals.length) { if (noRes) noRes.style.display = 'none'; return; }
+        if (!btnRow || !_rebuttals.length) {
+            if (noRes) noRes.style.display = 'none';
+            updateCounts(0);
+            return;
+        }
         var term = _searchTerm;
         var visible = 0;
         _rebuttals.forEach(function(rb, i) {
             var btn = document.getElementById('rb-btn-'+i);
             if (!btn) return;
-            var haystack = ((rb.buttonLabel||'')+' '+(rb.category||'')+' '+(rb.question||'')+' '+(rb.response||'')).toLowerCase();
-            var match = !term || haystack.indexOf(term) !== -1;
+            var match = !term || fullSearchText(rb).indexOf(term) !== -1;
             btn.style.display = match ? '' : 'none';
             if (match) visible++;
         });
+        updateCounts(visible);
         if (noRes) noRes.style.display = (visible === 0 && term) ? '' : 'none';
     }
 
@@ -256,7 +544,26 @@
         applySearchFilter();
     };
 
-    // ── "What did the customer say?" live match ──
+    window.clearRebuttalSearch = function() {
+        var input = document.getElementById('rebuttal-search');
+        if (input) input.value = '';
+        _searchTerm = '';
+        applySearchFilter();
+        if (input) input.focus();
+    };
+
+    window.handleRebuttalSearchKey = function(event) {
+        if (!event || event.key !== 'Enter') return;
+        event.preventDefault();
+        for (var i = 0; i < _rebuttals.length; i++) {
+            var btn = document.getElementById('rb-btn-'+i);
+            if (btn && btn.style.display !== 'none') {
+                activatePanel(i);
+                break;
+            }
+        }
+    };
+
     function tokenize(s) {
         return (s||'').toLowerCase().replace(/[^a-z0-9\s']/g,' ').split(/\s+/).filter(function(w) {
             return w.length > 2 && STOPWORDS.indexOf(w) === -1;
@@ -268,14 +575,16 @@
         if (!words.length) return { idx: -1, score: 0 };
         var bestIdx = -1, bestScore = 0;
         _rebuttals.forEach(function(rb, i) {
-            var qText   = (rb.question||'').toLowerCase();
+            var qText = (rb.question||'').toLowerCase();
             var lblText = (rb.buttonLabel||'').toLowerCase();
             var catText = (rb.category||'').toLowerCase();
+            var respText = fullSearchText(rb);
             var score = 0;
             words.forEach(function(w) {
-                if (qText.indexOf(w) !== -1)   score += 3;
-                if (lblText.indexOf(w) !== -1) score += 2;
-                if (catText.indexOf(w) !== -1) score += 1;
+                if (qText.indexOf(w) !== -1) score += 4;
+                if (lblText.indexOf(w) !== -1) score += 3;
+                if (catText.indexOf(w) !== -1) score += 2;
+                if (respText.indexOf(w) !== -1) score += 1;
             });
             if (score > bestScore) { bestScore = score; bestIdx = i; }
         });
@@ -287,32 +596,42 @@
         _customerDebounce = setTimeout(function() {
             var hint = document.getElementById('customer-said-match-hint');
             if (!val || !val.trim()) {
-                if (hint) hint.innerHTML = '';
+                if (hint) hint.innerHTML = '<i class="fas fa-bolt"></i> Start typing and the closest rebuttal will open automatically.';
                 return;
             }
             if (!_rebuttals.length) {
-                if (hint) hint.innerHTML = '<span style="color:#64748b;">Still loading rebuttals&hellip;</span>';
+                if (hint) hint.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Still loading rebuttals...';
                 return;
             }
             var result = bestMatch(val);
             if (result.idx === -1 || result.score === 0) {
-                if (hint) hint.innerHTML = '<span style="color:#64748b;">No close match &mdash; try the objection buttons below.</span>';
+                if (hint) hint.innerHTML = '<span style="color:#7c8ca2;"><i class="fas fa-circle-question"></i> No close match. Try the search box or objection buttons.</span>';
                 return;
             }
             var rb = _rebuttals[result.idx];
             if (hint) {
-                hint.innerHTML = '<span style="color:#a78bfa;"><i class="fas fa-check-circle"></i> Best match: <strong>'+esc(rb.buttonLabel||'')+'</strong></span>';
+                hint.innerHTML = '<span style="color:#c4b5fd;"><i class="fas fa-circle-check"></i> Best match: <strong>'+esc(rb.buttonLabel||'')+'</strong></span>';
             }
-            if (rb.id !== _lastAutoId) {
+            if (rb.id !== _lastAutoId || _activeIdx !== result.idx) {
                 _lastAutoId = rb.id;
                 activatePanel(result.idx);
-                var panel = document.getElementById('rb-panel-'+result.idx);
-                if (panel && panel.scrollIntoView) panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+                var responseCard = document.querySelector('.rb-response-card');
+                if (responseCard && responseCard.scrollIntoView) responseCard.scrollIntoView({behavior:'smooth', block:'nearest'});
                 if (typeof window.writeAdminActivityLog === 'function') {
                     window.writeAdminActivityLog('view_rebuttal', 'Auto-matched: ' + (rb.buttonLabel||''));
                 }
             }
-        }, 250);
+        }, 220);
+    };
+
+    window.clearCustomerSaid = function() {
+        clearTimeout(_customerDebounce);
+        var input = document.getElementById('customer-said-input');
+        var hint = document.getElementById('customer-said-match-hint');
+        if (input) input.value = '';
+        if (hint) hint.innerHTML = '<i class="fas fa-bolt"></i> Start typing and the closest rebuttal will open automatically.';
+        _lastAutoId = null;
+        if (input) input.focus();
     };
 
     function waitForFirebase(cb, tries) {
@@ -320,7 +639,7 @@
         if (typeof window.listenForRebuttals === 'function') { cb(); return; }
         if (tries > 30) {
             var btnRow = document.getElementById('rb-btn-row');
-            if (btnRow) btnRow.innerHTML = '<div style="color:#ef4444;font-size:12px;font-weight:700;">Could not connect to Firebase.</div>';
+            if (btnRow) btnRow.innerHTML = '<div class="rb-loading" style="color:#f87171;"><i class="fas fa-triangle-exclamation"></i> Could not connect to Firebase.</div>';
             return;
         }
         setTimeout(function() { waitForFirebase(cb, tries + 1); }, 150);

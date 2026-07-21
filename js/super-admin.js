@@ -380,24 +380,30 @@ function getCurrentAdmin() {
     return JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
 }
 
-function setupFirstSuperAdmin(email, password, name) {
+async function setupFirstSuperAdmin(email, password, name) {
     const superAdmin = {
-        email: email,
-        password: btoa(password),
-        name: name,
+        email: String(email || '').trim().toLowerCase(),
+        password: btoa(String(password || '')),
+        name: String(name || '').trim(),
         role: 'super_admin',
         created: new Date().toISOString(),
         isSuper: true
     };
-    
-    // Clear old data just to be safe
-    localStorage.removeItem(ADMINS_KEY);
-    
-    localStorage.setItem(SUPER_ADMIN_KEY, JSON.stringify(superAdmin));
-    if (typeof window.saveSuperAdminToFirebase === 'function') {
-        window.saveSuperAdminToFirebase(superAdmin);
+
+    if (typeof window.saveSuperAdminToFirebase !== 'function') {
+        return { success: false, error: 'Firebase is not connected. The Super Admin was not created.' };
     }
-    
+
+    try {
+        await window.saveSuperAdminToFirebase(superAdmin);
+    } catch (error) {
+        console.error('[SuperAdmin Setup] Firebase save failed:', error);
+        return { success: false, error: 'Could not save the Super Admin to Firebase. Check the connection and try again.' };
+    }
+
+    // Firebase succeeded, so update the local synchronized cache.
+    localStorage.removeItem(ADMINS_KEY);
+    localStorage.setItem(SUPER_ADMIN_KEY, JSON.stringify(superAdmin));
     return { success: true };
 }
 

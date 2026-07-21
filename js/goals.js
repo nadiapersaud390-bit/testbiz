@@ -626,6 +626,8 @@
 
         injectGoalStyles();
         container.style.display = 'block';
+        const toolsRow = document.getElementById('dashboard-daily-tools');
+        if (toolsRow) toolsRow.classList.add('has-agent-goal');
 
         const goals = normalizeGoals(STATE.goals) || readCachedGoals();
         if (!goals) {
@@ -995,18 +997,18 @@
             .biz-goal-save:hover { transform: translateY(-1px); filter: brightness(1.06); }
             .biz-goal-save:disabled { cursor: wait; opacity: .72; transform: none; }
 
-            #agent-goal-widget-container { width: 100%; box-sizing: border-box; }
+            #agent-goal-widget-container { width: 100%; min-width: 0; box-sizing: border-box; }
             .biz-goal-strip {
                 position: relative;
                 display: grid;
-                grid-template-columns: auto minmax(260px, 1fr) auto;
+                grid-template-columns: auto minmax(190px, 1fr) auto;
                 align-items: center;
-                gap: 20px;
-                min-height: 84px;
+                gap: 14px;
+                min-height: 72px;
                 overflow: hidden;
-                padding: 13px 14px 13px 18px;
+                padding: 10px 11px 10px 15px;
                 border: 1px solid rgba(45, 125, 201, .28);
-                border-radius: 14px;
+                border-radius: 13px;
                 background:
                     linear-gradient(90deg, rgba(14, 165, 233, .035), transparent 42%),
                     linear-gradient(145deg, rgba(9, 17, 34, .98), rgba(5, 10, 23, .98));
@@ -1020,10 +1022,10 @@
                 background: linear-gradient(180deg, #ffb000, #ff5a19, #ef2b35);
                 box-shadow: 0 0 15px rgba(255, 92, 0, .42);
             }
-            .biz-goal-metrics { display: flex; align-items: stretch; min-width: 212px; }
+            .biz-goal-metrics { display: flex; align-items: stretch; min-width: 184px; }
             .biz-goal-metric {
-                min-width: 68px;
-                padding: 2px 12px;
+                min-width: 58px;
+                padding: 2px 9px;
                 text-align: center;
                 border-right: 1px solid rgba(148, 163, 184, .10);
             }
@@ -1033,7 +1035,7 @@
                 display: block;
                 margin-bottom: 3px;
                 font-family: 'Orbitron', sans-serif;
-                font-size: 23px;
+                font-size: 19px;
                 font-weight: 900;
                 line-height: 1;
             }
@@ -1041,7 +1043,7 @@
                 display: block;
                 color: #53627a;
                 font-family: 'Orbitron', sans-serif;
-                font-size: 6.5px;
+                font-size: 6px;
                 font-weight: 900;
                 letter-spacing: .11em;
                 text-transform: uppercase;
@@ -1057,7 +1059,7 @@
                 align-items: center;
                 gap: 7px;
                 min-height: 17px;
-                margin-bottom: 7px;
+                margin-bottom: 5px;
                 font-size: 10px;
                 font-weight: 700;
                 color: #6f809a;
@@ -1071,7 +1073,7 @@
             .biz-goal-status-line.is-pending i { color: #ff8a1c; }
             .biz-goal-progress-track {
                 position: relative;
-                height: 10px;
+                height: 8px;
                 border: 1px solid rgba(148, 163, 184, .06);
                 border-radius: 999px;
                 background: #050b17;
@@ -1101,9 +1103,9 @@
             }
             .biz-goal-target-marker {
                 position: absolute;
-                top: -5px;
+                top: -4px;
                 width: 2px;
-                height: 18px;
+                height: 16px;
                 border-radius: 3px;
                 transform: translateX(-1px);
                 pointer-events: none;
@@ -1115,15 +1117,15 @@
             .biz-goal-progress-labels > span:first-child { left: 0; transform: none; }
             .biz-goal-progress-labels > span:last-child { right: 0; transform: none; color: #3f5b82; }
 
-            .biz-goal-actions { display: flex; align-items: center; gap: 10px; }
+            .biz-goal-actions { display: flex; align-items: center; gap: 7px; }
             .biz-goal-hit-badges { display: grid; gap: 5px; }
             .biz-goal-hit-badge {
                 display: inline-flex;
                 align-items: center;
                 justify-content: flex-start;
                 gap: 5px;
-                min-width: 76px;
-                padding: 4px 8px;
+                min-width: 68px;
+                padding: 3px 7px;
                 border: 1px solid rgba(148, 163, 184, .13);
                 border-radius: 7px;
                 background: rgba(15, 23, 42, .55);
@@ -1142,8 +1144,8 @@
                 align-items: center;
                 justify-content: center;
                 gap: 7px;
-                min-height: 38px;
-                padding: 0 13px;
+                min-height: 34px;
+                padding: 0 10px;
                 border: 1px solid rgba(96, 165, 250, .24);
                 border-radius: 9px;
                 background: rgba(15, 23, 42, .78);
@@ -1163,7 +1165,7 @@
                 display: flex;
                 align-items: center;
                 width: 100%;
-                min-height: 76px;
+                min-height: 70px;
                 gap: 13px;
                 padding: 13px 16px;
                 border: 1px dashed rgba(255, 126, 26, .27);
@@ -1208,7 +1210,7 @@
             .biz-goal-toast.is-warning { border-color: rgba(245,158,11,.35); color: #fde68a; }
             .biz-goal-toast.is-info { border-color: rgba(59,130,246,.35); color: #bfdbfe; }
 
-            @media (max-width: 900px) {
+            @media (max-width: 1080px) {
                 .biz-goal-strip { grid-template-columns: auto 1fr; gap: 14px 17px; }
                 .biz-goal-actions { grid-column: 1 / -1; justify-content: flex-end; padding-top: 9px; border-top: 1px solid rgba(148,163,184,.07); }
                 .biz-goal-hit-badges { display: flex; margin-right: auto; }

@@ -1,0 +1,23 @@
+BIZ DASHBOARD — GOAL PLACEMENT & REBUTTAL WORKSPACE UPDATE
+Date: July 21, 2026
+
+GOAL TRACKER
+- Moved the agent goal tracker into a compact daily-control row beside Today / day-history / Previous Week controls.
+- Goal tracker appears only on the Daily dashboard and no longer occupies a full-width block above the report.
+- Reduced the tracker height and spacing while preserving low target, high target, transfers, progress, hit status, and Edit Goals.
+- Admin dashboards keep a centered date-control panel without an empty goal column.
+- Mobile and narrow-screen layouts stack the controls cleanly.
+
+REBUTTALS
+- Rebuilt the page as a clearer call-assistance workspace.
+- Added a prominent Smart Match field for exactly what the customer said.
+- Added a separate Quick Search field with result count, Enter-to-open, and clear control.
+- Improved objection buttons with a visible selected state and a scrollable library area.
+- Added a dedicated Agent Response panel with clearer empty, selected, and ready states.
+- Search now includes labels, categories, questions, responses, response options, and coaching tips.
+- Smart Match weighting was improved and still opens the closest response automatically.
+- Added responsive desktop and mobile layouts.
+
+OTHER
+- Removed the duplicated “Tap to Drill Down” line from the team stats card.
+- Bumped local asset versions to reduce stale browser-cache issues.

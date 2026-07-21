@@ -332,6 +332,51 @@
             cursor: pointer;
         }
 
+        /* Daily controls: date selector and agent targets share one compact row. */
+        .dashboard-daily-tools {
+            display: grid;
+            grid-template-columns: 1fr;
+            align-items: stretch;
+            gap: 12px;
+            width: min(720px, calc(100% - 16px));
+            margin: 0 auto 18px;
+        }
+        .dashboard-daily-tools.has-agent-goal {
+            grid-template-columns: minmax(285px, .72fr) minmax(0, 1.65fr);
+            width: min(1180px, calc(100% - 16px));
+        }
+        .dashboard-daily-tools.hidden { display: none !important; }
+        .dashboard-period-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-width: 0;
+            padding: 10px 12px;
+            border: 1px solid rgba(59,130,246,.18);
+            border-radius: 13px;
+            background: linear-gradient(145deg, rgba(9,17,34,.94), rgba(5,10,23,.97));
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.02);
+        }
+        .dashboard-period-panel.hidden { display: none !important; }
+        .dashboard-period-label {
+            margin: 0 0 7px 2px;
+            color: #52647c;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 6.5px;
+            font-weight: 900;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+        #day-sub-tabs-container { align-items: center; }
+        @media (max-width: 920px) {
+            .dashboard-daily-tools,
+            .dashboard-daily-tools.has-agent-goal { grid-template-columns: 1fr; width: min(720px, calc(100% - 16px)); }
+            .dashboard-period-panel { min-height: 58px; }
+        }
+        @media (max-width: 560px) {
+            .dashboard-daily-tools { width: calc(100% - 8px); gap: 9px; }
+        }
+
 
         /* ── CLASSIC BIZ DASHBOARD LAYOUT + COMPACT ACCOUNT BADGE ── */
         body.role-pending .dashboard-navigation {
@@ -1510,11 +1555,15 @@ document.addEventListener('DOMContentLoaded', function() {
         </section>
     </div>
 
-    <div id="day-sub-tabs-wrapper" class="hidden px-2 mb-5 max-w-2xl mx-auto">
-        <div id="day-sub-tabs-container"></div>
+    <div id="dashboard-daily-tools" class="dashboard-daily-tools hidden" aria-label="Daily dashboard controls">
+        <div id="day-sub-tabs-wrapper" class="hidden dashboard-period-panel">
+            <div class="dashboard-period-label">Report View</div>
+            <div id="day-sub-tabs-container"></div>
+        </div>
+        <div id="agent-goal-widget-container" style="display:none;"></div>
     </div>
 
-    <div id="leaderboard-view" data-tab-src="tabs/leaderboard.html"></div>
+    <div id="leaderboard-view" data-tab-src="tabs/leaderboard.html?v=5"></div>
     <div id="lookup-view" class="hidden"><div class="glass p-6 rounded-3xl border-t-4 border-t-blue-500">
             <div class="flex items-center gap-3 mb-3">
                 <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);">
@@ -1555,7 +1604,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div id="lookup-history" class="space-y-2"></div>
         </div></div>
     <div id="playbook-view" class="hidden" data-tab-src="tabs/playbook.html"></div>
-    <div id="rebuttals-view" class="hidden" data-tab-src="tabs/rebuttals.html"></div>
+    <div id="rebuttals-view" class="hidden" data-tab-src="tabs/rebuttals.html?v=5"></div>
     <div id="prank-view" class="hidden" data-tab-src="tabs/prank.html"></div>
     <div id="trivia-view" class="hidden" data-tab-src="tabs/trivia.html"></div>
     <div id="chatroom-view" class="hidden" data-tab-src="tabs/chatroom.html"></div>
@@ -1569,9 +1618,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script src="js/config.js"></script>
 <script src="js/utils.js?v=3"></script>
-<script src="js/playbook.js"></script>
 <script src="js/session-banner.js"></script>
-<script src="js/dashboard.js"></script>
+<script src="js/dashboard.js?v=5"></script>
 <script src="js/adminpanel.js?v=2"></script>
 <script src="js/lookup.js?v=2"></script>
 <script src="js/trivia.js"></script>
@@ -1584,7 +1632,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="js/adminhub.js?v=2"></script>
 <script src="js/tracker.js?v=3"></script>
 <script src="js/chatroom.js?v=3"></script>
-<script src="js/goals.js?v=4"></script>
+<script src="js/goals.js?v=5"></script>
 
 <script>
 const _loadedTabs = new Set();
@@ -1696,6 +1744,9 @@ window.switchTab = function(tab) {
 
     // Switch UI immediately — always instant
     _origSwitchTab(tab);
+
+    const dailyTools = document.getElementById('dashboard-daily-tools');
+    if (dailyTools) dailyTools.classList.toggle('hidden', tab !== 'daily');
 
     // Inject content if not done yet (HTML already pre-fetched, just needs DOM injection)
     if (viewId && !_loadedTabs.has(viewId)) {

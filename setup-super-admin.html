@@ -100,9 +100,36 @@
         </div>
     </div>
     
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA5u7B8UJQOFG8yhE0YKWCiWCHQgaNu1mY",
+            authDomain: "biz-dashboard-4396c.firebaseapp.com",
+            databaseURL: "https://biz-dashboard-4396c-default-rtdb.firebaseio.com",
+            projectId: "biz-dashboard-4396c",
+            storageBucket: "biz-dashboard-4396c.firebasestorage.app",
+            messagingSenderId: "394155720592",
+            appId: "1:394155720592:web:b85a142cf8c885726b3d15"
+        };
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            const database = getDatabase(app);
+            window.saveSuperAdminToFirebase = async function (record) {
+                await set(ref(database, 'super_admin'), record);
+            };
+            window.superAdminSetupFirebaseReady = true;
+        } catch (error) {
+            console.error('[SuperAdmin Setup] Firebase initialization failed:', error);
+            window.superAdminSetupFirebaseReady = false;
+        }
+    </script>
     <script src="js/super-admin.js?v=4"></script>
     <script>
-        function createSuperAdmin() {
+        async function createSuperAdmin() {
             const name = document.getElementById('super-name').value;
             const email = document.getElementById('super-email').value;
             const password = document.getElementById('super-password').value;
@@ -130,7 +157,7 @@
             }
             
             // Create super admin
-            const result = setupFirstSuperAdmin(email, password, name);
+            const result = await setupFirstSuperAdmin(email, password, name);
             
             if (result.success) {
                 document.getElementById('setup-form').classList.add('hidden');

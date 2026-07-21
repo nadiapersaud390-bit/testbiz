@@ -117,6 +117,21 @@ function buildQuery(q){
     return 'For the business "'+q+'", give me: the business name, the name of the owner, the address, and email if possible';
 }
 
+
+// Used by tabs/lookup.html when the lookup action is rendered as a link.
+// Keeping the navigation inside the original click event prevents popup blockers.
+function handleLookupClick(link) {
+    const input = document.getElementById('lookup-input');
+    const query = input ? input.value.trim() : '';
+    if (!query) {
+        if (input) input.focus();
+        return false;
+    }
+    runLookup();
+    return false;
+}
+window.handleLookupClick = handleLookupClick;
+
 function runLookup(){
     const q=document.getElementById('lookup-input').value.trim();
     if(!q){document.getElementById('lookup-input').focus();return;}
