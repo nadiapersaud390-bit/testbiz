@@ -1,0 +1,6 @@
+GOAL TRACKER MOTIVATION UPDATE
+
+- Kept the agent goal tracker beside the report controls.
+- Added a clean motivational line directly below the personal goal tracker.
+- Quote: “See the goal. Visualize the win. Embrace the work. Go get it.”
+- Added responsive styling and cache version update.

@@ -639,7 +639,11 @@
                         <small>Choose your low and high transfer goals to track progress live.</small>
                     </span>
                     <span class="biz-goal-empty-action">Set Goals <i class="fas fa-arrow-right"></i></span>
-                </button>`;
+                </button>
+                <div class="biz-goal-motivation" role="note">
+                    <i class="fas fa-bolt" aria-hidden="true"></i>
+                    <span>See the goal. Visualize the win. Embrace the work. Go get it.</span>
+                </div>`;
             container.querySelector('#biz-goal-empty-button')?.addEventListener('click', () => showGoalPopup());
             return;
         }
@@ -700,7 +704,11 @@
                         <i class="fas fa-sliders-h"></i> Edit Goals
                     </button>
                 </div>
-            </section>`;
+            </section>
+            <div class="biz-goal-motivation" role="note">
+                <i class="fas fa-bolt" aria-hidden="true"></i>
+                <span>See the goal. Visualize the win. Embrace the work. Go get it.</span>
+            </div>`;
 
         container.querySelector('#biz-goal-edit-button')?.addEventListener('click', () => showGoalPopup());
         persistHitStateIfNeeded(goals, status);
@@ -997,7 +1005,39 @@
             .biz-goal-save:hover { transform: translateY(-1px); filter: brightness(1.06); }
             .biz-goal-save:disabled { cursor: wait; opacity: .72; transform: none; }
 
-            #agent-goal-widget-container { width: 100%; min-width: 0; box-sizing: border-box; }
+            #agent-goal-widget-container {
+                display: grid;
+                gap: 8px;
+                width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
+            }
+            .biz-goal-motivation {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                min-height: 24px;
+                padding: 2px 12px 0;
+                color: #7f8da5;
+                font-family: 'Inter', sans-serif;
+                font-size: 10px;
+                font-weight: 800;
+                font-style: italic;
+                letter-spacing: .02em;
+                text-align: center;
+            }
+            .biz-goal-motivation i {
+                color: #ff9f1a;
+                font-size: 9px;
+                filter: drop-shadow(0 0 7px rgba(255, 159, 26, .38));
+            }
+            .biz-goal-motivation span {
+                background: linear-gradient(90deg, #94a3b8 0%, #f8fafc 50%, #94a3b8 100%);
+                -webkit-background-clip: text;
+                background-clip: text;
+                color: transparent;
+            }
             .biz-goal-strip {
                 position: relative;
                 display: grid;
@@ -1231,6 +1271,7 @@
                 .biz-goal-hit-badges { display: grid; grid-template-columns: 1fr 1fr; flex: 1; }
                 .biz-goal-hit-badge { min-width: 0; justify-content: center; }
                 .biz-goal-status-line { white-space: normal; line-height: 1.35; }
+                .biz-goal-motivation { font-size: 9px; line-height: 1.4; padding-inline: 5px; }
                 .biz-goal-empty { align-items: flex-start; }
                 .biz-goal-empty-action { display: none; }
             }
