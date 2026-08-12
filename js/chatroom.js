@@ -286,14 +286,27 @@
         }
     }
 
+    // Super Admin is intentionally invisible in chat participant/presence UI.
+    // The account can still open and use chat, but it is not offered to other users
+    // for DMs, mentions, group selection, member lists, or online counts.
+    function _isHiddenChatIdentity(id, name, obj) {
+        const cleanId = String(id || '').trim().toLowerCase();
+        const cleanName = String(name || '').trim().toLowerCase();
+        return !!(
+            (obj && (obj.isSuper === true || obj.role === 'super_admin' || obj.type === 'super_admin')) ||
+            cleanId === 'rose' ||
+            cleanName === 'rose'
+        );
+    }
+
     function _getAllChatParticipants() {
         const admins = [
             { id: 'jamal', name: 'JAMAL', type: 'admin' },
-            { id: 'rose', name: 'ROSE', type: 'admin' },
+            { id: 'rose', name: 'ROSE', type: 'super_admin', isSuper: true },
             { id: 'momo', name: 'MOHENIE', type: 'admin' },
             { id: 'mel', name: 'MEL', type: 'admin' },
             { id: 'nadia', name: 'NADIA', type: 'admin' }
-        ];
+        ].filter(p => !_isHiddenChatIdentity(p.id, p.name, p));
         
         const roster = _getAgentRoster();
         const agents = roster.map(agent => ({
@@ -593,11 +606,11 @@
     function _getAdminList() {
         return [
             { id: 'jamal', name: 'JAMAL' },
-            { id: 'rose', name: 'ROSE' },
+            { id: 'rose', name: 'ROSE', role: 'super_admin', isSuper: true },
             { id: 'mel', name: 'MEL' },
             { id: 'momo', name: 'MOHENIE' },
             { id: 'nadia', name: 'NADIA' }
-        ];
+        ].filter(a => !_isHiddenChatIdentity(a.id, a.name, a));
     }
 
     function _getAgentRoster() {
@@ -873,9 +886,21 @@
         const me = _getMyIdentity();
         const presenceRef = _ref(PRESENCE_DB_PATH + '/' + me.id);
         if (presenceRef) {
+            if (_isHiddenChatIdentity(me.id, me.name, me)) {
+                _fbFunctions.set(presenceRef, {
+                    name: me.name,
+                    role: 'super_admin',
+                    isSuper: true,
+                    online: false,
+                    hidden: true,
+                    lastSeen: _getServerTimestamp()
+                });
+                return;
+            }
             _fbFunctions.set(presenceRef, {
                 name: me.name,
                 role: me.role,
+                isSuper: !!me.isSuper,
                 online: true,
                 lastSeen: _getServerTimestamp()
             });
@@ -885,6 +910,7 @@
                     _fbFunctions.onDisconnect(presenceRef).set({
                         name: me.name,
                         role: me.role,
+                        isSuper: !!me.isSuper,
                         online: false,
                         lastSeen: _getServerTimestamp()
                     });
@@ -905,10 +931,12 @@
             const data = snapshot.val() || {};
             _crOnlineUsers.clear();
             Object.keys(data).forEach(id => {
-                if (data[id].online) {
+                const row = data[id] || {};
+                if (_isHiddenChatIdentity(id, row.name, row)) return;
+                if (row.online) {
                     _crOnlineUsers.add(id);
                 }
-                _crLastSeen[id] = data[id].lastSeen || 0;
+                _crLastSeen[id] = row.lastSeen || 0;
             });
             _updateOnlineStatusUI();
         });
@@ -1866,8 +1894,11 @@
 
         if (st.tab === 'current') {
             var members = (ch.members || []).filter(function(m) {
+                var mid = String(m.id || m);
+                var mname = m.name || mid;
+                if (_isHiddenChatIdentity(mid, mname, m)) return false;
                 if (!lf) return true;
-                return (m.name||String(m.id||m)).toLowerCase().includes(lf);
+                return mname.toLowerCase().includes(lf);
             });
             if (!members.length) {
                 listEl.innerHTML = '<div style="color:#64748b;font-size:12px;text-align:center;padding:24px;">No members found</div>';
@@ -2083,6 +2114,7 @@
 
                 const otherId = parts[0] === me.id ? parts[1] : parts[0];
                 if (!otherId) return;
+                if (_isHiddenChatIdentity(otherId, _getAdminNameById(otherId), {})) return;
 
                 const isAdmin = me.role === 'admin';
                 const otherIsAdmin = otherId === 'admin' || otherId === 'jamal' || otherId === 'rose' || otherId === 'momo' || otherId === 'mel' || otherId === 'nadia';
@@ -2790,7 +2822,9 @@
         let channelsToShow = [];
         
         if (_crSidebarTab === 'dms') {
-            channelsToShow = Object.values(_crChannels).filter(ch => ch.type === 'dm');
+            channelsToShow = Object.values(_crChannels).filter(ch =>
+                ch.type === 'dm' && !_isHiddenChatIdentity(ch.agentId, ch.agentName, ch)
+            );
         } else if (_crSidebarTab === 'groups') {
             channelsToShow = Object.values(_crChannels).filter(ch => ch.type === 'group');
         } else {
