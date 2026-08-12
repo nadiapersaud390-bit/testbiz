@@ -1,0 +1,101 @@
+<!-- Header banner -->
+      <div class="trivia-wrap" style="padding:0;">
+        <div style="background:linear-gradient(135deg,rgba(255,229,0,0.12),rgba(255,107,0,0.1),rgba(255,45,120,0.08));padding:20px 22px;position:relative;">
+          <div style="position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div>
+              <div style="font-family:'Orbitron',sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.18em;color:#FFE500;margin-bottom:4px;">🎮 Training Mode</div>
+              <div style="font-family:'Lilita One',cursive;font-size:22px;color:white;line-height:1.1;">TRIVIA BLITZ</div>
+              <div id="trivia-round-badge" style="font-size:12px;font-weight:700;color:#FF6B00;margin-top:4px;">⏳ Loading round...</div>
+            </div>
+            <!-- Countdown to next round -->
+            <div id="trivia-countdown-bar" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,229,0,0.25);border-radius:14px;padding:10px 16px;text-align:center;min-width:110px;">
+              <div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:4px;">Next Round In</div>
+              <div id="trivia-next-countdown" style="font-family:'Orbitron',sans-serif;font-size:22px;font-weight:900;color:#FFE500;letter-spacing:0.05em;">--:--</div>
+            </div>
+          </div>
+        </div>
+        <!-- Progress bar -->
+        <div style="height:4px;background:rgba(255,255,255,0.06);">
+          <div id="trivia-progress" style="height:100%;width:0%;background:linear-gradient(90deg,#FFE500,#FF6B00,#FF2D78);transition:width 0.4s ease;border-radius:0 2px 2px 0;"></div>
+        </div>
+      </div>
+
+      <!-- NAME SCREEN -->
+      <div id="trivia-name-screen" class="trivia-wrap" style="padding:28px 22px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:8px;">🧠</div>
+        <div style="font-family:'Lilita One',cursive;font-size:20px;color:white;margin-bottom:6px;">Ready to Test Your Knowledge?</div>
+        <p style="font-size:13px;color:#475569;font-weight:600;margin-bottom:20px;line-height:1.6;">Questions are generated from the playbook, rebuttals & prank training — every round is different. Click to answer — no typing needed!</p>
+        <input id="trivia-name-input" type="text" placeholder="Your name (optional)" maxlength="30"
+          style="width:100%;max-width:300px;background:rgba(255,255,255,0.06);border:2px solid rgba(255,229,0,0.3);border-radius:12px;padding:12px 16px;color:white;font-family:'Boogaloo',cursive;font-size:16px;text-align:center;margin-bottom:16px;outline:none;display:block;margin-left:auto;margin-right:auto;" />
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+          <button onclick="startTrivia(false)" style="background:linear-gradient(135deg,#FFE500,#FF6B00);border:none;border-radius:14px;padding:14px 28px;font-family:'Lilita One',cursive;font-size:16px;color:#000;cursor:pointer;letter-spacing:0.05em;box-shadow:0 4px 20px rgba(255,229,0,0.3);transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">⚡ START BLITZ</button>
+          <button onclick="startTrivia(true)" style="background:rgba(255,255,255,0.05);border:2px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px 22px;font-family:'Boogaloo',cursive;font-size:15px;color:#94a3b8;cursor:pointer;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">👤 Play Anonymous</button>
+        </div>
+        <!-- Leaderboard -->
+        <div style="margin-top:28px;border-top:1px solid rgba(255,255,255,0.06);padding-top:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#FFE500;">🏆 All Players — <span id="trivia-lb-round">Today</span></div>
+            <div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;color:#475569;" id="trivia-lb-count"></div>
+          </div>
+          <div id="trivia-leaderboard"></div>
+        </div>
+      </div>
+
+      <!-- LOADING SCREEN -->
+      <div id="trivia-loading-screen" class="trivia-wrap hidden" style="padding:50px 22px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:14px;animation:spin 1.5s linear infinite;display:inline-block;">⚡</div>
+        <div style="font-family:'Lilita One',cursive;font-size:18px;color:white;margin-bottom:8px;">Generating Your Questions...</div>
+        <p style="font-size:12px;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:20px;">Reading the playbook & building your challenge</p>
+        <div style="background:rgba(255,229,0,0.06);border:1px solid rgba(255,229,0,0.2);border-radius:12px;padding:14px 18px;">
+          <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#FFE500;letter-spacing:0.1em;margin-bottom:6px;">💡 Did you know?</div>
+          <div id="trivia-loading-tips" style="font-size:14px;font-weight:700;color:#e2e8f0;font-family:'Boogaloo',cursive;transition:opacity 0.3s;min-height:22px;"></div>
+        </div>
+      </div>
+
+      <!-- QUESTION SCREEN -->
+      <div id="trivia-question-screen" class="hidden">
+        <!-- Top bar: streak + counter + timer -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div id="trivia-streak-label" style="font-family:'Boogaloo',cursive;font-size:16px;color:#FF6B00;min-width:80px;"></div>
+          <div id="trivia-q-counter" style="font-family:'Orbitron',sans-serif;font-size:11px;font-weight:900;color:#475569;text-transform:uppercase;letter-spacing:0.1em;"></div>
+          <!-- SVG Timer Ring -->
+          <div style="position:relative;width:52px;height:52px;flex-shrink:0;">
+            <svg width="52" height="52" viewBox="0 0 52 52" style="transform:rotate(-90deg);">
+              <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="4"/>
+              <circle id="trivia-ring-fill" cx="26" cy="26" r="22" fill="none" stroke="#FFE500" stroke-width="4"
+                stroke-dasharray="138.2" stroke-dashoffset="0" stroke-linecap="round" style="transition:stroke-dashoffset 0.9s linear,stroke 0.3s;"/>
+            </svg>
+            <div id="trivia-timer-text" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:14px;font-weight:900;color:#FFE500;"></div>
+          </div>
+        </div>
+
+        <!-- Motivational quote bar -->
+        <div id="trivia-motiv-bar" style="background:linear-gradient(90deg,rgba(255,107,0,0.12),rgba(255,45,120,0.08));border:1px solid rgba(255,107,0,0.25);border-radius:12px;padding:10px 16px;font-family:'Boogaloo',cursive;font-size:15px;color:#FF6B00;text-align:center;margin-bottom:12px;transition:opacity 0.3s;"></div>
+
+        <!-- Question card -->
+        <div id="trivia-question-card" class="trivia-wrap" style="padding:20px 18px;position:relative;overflow:hidden;">
+          <div id="trivia-category-pill" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
+          <div id="trivia-question-text" style="font-family:'Boogaloo',cursive;font-size:20px;color:white;line-height:1.45;margin-bottom:20px;"></div>
+          <!-- Options -->
+          <div id="trivia-options" style="display:flex;flex-direction:column;gap:10px;"></div>
+          <!-- Explanation -->
+          <div id="trivia-explanation" class="hidden" style="margin-top:14px;background:rgba(0,245,255,0.07);border:1px solid rgba(0,245,255,0.2);border-radius:12px;padding:12px 14px;">
+            <div style="font-size:10px;font-weight:900;text-transform:uppercase;color:#00F5FF;letter-spacing:0.1em;margin-bottom:5px;">💡 Why?</div>
+            <div id="trivia-explanation-text" style="font-size:14px;font-weight:700;color:#e2e8f0;line-height:1.6;font-family:'Boogaloo',cursive;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RESULT SCREEN -->
+      <div id="trivia-result-screen" class="trivia-wrap hidden" style="padding:28px 20px;text-align:center;">
+        <div id="trivia-result-emoji" style="font-size:54px;margin-bottom:10px;"></div>
+        <div style="font-family:'Lilita One',cursive;font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Round Complete</div>
+        <div id="trivia-result-name" style="font-family:'Boogaloo',cursive;font-size:22px;color:white;margin-bottom:4px;"></div>
+        <div id="trivia-result-score" style="font-family:'Orbitron',sans-serif;font-size:36px;font-weight:900;background:linear-gradient(90deg,#FFE500,#FF6B00);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;"></div>
+        <div id="trivia-result-msg" style="font-size:14px;font-weight:700;color:#94a3b8;margin-bottom:22px;font-family:'Boogaloo',cursive;"></div>
+        <!-- Breakdown -->
+        <div id="trivia-result-breakdown" style="display:flex;flex-direction:column;gap:8px;text-align:left;margin-bottom:22px;"></div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+          <button onclick="startTrivia(triviaState.playerName==='Anonymous')" style="background:linear-gradient(135deg,#FFE500,#FF6B00);border:none;border-radius:14px;padding:13px 24px;font-family:'Lilita One',cursive;font-size:15px;color:#000;cursor:pointer;box-shadow:0 4px 20px rgba(255,229,0,0.25);">🔁 Play Again</button>
+          <button onclick="resetTrivia()" style="background:rgba(255,255,255,0.05);border:2px solid rgba(255,255,255,0.1);border-radius:14px;padding:13px 20px;font-family:'Boogaloo',cursive;font-size:14px;color:#94a3b8;cursor:pointer;">🏠 Home</button>
+        </div>

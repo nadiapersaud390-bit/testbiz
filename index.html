@@ -1,0 +1,1954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>BIZ Level Up Dashboard | Live Performance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css?v=3">
+    <style>
+        /* ── RESPONSIVE ZOOM FIX ── */
+
+        .main-container {
+            width: 100%;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 0 clamp(8px, 2vw, 24px);
+            box-sizing: border-box;
+        }
+
+        /* Tab grid — always 3 equal columns */
+        .tab-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: clamp(4px, 1vw, 10px);
+            margin-bottom: clamp(4px, 1vw, 10px);
+            padding: 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Buttons: fluid text, never overflow */
+        .tab-grid button {
+            width: 100%;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: clamp(8px, 1.2vw, 13px) !important;
+            padding: clamp(8px, 1.2vw, 14px) clamp(4px, 0.8vw, 10px) !important;
+            box-sizing: border-box;
+        }
+
+        /* Icon inside buttons */
+        .tab-grid button i {
+            font-size: clamp(7px, 1vw, 11px) !important;
+        }
+
+        /* Full-width row (Super Admin) */
+        .tab-grid-full {
+            grid-column: 1 / -1;
+        }
+
+        /* Day sub-tabs fluid */
+        #day-sub-tabs-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: clamp(4px, 1vw, 8px);
+        }
+
+        .day-sub-tab {
+            font-size: clamp(8px, 1vw, 11px) !important;
+            padding: clamp(4px, 0.6vw, 7px) clamp(8px, 1.2vw, 14px) !important;
+        }
+
+        /* Leaderboard grid: 2 cols at normal zoom, scales with zoom */
+        #leaderboard {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 14px !important;
+        }
+        @media(min-width:1800px) {
+            #leaderboard { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important; }
+        }
+        @media(max-width:640px) {
+            #leaderboard { grid-template-columns: 1fr !important; }
+        }
+
+        /* Each leaderboard card fills its cell */
+        #leaderboard > div {
+            min-width: 0;
+            box-sizing: border-box;
+        }
+
+        /* Stats bar: auto-fit, always fills width */
+        .stats-bar-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(160px, 40vw), 1fr));
+            gap: clamp(6px, 1.2vw, 14px);
+        }
+
+        /* Hide elements gracefully */
+        .hidden-tab {
+            display: none !important;
+        }
+
+        /* ── GOAL SYSTEM STYLES ── */
+        .goal-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(2, 6, 23, 0.92);
+            backdrop-filter: blur(12px);
+            z-index: 100000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Inter', sans-serif;
+        }
+        .goal-modal.hidden { display: none; }
+        .goal-modal-content {
+            background: linear-gradient(135deg, #0d1424, #0a1020);
+            border: 1px solid rgba(250, 204, 21, 0.3);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 420px;
+            animation: goalSlideIn 0.3s ease;
+            box-shadow: 0 0 60px rgba(250, 204, 21, 0.15);
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes goalSlideIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .goal-modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+        }
+        .goal-modal-icon { font-size: 28px; }
+        .goal-modal-header h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            font-weight: 900;
+            background: linear-gradient(90deg, #facc15, #fb923c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0;
+        }
+        .goal-modal-close {
+            margin-left: auto;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #64748b;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+        }
+        .goal-modal-close:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        .goal-modal-body { padding: 24px; }
+        .goal-modal-date {
+            text-align: center;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+        .goal-input-group { margin-bottom: 20px; }
+        .goal-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .goal-label.low { color: #34d399; }
+        .goal-label.high { color: #60a5fa; }
+        .goal-input {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1.5px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 24px;
+            font-weight: 800;
+            text-align: center;
+            font-family: 'Orbitron', sans-serif;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .goal-input:focus {
+            border-color: #facc15;
+            box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.1);
+        }
+        .goal-hint {
+            font-size: 10px;
+            color: #475569;
+            margin-top: 6px;
+            text-align: center;
+        }
+        .goal-error {
+            color: #ef4444;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+            margin: 10px 0;
+            min-height: 20px;
+        }
+        .goal-modal-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .goal-btn-save {
+            padding: 14px;
+            border-radius: 12px;
+            border: none;
+            background: linear-gradient(90deg, #facc15, #fb923c);
+            color: #020617;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 13px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .goal-btn-save:hover { transform: scale(1.02); opacity: 0.95; }
+        .goal-btn-skip {
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: transparent;
+            color: #64748b;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 800;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .goal-btn-skip:hover { color: #94a3b8; background: rgba(255, 255, 255, 0.05); }
+        
+        /* Goal Widget Styles */
+        .goal-widget-container {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-top: 8px;
+        }
+        .goal-widget-header {
+            display: flex;
+            gap: 16px;
+            font-size: 11px;
+            font-weight: 800;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .goal-label-low { color: #34d399; }
+        .goal-label-high { color: #60a5fa; }
+        .goal-label-actual { color: #facc15; }
+        .goal-progress-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+        .goal-progress-low, .goal-progress-high {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .goal-progress-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        .goal-status {
+            font-size: 10px;
+            font-weight: 700;
+            text-align: center;
+            margin: 10px 0;
+            padding: 6px;
+            border-radius: 8px;
+        }
+        .goal-status-hit { 
+            background: rgba(250, 204, 21, 0.15);
+            color: #facc15; 
+        }
+        .goal-status-low-hit { 
+            background: rgba(52, 211, 153, 0.1);
+            color: #34d399; 
+        }
+        .goal-status-miss { 
+            background: rgba(248, 113, 113, 0.08);
+            color: #f87171; 
+        }
+        .goal-edit-small {
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #64748b;
+            font-size: 10px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .goal-edit-small:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        .goal-edit-btn {
+            padding: 4px 12px;
+            border-radius: 8px;
+            background: rgba(250, 204, 21, 0.1);
+            border: 1px solid rgba(250, 204, 21, 0.3);
+            color: #facc15;
+            font-size: 10px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        /* Daily controls: date selector and agent targets share one compact row. */
+        .dashboard-daily-tools {
+            display: grid;
+            grid-template-columns: 1fr;
+            align-items: stretch;
+            gap: 12px;
+            width: min(720px, calc(100% - 16px));
+            margin: 0 auto 18px;
+        }
+        .dashboard-daily-tools.has-agent-goal {
+            grid-template-columns: minmax(285px, .72fr) minmax(0, 1.65fr);
+            width: min(1180px, calc(100% - 16px));
+        }
+        .dashboard-daily-tools.hidden { display: none !important; }
+        .dashboard-period-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-width: 0;
+            padding: 10px 12px;
+            border: 1px solid rgba(59,130,246,.18);
+            border-radius: 13px;
+            background: linear-gradient(145deg, rgba(9,17,34,.94), rgba(5,10,23,.97));
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.02);
+        }
+        .dashboard-period-panel.hidden { display: none !important; }
+        .dashboard-period-label {
+            margin: 0 0 7px 2px;
+            color: #52647c;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 6.5px;
+            font-weight: 900;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+        #day-sub-tabs-container { align-items: center; }
+        @media (max-width: 920px) {
+            .dashboard-daily-tools,
+            .dashboard-daily-tools.has-agent-goal { grid-template-columns: 1fr; width: min(720px, calc(100% - 16px)); }
+            .dashboard-period-panel { min-height: 58px; }
+        }
+        @media (max-width: 560px) {
+            .dashboard-daily-tools { width: calc(100% - 8px); gap: 9px; }
+        }
+
+
+        /* ── CLASSIC BIZ DASHBOARD LAYOUT + COMPACT ACCOUNT BADGE ── */
+        body.role-pending .dashboard-navigation {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .dashboard-navigation {
+            opacity: 1;
+            visibility: visible;
+            transition: opacity .18s ease, visibility .18s ease;
+        }
+        .dashboard-shell {
+            max-width: 980px;
+            margin: 0 auto 28px;
+        }
+        .dashboard-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin: 5px 0 22px;
+            padding: 0 2px;
+        }
+        .dashboard-live-block {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+        .dashboard-live-copy { min-width: 0; }
+        .dashboard-live-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            font-weight: 900;
+            color: #f87171;
+            letter-spacing: .13em;
+            text-transform: uppercase;
+            font-style: italic;
+            line-height: 1.2;
+        }
+        .dashboard-live-meta {
+            margin-top: 5px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dashboard-topbar-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            min-width: 0;
+        }
+        .dashboard-user-card {
+            min-width: 230px;
+            max-width: 330px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border: 1px solid rgba(96,165,250,.20);
+            border-radius: 14px;
+            background: linear-gradient(145deg, rgba(15,23,42,.86), rgba(2,6,23,.78));
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+        }
+        .dashboard-user-avatar {
+            width: 35px;
+            height: 35px;
+            border-radius: 11px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #dbeafe;
+            background: linear-gradient(145deg, rgba(37,99,235,.42), rgba(14,116,144,.25));
+            border: 1px solid rgba(96,165,250,.30);
+            flex: 0 0 auto;
+            font-size: 12px;
+        }
+        .dashboard-user-copy { min-width: 0; }
+        .dashboard-user-label {
+            color: #475569;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 7px;
+            font-weight: 900;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            line-height: 1.1;
+        }
+        .dashboard-user-name {
+            margin-top: 2px;
+            color: #f8fafc;
+            font-size: 12px;
+            font-weight: 900;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2;
+        }
+        .dashboard-user-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 3px;
+            min-width: 0;
+            color: #64748b;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 7px;
+            font-weight: 900;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        .dashboard-user-role,
+        #dashboard-access-label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dashboard-user-separator { color: #2563eb; }
+        .dashboard-refresh {
+            width: 46px;
+            height: 46px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 14px;
+            flex: 0 0 auto;
+        }
+        .dashboard-title-area {
+            text-align: center;
+            margin: 0 auto 38px;
+        }
+        .dashboard-title {
+            margin: 0;
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(38px, 6vw, 70px);
+            line-height: 1;
+            font-weight: 900;
+            letter-spacing: -.055em;
+            text-transform: uppercase;
+            font-style: italic;
+            background: linear-gradient(92deg, #facc15 0%, #fb923c 48%, #ff2d20 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            filter: drop-shadow(0 7px 22px rgba(249,115,22,.08));
+        }
+        .dashboard-clocks {
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+            gap: 16px;
+            margin-top: 14px;
+            flex-wrap: wrap;
+        }
+        .dashboard-clock-card {
+            min-width: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 8px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(148,163,184,.16);
+            background: rgba(15,23,42,.58);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+        }
+        .dashboard-clock-code {
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: .10em;
+        }
+        .dashboard-clock-place {
+            color: #64748b;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 8px;
+            font-weight: 900;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+        .dashboard-clock-time {
+            margin-top: 2px;
+            font-size: 20px;
+            font-weight: 900;
+            white-space: nowrap;
+            line-height: 1.1;
+        }
+        .dashboard-compact-nav {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 0 8px;
+        }
+        .dashboard-nav-hint {
+            display: none;
+        }
+        .dashboard-nav-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .workspace-tab {
+            --tab-accent: #60a5fa;
+            --tab-rgb: 96,165,250;
+            position: relative;
+            min-width: 0;
+            min-height: 48px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 11px 10px !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(var(--tab-rgb), .24) !important;
+            background: rgba(15,23,42,.58) !important;
+            color: #64748b !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.02);
+            overflow: hidden;
+            transition: transform .16s ease, border-color .16s ease, background .16s ease, color .16s ease, box-shadow .16s ease !important;
+        }
+        .workspace-tab[data-span="full"] {
+            grid-column: 1 / -1;
+        }
+        .workspace-tab:hover {
+            transform: translateY(-1px);
+            border-color: rgba(var(--tab-rgb), .50) !important;
+            background: rgba(var(--tab-rgb), .09) !important;
+            color: var(--tab-accent) !important;
+            box-shadow: 0 6px 16px rgba(0,0,0,.12);
+        }
+        .workspace-tab:focus-visible {
+            outline: 2px solid var(--tab-accent);
+            outline-offset: 2px;
+        }
+        .workspace-tab.tab-active {
+            border-color: rgba(var(--tab-rgb), .92) !important;
+            background: rgba(var(--tab-rgb), .24) !important;
+            color: #fff !important;
+            box-shadow: inset 0 0 0 1px rgba(var(--tab-rgb), .08), 0 6px 16px rgba(0,0,0,.10);
+        }
+        .workspace-tab-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--tab-accent);
+            font-size: 11px;
+            flex: 0 0 auto;
+        }
+        .workspace-tab-title {
+            display: block;
+            color: inherit;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            font-weight: 900;
+            line-height: 1.2;
+            letter-spacing: .055em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .workspace-tab[data-accent="cyan"] { --tab-accent:#38bdf8; --tab-rgb:56,189,248; }
+        .workspace-tab[data-accent="teal"] { --tab-accent:#2dd4bf; --tab-rgb:45,212,191; }
+        .workspace-tab[data-accent="violet"] { --tab-accent:#c084fc; --tab-rgb:192,132,252; }
+        .workspace-tab[data-accent="amber"] { --tab-accent:#fbbf24; --tab-rgb:251,191,36; }
+        .workspace-tab[data-accent="emerald"] { --tab-accent:#34d399; --tab-rgb:52,211,153; }
+        .workspace-tab[data-accent="indigo"] { --tab-accent:#818cf8; --tab-rgb:129,140,248; }
+        .workspace-tab[data-accent="rose"] { --tab-accent:#fb7185; --tab-rgb:251,113,133; }
+        .workspace-tab[data-accent="red"] { --tab-accent:#f87171; --tab-rgb:248,113,113; }
+        .workspace-tab[data-accent="gold"] { --tab-accent:#facc15; --tab-rgb:250,204,21; }
+        .workspace-tab[aria-disabled="true"] { display: none !important; }
+        .access-denied-toast {
+            position: fixed;
+            left: 50%;
+            bottom: 28px;
+            z-index: 100000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: min(420px, calc(100vw - 32px));
+            padding: 12px 15px;
+            border: 1px solid rgba(248,113,113,.36);
+            border-radius: 14px;
+            background: rgba(15,23,42,.97);
+            color: #fecaca;
+            box-shadow: 0 18px 50px rgba(0,0,0,.45);
+            font-size: 11px;
+            font-weight: 800;
+            transform: translate(-50%, 18px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s ease, transform .2s ease;
+        }
+        .access-denied-toast.show { opacity: 1; transform: translate(-50%, 0); }
+        @media (max-width: 760px) {
+            body { padding-left: 10px !important; padding-right: 10px !important; }
+            .dashboard-topbar { align-items: flex-start; }
+            .dashboard-topbar-actions { gap: 8px; }
+            .dashboard-user-card { min-width: 0; max-width: 255px; }
+            .dashboard-live-meta { max-width: 260px; }
+            .dashboard-title-area { margin-bottom: 28px; }
+            .dashboard-title { font-size: clamp(34px, 9vw, 52px); }
+        }
+        @media (max-width: 580px) {
+            .dashboard-topbar {
+                display: grid;
+                grid-template-columns: 1fr auto;
+                gap: 10px;
+            }
+            .dashboard-topbar-actions {
+                grid-column: 1 / -1;
+                width: 100%;
+                justify-content: space-between;
+            }
+            .dashboard-user-card { flex: 1 1 auto; max-width: none; }
+            .dashboard-refresh { width: 43px; height: 43px; }
+            .dashboard-clocks { gap: 8px; }
+            .dashboard-clock-card { min-width: 0; flex: 1 1 145px; padding: 8px 10px; }
+            .dashboard-clock-time { font-size: 16px; }
+            .dashboard-nav-grid { gap: 7px; }
+            .workspace-tab { min-height: 46px; padding: 10px 7px !important; }
+            .workspace-tab-title { font-size: 9px; letter-spacing: .025em; }
+            .workspace-tab-icon { font-size: 10px; }
+        }
+        @media (max-width: 390px) {
+            .dashboard-user-meta { font-size: 6px; }
+            .dashboard-title { font-size: 31px; }
+            .dashboard-nav-grid { grid-template-columns: 1fr 1fr; }
+            .workspace-tab[data-span="full"] { grid-column: 1 / -1; }
+            #tab-playbook, #tab-weekly { grid-column: auto; }
+        }
+
+        /* Exact classic dashboard arrangement requested: compact header, large title,
+           two clocks, and three equal workspace buttons per row. */
+        .dashboard-shell {
+            max-width: 1000px;
+            margin: 0 auto 28px;
+        }
+        .dashboard-topbar {
+            margin: 4px 0 18px;
+        }
+        .dashboard-user-card {
+            min-width: 0;
+            max-width: 250px;
+            padding: 6px 9px;
+            gap: 8px;
+            border-radius: 11px;
+            background: rgba(15,23,42,.52);
+        }
+        .dashboard-user-avatar {
+            width: 29px;
+            height: 29px;
+            border-radius: 9px;
+            font-size: 10px;
+        }
+        .dashboard-user-label,
+        .dashboard-user-separator,
+        #dashboard-access-label {
+            display: none !important;
+        }
+        .dashboard-user-name {
+            margin-top: 0;
+            font-size: 10px;
+            line-height: 1.15;
+        }
+        .dashboard-user-meta {
+            margin-top: 2px;
+            font-size: 6px;
+        }
+        .dashboard-refresh {
+            width: 40px;
+            height: 40px;
+            border-radius: 11px;
+        }
+        .dashboard-title-area {
+            margin: 0 auto 40px;
+        }
+        .dashboard-title {
+            font-size: clamp(42px, 6.15vw, 72px);
+            line-height: .98;
+        }
+        .dashboard-clocks {
+            gap: 16px;
+            margin-top: 14px;
+        }
+        .dashboard-clock-card {
+            min-width: 200px;
+            padding: 8px 18px;
+            border-radius: 14px;
+            background: rgba(15,23,42,.62);
+        }
+        .dashboard-compact-nav {
+            max-width: 760px;
+            padding: 0 4px;
+        }
+        .dashboard-nav-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .workspace-tab {
+            min-height: 46px;
+            padding: 10px 8px !important;
+            border-radius: 12px !important;
+            background: rgba(13,18,34,.92) !important;
+        }
+        .workspace-tab.tab-active {
+            border-color: #0799ff !important;
+            background: #07345f !important;
+            color: #ffffff !important;
+            box-shadow: none !important;
+        }
+        .workspace-tab-title {
+            font-size: 11px;
+            letter-spacing: .055em;
+        }
+        #tab-trivia,
+        #tab-simulator,
+        #tab-chatroom {
+            grid-column: auto !important;
+        }
+        @media (max-width: 760px) {
+            .dashboard-topbar { margin-bottom: 16px; }
+            .dashboard-user-card { max-width: 210px; }
+            .dashboard-title-area { margin-bottom: 30px; }
+            .dashboard-title { font-size: clamp(34px, 9.2vw, 56px); }
+        }
+        @media (max-width: 580px) {
+            .dashboard-user-card { max-width: none; }
+            .dashboard-nav-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .workspace-tab { min-height: 44px; padding: 9px 4px !important; }
+            .workspace-tab-title { font-size: 8px; letter-spacing: .02em; }
+            .workspace-tab-icon { font-size: 9px; }
+        }
+        @media (max-width: 390px) {
+            .dashboard-nav-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .dashboard-title { font-size: 29px; }
+            .workspace-tab-title { font-size: 7px; }
+        }
+
+        /* Final dashboard navigation styling — matches the original colorful BIZ layout. */
+        .dashboard-compact-nav {
+            max-width: 760px;
+        }
+        .dashboard-nav-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .workspace-tab,
+        .workspace-tab[data-span="full"] {
+            grid-column: auto !important;
+            min-height: 46px;
+            padding: 10px 12px !important;
+            border-radius: 12px !important;
+            background: #0b1120 !important;
+            border-color: rgba(var(--tab-rgb), .32) !important;
+            color: var(--tab-accent) !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.018) !important;
+        }
+        .workspace-tab:hover {
+            background: rgba(var(--tab-rgb), .10) !important;
+            border-color: rgba(var(--tab-rgb), .72) !important;
+            color: var(--tab-accent) !important;
+            transform: translateY(-1px);
+        }
+        .workspace-tab.tab-active {
+            background: #063b68 !important;
+            border-color: #00a7ff !important;
+            color: #ffffff !important;
+            box-shadow: none !important;
+        }
+        .workspace-tab[data-text="muted"]:not(.tab-active) {
+            color: #64748b !important;
+        }
+        .workspace-tab[data-text="muted"]:not(.tab-active) .workspace-tab-icon {
+            color: #64748b !important;
+        }
+        .workspace-tab-icon {
+            color: currentColor;
+            font-size: 12px;
+        }
+        .workspace-tab-title {
+            color: currentColor;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 13px;
+            font-weight: 900;
+            line-height: 1.15;
+            letter-spacing: .018em;
+            text-transform: uppercase;
+        }
+        #tab-adminpanel { --tab-accent:#fb7185; --tab-rgb:251,113,133; }
+        #tab-tracker { --tab-accent:#818cf8; --tab-rgb:129,140,248; }
+        #tab-superadminpanel { --tab-accent:#facc15; --tab-rgb:250,204,21; }
+        @media (max-width: 580px) {
+            .dashboard-nav-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .workspace-tab { padding: 9px 5px !important; }
+            .workspace-tab-title { font-size: 9px; letter-spacing: .005em; }
+            .workspace-tab-icon { font-size: 9px; }
+        }
+        @media (max-width: 390px) {
+            .workspace-tab-title { font-size: 7.5px; }
+        }
+
+
+        /* ── FINAL TOP SECTION — MATCHES THE APPROVED BIZ DASHBOARD HEADER ── */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 7px;
+            z-index: 999;
+            pointer-events: none;
+            background: linear-gradient(90deg,
+                rgba(127,29,29,.18) 0%,
+                rgba(239,68,68,.34) 18%,
+                rgba(248,113,113,.42) 50%,
+                rgba(239,68,68,.34) 82%,
+                rgba(127,29,29,.18) 100%);
+            box-shadow: 0 0 8px rgba(239,68,68,.28), 0 4px 14px rgba(127,29,29,.14);
+        }
+        #agent-session-banner {
+            width: calc(100% - 32px);
+            max-width: 1100px !important;
+            margin: 17px auto 17px !important;
+            min-height: 41px;
+        }
+        .biz-session-card {
+            min-height: 41px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 8px 14px;
+            border: 1px solid rgba(148,163,184,.34);
+            border-radius: 11px;
+            background: linear-gradient(180deg, rgba(30,41,59,.96), rgba(25,35,51,.96));
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.025), 0 6px 16px rgba(0,0,0,.12);
+        }
+        .biz-session-label {
+            flex: 0 0 auto;
+            color: #22c55e;
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: .085em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .biz-session-card.is-admin .biz-session-label { color: #38bdf8; }
+        .biz-session-details {
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 14px;
+            flex-wrap: wrap;
+            color: #d7deea;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .biz-session-detail { white-space: nowrap; }
+        .biz-session-key { color: #94a3b8; font-weight: 900; }
+        .biz-session-lunch {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 7px;
+            border: 1px solid rgba(250,204,21,.38);
+            border-radius: 6px;
+            background: rgba(250,204,21,.14);
+            color: #facc15;
+            font-weight: 900;
+        }
+        .main-container {
+            max-width: 1600px !important;
+        }
+        .dashboard-shell {
+            max-width: 1540px !important;
+            margin: 0 auto 28px !important;
+        }
+        .dashboard-topbar {
+            min-height: 58px;
+            margin: 0 0 27px !important;
+            padding: 0 3px !important;
+            align-items: center !important;
+        }
+        .dashboard-live-block { gap: 15px !important; }
+        .dashboard-live-title {
+            font-size: 14px !important;
+            letter-spacing: .095em !important;
+            color: #ff4747 !important;
+        }
+        .dashboard-live-meta {
+            margin-top: 7px !important;
+            font-size: 15px !important;
+            letter-spacing: .01em !important;
+            color: #5f78a5 !important;
+        }
+        .dashboard-topbar .live-pulse {
+            width: 12px;
+            height: 12px;
+            margin-right: 8px;
+            background: #f04444;
+            box-shadow: 0 0 16px rgba(239,68,68,.28);
+        }
+        .dashboard-user-card { display: none !important; }
+        .dashboard-topbar-actions { gap: 0 !important; }
+        .dashboard-refresh {
+            width: 55px !important;
+            height: 57px !important;
+            border-radius: 15px !important;
+            background: rgba(15,23,42,.56) !important;
+            border: 1px solid rgba(148,163,184,.16) !important;
+        }
+        .dashboard-refresh i { font-size: 17px !important; }
+        .dashboard-title-area {
+            margin: 0 auto 39px !important;
+            text-align: center;
+        }
+        .dashboard-title {
+            font-size: clamp(48px, 5.8vw, 72px) !important;
+            line-height: .96 !important;
+            letter-spacing: -.058em !important;
+            filter: drop-shadow(0 8px 20px rgba(249,115,22,.08));
+        }
+        .dashboard-clocks {
+            gap: 18px !important;
+            margin-top: 16px !important;
+        }
+        .dashboard-clock-card {
+            min-width: 232px !important;
+            min-height: 70px;
+            padding: 9px 20px !important;
+            gap: 12px !important;
+            border-radius: 15px !important;
+            background: rgba(15,23,42,.72) !important;
+            border-color: rgba(148,163,184,.18) !important;
+        }
+        .dashboard-clock-code {
+            font-size: 11px !important;
+            opacity: .92;
+        }
+        .dashboard-clock-place {
+            font-size: 9px !important;
+            color: #60779e !important;
+        }
+        .dashboard-clock-time {
+            margin-top: 2px !important;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 25px !important;
+            letter-spacing: .01em !important;
+        }
+        @media (max-width: 900px) {
+            #agent-session-banner { width: calc(100% - 20px); }
+            .biz-session-card { align-items: flex-start; }
+            .biz-session-details { justify-content: flex-start; gap: 9px 13px; }
+            .dashboard-shell { max-width: 100% !important; }
+            .dashboard-live-title { font-size: 12px !important; }
+            .dashboard-live-meta { font-size: 12px !important; }
+        }
+        @media (max-width: 620px) {
+            #agent-session-banner { margin-top: 12px !important; }
+            .biz-session-card { display: block; padding: 10px 12px; }
+            .biz-session-label { margin-bottom: 7px; }
+            .biz-session-details { display: grid; grid-template-columns: 1fr 1fr; }
+            .dashboard-topbar { min-height: 52px; margin-bottom: 22px !important; }
+            .dashboard-live-meta { white-space: normal; }
+            .dashboard-refresh { width: 48px !important; height: 49px !important; }
+            .dashboard-title { font-size: clamp(34px, 10.8vw, 52px) !important; }
+            .dashboard-clock-card { min-width: 0 !important; flex: 1 1 145px; min-height: 60px; padding: 8px 10px !important; }
+            .dashboard-clock-time { font-size: 18px !important; }
+        }
+        @media (max-width: 430px) {
+            .biz-session-details { grid-template-columns: 1fr; }
+            .dashboard-live-title { font-size: 10px !important; }
+            .dashboard-live-meta { font-size: 10px !important; }
+            .dashboard-title { font-size: 30px !important; }
+        }
+    </style>
+</head>
+<body class="p-4 pb-20 role-pending">
+
+<!-- KICKED OUT OVERLAY — shown when another device logs in with the same ID -->
+<div id="kicked-out-overlay" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,0.98);z-index:99999;align-items:center;justify-content:center;flex-direction:column;gap:20px;animation:fadeSlideIn 0.4s ease;">
+    <div style="text-align:center;max-width:380px;padding:40px 32px;background:rgba(239,68,68,0.07);border:2px solid rgba(239,68,68,0.4);border-radius:28px;box-shadow:0 0 60px rgba(239,68,68,0.2);">
+        <div style="font-size:3.5rem;margin-bottom:16px;">🔒</div>
+        <div id="kicked-out-label" style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:0.14em;color:#ef4444;margin-bottom:10px;">Session Ended</div>
+        <div id="kicked-out-title" style="font-size:17px;font-weight:900;color:#f1f5f9;margin-bottom:10px;">You've been logged out</div>
+        <div id="kicked-out-message" style="font-size:13px;color:#94a3b8;font-weight:600;line-height:1.6;margin-bottom:24px;">Someone else logged in using your ID.<br>Only one session is allowed at a time.</div>
+        <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Redirecting in</div>
+        <div id="kicked-countdown" style="font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;color:#ef4444;">3</div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script>
+(function validateAndSanitizeSession() {
+    const role = sessionStorage.getItem('bizUserRole');
+    let admin = {};
+    let agent = {};
+    try { admin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch (e) {}
+    try { agent = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}'); } catch (e) {}
+
+    const validAdmin = role === 'admin' && sessionStorage.getItem('adminLoggedIn') === 'true' && !!admin.email;
+    const validAgent = role === 'agent' && sessionStorage.getItem('agentLoggedIn') === '1' && !!(agent.ytelId || agent.name);
+
+    if (validAdmin) {
+        // Never allow an old agent session to remain mixed with an admin session.
+        sessionStorage.removeItem('agentLoggedIn');
+        sessionStorage.removeItem('currentAgentProfile');
+        sessionStorage.removeItem('currentAgentName');
+        return;
+    }
+
+    if (validAgent) {
+        // Never allow an old admin session to remain mixed with an agent session.
+        sessionStorage.removeItem('adminLoggedIn');
+        sessionStorage.removeItem('currentAdmin');
+        sessionStorage.removeItem('bizAdminUnlocked');
+        sessionStorage.removeItem('bizAdminId');
+        sessionStorage.removeItem('bizAdminEmail');
+        return;
+    }
+
+    // Fail closed when the session is incomplete, stale, or contradictory.
+    sessionStorage.removeItem('agentLoggedIn');
+    sessionStorage.removeItem('adminLoggedIn');
+    sessionStorage.removeItem('currentAdmin');
+    sessionStorage.removeItem('currentAgentProfile');
+    sessionStorage.removeItem('currentAgentName');
+    sessionStorage.removeItem('bizUserRole');
+    window.location.replace('agent-login.html');
+})();
+
+// ── MIDNIGHT AUTO-LOGOUT (Guyana time) ──────────────────────────────────
+(function() {
+    function _guyanaDateStr() {
+        return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guyana' });
+    }
+
+    function _midnightLogout() {
+        sessionStorage.clear();
+        window.location.replace('agent-login.html');
+    }
+
+    function _msTillGuyanaMidnight() {
+        // Build a "fake-local" Date for the current Guyana wall-clock time
+        var gNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+        var gMid = new Date(gNow);
+        gMid.setHours(24, 0, 0, 0);          // next midnight, same "fake-local" scale
+        return Math.max(gMid - gNow, 1000);  // always at least 1s
+    }
+
+    // 1. Check immediately: if the stored login date is not today in Guyana, log out
+    var loginDate = sessionStorage.getItem('bizLoginDate');
+    if (loginDate && loginDate !== _guyanaDateStr()) {
+        _midnightLogout();
+    }
+
+    // 2. Schedule logout at the next Guyana midnight; re-arm each day in case the
+    //    tab stays open across multiple days.
+    function _arm() {
+        var ms = _msTillGuyanaMidnight();
+        setTimeout(function() {
+            _midnightLogout();
+            // _arm() is not needed after logout, but defence-in-depth:
+            _arm();
+        }, ms);
+    }
+    _arm();
+})();
+// ────────────────────────────────────────────────────────────────────────
+function showKickedOutOverlay(options) {
+    if (window._kickedOutOverlayActive) return;
+    window._kickedOutOverlayActive = true;
+
+    options = options || {};
+    const overlay = document.getElementById('kicked-out-overlay');
+    if (!overlay) return;
+    const labelEl = document.getElementById('kicked-out-label');
+    const titleEl = document.getElementById('kicked-out-title');
+    const messageEl = document.getElementById('kicked-out-message');
+    const redirectTo = options.redirectTo || 'agent-login.html';
+
+    if (labelEl) labelEl.textContent = options.label || 'Session Ended';
+    if (titleEl) titleEl.textContent = options.title || "You've been logged out";
+    if (messageEl) messageEl.innerHTML = options.message || 'Someone else logged in using your ID.<br>Only one session is allowed at a time.';
+    overlay.style.display = 'flex';
+
+    // Log the kicked/revoked event before the session is cleared.
+    try {
+        const _ka = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        const _kp = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}');
+        const _kickedName = _ka.name || _kp.name || 'Unknown';
+        const _kickedEmail = _ka.email || _kp.ytelId || '';
+        const _kickedRole = sessionStorage.getItem('bizUserRole') || 'unknown';
+        if (typeof window.logAdminSessionEvent === 'function') {
+            window.logAdminSessionEvent(options.eventType || 'kicked', { adminName: _kickedName, adminEmail: _kickedEmail, role: _kickedRole });
+        }
+    } catch(e) {}
+
+    let count = 3;
+    const countEl = document.getElementById('kicked-countdown');
+    if (countEl) countEl.textContent = count;
+    const tick = setInterval(function() {
+        count--;
+        if (countEl) countEl.textContent = count;
+        if (count <= 0) {
+            clearInterval(tick);
+            sessionStorage.clear();
+            window.location.replace(redirectTo);
+        }
+    }, 1000);
+}
+
+
+async function logAdminActivity(action, details) {
+    if (sessionStorage.getItem('bizUserRole') !== 'admin') return;
+
+    try {
+        if (typeof window.writeAdminActivityLog === 'function') {
+            window.writeAdminActivityLog(action, details);
+        }
+    } catch (e) {}
+}
+
+async function logoutUser() {
+    await logAdminActivity('logout', 'Admin logged out');
+    sessionStorage.clear();
+    window.location.replace('agent-login.html');
+}
+
+
+
+function dismissLeadAlert() {
+    if (typeof window._dismissLeadAlertFully === 'function') {
+        window._dismissLeadAlertFully();
+        return;
+    }
+    const banner = document.getElementById('lead-alert-banner');
+    if (banner) {
+        banner.classList.remove('show');
+        banner.style.display = '';
+    }
+    document.body.style.paddingTop = '';
+    if (typeof window.stopTabBlink === 'function') window.stopTabBlink();
+}
+
+// Function to stop tab blinking on any user interaction
+function stopBlinkingOnInteraction() {
+    if (typeof window.stopTabBlink === 'function') {
+        window.stopTabBlink();
+    }
+}
+
+// Add global event listeners to stop blinking when user interacts
+document.addEventListener('click', stopBlinkingOnInteraction);
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden && typeof window.stopTabBlink === 'function') {
+        window.stopTabBlink();
+    }
+});
+window.addEventListener('focus', stopBlinkingOnInteraction);
+
+// Centralized dashboard access controller. The UI and tab router use the same rules.
+const DASHBOARD_TAB_IDS = [
+    'daily', 'lookup', 'playbook', 'rebuttals', 'prank', 'weekly',
+    'trivia', 'simulator', 'chatroom', 'tracker', 'adminpanel', 'superadminpanel'
+];
+const DASHBOARD_STANDARD_TABS = [
+    'daily', 'lookup', 'playbook', 'rebuttals', 'prank', 'weekly',
+    'trivia', 'simulator', 'chatroom'
+];
+
+function getDashboardAccessState() {
+    const userRole = sessionStorage.getItem('bizUserRole');
+    let currentAdmin = {};
+    let currentAgent = {};
+    try { currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch (e) {}
+    try { currentAgent = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}'); } catch (e) {}
+
+    const email = String(currentAdmin.email || '').trim().toLowerCase();
+
+    // Reconcile the session with the latest locally synced Firebase admin record.
+    // This prevents a stale login snapshot from briefly restoring tabs Rose already removed.
+    if (userRole === 'admin' && email) {
+        try {
+            const directory = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+            const latest = directory[email];
+            if (latest && typeof latest === 'object') {
+                if (Array.isArray(latest.hiddenTabs)) currentAdmin.hiddenTabs = latest.hiddenTabs;
+                if (latest.adminToolUploadScope) currentAdmin.adminToolUploadScope = latest.adminToolUploadScope;
+            }
+        } catch (e) {}
+    }
+
+    const isSuper = userRole === 'admin' && (currentAdmin.role === 'super_admin' || currentAdmin.isSuper === true || email === 'rose');
+    const restrictedIds = (window._RESTRICTED_ADMIN_IDS || ['0000']).map(v => String(v).trim().toLowerCase());
+    const isRestrictedAdmin = userRole === 'admin' && restrictedIds.includes(email);
+    const allowed = new Set(DASHBOARD_STANDARD_TABS);
+
+    if (userRole === 'admin') {
+        if (!isRestrictedAdmin) allowed.add('adminpanel');
+        if (isSuper) {
+            allowed.add('tracker');
+            allowed.add('superadminpanel');
+        }
+    } else if (userRole === 'agent') {
+        allowed.add('tracker');
+    } else {
+        allowed.clear();
+    }
+
+    // Rose can remove individual tabs from a regular admin. Super Admin cannot lock herself out.
+    if (userRole === 'admin' && !isSuper) {
+        const hiddenTabs = Array.isArray(currentAdmin.hiddenTabs) ? currentAdmin.hiddenTabs : [];
+        hiddenTabs.forEach(tab => allowed.delete(String(tab || '').trim().toLowerCase()));
+    }
+
+    return {
+        userRole,
+        currentAdmin,
+        currentAgent,
+        email,
+        isSuper,
+        isRestrictedAdmin,
+        allowed
+    };
+}
+
+window.canAccessDashboardTab = function(tab) {
+    return getDashboardAccessState().allowed.has(String(tab || '').trim().toLowerCase());
+};
+
+let _accessToastTimer = null;
+window.showDashboardAccessDenied = function() {
+    let toast = document.getElementById('dashboard-access-denied');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'dashboard-access-denied';
+        toast.className = 'access-denied-toast';
+        toast.innerHTML = '<i class="fas fa-lock"></i><span>This workspace is not assigned to your account.</span>';
+        document.body.appendChild(toast);
+    }
+    toast.classList.add('show');
+    clearTimeout(_accessToastTimer);
+    _accessToastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+};
+
+function updateDashboardIdentity(state) {
+    const isAdmin = state.userRole === 'admin';
+    const name = isAdmin
+        ? (state.currentAdmin.name || state.currentAdmin.email || 'Administrator')
+        : (state.currentAgent.name || 'Agent');
+    const roleLabel = state.isSuper ? 'Super Administrator' : (isAdmin ? 'Administrator' : 'Agent Workspace');
+    const navLabel = state.isSuper ? 'Full system access' : (isAdmin ? 'Assigned admin access' : 'Agent access');
+
+    const nameEl = document.getElementById('dashboard-user-name');
+    const roleEl = document.getElementById('dashboard-user-role');
+    const badgeEl = document.getElementById('dashboard-access-label');
+    const hintEl = document.getElementById('dashboard-nav-hint');
+    if (nameEl) nameEl.textContent = name;
+    if (roleEl) roleEl.textContent = roleLabel;
+    if (badgeEl) badgeEl.textContent = navLabel;
+    if (hintEl) hintEl.textContent = `Showing ${state.allowed.size} authorized workspaces for ${name}.`;
+}
+
+function setupRoleBasedTabs() {
+    const state = getDashboardAccessState();
+
+    DASHBOARD_TAB_IDS.forEach(tabId => {
+        const button = document.getElementById('tab-' + tabId);
+        if (!button) return;
+        const allowed = state.allowed.has(tabId);
+        button.classList.toggle('hidden', !allowed);
+        button.setAttribute('aria-disabled', allowed ? 'false' : 'true');
+        button.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+        button.tabIndex = allowed ? 0 : -1;
+    });
+
+    updateDashboardIdentity(state);
+    document.body.classList.remove('role-pending');
+
+    // If permissions change while a restricted workspace is open, close it immediately.
+    if (typeof currentTab !== 'undefined' && !state.allowed.has(currentTab)) {
+        currentTab = 'daily';
+        currentDayView = 'today';
+        if (typeof updateTabUI === 'function') updateTabUI();
+        if (typeof render === 'function') render();
+        if (typeof renderDaySubTabs === 'function') renderDaySubTabs();
+    }
+}
+
+// Apply access rules immediately for agents and the master Super Admin. Regular
+// Firebase admins stay hidden until their authorization record is verified below.
+document.addEventListener('DOMContentLoaded', function() {
+    let currentAdmin = {};
+    try { currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch (e) {}
+    const needsFirebaseVerification = sessionStorage.getItem('bizUserRole') === 'admin' && currentAdmin.isSuper !== true;
+    if (!needsFirebaseVerification) setupRoleBasedTabs();
+});
+</script>
+
+
+
+<div id="agent-session-banner" style="max-width:980px;margin:8px auto 12px;"></div>
+
+<script type="module" src="js/firebase.js?v=10"></script>
+
+<div id="broadcast-bar" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="bc-title">
+  <div class="bc-backdrop"></div>
+  <div class="bc-inner">
+    <div class="bc-topline"></div>
+    <div class="bc-heading-row">
+      <div class="bc-icon-wrap"><i class="fas fa-bullhorn"></i></div>
+      <div class="bc-heading-copy">
+        <div class="bc-label" id="bc-type-label">ACKNOWLEDGEMENT REQUIRED</div>
+        <h2 class="bc-title" id="bc-title">Important Announcement</h2>
+      </div>
+      <button class="bc-close" id="bc-close-btn" onclick="dismissBroadcast()" title="Close announcement" aria-label="Close announcement"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="bc-message" id="bc-message-text">Administration has posted an announcement.</div>
+    <div class="bc-meta"><span id="bc-sender">From Administration</span><span class="bc-meta-dot"></span><span id="bc-time"></span></div>
+    <div class="bc-actions">
+      <div class="bc-confirm-copy"><i class="fas fa-shield-alt"></i><span>Your confirmation is recorded in Firebase.</span></div>
+      <button id="bc-ack-btn" class="bc-ack-btn" onclick="acknowledgeAnnouncement()"><i class="fas fa-check-circle"></i><span>I ACKNOWLEDGE</span></button>
+    </div>
+  </div>
+</div>
+
+<div id="lead-alert-banner">
+  <div class="lab-inner">
+    <span class="lab-icon">🔥</span>
+    <div class="lab-text" id="lab-text"></div>
+    <button class="lab-close" onclick="dismissLeadAlert()" title="Close">✕</button>
+  </div>
+</div>
+
+<button id="bc-admin-btn" class="hidden" onclick="toggleBcPanel()" title="Quick Announcement">📣</button>
+<button id="bc-float-btn" onclick="toggleBcPanel()" title="Admin Panel">📣</button>
+
+<div id="bc-panel">
+  <div class="bc-panel-title"><span>📢</span> Quick Announcement</div>
+  <textarea id="bc-input" class="bc-msg-input" rows="3" placeholder="Type an important message to all agents..."></textarea>
+  <button class="bc-send-btn" onclick="sendBroadcast()">⚡ Send to Agents</button>
+  <button class="bc-clear-btn" onclick="clearBroadcast()">🗑 Close Active Announcement</button>
+  <button class="bc-clear-btn" onclick="dismissLeadAlert()" style="margin-top:4px;color:#c084fc;border-color:rgba(168,85,247,0.3);">🔥 Clear Lead Alert</button>
+  <div id="bc-status" class="bc-status"></div>
+</div>
+
+<div id="bc-login-modal" class="hidden">
+  <div class="modal-box">
+    <div class="header-font text-xs text-red-500 tracking-widest uppercase mb-2 italic">📢 Admin Access</div>
+    <div class="header-font text-2xl font-black text-white uppercase italic tracking-tight">Broadcast</div>
+    <p class="text-slate-400 text-sm mt-3">Enter admin password to send broadcasts.</p>
+    <input id="bc-pw-input" type="password" class="pw-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkBcPassword()" autocomplete="off"/>
+    <div id="bc-pw-error" class="error-msg"></div>
+    <button class="pw-btn" onclick="checkBcPassword()"><i class="fas fa-broadcast-tower mr-2"></i>Unlock</button><br>
+    <button class="pw-cancel" onclick="document.getElementById('bc-login-modal').classList.add('hidden')">Cancel</button>
+  </div>
+</div>
+
+<canvas id="tp-confetti-canvas"></canvas>
+<div id="top-performer-modal" class="hidden">
+  <div class="tp-box">
+    <div class="tp-header">
+      <span class="tp-crown">👑</span>
+      <div class="tp-title">Top Performers</div>
+      <div class="tp-subtitle" id="tp-time-label">Last 2 Hours</div>
+    </div>
+    <div class="tp-list" id="tp-list"></div>
+    <div class="tp-footer">
+      <button class="tp-close-btn" onclick="closeTopPerformer()">✕ Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="pw-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+        <div class="header-font text-xs text-yellow-500 tracking-widest uppercase mb-2 italic">Access Required</div>
+        <div class="header-font text-2xl font-black text-white uppercase italic tracking-tight">Weekly Rankings</div>
+        <p class="text-slate-400 text-sm mt-3">Enter your access code to view the weekly leaderboard.</p>
+        <input id="pw-input" type="password" class="pw-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkPassword()" autocomplete="off"/>
+        <div id="pw-error" class="error-msg"></div>
+        <button class="pw-btn" onclick="checkPassword()"><i class="fas fa-unlock mr-2"></i>Unlock</button><br>
+        <button class="pw-cancel" onclick="cancelPassword()">Cancel</button>
+    </div>
+</div>
+
+<div class="main-container mx-auto transition-all duration-500">
+
+    <div class="dashboard-shell">
+        <div class="dashboard-topbar">
+            <div class="dashboard-live-block">
+                <span class="live-pulse"></span>
+                <div class="dashboard-live-copy">
+                    <div class="dashboard-live-title">Live System Performance</div>
+                    <div id="timestamp" class="dashboard-live-meta">Live: --:--:--</div>
+                </div>
+            </div>
+
+            <div class="dashboard-topbar-actions">
+                <div class="dashboard-user-card" aria-label="Current account">
+                    <div class="dashboard-user-avatar"><i class="fas fa-user-shield"></i></div>
+                    <div class="dashboard-user-copy">
+                        <div class="dashboard-user-label">Signed in as</div>
+                        <div id="dashboard-user-name" class="dashboard-user-name">Loading account…</div>
+                        <div class="dashboard-user-meta">
+                            <span id="dashboard-user-role" class="dashboard-user-role">Verifying access</span>
+                            <span class="dashboard-user-separator">•</span>
+                            <span id="dashboard-access-label">Secure access</span>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="typeof updateDashboard==='function'?updateDashboard():window.location.reload()" id="refresh-btn" class="glass dashboard-refresh hover:bg-white/10 transition-all active:scale-95" aria-label="Refresh dashboard" title="Refresh dashboard">
+                    <i class="fas fa-sync-alt text-sm text-blue-400"></i>
+                </button>
+            </div>
+        </div>
+
+        <section class="dashboard-title-area" aria-label="BIZ Level Up dashboard overview">
+            <h1 class="dashboard-title" id="main-title" onclick="typeof handleTitleTap==='function'?handleTitleTap():null" style="cursor:default;user-select:none;">BIZ Level Up Dashboard</h1>
+            <div class="dashboard-clocks">
+                <div class="dashboard-clock-card">
+                    <span class="dashboard-clock-code" style="color:#f97316;">GY</span>
+                    <div>
+                        <div class="dashboard-clock-place">Guyana</div>
+                        <div id="clock-guyana" class="dashboard-clock-time" style="color:#facc15;">--:-- --</div>
+                    </div>
+                </div>
+                <div class="dashboard-clock-card">
+                    <span class="dashboard-clock-code" style="color:#38bdf8;">US</span>
+                    <div>
+                        <div class="dashboard-clock-place">California</div>
+                        <div id="clock-california" class="dashboard-clock-time" style="color:#38bdf8;">--:-- --</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="dashboard-navigation" class="dashboard-navigation dashboard-compact-nav" aria-label="Authorized workspaces">
+            <div id="dashboard-nav-hint" class="dashboard-nav-hint">Loading your authorized tools…</div>
+            <div class="dashboard-nav-grid">
+                <button onclick="switchTab('daily')" id="tab-daily" class="workspace-tab tab-active" data-accent="cyan">
+                    <span class="workspace-tab-title">Daily</span>
+                </button>
+                <button onclick="switchTab('lookup')" id="tab-lookup" class="workspace-tab" data-accent="indigo" data-text="muted">
+                    <span class="workspace-tab-icon"><i class="fas fa-search"></i></span><span class="workspace-tab-title">Lookup</span>
+                </button>
+                <button onclick="switchTab('playbook')" id="tab-playbook" class="workspace-tab" data-accent="amber" data-text="muted">
+                    <span class="workspace-tab-title">Playbook</span>
+                </button>
+
+                <button onclick="switchTab('rebuttals')" id="tab-rebuttals" class="workspace-tab" data-accent="teal">
+                    <span class="workspace-tab-icon">💬</span><span class="workspace-tab-title">Rebuttals</span>
+                </button>
+                <button onclick="switchTab('prank')" id="tab-prank" class="workspace-tab" data-accent="violet">
+                    <span class="workspace-tab-icon">🚨</span><span class="workspace-tab-title">Prank</span>
+                </button>
+                <button onclick="requestWeekly()" id="tab-weekly" class="workspace-tab" data-accent="cyan" data-text="muted">
+                    <span class="workspace-tab-icon"><i class="fas fa-lock"></i></span><span class="workspace-tab-title">Weekly</span>
+                </button>
+
+                <button onclick="switchTab('trivia')" id="tab-trivia" class="workspace-tab" data-accent="amber">
+                    <span class="workspace-tab-icon">🎯</span><span class="workspace-tab-title">Trivia Blitz</span>
+                </button>
+                <button onclick="switchTab('simulator')" id="tab-simulator" class="workspace-tab" data-accent="indigo">
+                    <span class="workspace-tab-icon">🎧</span><span class="workspace-tab-title">Call Simulator</span>
+                </button>
+                <button onclick="switchTab('chatroom')" id="tab-chatroom" class="workspace-tab" data-accent="emerald">
+                    <span class="workspace-tab-icon">💬</span><span class="workspace-tab-title">Chatroom</span>
+                </button>
+
+                <!-- Role-gated workspaces: hidden until the access controller authorizes them. -->
+                <button onclick="switchTab('adminpanel')" id="tab-adminpanel" class="hidden workspace-tab" data-accent="red" aria-disabled="true">
+                    <span class="workspace-tab-icon"><i class="fas fa-shield-halved"></i></span><span class="workspace-tab-title">Admin Tools</span>
+                </button>
+                <button onclick="switchTab('tracker')" id="tab-tracker" class="hidden workspace-tab" data-accent="indigo" aria-disabled="true">
+                    <span class="workspace-tab-icon"><i class="fas fa-clipboard-check"></i></span><span class="workspace-tab-title">My Tracker</span>
+                </button>
+                <button onclick="switchTab('superadminpanel')" id="tab-superadminpanel" class="hidden workspace-tab" data-accent="gold" aria-disabled="true">
+                    <span class="workspace-tab-icon"><i class="fas fa-crown"></i></span><span class="workspace-tab-title">Super Admin</span>
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <div id="dashboard-daily-tools" class="dashboard-daily-tools hidden" aria-label="Daily dashboard controls">
+        <div id="day-sub-tabs-wrapper" class="hidden dashboard-period-panel">
+            <div class="dashboard-period-label">Report View</div>
+            <div id="day-sub-tabs-container"></div>
+        </div>
+        <div id="agent-goal-widget-container" style="display:none;"></div>
+    </div>
+
+    <div id="leaderboard-view" data-tab-src="tabs/leaderboard.html?v=5"></div>
+    <div id="lookup-view" class="hidden"><div class="glass p-6 rounded-3xl border-t-4 border-t-blue-500">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);">
+                    <i class="fab fa-google text-blue-400 text-sm"></i>
+                </div>
+                <div>
+                    <div class="header-font text-xs text-blue-500 uppercase tracking-widest italic">Business Intelligence</div>
+                    <div class="header-font text-lg font-black text-white uppercase italic">Lead Lookup</div>
+                </div>
+            </div>
+            <p class="text-slate-500 text-xs mb-5 leading-relaxed">
+                Type a phone number or business name — opens <strong class="text-white">Google AI</strong> in a new tab asking for the business name, owner, address, and email.
+            </p>
+            <div class="space-y-3">
+                <input id="lookup-input" type="text" class="lookup-input"
+                    placeholder="e.g. (716) 771-6522 or Business Name..."
+                    onkeydown="if(event.key==='Enter')runLookup()"
+                    oninput="onLookupInput(this.value)"
+                    autocomplete="off"/>
+                <button onclick="runLookup()" class="lookup-btn">
+                    <i class="fab fa-google mr-2"></i>Open Google AI — Search Now
+                </button>
+                <button onclick="logPrankCall()" id="log-prank-btn" style="width:100%;padding:16px;border-radius:14px;font-family:'Orbitron',sans-serif;font-weight:900;font-size:0.78rem;letter-spacing:0.14em;text-transform:uppercase;background:linear-gradient(90deg,#7c1d1d,#991b1b,#b91c1c);color:white;border:2px solid rgba(239,68,68,0.5);cursor:pointer;transition:opacity 0.2s,transform 0.1s;box-shadow:0 0 20px rgba(239,68,68,0.25);display:flex;align-items:center;justify-content:center;gap:8px;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform='scale(1)'">
+                    <i class="fas fa-ban"></i>Log Prank Call &#8594; Firebase
+                </button>
+                <button onclick="clearLookup()" style="width:100%;background:none;border:none;color:#334155;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;cursor:pointer;padding:4px;" onmouseover="this.style.color='#64748b'" onmouseout="this.style.color='#334155'">
+                    <i class="fas fa-times" style="margin-right:4px;"></i>Clear
+                </button>
+                <div id="prank-log-status" style="display:none;border-radius:10px;padding:10px 14px;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;text-align:center;"></div>
+            </div>
+        </div>
+        <div id="lookup-prank-result" class="hidden"></div>
+        <div id="lookup-history-section" class="hidden">
+            <div class="flex justify-between items-center mb-3 px-1">
+                <span class="text-[10px] font-black text-slate-600 uppercase tracking-widest">Recent Lookups</span>
+                <button onclick="clearHistory()" class="text-[10px] font-black text-slate-700 hover:text-red-500 uppercase tracking-widest transition-colors">Clear All</button>
+            </div>
+            <div id="lookup-history" class="space-y-2"></div>
+        </div></div>
+    <div id="playbook-view" class="hidden" data-tab-src="tabs/playbook.html"></div>
+    <div id="rebuttals-view" class="hidden" data-tab-src="tabs/rebuttals.html?v=5"></div>
+    <div id="prank-view" class="hidden" data-tab-src="tabs/prank.html?v=2"></div>
+    <div id="trivia-view" class="hidden" data-tab-src="tabs/trivia.html"></div>
+    <div id="chatroom-view" class="hidden" data-tab-src="tabs/chatroom.html"></div>
+    <div id="adminpanel-view" class="hidden" data-tab-src="tabs/adminpanel.html"></div>
+    <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html?v=9"></div>
+    <div id="agentstats-view" class="hidden" data-tab-src="tabs/agentstats.html"></div>
+    <div id="tracker-view" class="hidden" data-tab-src="tabs/tracker.html"></div>
+    <div id="simulator-view" class="hidden" data-tab-src="tabs/simulator.html?v=7"></div>
+
+</div>
+
+<script src="js/config.js?v=2"></script>
+<script src="js/utils.js?v=3"></script>
+<script src="js/session-banner.js"></script>
+<script src="js/dashboard.js?v=6"></script>
+<script src="js/adminpanel.js?v=2"></script>
+<script src="js/lookup.js?v=2"></script>
+<script src="js/trivia.js"></script>
+<script src="js/leadalerts.js?v=7"></script>
+<script src="js/broadcast.js?v=4"></script>
+<script src="js/topperformer.js"></script>
+<script src="js/agentstats.js"></script>
+<script src="js/super-admin.js?v=4"></script>
+<script src="js/agentprofiles.js?v=2"></script>
+<script src="js/adminhub.js?v=2"></script>
+<script src="js/tracker.js?v=4"></script>
+<script src="js/chatroom.js?v=4"></script>
+<script src="js/goals.js?v=8"></script>
+
+<script>
+const _loadedTabs = new Set();
+const _tabCache = {};   // tabId -> Promise<string> (pre-fetched HTML)
+
+// Step 1: silently fetch HTML and cache it — does NOT touch the DOM
+function prefetchTab(tabId) {
+    if (_loadedTabs.has(tabId) || _tabCache[tabId]) return;
+    const el = document.getElementById(tabId);
+    if (!el) return;
+    const src = el.getAttribute('data-tab-src');
+    if (!src) return;
+    _tabCache[tabId] = fetch(src).then(r => r.ok ? r.text() : Promise.reject()).catch(() => null);
+}
+
+// Step 2: inject cached HTML into DOM and run its scripts
+function _injectTab(tabId, html) {
+    const el = document.getElementById(tabId);
+    if (!el || !html) return;
+    el.innerHTML = html;
+    el.querySelectorAll('script').forEach(oldScript => {
+        const newScript = document.createElement('script');
+        Array.from(oldScript.attributes).forEach(a => newScript.setAttribute(a.name, a.value));
+        newScript.text = oldScript.text;
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+    });
+    _loadedTabs.add(tabId);
+}
+
+// Fetch + inject (shows spinner only if not pre-fetched yet)
+async function loadTab(tabId) {
+    const viewAccessMap = {
+        'lookup-view':'lookup', 'playbook-view':'playbook', 'rebuttals-view':'rebuttals',
+        'prank-view':'prank', 'trivia-view':'trivia', 'chatroom-view':'chatroom',
+        'adminpanel-view':'adminpanel', 'superadminpanel-view':'superadminpanel',
+        'tracker-view':'tracker', 'simulator-view':'simulator'
+    };
+    const requiredTab = viewAccessMap[tabId];
+    if (requiredTab && typeof window.canAccessDashboardTab === 'function' && !window.canAccessDashboardTab(requiredTab)) {
+        console.warn('[Access] Blocked unauthorized tab load:', requiredTab);
+        return;
+    }
+    if (_loadedTabs.has(tabId)) return;
+    const el = document.getElementById(tabId);
+    if (!el) return;
+    const src = el.getAttribute('data-tab-src');
+    if (!src) return;
+
+    // Show spinner only if the fetch hasn't started yet
+    if (!_tabCache[tabId]) {
+        el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:200px;gap:12px;color:#475569;"><div style="width:18px;height:18px;border:2px solid #334155;border-top-color:#10b981;border-radius:50%;animation:spin 0.7s linear infinite;"></div><span style="font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Loading...</span></div>`;
+        prefetchTab(tabId);
+    }
+
+    const html = await _tabCache[tabId];
+    _injectTab(tabId, html);
+}
+
+// Pre-fetch ALL tabs immediately on page load (background, no DOM changes)
+function prefetchAllTabs() {
+    const viewAccessMap = {
+        'lookup-view':'lookup', 'playbook-view':'playbook', 'rebuttals-view':'rebuttals',
+        'prank-view':'prank', 'trivia-view':'trivia', 'chatroom-view':'chatroom',
+        'adminpanel-view':'adminpanel', 'superadminpanel-view':'superadminpanel',
+        'tracker-view':'tracker', 'simulator-view':'simulator'
+    };
+    Object.entries(viewAccessMap).forEach(([viewId, tabId]) => {
+        if (typeof window.canAccessDashboardTab !== 'function' || window.canAccessDashboardTab(tabId)) {
+            prefetchTab(viewId);
+        }
+    });
+}
+
+const _origSwitchTab = window.switchTab;
+const _origRequestWeekly = window.requestWeekly;
+window.requestWeekly = function() {
+    if (typeof window.canAccessDashboardTab === 'function' && !window.canAccessDashboardTab('weekly')) {
+        if (typeof window.showDashboardAccessDenied === 'function') window.showDashboardAccessDenied();
+        return false;
+    }
+    return typeof _origRequestWeekly === 'function' ? _origRequestWeekly.apply(this, arguments) : undefined;
+};
+
+window.switchTab = function(tab) {
+    if (typeof window.stopTabBlink === 'function') window.stopTabBlink();
+
+    if (typeof window.canAccessDashboardTab === 'function' && !window.canAccessDashboardTab(tab)) {
+        console.warn('[Access] Blocked unauthorized workspace:', tab);
+        if (typeof window.showDashboardAccessDenied === 'function') window.showDashboardAccessDenied();
+        setupRoleBasedTabs();
+        return false;
+    }
+
+    const tabViewMap = {
+        daily: 'leaderboard-view', lookup: 'lookup-view', playbook: 'playbook-view',
+        rebuttals: 'rebuttals-view', prank: 'prank-view', trivia: 'trivia-view',
+        chatroom: 'chatroom-view', adminpanel: 'adminpanel-view',
+        superadminpanel: 'superadminpanel-view', agentstats: 'agentstats-view',
+        agentprofiles: 'agentprofiles-view', tracker: 'tracker-view',
+        simulator: 'simulator-view',
+        weekly: 'leaderboard-view', prevweek: 'leaderboard-view'
+    };
+
+    if (sessionStorage.getItem('bizUserRole') === 'admin') {
+        logAdminActivity('tab_click', 'Clicked tab: ' + tab);
+    }
+
+    const viewId = tabViewMap[tab];
+
+    // Switch UI immediately — always instant
+    _origSwitchTab(tab);
+
+    const dailyTools = document.getElementById('dashboard-daily-tools');
+    if (dailyTools) dailyTools.classList.toggle('hidden', tab !== 'daily');
+
+    // Inject content if not done yet (HTML already pre-fetched, just needs DOM injection)
+    if (viewId && !_loadedTabs.has(viewId)) {
+        loadTab(viewId).then(() => {
+            if (tab === 'chatroom' && typeof window.initChatroom === 'function') window.initChatroom();
+            if (tab === 'adminpanel' && typeof window.ahInitOverview === 'function') window.ahInitOverview();
+            if (tab === 'tracker' && typeof window.initTracker === 'function') window.initTracker();
+            if (tab === 'trivia' && typeof window.initTriviaTab === 'function') window.initTriviaTab();
+        });
+    }
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const roleAtLoad = sessionStorage.getItem('bizUserRole');
+    let adminAtLoad = {};
+    try { adminAtLoad = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch (e) {}
+
+    // Verify every non-master admin directly against Firebase before showing any
+    // dashboard navigation. This blocks stale sessions after an account is deleted.
+    if (roleAtLoad === 'admin' && adminAtLoad.isSuper !== true) {
+        try {
+            if (typeof window.getAdminRecordFromFirebase !== 'function') {
+                throw new Error('Firebase authorization service unavailable');
+            }
+            const adminKey = String(adminAtLoad.email || '').trim().toLowerCase();
+            const verifiedRecord = await window.getAdminRecordFromFirebase(adminKey);
+            if (!verifiedRecord) {
+                showKickedOutOverlay({
+                    label: 'Access Revoked',
+                    title: 'Your admin account was removed',
+                    message: 'This account is no longer listed in Firebase.<br>Please contact the Master Super Admin if access is required.',
+                    eventType: 'admin_access_revoked',
+                    redirectTo: 'agent-login.html'
+                });
+                return;
+            }
+            const verifiedSession = {
+                ...adminAtLoad,
+                email: verifiedRecord.email || adminKey,
+                name: verifiedRecord.name || adminAtLoad.name,
+                role: verifiedRecord.role || 'admin',
+                hiddenTabs: verifiedRecord.hiddenTabs || [],
+                adminToolUploadScope: verifiedRecord.adminToolUploadScope || 'all',
+                isSuper: false
+            };
+            sessionStorage.setItem('currentAdmin', JSON.stringify(verifiedSession));
+        } catch (e) {
+            console.error('[Access] Firebase admin verification failed:', e);
+            showKickedOutOverlay({
+                label: 'Verification Required',
+                title: 'Admin access could not be verified',
+                message: 'The dashboard could not confirm this account in Firebase.<br>Check the connection and sign in again.',
+                eventType: 'admin_verification_failed',
+                redirectTo: 'agent-login.html'
+            });
+            return;
+        }
+    }
+
+    setupRoleBasedTabs();
+
+    // Force re-render session banner when DOM is fully loaded
+    if (typeof renderSessionBanner === 'function') {
+        renderSessionBanner();
+    }
+    
+    // Also set up a mutation observer to watch for changes to sessionStorage
+    const originalSetItem = sessionStorage.setItem;
+    sessionStorage.setItem = function(key, value) {
+        originalSetItem.apply(this, arguments);
+        const event = new Event('storageChange');
+        event.key = key;
+        event.newValue = value;
+        window.dispatchEvent(event);
+    };
+    
+    window.addEventListener('storageChange', function(e) {
+        if ((e.key === 'currentAgentProfile' || e.key === 'currentAdmin') && typeof renderSessionBanner === 'function') {
+            renderSessionBanner();
+        }
+        if (e.key === 'currentAdmin' || e.key === 'bizUserRole') {
+            setupRoleBasedTabs();
+        }
+    });
+
+    // Load the leaderboard tab
+    loadTab('leaderboard-view');
+
+    // Pre-fetch all tab HTML immediately in background (no DOM changes, just downloads)
+    prefetchAllTabs();
+
+    // Real-time tab permission watcher — updates tabs live when Rose changes an admin's permissions
+    (function startTabPermsWatcher() {
+        const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        if (!cAdmin.email || cAdmin.isSuper === true) return;
+        const adminKey = cAdmin.email.toLowerCase();
+        function attach() {
+            if (typeof window.listenForAdminRecord !== 'function') {
+                setTimeout(attach, 800); return;
+            }
+            window.listenForAdminRecord(adminKey, function(record) {
+                const session = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+                if (!record) {
+                    // Firebase authorization record was deleted. Block the dashboard immediately,
+                    // clear the stale local cache and terminate the active session on this device.
+                    try {
+                        const directory = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+                        delete directory[adminKey];
+                        localStorage.setItem('biz_admins_list_v1', JSON.stringify(directory));
+                    } catch (e) {}
+                    session.hiddenTabs = DASHBOARD_TAB_IDS.slice();
+                    sessionStorage.setItem('currentAdmin', JSON.stringify(session));
+                    setupRoleBasedTabs();
+                    showKickedOutOverlay({
+                        label: 'Access Revoked',
+                        title: 'Your admin account was removed',
+                        message: 'A Super Admin removed this account from Firebase.<br>You no longer have access to the dashboard.',
+                        eventType: 'admin_access_revoked',
+                        redirectTo: 'agent-login.html'
+                    });
+                    return;
+                }
+                const newHidden = Array.isArray(record.hiddenTabs) ? record.hiddenTabs : [];
+                const newScope = record.adminToolUploadScope || session.adminToolUploadScope || 'all';
+                const oldSignature = JSON.stringify({ hiddenTabs: session.hiddenTabs || [], adminToolUploadScope: session.adminToolUploadScope || 'all' });
+                const newSignature = JSON.stringify({ hiddenTabs: newHidden, adminToolUploadScope: newScope });
+                if (newSignature === oldSignature) return;
+                session.hiddenTabs = newHidden;
+                session.adminToolUploadScope = newScope;
+                sessionStorage.setItem('currentAdmin', JSON.stringify(session));
+                setupRoleBasedTabs();
+            });
+        }
+        attach();
+    })();
+
+    // Initialize background chatroom listeners and floating widget immediately
+    setTimeout(() => {
+        if (typeof window.initChatroomBackground === 'function') {
+            window.initChatroomBackground();
+        }
+    }, 1000);
+    
+    // Initialize goal system for agents after login
+    if (sessionStorage.getItem('bizUserRole') === 'agent' && typeof window.initGoalSystem === 'function') {
+        setTimeout(() => {
+            window.initGoalSystem();
+        }, 1500);
+    }
+
+    // ── SINGLE-SESSION ENFORCEMENT (agents + non-superadmin admins) ──
+    (function startSessionEnforcement() {
+        const role = sessionStorage.getItem('bizUserRole');
+        const adminData = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        const isSuperAdmin = adminData.role === 'super_admin' || adminData.isSuper;
+        if (isSuperAdmin) return;
+
+        function attach() {
+            if (typeof window.claimSession !== 'function') {
+                setTimeout(attach, 800); return;
+            }
+            let sessionType, sessionId, sessionName;
+            if (role === 'agent') {
+                const profile = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}');
+                sessionId = String(profile.ytelId || profile.name || '').replace(/\s+/g, '_').toLowerCase();
+                sessionName = profile.name || '';
+                sessionType = 'agents';
+            } else if (role === 'admin') {
+                sessionId = (adminData.email || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+                sessionName = adminData.name || '';
+                sessionType = 'admins';
+            }
+            if (!sessionId) return;
+            window.claimSession(sessionType, sessionId, sessionName).then(function() {
+                window.watchSession(sessionType, sessionId, function() {
+                    showKickedOutOverlay();
+                });
+            });
+        }
+        setTimeout(attach, 1500);
+    })();
+});
+
+// Re-run role-based setup when storage changes (in case of login state change)
+window.addEventListener('storage', () => {
+    setupRoleBasedTabs();
+});
+</script>
+
+</body>
+</html>

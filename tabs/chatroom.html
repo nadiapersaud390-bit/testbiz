@@ -1,0 +1,44 @@
+<!-- ═══════════════════════════════════════════════════════
+     TEAM CHATROOM — secure workspace messaging
+     ═══════════════════════════════════════════════════════ -->
+
+<link rel="stylesheet" href="css/chatroom.css?v=3">
+
+<div class="cr-page-shell">
+    <header class="cr-page-header">
+        <div class="cr-page-heading">
+            <span class="cr-page-kicker">Team communication</span>
+            <h2>Chatroom</h2>
+            <p>Use General Chat for team-wide updates, Private for direct messages, and Groups for focused conversations.</p>
+        </div>
+        <div class="cr-page-status" aria-label="Chat status">
+            <span class="cr-status-live"><i></i> Live</span>
+            <span class="cr-status-secure">🔐 Secure workspace</span>
+        </div>
+    </header>
+
+    <!-- MAIN CHAT CONTAINER (populated by chatroom.js) -->
+    <div id="cr-main-container" aria-live="polite"></div>
+
+    <!-- CREATE ROOM MODAL -->
+    <div id="cr-create-room-modal" class="cr-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cr-create-room-title">
+        <div class="cr-modal-box">
+            <div class="cr-modal-icon">👥</div>
+            <div class="cr-modal-title" id="cr-create-room-title">Create group chat</div>
+            <div class="cr-modal-subtitle">Choose a clear room name and the people who should have access.</div>
+
+            <label class="cr-modal-label" for="cr-room-name-input">Room name</label>
+            <input type="text" id="cr-room-name-input" class="cr-modal-input" placeholder="Example: Berbice Team" maxlength="40" autocomplete="off" />
+
+            <label class="cr-modal-label">Participants</label>
+            <div id="cr-agent-checklist" class="cr-agent-checklist">
+                <!-- populated by JS -->
+            </div>
+
+            <div class="cr-modal-actions">
+                <button class="cr-modal-cancel-btn" onclick="window._crCloseModal()">Cancel</button>
+                <button class="cr-modal-create-btn" onclick="window._crCreateRoom()">Create room</button>
+            </div>
+        </div>
+    </div>
+</div>
