@@ -705,7 +705,7 @@ function renderHistoryList() {
         const niceDate = normalizeReportDateLabel(r.reportDate);
         const _ca = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
         // 🔥 FIXED: Allow momo to see delete button
-        const canDelete = _ca.email === 'rose' || _ca.email === 'momo' || _ca.role === 'super_admin' || _ca.isSuper;
+        const canDelete = _ca.email === 'rose' || _ca.email === 'momo' || _ca.email === 'nadia' || _ca.role === 'super_admin' || _ca.isSuper;
         const delBtn = canDelete ? `<button onclick="event.stopPropagation(); window.asDeleteReport('${r.id}')" class="text-[10px] text-red-400 hover:text-red-300 ml-2 px-2 py-1 rounded-md hover:bg-red-500/10" title="Delete this report"><i class="fas fa-trash"></i></button>` : '';
         return `
             <div onclick="window.viewReport('${r.id}')" class="report-item bg-black/20 p-3 rounded-xl cursor-pointer flex items-center justify-between gap-2 ${isActive ? 'active' : ''}">
@@ -740,7 +740,7 @@ window.viewReport = function(id) {
     delBtns.forEach(delBtn => {
         const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
         // 🔥 FIXED: Allow momo to delete reports
-        const canDelete = cAdmin.email === 'rose' || cAdmin.email === 'momo' || cAdmin.role === 'super_admin' || cAdmin.isSuper;
+        const canDelete = cAdmin.email === 'rose' || cAdmin.email === 'momo' || cAdmin.email === 'nadia' || cAdmin.role === 'super_admin' || cAdmin.isSuper;
         if (canDelete) {
             delBtn.classList.remove('hidden');
             delBtn.onclick = () => {
@@ -870,6 +870,12 @@ function renderActiveReportTable() {
 
 window.asDeleteReport = async function(id) {
     if (!id) return;
+    const cAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+    const canDelete = cAdmin.email === 'rose' || cAdmin.email === 'momo' || cAdmin.email === 'nadia' || cAdmin.role === 'super_admin' || cAdmin.isSuper;
+    if (!canDelete) {
+        alert('You do not have permission to delete reports.');
+        return;
+    }
     if (!confirm("Delete this report? This cannot be undone.")) return;
     if (typeof window.deleteAgentReportFromFirebase === "function") {
         await window.deleteAgentReportFromFirebase(id);
