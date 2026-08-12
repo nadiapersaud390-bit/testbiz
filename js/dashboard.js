@@ -104,23 +104,25 @@ function rosterSignature(arr) {
               .sort().join('::');
 }
 
-// Subscribe to Firestore agent_profiles
+// Subscribe to the authoritative RTDB master roster.
+// Firestore may contain legacy profile documents from older versions, so the
+// dashboard must not use it to resurrect agents that were removed from the roster.
 let _rosterFirestoreSubscribed = false;
 function subscribeRosterFromFirestore() {
     if (_rosterFirestoreSubscribed) return;
-    if (typeof window.listenToAgentProfiles !== 'function') {
+    const listen = window.listenForMasterRoster;
+    if (typeof listen !== 'function') {
         setTimeout(subscribeRosterFromFirestore, 500);
         return;
     }
     _rosterFirestoreSubscribed = true;
     try {
-        window.listenToAgentProfiles((profiles) => {
-            const list = Array.isArray(profiles) ? profiles : [];
-            if (list.length === 0) return;
+        listen((profiles) => {
+            let list = Array.isArray(profiles) ? profiles : (profiles ? Object.values(profiles) : []);
+            if (window.filterDeletedAgents) list = window.filterDeletedAgents(list);
             fullRoster = list;
             window.allAgentProfiles = list;
             try { localStorage.setItem('biz_master_roster', JSON.stringify(list)); } catch (e) {}
-            console.log(`[roster] Loaded ${list.length} agents from Firestore`);
             const state = window._asLastLiveState || null;
             agents = buildAgentsFromRoster(state);
             if (agents.length > 0) {
@@ -141,7 +143,7 @@ function subscribeRosterFromFirestore() {
             if (ts) ts.innerText = `Roster: ${list.length} agents | ${new Date().toLocaleTimeString()}`;
         });
     } catch (e) {
-        console.warn('[roster] Firestore subscription failed:', e);
+        console.warn('[roster] RTDB subscription failed:', e);
         _rosterFirestoreSubscribed = false;
     }
 }

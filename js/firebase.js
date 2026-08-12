@@ -58,6 +58,218 @@ try {
     console.error("Firebase initialization error:", error);
 }
 
+
+// ========== DELETED AGENT VISIBILITY / PURGE ==========
+// A deleted profile must stop appearing throughout the dashboard even when an
+// older uploaded report, cached chat channel, attendance row, or live state still
+// contains that agent's name. Firebase is authoritative; localStorage is only a
+// fast cache for pages that render before the realtime listener finishes.
+const DELETED_AGENT_CACHE_KEY = 'biz_deleted_agents_cache_v1';
+let _deletedAgents = {};
+
+function _normalizeAgentToken(value) {
+    return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+function _safeAgentKey(value) {
+    return String(value || '').trim().replace(/[.#$\[\]\/]/g, '_').replace(/\s+/g, '_') || 'unknown';
+}
+function _loadDeletedAgentCache() {
+    try { _deletedAgents = JSON.parse(localStorage.getItem(DELETED_AGENT_CACHE_KEY) || '{}') || {}; }
+    catch (_) { _deletedAgents = {}; }
+}
+function _saveDeletedAgentCache() {
+    try { localStorage.setItem(DELETED_AGENT_CACHE_KEY, JSON.stringify(_deletedAgents || {})); } catch (_) {}
+}
+_loadDeletedAgentCache();
+
+window.getDeletedAgents = function() { return { ...(_deletedAgents || {}) }; };
+window.isDeletedAgentRecord = function(recordOrName, maybeId) {
+    const rec = (recordOrName && typeof recordOrName === 'object') ? recordOrName : { name: recordOrName, userId: maybeId };
+    const ids = [rec.userId, rec.ytelId, rec.id, rec.agentId, rec.agentID, rec.userid]
+        .map(_normalizeAgentToken).filter(Boolean);
+    const names = [rec.fullName, rec.name, rec.agentName, rec.rawName, rec.ytelName]
+        .map(_normalizeAgentToken).filter(Boolean);
+    return Object.values(_deletedAgents || {}).some(d => {
+        if (!d) return false;
+        const dids = [d.userId, d.ytelId, d.id, d.agentId].map(_normalizeAgentToken).filter(Boolean);
+        const dnames = [d.fullName, d.name, d.agentName, d.ytelName, d.normalizedName].map(_normalizeAgentToken).filter(Boolean);
+        return ids.some(v => dids.includes(v)) || names.some(v => dnames.includes(v));
+    });
+};
+window.filterDeletedAgents = function(arr) {
+    return Array.isArray(arr) ? arr.filter(row => !window.isDeletedAgentRecord(row)) : [];
+};
+
+let _activeAgentRosterCache = [];
+try {
+    const cachedRoster = JSON.parse(localStorage.getItem('biz_master_roster') || '[]');
+    if (Array.isArray(cachedRoster)) _activeAgentRosterCache = cachedRoster;
+} catch (_) {}
+function _normalizeRosterName(value) {
+    return _normalizeAgentToken(value)
+        .replace(/^(gyp|gyb|gtm|rm)\s+/, '')
+        .replace(/\s*\((bb|pr|rm|berbice|providence|remote)\)\s*$/i, '')
+        .trim();
+}
+window.isActiveAgentRecord = function(recordOrName, maybeId) {
+    const roster = Array.isArray(_activeAgentRosterCache) && _activeAgentRosterCache.length
+        ? _activeAgentRosterCache
+        : (Array.isArray(window.allAgentProfiles) ? window.allAgentProfiles : []);
+    if (!roster.length) return !window.isDeletedAgentRecord(recordOrName, maybeId);
+    const rec = (recordOrName && typeof recordOrName === 'object') ? recordOrName : { name:recordOrName, userId:maybeId };
+    const ids = [rec.userId, rec.ytelId, rec.id, rec.agentId, rec.agentID].map(_normalizeAgentToken).filter(Boolean);
+    const names = [rec.fullName, rec.name, rec.agentName, rec.rawName, rec.ytelName].map(_normalizeRosterName).filter(Boolean);
+    return roster.some(a => {
+        if (window.isDeletedAgentRecord(a)) return false;
+        const aids = [a.userId, a.ytelId, a.id, a.agentId].map(_normalizeAgentToken).filter(Boolean);
+        const anames = [a.fullName, a.name, a.agentName, a.ytelName].map(_normalizeRosterName).filter(Boolean);
+        return ids.some(v => aids.includes(v)) || names.some(v => anames.includes(v));
+    });
+};
+window.filterToActiveAgents = function(arr) {
+    return Array.isArray(arr) ? arr.filter(row => window.isActiveAgentRecord(row)) : [];
+};
+function _filterDeletedReport(report) {
+    if (!report || typeof report !== 'object') return report;
+    const out = { ...report };
+    ['data','agents','rows','stats'].forEach(k => {
+        if (Array.isArray(out[k])) out[k] = window.filterToActiveAgents(window.filterDeletedAgents(out[k]));
+    });
+    if (out.agentMap && typeof out.agentMap === 'object' && !Array.isArray(out.agentMap)) {
+        out.agentMap = Object.fromEntries(Object.entries(out.agentMap).filter(([k,v]) => !window.isDeletedAgentRecord(v || k)));
+    }
+    return out;
+}
+window.filterDeletedAgentReport = _filterDeletedReport;
+
+if (database) {
+    onValue(ref(database, 'biz_deleted_agents'), snap => {
+        _deletedAgents = snap.val() || {};
+        _saveDeletedAgentCache();
+        window.dispatchEvent(new CustomEvent('biz-deleted-agents-updated', { detail: window.getDeletedAgents() }));
+
+        // If an agent profile is deleted while that agent still has the dashboard
+        // open, end that stale session so it cannot re-add presence/chat data.
+        try {
+            if (sessionStorage.getItem('bizUserRole') === 'agent') {
+                const current = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}');
+                if (current && window.isDeletedAgentRecord(current)) {
+                    const id = String(current.ytelId || current.userId || current.id || '').trim();
+                    if (id) remove(ref(database, 'dashboard_presence/' + id)).catch(() => {});
+                    sessionStorage.removeItem('currentAgentProfile');
+                    sessionStorage.removeItem('currentAgentName');
+                    sessionStorage.removeItem('agentLoggedIn');
+                    sessionStorage.removeItem('bizUserRole');
+                    if (!/agent-login\.html/i.test(location.pathname)) location.replace('agent-login.html?removed=1');
+                }
+            }
+        } catch (_) {}
+    });
+}
+if (database) {
+    onValue(ref(database, 'biz_master_roster'), snap => {
+        let roster = snap.val() || [];
+        if (!Array.isArray(roster)) roster = Object.values(roster);
+        _activeAgentRosterCache = roster.filter(Boolean);
+        try { localStorage.setItem('biz_master_roster', JSON.stringify(_activeAgentRosterCache)); } catch (_) {}
+        window.allAgentProfiles = _activeAgentRosterCache.slice();
+        window.dispatchEvent(new CustomEvent('biz-active-roster-updated', { detail:_activeAgentRosterCache.slice() }));
+    });
+}
+
+window.clearDeletedAgentMarker = async function(agentData) {
+    if (!database || !agentData) return;
+    const ids = [agentData.userId, agentData.ytelId, agentData.id].map(_normalizeAgentToken).filter(Boolean);
+    const names = [agentData.fullName, agentData.name, agentData.ytelName].map(_normalizeAgentToken).filter(Boolean);
+    const snap = await get(ref(database, 'biz_deleted_agents'));
+    const data = snap.val() || {};
+    for (const [key, d] of Object.entries(data)) {
+        const dids = [d && d.userId, d && d.ytelId, d && d.id].map(_normalizeAgentToken).filter(Boolean);
+        const dnames = [d && d.fullName, d && d.name, d && d.normalizedName].map(_normalizeAgentToken).filter(Boolean);
+        if (ids.some(v => dids.includes(v)) || names.some(v => dnames.includes(v))) {
+            await remove(ref(database, 'biz_deleted_agents/' + key));
+        }
+    }
+};
+
+window.purgeAgentEverywhere = async function(agentData) {
+    if (!database) return { success:false, error:'Database not initialized' };
+    const data = (typeof agentData === 'object' && agentData) ? agentData : { userId: agentData };
+    const userId = String(data.userId || data.id || data.ytelId || '').trim();
+    const ytelId = String(data.ytelId || data.userId || data.id || '').trim();
+    const fullName = String(data.fullName || data.name || data.agentName || '').trim();
+    if (!userId && !ytelId && !fullName) return { success:false, error:'Agent identity missing' };
+
+    const tombKey = _safeAgentKey(userId || ytelId || fullName);
+    const tombstone = { userId, ytelId, fullName, normalizedName:_normalizeAgentToken(fullName), deletedAt:new Date().toISOString() };
+    await set(ref(database, 'biz_deleted_agents/' + tombKey), tombstone);
+    _deletedAgents[tombKey] = tombstone;
+    _saveDeletedAgentCache();
+
+    const matches = (row) => {
+        if (!row) return false;
+        const rid = _normalizeAgentToken(row.userId || row.id || row.ytelId || row.agentId);
+        const rname = _normalizeAgentToken(row.fullName || row.name || row.agentName || row.rawName || row.ytelName);
+        return (!!rid && [userId, ytelId].map(_normalizeAgentToken).includes(rid)) || (!!rname && !!fullName && rname === _normalizeAgentToken(fullName));
+    };
+
+    try {
+        // Profile sources
+        if (firestore && userId) { try { await deleteDoc(doc(firestore, 'agent_profiles', userId)); } catch (_) {} }
+        for (const id of new Set([userId, ytelId].filter(Boolean))) {
+            await remove(ref(database, 'agent_profiles/' + id));
+            await remove(ref(database, 'agent_passwords/' + id));
+            await remove(ref(database, 'biz_agent_leads/' + id));
+            await remove(ref(database, 'dashboard_presence/' + id));
+            await remove(ref(database, 'simulator_assignments/' + id));
+            await remove(ref(database, 'agent_goals/' + _safeAgentKey(id)));
+            await remove(ref(database, 'agent_goal_settings/' + _safeAgentKey(id)));
+        }
+        if (fullName) {
+            await remove(ref(database, 'agent_goals/' + _safeAgentKey(fullName)));
+            await remove(ref(database, 'agent_goal_settings/' + _safeAgentKey(fullName)));
+        }
+
+        // Master roster
+        const rosterSnap = await get(ref(database, 'biz_master_roster'));
+        let roster = rosterSnap.val() || [];
+        if (!Array.isArray(roster)) roster = Object.values(roster);
+        roster = roster.filter(row => !matches(row));
+        await set(ref(database, 'biz_master_roster'), roster);
+
+        // Attendance history: remove all rows belonging to the deleted profile.
+        const attSnap = await get(ref(database, 'attendance'));
+        const attendance = attSnap.val() || {};
+        for (const [date, rows] of Object.entries(attendance)) {
+            if (!rows || typeof rows !== 'object') continue;
+            for (const [rowKey, row] of Object.entries(rows)) {
+                if ([userId, ytelId].includes(String(rowKey)) || matches(row)) {
+                    await remove(ref(database, 'attendance/' + date + '/' + rowKey));
+                }
+            }
+        }
+
+        // Remove from the current live dashboard snapshot so the name disappears immediately.
+        const liveSnap = await get(ref(database, 'live_dashboard_state'));
+        const live = liveSnap.val();
+        if (live && typeof live === 'object') {
+            const cleaned = _filterDeletedReport(live);
+            if (Array.isArray(cleaned.agents)) cleaned.agents = cleaned.agents.filter(row => !matches(row));
+            await set(ref(database, 'live_dashboard_state'), cleaned);
+        }
+
+        // Current browser caches/UI.
+        try { localStorage.setItem('biz_master_roster', JSON.stringify(roster)); } catch (_) {}
+        if (Array.isArray(window.allAgentProfiles)) window.allAgentProfiles = window.allAgentProfiles.filter(row => !matches(row));
+        if (Array.isArray(window.agents)) window.agents = window.agents.filter(row => !matches(row));
+        window.dispatchEvent(new CustomEvent('biz-agent-purged', { detail:tombstone }));
+        return { success:true };
+    } catch (e) {
+        console.error('purgeAgentEverywhere failed:', e);
+        return { success:false, error:e.message || String(e) };
+    }
+};
+
 // ========== ADMIN SESSION TRACKING (RTDB) ==========
 // Writes/updates admin_sessions/<emailKey> in Firebase RTDB.
 // Uses the realtime database .ref() pattern that superadminpanel.html expects.
@@ -1066,7 +1278,7 @@ window.listenForAgentReports = function(callback) {
     if (!database) return;
     onValue(ref(database, 'agent_reports'), (snapshot) => {
         const data = snapshot.val() || {};
-        const reportsArray = Object.keys(data).map(k => ({id: k, ...data[k]}));
+        const reportsArray = Object.keys(data).map(k => ({id: k, ...data[k]})).map(_filterDeletedReport);
         // Sort descending by timestamp
         reportsArray.sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
         if (callback) callback(reportsArray);
@@ -1105,7 +1317,7 @@ window.listenForAgentReportsPrivate = function(adminKey, callback) {
     if (!database) return;
     onValue(ref(database, 'agent_reports_private/' + adminKey), (snapshot) => {
         const data = snapshot.val() || {};
-        const arr = Object.keys(data).map(k => ({id: k, ...data[k]}));
+        const arr = Object.keys(data).map(k => ({id: k, ...data[k]})).map(_filterDeletedReport);
         arr.sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
         if (callback) callback(arr);
     });
@@ -1180,7 +1392,8 @@ window.deleteStatusReportFromFirebase = async function(id) {
 window.listenForLiveDashboardState = function(callback) {
     if (!database) return;
     onValue(ref(database, 'live_dashboard_state'), (snapshot) => {
-        if (callback) callback(snapshot.val());
+        const raw = snapshot.val();
+        if (callback) callback(_filterDeletedReport(raw));
     });
 };
 
@@ -1192,7 +1405,9 @@ window.saveLiveDashboardState = async function(stateObj) {
 window.listenForMasterRoster = function(callback) {
     if (!database) return null;
     return onValue(ref(database, 'biz_master_roster'), (snapshot) => {
-        if (callback) callback(snapshot.val());
+        let roster = snapshot.val() || [];
+        if (!Array.isArray(roster)) roster = Object.values(roster);
+        if (callback) callback(window.filterDeletedAgents ? window.filterDeletedAgents(roster) : roster);
     });
 };
 
@@ -1233,6 +1448,7 @@ window.saveAgentProfileToFirestore = async function(agentData) {
             ...agentData,
             updatedAt: new Date().toISOString()
         }, { merge: true });
+        if (typeof window.clearDeletedAgentMarker === 'function') await window.clearDeletedAgentMarker(agentData);
         return { success: true };
     } catch (e) {
         console.error("Firestore Error:", e);
@@ -1314,14 +1530,14 @@ window.listenToAgentProfiles = function(callback) {
         return onSnapshot(q, (snapshot) => {
             const profiles = [];
             snapshot.forEach(doc => profiles.push({ id: doc.id, ...doc.data() }));
-            callback(profiles);
+            callback(window.filterToActiveAgents ? window.filterToActiveAgents(profiles) : (window.filterDeletedAgents ? window.filterDeletedAgents(profiles) : profiles));
         }, (error) => {
             console.warn("Modular Listener Error, trying fallback...", error);
             const fallbackQ = query(collection(fs, 'agent_profiles'));
             onSnapshot(fallbackQ, (snapshot) => {
                 const profiles = [];
                 snapshot.forEach(doc => profiles.push({ id: doc.id, ...doc.data() }));
-                callback(profiles);
+                callback(window.filterToActiveAgents ? window.filterToActiveAgents(profiles) : (window.filterDeletedAgents ? window.filterDeletedAgents(profiles) : profiles));
             });
         });
     };
@@ -1332,12 +1548,12 @@ window.listenToAgentProfiles = function(callback) {
         console.log("Using Compat Firestore for Agent Profiles");
         return window.db.collection('agent_profiles').orderBy('fullName', 'asc').onSnapshot(snap => {
             const profiles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            callback(profiles);
+            callback(window.filterToActiveAgents ? window.filterToActiveAgents(profiles) : (window.filterDeletedAgents ? window.filterDeletedAgents(profiles) : profiles));
         }, err => {
             console.error("Compat Firestore Error:", err);
             window.db.collection('agent_profiles').onSnapshot(snap => {
                 const profiles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                callback(profiles);
+                callback(window.filterToActiveAgents ? window.filterToActiveAgents(profiles) : (window.filterDeletedAgents ? window.filterDeletedAgents(profiles) : profiles));
             });
         });
     } else {
@@ -1881,6 +2097,7 @@ window.saveAgentProfileToRTDB = async function(agentData) {
         if (idx >= 0) roster[idx] = entry;
         else roster.push(entry);
         await set(ref(database, 'biz_master_roster'), roster);
+        if (typeof window.clearDeletedAgentMarker === 'function') await window.clearDeletedAgentMarker(agentData);
         return { success: true };
     } catch (e) {
         console.error('saveAgentProfileToRTDB failed:', e);

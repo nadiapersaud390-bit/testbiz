@@ -606,6 +606,9 @@ async function handleFileUpload(file) {
         
         // Clean agent name
         const agentName = agentNameRaw.replace(/^(GYP|GYB|GTM|RM)\s+/i, '').trim();
+        // If the profile was removed from the master roster, ignore any stale row
+        // that may still exist in an exported/historical CSV.
+        if (window.isActiveAgentRecord && !window.isActiveAgentRecord({ agentId, agentName, rawName: agentNameRaw })) continue;
         
         // Parse duration (handles both seconds and MM:SS format)
         let duration = 0;

@@ -623,6 +623,14 @@
         return [];
     }
 
+    function _isActiveAgentChatId(chatId) {
+        const id = String(chatId || '');
+        if (!id.startsWith('agent_')) return true;
+        const rawId = id.slice(6);
+        const roster = _getAgentRoster();
+        return roster.some(a => String(a.userId || a.ytelId || a.id || '') === rawId && !(window.isDeletedAgentRecord && window.isDeletedAgentRecord(a)));
+    }
+
     // ═══════════════════════════════════════════
     // TYPING INDICATORS
     // ═══════════════════════════════════════════
@@ -1194,6 +1202,7 @@
             const editedBadge = msg.edited ? '<span style="font-size:8px;color:#64748b;margin-left:6px;">(edited)</span>' : '';
             
             let senderName = msg.fromName;
+            if (String(msg.from || '').startsWith('agent_') && !_isActiveAgentChatId(msg.from)) senderName = 'Former Agent';
             let senderClass = 'color:#a855f7;';
             let senderIcon = '';
             if (msg.fromName === 'JAMAL') {
@@ -1341,6 +1350,10 @@
             Object.keys(data).forEach(groupKey => {
                 const group = data[groupKey];
                 if (!group || !group.members) return;
+                group.members = (group.members || []).filter(function(m) {
+                    const mid = String(m.id || m);
+                    return !mid.startsWith('agent_') || _isActiveAgentChatId(mid);
+                });
                 
                 const memberIds = group.members.map(m => String(m.id || m));
                 const myId = String(me.id);
@@ -1897,6 +1910,7 @@
                 var mid = String(m.id || m);
                 var mname = m.name || mid;
                 if (_isHiddenChatIdentity(mid, mname, m)) return false;
+                if (mid.startsWith('agent_') && !_isActiveAgentChatId(mid)) return false;
                 if (!lf) return true;
                 return mname.toLowerCase().includes(lf);
             });
@@ -2115,6 +2129,7 @@
                 const otherId = parts[0] === me.id ? parts[1] : parts[0];
                 if (!otherId) return;
                 if (_isHiddenChatIdentity(otherId, _getAdminNameById(otherId), {})) return;
+                if (otherId.startsWith('agent_') && !_isActiveAgentChatId(otherId)) return;
 
                 const isAdmin = me.role === 'admin';
                 const otherIsAdmin = otherId === 'admin' || otherId === 'jamal' || otherId === 'rose' || otherId === 'momo' || otherId === 'mel' || otherId === 'nadia';
@@ -2823,7 +2838,9 @@
         
         if (_crSidebarTab === 'dms') {
             channelsToShow = Object.values(_crChannels).filter(ch =>
-                ch.type === 'dm' && !_isHiddenChatIdentity(ch.agentId, ch.agentName, ch)
+                ch.type === 'dm' &&
+                !_isHiddenChatIdentity(ch.agentId, ch.agentName, ch) &&
+                (!String(ch.agentId || '').startsWith('agent_') || _isActiveAgentChatId(ch.agentId))
             );
         } else if (_crSidebarTab === 'groups') {
             channelsToShow = Object.values(_crChannels).filter(ch => ch.type === 'group');
@@ -3625,6 +3642,7 @@
                         const timeStr = _formatMessageTime(msg.timestamp);
                         const isQuickAction = msg.isQuickAction;
                         let senderName = msg.fromName;
+                        if (String(msg.from || '').startsWith('agent_') && !_isActiveAgentChatId(msg.from)) senderName = 'Former Agent';
                         let senderClass = 'color:#a855f7;';
                         let senderIcon = '';
                         if (msg.fromName === 'JAMAL') {
@@ -3837,6 +3855,7 @@
                         const timeStr = _formatMessageTime(msg.timestamp);
                         const isQuickAction = msg.isQuickAction;
                         let senderName = msg.fromName;
+                        if (String(msg.from || '').startsWith('agent_') && !_isActiveAgentChatId(msg.from)) senderName = 'Former Agent';
                         let senderClass = 'color:#a855f7;';
                         let senderIcon = '';
                         if (msg.fromName === 'JAMAL') {

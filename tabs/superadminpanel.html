@@ -2041,6 +2041,10 @@ If customer reacts OK: Okay, go on..." rows="8"></textarea>
         }
         
         await saveAgentsToFirebase();
+        // Keep both profile stores synchronized so stale Firestore/RTDB records
+        // cannot make a removed/renamed agent reappear elsewhere.
+        if (typeof window.saveAgentProfileToRTDB === 'function') await window.saveAgentProfileToRTDB(agentData);
+        if (typeof window.saveAgentProfileToFirestore === 'function') await window.saveAgentProfileToFirestore(agentData);
         closeAgentModal();
         
         const toast = document.createElement('div');
@@ -2057,23 +2061,37 @@ If customer reacts OK: Okay, go on..." rows="8"></textarea>
     async function deleteAgent() {
         if (!currentAgentId) return;
         
-        const agent = agentsArray.find(a => a.userId === currentAgentId);
+        const agent = agentsArray.find(a => a.userId === currentAgentId) || { userId: currentAgentId };
         const agentName = agent?.fullName || agent?.name || 'Unknown';
         
-        if (!confirm(`⚠️ Are you sure you want to delete ${agentName}?\nThis action cannot be undone.`)) return;
+        if (!confirm(`⚠️ Are you sure you want to permanently delete ${agentName}?
+Their name will be removed from all active dashboard areas.`)) return;
         
+        let result = { success: false };
+        if (typeof window.purgeAgentEverywhere === 'function') {
+            result = await window.purgeAgentEverywhere(agent);
+        } else {
+            if (typeof window.deleteAgentFromFirestore === 'function') await window.deleteAgentFromFirestore(currentAgentId);
+            if (typeof window.deleteAgentFromRTDB === 'function') await window.deleteAgentFromRTDB(currentAgentId);
+            result = { success: true };
+        }
+        if (!result || result.success === false) {
+            alert('❌ Could not completely remove this agent. Please try again.');
+            return;
+        }
+
         agentsArray = agentsArray.filter(a => a.userId !== currentAgentId);
         await saveAgentsToFirebase();
         closeAgentModal();
         
         const toast = document.createElement('div');
         toast.className = 'fixed bottom-6 right-6 bg-gradient-to-r from-red-500 to-rose-600 text-white px-5 py-3 rounded-xl text-sm font-bold z-50 shadow-lg';
-        toast.innerHTML = `<i class="fas fa-trash-alt mr-2"></i> Agent ${agentName} deleted!`;
+        toast.innerHTML = `<i class="fas fa-trash-alt mr-2"></i> Agent ${agentName} removed everywhere!`;
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 3000);
         
         if (typeof window.writeAdminActivityLog === 'function') {
-            window.writeAdminActivityLog('agent_deleted', `Agent ${agentName} deleted by Super Admin`);
+            window.writeAdminActivityLog('agent_deleted', `Agent ${agentName} deleted and purged by Super Admin`);
         }
     }
 

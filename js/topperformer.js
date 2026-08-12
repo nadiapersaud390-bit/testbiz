@@ -28,14 +28,14 @@ function showTopPerformerPopup(manualTrigger = false, daySnap = null) {
   if (daySnap) {
     // Previous day mode — top 5 only
     sorted = [...(daySnap.agents || [])]
-      .filter(a => a.name && (a.leads || 0) > 0)
+      .filter(a => a.name && (a.leads || 0) > 0 && (!window.isActiveAgentRecord || window.isActiveAgentRecord(a)))
       .sort((a, b) => (b.leads || 0) - (a.leads || 0))
       .slice(0, 5);
     titleLabel = `🏆 ${daySnap.dayName || 'Previous Day'} — Top 5`;
   } else {
     // Live daily mode
     sorted = [...agents]
-      .filter(a => a.name && (a.dailyLeads || 0) > 0)
+      .filter(a => a.name && (a.dailyLeads || 0) > 0 && (!window.isActiveAgentRecord || window.isActiveAgentRecord(a)))
       .sort((a, b) => (b.dailyLeads || 0) - (a.dailyLeads || 0));
     if (!sorted.length && !manualTrigger) return;
     const hour = getGuyanaHour();

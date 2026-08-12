@@ -497,6 +497,9 @@ function findViewerEntry(agentsArr) {
 window.checkLeadAlerts = checkLeadAlerts;
 function checkLeadAlerts(newAgents) {
   if (!newAgents || !newAgents.length) return;
+  if (window.filterToActiveAgents) newAgents = window.filterToActiveAgents(newAgents);
+  else if (window.filterDeletedAgents) newAgents = window.filterDeletedAgents(newAgents);
+  if (!newAgents.length) return;
 
   const viewerRole = sessionStorage.getItem('bizUserRole') || 'agent';
   const isAdmin    = viewerRole === 'agent' ? false : true; // Keep admin logic simple

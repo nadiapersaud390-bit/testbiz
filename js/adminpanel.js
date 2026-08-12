@@ -232,6 +232,7 @@ function apProcessLeads() {
 
     // Clean agent name (strip prefix for display)
     const cleanName = rawName.replace(/^GY[BP]\s*/i, '').trim();
+    if (window.isActiveAgentRecord && !window.isActiveAgentRecord({ ytelId: rawId, name: cleanName, rawName })) return;
 
     qualified.push({ name: cleanName, prefix, ytelId: rawId, duration: dur, raw: row });
 

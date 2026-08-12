@@ -284,21 +284,28 @@ window.apHandleOverlayClick = function(e) {
     if (e.target === document.getElementById('ap-modal-overlay')) apCloseModal();
 };
 
-// Delete agent
+// Delete agent — purge the profile from every active dashboard source.
 window.apDeleteAgent = async function() {
     const userId = document.getElementById('ap-userid').value;
     const name = document.getElementById('ap-name').value;
+    const current = (window.allAgentProfiles || []).find(p => String(p.userId || p.id || '') === String(userId)) || {};
 
-    if (!confirm(`Permanently remove ${name} (${userId}) from Firebase?`)) return;
+    if (!confirm(`Permanently remove ${name} (${userId}) from Firebase and all active dashboard areas?`)) return;
 
-    if (typeof window.deleteAgentFromFirestore === 'function') {
-        await window.deleteAgentFromFirestore(userId);
+    let result = { success: false };
+    if (typeof window.purgeAgentEverywhere === 'function') {
+        result = await window.purgeAgentEverywhere({ ...current, userId, fullName: name || current.fullName || current.name || '' });
+    } else {
+        if (typeof window.deleteAgentFromFirestore === 'function') await window.deleteAgentFromFirestore(userId);
+        if (typeof window.deleteAgentFromRTDB === 'function') await window.deleteAgentFromRTDB(userId);
+        result = { success: true };
     }
-    if (typeof window.deleteAgentFromRTDB === 'function') {
-        await window.deleteAgentFromRTDB(userId);
+    if (!result || result.success === false) {
+        alert('Could not completely remove this agent. Please try again.');
+        return;
     }
     if (typeof window.writeAdminActivityLog === 'function') {
-        window.writeAdminActivityLog('agent_management', `Deleted profile for ${name} (${userId})`);
+        window.writeAdminActivityLog('agent_management', `Deleted profile for ${name} (${userId}) and purged active references`);
     }
     apCloseModal();
 };
