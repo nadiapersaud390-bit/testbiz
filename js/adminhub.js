@@ -97,12 +97,25 @@ window.switchAdminHubTab = function(tabId) {
     if (tabId === 'targetboard') loadTargetBoard();
 
     // Only initialize Zero Performance when the tab is actually clicked
-    if (tabId === 'zero' && !ahZeroPerfInitialized) {
+    if (tabId === 'zero') {
         ahInitZeroPerfLazy();
         ahZeroPerfInitialized = true;
     }
 
 };
+
+// If an agent is removed while Zero Performance is open, redraw immediately
+// from the authoritative active roster so stale names disappear without reload.
+if (!window.__adminHubRosterSyncListener) {
+    window.__adminHubRosterSyncListener = true;
+    const _refreshZeroIfVisible = function() {
+        const section = document.getElementById('ah-sect-zero');
+        if (section && !section.classList.contains('hidden')) ahInitZeroPerfLazy();
+    };
+    window.addEventListener('biz-agent-purged', _refreshZeroIfVisible);
+    window.addEventListener('biz-active-roster-updated', _refreshZeroIfVisible);
+    window.addEventListener('biz-deleted-agents-updated', _refreshZeroIfVisible);
+}
 
 // ========== TARGET BOARD FUNCTIONS ==========
 
@@ -311,8 +324,14 @@ function ahInitZeroPerfLazy() {
     weeklyList.innerHTML = '<div class="py-10 text-center text-cyan-400 font-bold uppercase text-[9px] tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i> Loading weekly data...</div>';
 
     setTimeout(() => {
-        const roster = window.allAgentProfiles || [];
-        const liveAgents = window.agents || [];
+        let roster = Array.isArray(window.allAgentProfiles) ? window.allAgentProfiles.slice() : [];
+        if (typeof window.filterDeletedAgents === 'function') roster = window.filterDeletedAgents(roster);
+        if (typeof window.filterToActiveAgents === 'function') roster = window.filterToActiveAgents(roster);
+        roster = roster.filter(p => {
+            const status = String((p && p.status) || '').trim().toLowerCase();
+            return p && !['inactive','quit','fired','deleted','archived'].includes(status);
+        });
+        const liveAgents = (window.agents || []).filter(a => !window.isActiveAgentRecord || window.isActiveAgentRecord(a));
         const reportsList = window.allAgentReports || [];
 
         function getCount(p, countMap) {

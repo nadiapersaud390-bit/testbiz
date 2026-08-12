@@ -223,6 +223,30 @@ function getWeekStart(date) {
     return new Date(d.setDate(diff));
 }
 
+// The RTDB master roster is the authoritative list of current agents.
+// Never build admin performance lists from legacy agent_profiles because
+// deleted profiles can remain there from older dashboard versions.
+async function ahGetActiveRoster() {
+    let agents = [];
+    try {
+        const rosterResp = await fetch('https://biz-dashboard-4396c-default-rtdb.firebaseio.com/biz_master_roster.json?ts=' + Date.now(), { cache: 'no-store' });
+        const rosterData = await rosterResp.json();
+        if (Array.isArray(rosterData)) agents = rosterData.filter(Boolean);
+        else if (rosterData && typeof rosterData === 'object') agents = Object.values(rosterData).filter(Boolean);
+    } catch (e) {
+        console.warn('[AdminHub] Could not fetch master roster, using live roster cache.', e);
+        agents = Array.isArray(window.allAgentProfiles) ? window.allAgentProfiles.slice() : [];
+    }
+
+    if (typeof window.filterDeletedAgents === 'function') agents = window.filterDeletedAgents(agents);
+
+    return agents.filter(a => {
+        if (!a) return false;
+        const status = String(a.status || '').trim().toLowerCase();
+        return !['inactive','quit','fired','deleted','archived'].includes(status);
+    });
+}
+
 // ============================================
 // TAB SWITCHING FUNCTION
 // ============================================
@@ -271,9 +295,7 @@ async function loadRebuttalIntel() {
         const response = await fetch('https://biz-dashboard-4396c-default-rtdb.firebaseio.com/rebuttal_usage.json');
         const data = await response.json();
         
-        const agentsResp = await fetch('https://biz-dashboard-4396c-default-rtdb.firebaseio.com/agent_profiles.json');
-        const agentsData = await agentsResp.json();
-        const agents = agentsData ? Object.values(agentsData) : [];
+        const agents = await ahGetActiveRoster();
         
         if (!data) {
             document.getElementById('ah-rebuttal-agents').innerHTML = '<div class="text-center text-slate-500 py-8">No rebuttal usage data yet</div>';
@@ -480,11 +502,25 @@ async function loadWeeklyPerformance() {
             }
         });
         
-        const agentsResp = await fetch('https://biz-dashboard-4396c-default-rtdb.firebaseio.com/agent_profiles.json');
-        const agentsData = await agentsResp.json();
-        const agents = agentsData ? Object.values(agentsData) : [];
+        const agents = await ahGetActiveRoster();
         const agentNameMap = {}, agentTeamMap = {};
-        agents.forEach(a => { agentNameMap[a.userId] = a.fullName || a.name; agentTeamMap[a.userId] = a.team || 'PR'; });
+        agents.forEach(a => {
+            const id = String(a.userId || a.ytelId || '').trim();
+            if (!id) return;
+            agentNameMap[id] = a.fullName || a.name;
+            agentTeamMap[id] = a.team || 'PR';
+        });
+
+        // Historical reports may still contain rows for deleted agents. Only
+        // current master-roster IDs are allowed into current performance screens.
+        Object.keys(agentLeads).forEach(id => {
+            if (!agentNameMap[String(id)]) delete agentLeads[id];
+        });
+        teamLeads.BB = 0; teamLeads.PR = 0; teamLeads.RM = 0;
+        Object.entries(agentLeads).forEach(([id, leads]) => {
+            const team = agentTeamMap[id] || 'PR';
+            teamLeads[team] = (teamLeads[team] || 0) + Number(leads || 0);
+        });
         
         const maxTeam = Math.max(...Object.values(teamLeads), 1);
         document.getElementById('ah-weekly-team-list').innerHTML = Object.entries(teamLeads).sort((a,b)=>b[1]-a[1]).map(([team, leads]) => {
@@ -510,9 +546,7 @@ async function loadWeeklyPerformance() {
 async function loadZeroPerformance() {
     console.log('👻 Loading Zero Performance...');
     try {
-        const agentsResp = await fetch('https://biz-dashboard-4396c-default-rtdb.firebaseio.com/agent_profiles.json');
-        const agentsData = await agentsResp.json();
-        const agents = agentsData ? Object.values(agentsData) : [];
+        const agents = await ahGetActiveRoster();
         
         const response = await fetch('https://biz-dashboard-4396c-default-rtdb.firebaseio.com/agent_reports.json');
         const data = await response.json();
@@ -606,10 +640,16 @@ async function loadZeroPerformance() {
         const activeAgents = agents.filter(a => a.status !== 'Inactive' && a.status !== 'Quit' && a.status !== 'Fired');
         
         // Find agents with ZERO daily leads
-        const zeroDaily = activeAgents.filter(agent => !dailyLeads.has(agent.userId));
+        const zeroDaily = activeAgents.filter(agent => {
+            const id = String(agent.userId || agent.ytelId || '').trim();
+            return id && !dailyLeads.has(id);
+        });
         
         // Find agents with ZERO weekly leads
-        const zeroWeekly = activeAgents.filter(agent => !weeklyLeads.has(agent.userId));
+        const zeroWeekly = activeAgents.filter(agent => {
+            const id = String(agent.userId || agent.ytelId || '').trim();
+            return id && !weeklyLeads.has(id);
+        });
         
         console.log(`📊 Zero daily: ${zeroDaily.length} agents, Zero weekly: ${zeroWeekly.length} agents`);
         
@@ -629,7 +669,7 @@ async function loadZeroPerformance() {
                     <div class="flex justify-between items-center p-3 bg-white/5 rounded-xl mb-2 hover:bg-white/10 transition">
                         <div>
                             <div class="font-bold text-white text-sm uppercase">${escapeHtml(agent.fullName || agent.name)}</div>
-                            <div class="text-[9px] ${teamColor} font-bold">${teamIcon} ${agent.team || '—'} • ID: ${agent.userId}</div>
+                            <div class="text-[9px] ${teamColor} font-bold">${teamIcon} ${agent.team || '—'} • ID: ${agent.userId || agent.ytelId || '—'}</div>
                         </div>
                         <div class="text-right">
                             <span class="text-red-400 text-xs font-bold bg-red-500/10 px-2 py-1 rounded">0 leads today</span>
@@ -655,7 +695,7 @@ async function loadZeroPerformance() {
                     <div class="flex justify-between items-center p-3 bg-white/5 rounded-xl mb-2 hover:bg-white/10 transition">
                         <div>
                             <div class="font-bold text-white text-sm uppercase">${escapeHtml(agent.fullName || agent.name)}</div>
-                            <div class="text-[9px] ${teamColor} font-bold">${teamIcon} ${agent.team || '—'} • ID: ${agent.userId}</div>
+                            <div class="text-[9px] ${teamColor} font-bold">${teamIcon} ${agent.team || '—'} • ID: ${agent.userId || agent.ytelId || '—'}</div>
                         </div>
                         <div class="text-right">
                             <span class="text-orange-400 text-xs font-bold bg-orange-500/10 px-2 py-1 rounded">0 leads this week</span>
@@ -693,9 +733,7 @@ async function loadTargetBoard() {
     try {
         const response = await fetch('https://biz-dashboard-4396c-default-rtdb.firebaseio.com/agent_reports.json');
         const data = await response.json();
-        const agentsResp = await fetch('https://biz-dashboard-4396c-default-rtdb.firebaseio.com/agent_profiles.json');
-        const agentsData = await agentsResp.json();
-        const agents = agentsData ? Object.values(agentsData).filter(a => a.status !== 'Inactive') : [];
+        const agents = await ahGetActiveRoster();
         
         const agentLeads = new Map();
         if (data) {
@@ -786,6 +824,28 @@ window.tbFilterTeam = tbFilterTeam;
 window.refreshWeeklyPerformance = refreshWeeklyPerformance;
 window.loadRebuttalIntel = loadRebuttalIntel;
 window.loadWeeklyPerformance = loadWeeklyPerformance;
+// Keep performance screens synchronized when a profile is removed or the roster changes.
+if (!window.__ahRosterRefreshListeners) {
+    window.__ahRosterRefreshListeners = true;
+    const refreshCurrentAdminPerformanceView = function() {
+        const zeroSection = document.getElementById('ah-sect-zero');
+        if (zeroSection && !zeroSection.classList.contains('hidden') && typeof loadZeroPerformance === 'function') {
+            loadZeroPerformance();
+        }
+        const targetSection = document.getElementById('ah-sect-targetboard');
+        if (targetSection && !targetSection.classList.contains('hidden') && typeof loadTargetBoard === 'function') {
+            loadTargetBoard();
+        }
+        const perfSection = document.getElementById('ah-sect-performance');
+        if (perfSection && !perfSection.classList.contains('hidden') && typeof loadWeeklyPerformance === 'function') {
+            loadWeeklyPerformance();
+        }
+    };
+    window.addEventListener('biz-agent-purged', refreshCurrentAdminPerformanceView);
+    window.addEventListener('biz-active-roster-updated', refreshCurrentAdminPerformanceView);
+    window.addEventListener('biz-deleted-agents-updated', refreshCurrentAdminPerformanceView);
+}
+
 window.loadZeroPerformance = loadZeroPerformance;
 window.toggleAgentDetails = toggleAgentDetails;
 
