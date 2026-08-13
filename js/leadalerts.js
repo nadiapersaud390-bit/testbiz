@@ -610,8 +610,8 @@ function checkLeadAlerts(newAgents) {
       quote,
       firstLead: isFirst,
       personal: true,
-      durationMs: isMilestone ? 7200 : 6500,
-      returnDurationMs: 5000,
+      durationMs: 30000,
+      returnDurationMs: 30000,
       personalCard: {
         badge: badge,
         title: heading,
@@ -902,8 +902,8 @@ function _renderAlert({icon, name, msg, quote, firstLead = false, isUploadAlert 
   document.body.style.paddingTop = '72px';
 
   _leadAlertCardData = personal ? (personalCard || {}) : null;
-  _leadAlertVisibleMs = durationMs || (personal ? 6500 : LEAD_CELEBRATION_VISIBLE_MS);
-  _leadAlertReturnMs = returnDurationMs || (personal ? 5000 : LEAD_CELEBRATION_RETURN_MS);
+  _leadAlertVisibleMs = durationMs || LEAD_CELEBRATION_VISIBLE_MS;
+  _leadAlertReturnMs = returnDurationMs || LEAD_CELEBRATION_VISIBLE_MS;
 
   _startLeadAlertExperience(icon + ' ' + name + (firstLead ? ' — First Lead Today!' : ' — New Lead!'));
 }

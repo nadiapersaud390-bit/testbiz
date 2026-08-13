@@ -22,37 +22,86 @@ function isSameWeek(d1, d2) {
 }
 
 // ============================================================
-// CLOCK UPDATE — synced to Firebase server time
+// CLOCK UPDATE — synced to Firebase Realtime Database server time
+// Uses Firebase .info/serverTimeOffset, then advances from a monotonic
+// performance clock so a workstation clock adjustment cannot make the
+// dashboard jump ahead/behind after the initial Firebase sync.
 // ============================================================
-let _serverTimeOffset = 0; // ms: serverTime = Date.now() + _serverTimeOffset
+let _serverTimeOffset = 0;
+let _serverEpochAtSync = 0;
+let _performanceAtSync = 0;
+let _firebaseClockReady = false;
+let _firebaseClockListenerStarted = false;
+
+function _setFirebaseClockAnchor(offset) {
+  if (typeof offset !== 'number' || !Number.isFinite(offset)) return;
+  _serverTimeOffset = offset;
+  _serverEpochAtSync = Date.now() + offset;
+  _performanceAtSync = (window.performance && typeof window.performance.now === 'function')
+    ? window.performance.now()
+    : 0;
+  _firebaseClockReady = true;
+}
+
+function getFirebaseServerNowMs() {
+  if (!_firebaseClockReady) return Date.now();
+  if (window.performance && typeof window.performance.now === 'function') {
+    return _serverEpochAtSync + (window.performance.now() - _performanceAtSync);
+  }
+  return Date.now() + _serverTimeOffset;
+}
+window.getFirebaseServerNowMs = getFirebaseServerNowMs;
+window.getFirebaseServerNow = function() { return new Date(getFirebaseServerNowMs()); };
 
 function _initServerTimeSync() {
+  if (_firebaseClockListenerStarted) return;
   if (typeof window.rtdbRef !== 'function' || typeof window.rtdbOnValue !== 'function') {
-    setTimeout(_initServerTimeSync, 500);
+    setTimeout(_initServerTimeSync, 350);
     return;
   }
+  _firebaseClockListenerStarted = true;
   try {
     window.rtdbOnValue(window.rtdbRef('.info/serverTimeOffset'), function(snap) {
-      const offset = snap.val();
-      if (typeof offset === 'number') _serverTimeOffset = offset;
+      const offset = Number(snap.val());
+      if (Number.isFinite(offset)) {
+        _setFirebaseClockAnchor(offset);
+        updateClocks();
+      }
     });
   } catch(e) {
+    _firebaseClockListenerStarted = false;
     console.warn('[Clock] Could not sync server time from Firebase:', e);
+    setTimeout(_initServerTimeSync, 2000);
   }
 }
-_initServerTimeSync();
+
+function _formatClockAt(epochMs, timeZone) {
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    }).format(new Date(epochMs));
+  } catch (_) {
+    return new Date(epochMs).toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+    });
+  }
+}
 
 function updateClocks(){
-  const now=new Date(Date.now() + _serverTimeOffset);
-  const guyanaTime=new Date(now.toLocaleString('en-US',{timeZone:'America/Guyana'}));
-  const californiaTime=new Date(now.toLocaleString('en-US',{timeZone:'America/Los_Angeles'}));
-  const fmt=d=>{let h=d.getHours(),m=d.getMinutes(),s=d.getSeconds(),ampm=h>=12?'PM':'AM';h=h%12||12;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+' '+ampm;};
-  const gEl=document.getElementById('clock-guyana'),cEl=document.getElementById('clock-california');
-  if(gEl)gEl.textContent=fmt(guyanaTime);
-  if(cEl)cEl.textContent=fmt(californiaTime);
+  const serverNow = getFirebaseServerNowMs();
+  const gEl = document.getElementById('clock-guyana');
+  const cEl = document.getElementById('clock-california');
+  if (gEl) gEl.textContent = _formatClockAt(serverNow, 'America/Guyana');
+  if (cEl) cEl.textContent = _formatClockAt(serverNow, 'America/Los_Angeles');
 }
+
+_initServerTimeSync();
 updateClocks();
-setInterval(updateClocks,1000);
+setInterval(updateClocks, 1000);
 
 // ============================================================
 // TAB BLINK UTILITY
