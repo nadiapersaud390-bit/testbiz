@@ -41,31 +41,36 @@
     const EMOJI_GROUPS = [
         { label: 'Smileys', icon: '😊', items: [
             '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰',
-            '😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🤩','🥳','😏'
+            '😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🤩','🥳','😏',
+            '😬','🙄','😯','😮','😲','🥱','😴','🤤','😪','😵','🤐','🥴','🤢','🤮','🤧','😷'
         ]},
         { label: 'Reactions', icon: '🔥', items: [
             '😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠',
-            '😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥','😶'
+            '😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥',
+            '😶','😐','😑','😧','😦','😓','😈','👿','💀','👻','🤡','💩','💯','🔥','⚡','✅'
         ]},
         { label: 'Hands', icon: '👏', items: [
             '👍','👎','👌','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','👇','☝️','✋','🤚','🖐️',
-            '🖖','👋','🤝','👏','🙌','👐','🤲','🙏','✍️','💪','🫶','🫰','🤌','🤏','🫵','🫡'
+            '🖖','👋','🤝','👏','🙌','👐','🤲','🙏','✍️','💪','👊','✊','🤛','🤜','👏','🙌'
         ]},
         { label: 'Love', icon: '❤️', items: [
-            '❤️','🩷','🧡','💛','💚','🩵','💙','💜','🤎','🖤','🤍','💔','❤️‍🔥','❤️‍🩹','💕','💞',
-            '💓','💗','💖','💘','💝','💟','❣️','💋','😍','🥰','😘','🌹','🌸','✨','💫','⭐','🌟'
+            '❤️','🧡','💛','💚','💙','💜','🤎','🖤','🤍','💔','💕','💞','💓','💗','💖','💘',
+            '💝','💟','❣️','💋','😍','🥰','😘','🌹','🌸','🌺','🌷','✨','💫','⭐','🌟','💐'
         ]},
         { label: 'Celebrate', icon: '🎉', items: [
             '🎉','🎊','🥳','🏆','🥇','🥈','🥉','🏅','🎯','🚀','🔥','⚡','💯','✅','☑️','✔️',
-            '👏','🙌','💪','📈','💰','💵','💸','🤑','🎁','🎈','🎂','🍾','🥂','🎶','🔔','⭐'
+            '👏','🙌','💪','📈','💰','💵','💸','🤑','🎁','🎈','🎂','🍾','🥂','🎶','🔔','⭐',
+            '🌟','✨','🎵','🎤','🎧','🏁','🎖️','💎','👑','🌈','☀️','💥','🎇','🎆','🥂','🍰'
         ]},
         { label: 'Work & Chat', icon: '💬', items: [
             '💬','🗣️','📞','☎️','📱','🎧','🎙️','📣','📢','🔊','🔕','⏰','⏳','⌛','📌','📍',
-            '📝','📋','📊','📉','📈','💡','❗','❓','‼️','⁉️','🚨','🆘','⚠️','✅','❌','🔒'
+            '📝','📋','📊','📉','📈','💡','❗','❓','‼️','⁉️','🚨','🆘','⚠️','✅','❌','🔒',
+            '🔓','📧','📨','📩','📤','📥','📁','📂','📅','📆','🕐','🔔','🔎','🔍','💼','📚'
         ]},
         { label: 'Fun', icon: '😜', items: [
             '😜','🤪','😹','😻','🙀','👻','💀','🤖','👽','😈','👿','💩','🤡','🐐','🦁','🐆',
-            '🐝','🦋','🌈','☀️','🌙','⚡','☕','🍕','🍔','🍟','🍩','🍭','🎮','🎲','🧿','💎'
+            '🐝','🦋','🌈','☀️','🌙','⚡','☕','🍕','🍔','🍟','🍩','🍭','🎮','🎲','💎','🐶',
+            '🐱','🐵','🦄','🐼','🐸','🐯','🐨','🍓','🍉','🍒','🍦','🍪','🍫','⚽','🏀','🎸'
         ]}
     ];
     const COMMON_EMOJIS = EMOJI_GROUPS.reduce(function(all, group) {
@@ -3269,6 +3274,32 @@
 
     var _emojiCloseHandlers = {};
 
+    function _positionEmojiPicker(picker, anchorEl) {
+        if (!picker || !anchorEl) return;
+        picker.classList.add('cr-emoji-picker-fixed');
+        picker.style.left = '12px';
+        picker.style.right = 'auto';
+        picker.style.top = '12px';
+        picker.style.bottom = 'auto';
+
+        requestAnimationFrame(function() {
+            var btn = anchorEl.getBoundingClientRect();
+            var box = picker.getBoundingClientRect();
+            var gap = 10;
+            var vw = window.innerWidth || document.documentElement.clientWidth;
+            var vh = window.innerHeight || document.documentElement.clientHeight;
+            var width = Math.min(box.width || 320, vw - 24);
+            var left = Math.max(12, Math.min(btn.left, vw - width - 12));
+            var top = btn.top - (box.height || 320) - gap;
+
+            if (top < 12) top = Math.min(vh - (box.height || 320) - 12, btn.bottom + gap);
+            top = Math.max(12, top);
+
+            picker.style.left = left + 'px';
+            picker.style.top = top + 'px';
+        });
+    }
+
     window._crToggleEmojiPicker = function(event, pickerId) {
         event.stopPropagation();
         const picker = document.getElementById(`cr-emoji-picker-${pickerId}`);
@@ -3282,6 +3313,7 @@
         
         var isNowOpen = !picker.classList.contains('show');
         picker.classList.toggle('show');
+        if (isNowOpen) _positionEmojiPicker(picker, event.currentTarget || event.target);
 
         if (picker.innerHTML === '') {
             picker.innerHTML = _buildEmojiPickerWithClose(pickerId);
@@ -3343,6 +3375,7 @@
 
         var isNowOpen = !picker.classList.contains('show');
         picker.classList.toggle('show');
+        if (isNowOpen) _positionEmojiPicker(picker, event.currentTarget || event.target);
 
         if (picker.innerHTML === '') {
             picker.innerHTML = _buildEmojiPickerWithClose('float');

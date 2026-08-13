@@ -50,7 +50,7 @@
 }
 
 .cr-sidebar-title .lock-icon {
-    font-size: 11px;
+    font-size: 10px;
     opacity: 0.7;
 }
 
@@ -291,7 +291,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 8px;
+    font-size: 7.5px;
     font-weight: 900;
     color: #10b981;
     background: rgba(16,185,129,0.1);
@@ -1831,7 +1831,7 @@
     grid-template-columns: repeat(8, minmax(0, 1fr));
     gap: 6px;
     width: min(340px, calc(100vw - 28px));
-    max-height: 370px;
+    max-height: min(320px, calc(100vh - 24px));
     overflow-y: auto;
     overflow-x: hidden;
     padding: 12px;
@@ -1844,6 +1844,15 @@
     font-variant-emoji: emoji;
     scrollbar-width: thin;
     scrollbar-color: rgba(45, 212, 191, .5) rgba(255, 255, 255, .04);
+}
+
+.cr-emoji-picker.cr-emoji-picker-fixed {
+    position: fixed !important;
+    z-index: 100050 !important;
+    max-height: min(320px, calc(100vh - 24px));
+}
+#cr-float-emoji-picker.cr-emoji-picker-fixed {
+    width: min(300px, calc(100vw - 24px)) !important;
 }
 .cr-emoji-picker::-webkit-scrollbar { width: 7px; }
 .cr-emoji-picker::-webkit-scrollbar-track { background: rgba(255,255,255,.035); border-radius: 999px; }
@@ -1861,7 +1870,7 @@
     justify-content: space-between;
     gap: 12px;
     margin: -12px -12px 4px;
-    padding: 13px 14px 11px;
+    padding: 10px 12px 9px;
     background: rgba(6, 18, 31, .97);
     border-bottom: 1px solid rgba(45, 212, 191, .18);
     backdrop-filter: blur(15px);
@@ -1922,7 +1931,7 @@
 .cr-emoji-option {
     display: flex;
     width: 100%;
-    min-height: 35px;
+    min-height: 32px;
     align-items: center;
     justify-content: center;
     padding: 0;
@@ -1930,7 +1939,7 @@
     border-radius: 10px;
     background: rgba(255,255,255,.025);
     color: inherit;
-    font-size: 23px;
+    font-size: 21px;
     line-height: 1;
     cursor: pointer;
     font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', 'Twemoji Mozilla', sans-serif;
@@ -1946,7 +1955,7 @@
 .cr-emoji-option:active { transform: scale(.94); }
 
 @media (max-width: 420px) {
-    .cr-emoji-picker { grid-template-columns: repeat(7, minmax(0, 1fr)); width: min(310px, calc(100vw - 20px)); max-height: 345px; }
+    .cr-emoji-picker { grid-template-columns: repeat(7, minmax(0, 1fr)); width: min(310px, calc(100vw - 20px)); max-height: min(300px, calc(100vh - 24px)); }
     .cr-emoji-option { font-size: 22px; min-height: 34px; }
 }
 

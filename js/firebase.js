@@ -1749,6 +1749,87 @@ function showLeadAlert(agentName, leadCount) {
     }
 }
 
+// Match the current logged-in agent against an uploaded lead delta entry.
+// The CSV alert payload currently carries agent names (not always Ytel IDs), so
+// this intentionally supports name normalization and team-prefix differences.
+function _leadAlertNormalizeName(value) {
+    return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+function _leadAlertTrimTeamPrefix(value) {
+    const parts = String(value || '').trim().split(/\s+/);
+    if (parts.length <= 1) return String(value || '').trim();
+    const first = String(parts[0] || '').toUpperCase();
+    if (/^(GYB|GYP|PR|BB|RM)$/.test(first)) return parts.slice(1).join(' ');
+    return String(value || '').trim();
+}
+function _leadAlertSameAgentName(a, b) {
+    const na = _leadAlertNormalizeName(a);
+    const nb = _leadAlertNormalizeName(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    return _leadAlertNormalizeName(_leadAlertTrimTeamPrefix(a)) === _leadAlertNormalizeName(_leadAlertTrimTeamPrefix(b));
+}
+function _leadAlertCurrentAgent() {
+    const role = String(sessionStorage.getItem('bizUserRole') || '').toLowerCase();
+    if (role !== 'agent') return null;
+    let profile = {};
+    try { profile = JSON.parse(sessionStorage.getItem('currentAgentProfile') || '{}') || {}; } catch (e) {}
+    return {
+        name: profile.name || sessionStorage.getItem('currentAgentName') || '',
+        ytelId: String(profile.ytelId || profile.userId || profile.id || '').trim()
+    };
+}
+function _leadAlertFindOwnDelta(agentList) {
+    const me = _leadAlertCurrentAgent();
+    if (!me || !Array.isArray(agentList)) return null;
+    return agentList.find(function(a) {
+        if (!a) return false;
+        const aid = String(a.ytelId || a.userId || a.id || '').trim();
+        if (me.ytelId && aid && me.ytelId === aid) return true;
+        return _leadAlertSameAgentName(a.name || a.fullName || '', me.name);
+    }) || null;
+}
+function _leadAlertPersonalCard(agentDelta, fallbackQuote) {
+    if (!agentDelta) return null;
+    const count = Number(agentDelta.count || agentDelta.leadCount) || 0;
+    const prev = Number(agentDelta.prev) || 0;
+    const rawName = String(agentDelta.name || agentDelta.fullName || 'Agent').trim();
+    const firstName = _leadAlertTrimTeamPrefix(rawName).split(/\s+/)[0] || 'Agent';
+    const isFirst = prev === 0 && count > 0;
+    const isMilestone = count >= 5 && count % 5 === 0;
+    const added = Math.max(1, count - prev);
+    const plural = count === 1 ? '' : 's';
+    let title = 'Great job, ' + firstName + '!';
+    let message = 'You just got another lead — you are now at ' + count + ' lead' + plural + ' today!';
+    let badge = 'Keep pushing';
+    let tier = 'regular';
+    if (isFirst) {
+        title = firstName + ', you are on the board!';
+        message = 'You just got your first lead of the day. Keep the momentum going!';
+        badge = 'First lead';
+        tier = 'first';
+    } else if (isMilestone) {
+        title = firstName + ', you hit a milestone!';
+        message = 'Amazing work — you are now at ' + count + ' leads today. Stay locked in and keep pushing!';
+        badge = 'Milestone unlocked';
+        tier = 'milestone';
+    } else if (added > 1) {
+        title = 'Excellent work, ' + firstName + '!';
+        message = 'You just added ' + added + ' new leads and you are now at ' + count + ' leads today!';
+        badge = 'Momentum building';
+    }
+    return {
+        badge: badge,
+        title: title,
+        message: message,
+        quote: fallbackQuote || 'Keep pushing — every dial counts!',
+        stat: count + ' lead' + plural + ' today',
+        tier: tier,
+        isFirst: isFirst,
+        isMilestone: isMilestone
+    };
+}
+
 // Listen for lead alerts
 function listenForLeadAlerts() {
     if (!database) {
@@ -1791,13 +1872,23 @@ function listenForLeadAlerts() {
                         : fn + ' (' + a.count + ' leads)';
                 }).join(' • ');
 
+                const ownDelta = _leadAlertFindOwnDelta(agents);
+                const ownCard = _leadAlertPersonalCard(ownDelta, quote);
+
+                // Everyone receives the normal floor-wide banner/confetti.
+                // Only the matching logged-in agent receives the large centered
+                // personal celebration card on top of that same alert.
                 window._renderLeadAlert({
                     icon: hasFirst ? '🏆' : '🔥',
                     name: n + ' New Lead' + (n !== 1 ? 's' : '') + ' Just Hit the Floor!',
                     msg: agentStr,
                     quote: quote,
                     firstLead: hasFirst,
-                    isUploadAlert: true
+                    isUploadAlert: true,
+                    personal: !!ownCard,
+                    personalCard: ownCard,
+                    durationMs: 30000,
+                    returnDurationMs: 30000
                 });
             }
             return;
@@ -1823,12 +1914,18 @@ function listenForLeadAlerts() {
                     ? `${name} just got their FIRST lead of the day! 🥇`
                     : `${name} just transferred — now at ${count} leads today! 🔥`;
                 
+                const ownDelta = _leadAlertFindOwnDelta([{ name: name, count: count, prev: Math.max(0, count - 1) }]);
+                const ownCard = _leadAlertPersonalCard(ownDelta, quote);
                 window._renderLeadAlert({
                     icon: isFirst ? '🥇' : '🔥',
                     name: `${name} — New Lead!`,
                     msg: msg,
                     quote: quote,
-                    firstLead: isFirst
+                    firstLead: isFirst,
+                    personal: !!ownCard,
+                    personalCard: ownCard,
+                    durationMs: 30000,
+                    returnDurationMs: 30000
                 });
             } else {
                 showLeadAlert(name, count);

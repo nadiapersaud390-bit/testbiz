@@ -475,21 +475,30 @@ function resolveViewerIdentity() {
   alertViewerYtelId = String(profileYtelId || '').trim();
 }
 
+function normalizeYtelToken(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return /^\d+$/.test(raw) ? String(Number(raw)) : raw.toLowerCase();
+}
+
 function isViewerAgent(agentObj) {
-  if (alertViewerYtelId && agentObj.ytelId) {
-    return String(agentObj.ytelId).trim() === alertViewerYtelId;
-  }
-  return isSameAgentName(agentObj.name || '', alertViewerName);
+  const viewerId = normalizeYtelToken(alertViewerYtelId);
+  const agentId = normalizeYtelToken(agentObj && (agentObj.ytelId || agentObj.userId || agentObj.id));
+  if (viewerId && agentId && viewerId === agentId) return true;
+  // Always keep the normalized-name fallback because CSV/roster sources can
+  // format IDs differently while still referring to the same person.
+  return isSameAgentName((agentObj && (agentObj.name || agentObj.fullName)) || '', alertViewerName);
 }
 
 function findViewerEntry(agentsArr) {
   if (!agentsArr || !agentsArr.length) return null;
-  if (alertViewerYtelId) {
-    const byId = agentsArr.find(a => String(a.ytelId || '').trim() === alertViewerYtelId);
+  const viewerId = normalizeYtelToken(alertViewerYtelId);
+  if (viewerId) {
+    const byId = agentsArr.find(a => normalizeYtelToken(a && (a.ytelId || a.userId || a.id)) === viewerId);
     if (byId) return byId;
   }
   if (alertViewerName) {
-    return agentsArr.find(a => isSameAgentName(a.name || '', alertViewerName)) || null;
+    return agentsArr.find(a => isSameAgentName((a && (a.name || a.fullName)) || '', alertViewerName)) || null;
   }
   return null;
 }
@@ -562,66 +571,66 @@ function checkLeadAlerts(newAgents) {
 
   if (!newReps.length) return;
 
-  // Agent view: only celebrate the logged-in agent's own new leads.
-  // Other agents should not see somebody else's personal lead celebration.
+  // Agent view: every agent still receives the normal floor-wide banner/confetti.
+  // Only the logged-in agent whose own lead count increased gets the centered
+  // personal celebration card. If this upload belongs to someone else, fall
+  // through to the regular shared banner below.
   if (!isAdmin) {
     const ownRep = newReps.find(r => isViewerAgent(r.agentObj || {}));
-    if (!ownRep) return;
+    if (ownRep) {
+      const firstName = getFirstName(ownRep.name);
+      const totalCount = Number(ownRep.count) || 0;
+      const addedCount = Math.max(1, totalCount - (Number(ownRep.prev) || 0));
+      const isFirst = !!ownRep.isFirst;
+      const isMilestone = totalCount >= 5 && totalCount % 5 === 0;
+      const quote = pickQuote(totalCount, isFirst);
+      const totalPlural = totalCount === 1 ? '' : 's';
+      let heading = 'Great job, ' + firstName + '!';
+      let msg = '';
+      let badge = 'Keep it up';
+      let stat = totalCount + ' lead' + totalPlural + ' today';
+      let tier = 'regular';
 
-    const firstName = getFirstName(ownRep.name);
-    const totalCount = Number(ownRep.count) || 0;
-    const addedCount = Math.max(1, totalCount - (Number(ownRep.prev) || 0));
-    const isFirst = !!ownRep.isFirst;
-    const isMilestone = totalCount >= 5 && totalCount % 5 === 0;
-    const quote = pickQuote(totalCount, isFirst);
-    const totalPlural = totalCount === 1 ? '' : 's';
-    let heading = 'Great job, ' + firstName + '!';
-    let msg = '';
-    let badge = 'Keep it up';
-    let stat = totalCount + ' lead' + totalPlural + ' today';
-    let tier = 'regular';
-
-    if (isFirst) {
-      heading = firstName + ", you're on the board!";
-      msg = "You just got your first lead of the day. Keep the momentum going!";
-      badge = 'First lead';
-      tier = 'first';
-    } else if (isMilestone) {
-      heading = firstName + ', you hit a milestone!';
-      msg = "Amazing work — you're now at " + totalCount + ' leads today. Stay locked in and keep pushing!';
-      badge = 'Milestone unlocked';
-      tier = 'milestone';
-    } else if (addedCount > 1) {
-      heading = 'Excellent work, ' + firstName + '!';
-      msg = 'You just added ' + addedCount + " new leads and you're now at " + totalCount + ' leads today!';
-      badge = 'Momentum building';
-      tier = 'regular';
-    } else {
-      heading = 'Great job, ' + firstName + '!';
-      msg = "You just got another lead — you're now at " + totalCount + ' lead' + totalPlural + ' today!';
-      badge = 'Keep pushing';
-      tier = 'regular';
-    }
-
-    _renderAlert({
-      icon: isFirst ? '🥇' : (isMilestone ? '🏆' : '🎉'),
-      name: heading,
-      msg,
-      quote,
-      firstLead: isFirst,
-      personal: true,
-      durationMs: 30000,
-      returnDurationMs: 30000,
-      personalCard: {
-        badge: badge,
-        title: heading,
-        message: msg,
-        quote: quote,
-        stat: stat,
-        tier: tier
+      if (isFirst) {
+        heading = firstName + ", you're on the board!";
+        msg = "You just got your first lead of the day. Keep the momentum going!";
+        badge = 'First lead';
+        tier = 'first';
+      } else if (isMilestone) {
+        heading = firstName + ', you hit a milestone!';
+        msg = "Amazing work — you're now at " + totalCount + ' leads today. Stay locked in and keep pushing!';
+        badge = 'Milestone unlocked';
+        tier = 'milestone';
+      } else if (addedCount > 1) {
+        heading = 'Excellent work, ' + firstName + '!';
+        msg = 'You just added ' + addedCount + " new leads and you're now at " + totalCount + ' leads today!';
+        badge = 'Momentum building';
+      } else {
+        heading = 'Great job, ' + firstName + '!';
+        msg = "You just got another lead — you're now at " + totalCount + ' lead' + totalPlural + ' today!';
+        badge = 'Keep pushing';
       }
-    });
-    return;
+
+      _renderAlert({
+        icon: isFirst ? '🥇' : (isMilestone ? '🏆' : '🎉'),
+        name: heading,
+        msg,
+        quote,
+        firstLead: isFirst,
+        personal: true,
+        durationMs: 30000,
+        returnDurationMs: 30000,
+        personalCard: {
+          badge: badge,
+          title: heading,
+          message: msg,
+          quote: quote,
+          stat: stat,
+          tier: tier
+        }
+      });
+      return;
+    }
   }
 
   if (newReps.length === 1) {

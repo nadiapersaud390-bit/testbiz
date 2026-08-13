@@ -1839,17 +1839,73 @@
         const retryBtn = document.getElementById('sim-retry-mistakes');
         if (retryBtn) retryBtn.classList.toggle('hidden', !_retrySteps.length || (_activeScript && _activeScript.retry_mistakes_enabled === false));
 
+        const savedStepHistory = _history.map((h, i) => ({
+            step_number: i + 1,
+            step_id: String(h.stepId || ''),
+            step_label: String(h.stepLabel || ('Step ' + (i + 1))),
+            skill: String(h.skill || _classifySkill(h.stepLabel || '')),
+            customer_line: String(h.customerLine || ''),
+            chosen_text: String(h.chosen && h.chosen.text || ''),
+            chosen_quality: String(h.quality || ''),
+            ideal_text: String(h.idealText || ''),
+            customer_reply: String(h.chosen && (h.chosen.customer_reply || h.chosen.customerReply) || ''),
+            timed_out: !!h.timedOut,
+            response_seconds: Math.round(Number(_responseTimes[i] || 0) * 10) / 10
+        }));
+        const savedEndDecision = _endDecision ? {
+            selected: String(_endDecision.selected || ''),
+            selected_label: _endReasonLabel(_endDecision.selected),
+            expected: String(_endDecision.expected || ''),
+            expected_label: _endReasonLabel(_endDecision.expected),
+            correct: _endDecision.correct,
+            ended_early: !!_endDecision.endedEarly,
+            note: String(_endDecision.note || '')
+        } : null;
+        const savedErrorReview = _callErrorDecision ? {
+            selected: (_callErrorDecision.selected || []).slice(),
+            expected: (_callErrorDecision.expected || []).slice(),
+            correct: !!_callErrorDecision.correct,
+            missed: (_callErrorDecision.missed || []).slice(),
+            extra: (_callErrorDecision.extra || []).slice()
+        } : null;
+        const savedPhraseReview = _phraseReview ? {
+            required: (_phraseReview.required || []).slice(),
+            forbidden: (_phraseReview.forbidden || []).slice(),
+            missing_required: (_phraseReview.missingRequired || []).slice(),
+            used_forbidden: (_phraseReview.usedForbidden || []).slice(),
+            required_penalty: Number(_phraseReview.requiredPenalty || 0),
+            forbidden_penalty: Number(_phraseReview.forbiddenPenalty || 0),
+            total_penalty: Number(_phraseReview.totalPenalty || 0)
+        } : null;
+
         _lastResult = {
+            schema_version: 2,
             agentKey: _agentKey(), agentName: _agentName(), scriptId: _activeScript && _activeScript.id,
-            scriptTitle: _activeScript && _activeScript.title, difficulty: (_activeScript && _activeScript.difficulty) || 'Medium',
-            mode: _runMode, customerPersonality: _customerPersonality, score: pct, passed, passRequirement,
-            critical_fail: criticalFail, errors_found: errorsFound, weak_skills: weakSkills, strong_skills: strongSkills,
+            scriptTitle: _activeScript && _activeScript.title, scriptCategory: (_activeScript && _activeScript.category) || 'General',
+            call_type: _getCallType(_activeScript), difficulty: (_activeScript && _activeScript.difficulty) || 'Medium',
+            mode: _runMode, customerPersonality: _customerPersonality, customerMood: _customerMood,
+            score: pct, passed, passRequirement, handling_score: handlingPct, base_score: basePct,
+            points_earned: earned, points_possible: max, total_deduction: totalDeduction,
+            error_review_penalty: errorReviewPenalty, phrase_penalty: phrasePenalty,
+            steps_answered: totalAnswered, steps_total: totalAuthored, ended_naturally: !!_endIsNatural,
+            final_tension: Number(_tension || 0), critical_fail: criticalFail,
+            errors_found: errorsFound, weak_skills: weakSkills, strong_skills: strongSkills,
             recommended_skill: recommendedSkill, recommended_script_id: recommendedScript && recommendedScript.id || '',
+            recommended_script_title: recommendedScript && recommendedScript.title || '',
             average_response_seconds: avgResponse, response_times: _responseTimes.slice(),
             disposition_correct: _endDecision ? _endDecision.correct : null,
+            end_decision: savedEndDecision,
+            call_error_review: savedErrorReview,
+            phrase_review: savedPhraseReview,
+            step_history: savedStepHistory,
             missed_call_errors: missedErrorList.slice(), extra_call_errors: extraErrorList.slice(),
             missing_required_phrases: _phraseReview ? _phraseReview.missingRequired.slice() : [],
             used_forbidden_phrases: _phraseReview ? _phraseReview.usedForbidden.slice() : [],
+            training_note: String((_activeScript && (_activeScript.training_note || _activeScript.trainingNote || _activeScript.training_tip || _activeScript.trainingTip || _activeScript.error_found_note || _activeScript.errorFoundNote)) || ''),
+            coaching_priority: String((_activeScript && (_activeScript.coaching_priority || _activeScript.coachingPriority)) || ''),
+            correct_agent_action: String((_activeScript && (_activeScript.correct_agent_action || _activeScript.correctAgentAction)) || ''),
+            why_correct_disposition: String((_activeScript && (_activeScript.why_correct_disposition || _activeScript.whyCorrectDisposition || _activeScript.end_call_note || _activeScript.endCallNote)) || ''),
+            opening_line: String(_getOpeningLine() || ''), first_customer_reply: String(_getFirstCustomerReply() || ''),
             tags: (_activeScript && _activeScript.tags) || [], playlist: (_activeScript && _activeScript.playlist) || '',
             createdAt: Date.now()
         };

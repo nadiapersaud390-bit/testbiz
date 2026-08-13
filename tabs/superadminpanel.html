@@ -275,6 +275,7 @@
         <button onclick="switchSupTab('users')" id="suptab-users" class="sup-tab-btn">User Mgmt</button>
         <button onclick="switchSupTab('pranklookup')" id="suptab-pranklookup" class="sup-tab-btn">🚨 Prank Numbers</button>
         <button onclick="switchSupTab('simscripts')" id="suptab-simscripts" class="sup-tab-btn">🎧 Sim Scripts</button>
+        <button onclick="switchSupTab('simreports')" id="suptab-simreports" class="sup-tab-btn">📊 Sim Reports</button>
         <button onclick="switchSupTab('rebuttals')" id="suptab-rebuttals" class="sup-tab-btn">📝 Rebuttals</button>
     </div>
 
@@ -1659,6 +1660,72 @@ If customer reacts OK: Okay, go on..." rows="8"></textarea>
         </div>
     </div>
 
+    <!-- CALL SIMULATOR REPORTS TAB -->
+    <div id="supsect-simreports" class="supsect-container hidden">
+        <div class="bg-gradient-to-br from-cyan-500/10 via-indigo-500/[0.06] to-violet-500/[0.06] border border-cyan-500/25 rounded-2xl p-5 mb-5">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div>
+                    <div class="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-400"><i class="fas fa-chart-line mr-1"></i> Call Simulator Reporting</div>
+                    <div class="text-xl font-black text-white mt-1">Agent Training Performance</div>
+                    <div class="text-[10px] text-slate-500 mt-1 max-w-2xl">See who completed simulator calls, which script they did, their score, pass/fail result, errors, disposition, phrase compliance, response times, skills, and step-by-step choices.</div>
+                </div>
+                <button type="button" onclick="simReportExportCSV()" class="px-4 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-300 text-[9px] font-black uppercase tracking-widest transition whitespace-nowrap"><i class="fas fa-file-csv mr-1"></i> Export Filtered CSV</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+            <div class="rounded-2xl border border-white/10 bg-black/35 p-4"><div class="text-[8px] font-black uppercase tracking-widest text-slate-500">Attempts</div><div id="simrep-stat-attempts" class="text-2xl font-black text-white mt-1">0</div></div>
+            <div class="rounded-2xl border border-white/10 bg-black/35 p-4"><div class="text-[8px] font-black uppercase tracking-widest text-slate-500">Agents Trained</div><div id="simrep-stat-agents" class="text-2xl font-black text-cyan-300 mt-1">0</div></div>
+            <div class="rounded-2xl border border-white/10 bg-black/35 p-4"><div class="text-[8px] font-black uppercase tracking-widest text-slate-500">Average Score</div><div id="simrep-stat-average" class="text-2xl font-black text-indigo-300 mt-1">—</div></div>
+            <div class="rounded-2xl border border-white/10 bg-black/35 p-4"><div class="text-[8px] font-black uppercase tracking-widest text-slate-500">Pass Rate</div><div id="simrep-stat-pass" class="text-2xl font-black text-emerald-300 mt-1">—</div></div>
+            <div class="rounded-2xl border border-white/10 bg-black/35 p-4"><div class="text-[8px] font-black uppercase tracking-widest text-slate-500">Critical Fails</div><div id="simrep-stat-critical" class="text-2xl font-black text-rose-300 mt-1">0</div></div>
+        </div>
+
+        <div class="rounded-2xl border border-white/10 bg-black/35 p-4 mb-5">
+            <div class="flex items-center justify-between gap-3 mb-3"><div class="text-[9px] font-black uppercase tracking-widest text-slate-400"><i class="fas fa-filter mr-1"></i> Report Filters</div><button type="button" onclick="simReportResetFilters()" class="text-[8px] font-black uppercase tracking-widest text-slate-500 hover:text-white">Reset Filters</button></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-2">
+                <div class="xl:col-span-2"><input id="simrep-search" oninput="simReportApplyFilters()" placeholder="Search agent, script, skill or error..." class="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs outline-none focus:border-cyan-400 placeholder-slate-600"></div>
+                <select id="simrep-agent" onchange="simReportApplyFilters()" class="bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs outline-none focus:border-cyan-400"><option value="">All Agents</option></select>
+                <select id="simrep-script" onchange="simReportApplyFilters()" class="bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs outline-none focus:border-cyan-400"><option value="">All Scripts</option></select>
+                <select id="simrep-result" onchange="simReportApplyFilters()" class="bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs outline-none focus:border-cyan-400"><option value="">All Results</option><option value="passed">Passed</option><option value="failed">Needs Improvement</option><option value="critical">Critical Fail</option></select>
+                <select id="simrep-mode" onchange="simReportApplyFilters()" class="bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs outline-none focus:border-cyan-400"><option value="">All Modes</option><option value="training">Training</option><option value="practice">Practice</option><option value="test">Test</option><option value="error_hunt">Error Hunt</option><option value="objection_drill">Objection Drill</option><option value="qualification_drill">Qualification Drill</option><option value="transfer_drill">Transfer Drill</option><option value="certification">Certification</option></select>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-w-xl">
+                <label class="text-[9px] font-bold text-slate-500">From<input id="simrep-from" type="date" onchange="simReportApplyFilters()" class="mt-1 w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-cyan-400"></label>
+                <label class="text-[9px] font-bold text-slate-500">To<input id="simrep-to" type="date" onchange="simReportApplyFilters()" class="mt-1 w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-cyan-400"></label>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4">
+            <div class="rounded-2xl border border-white/10 bg-black/35 p-4 min-w-0">
+                <div class="flex items-center justify-between mb-3"><div class="text-[9px] font-black uppercase tracking-widest text-indigo-300">Agent Performance</div><span id="simrep-agent-summary-count" class="text-[8px] font-black uppercase tracking-widest text-slate-600">0 agents</span></div>
+                <div id="simrep-agent-summary" class="space-y-2 max-h-[620px] overflow-y-auto pr-1"><div class="text-xs text-slate-600 text-center py-8">No simulator results yet.</div></div>
+            </div>
+
+            <div class="rounded-2xl border border-white/10 bg-black/35 overflow-hidden min-w-0">
+                <div class="px-4 py-3 border-b border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-2"><div><div class="text-[9px] font-black uppercase tracking-widest text-cyan-300">Simulator Attempts</div><div id="simrep-list-summary" class="text-[9px] text-slate-600 mt-0.5">Loading results...</div></div><button type="button" onclick="simReportRefresh()" class="px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 text-[8px] font-black uppercase tracking-widest"><i class="fas fa-sync-alt mr-1"></i> Refresh</button></div>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[920px] text-left">
+                        <thead class="bg-white/[0.025]"><tr class="text-[8px] uppercase tracking-widest text-slate-600"><th class="px-4 py-2.5">Agent</th><th class="px-3 py-2.5">Simulator</th><th class="px-3 py-2.5">Date</th><th class="px-3 py-2.5">Mode</th><th class="px-3 py-2.5 text-center">Score</th><th class="px-3 py-2.5 text-center">Result</th><th class="px-3 py-2.5 text-center">Errors</th><th class="px-3 py-2.5"></th></tr></thead>
+                        <tbody id="simrep-attempt-list" class="divide-y divide-white/[0.055]"><tr><td colspan="8" class="px-4 py-10 text-center text-xs text-slate-600">Loading simulator reports...</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="border-t border-white/[0.08] px-4 py-3 flex items-center justify-between gap-3">
+                    <div id="simrep-page-summary" class="text-[9px] text-slate-600"></div>
+                    <div class="flex items-center gap-2"><button id="simrep-prev" onclick="simReportChangePage(-1)" class="px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] text-[8px] font-black uppercase tracking-widest text-slate-400 disabled:opacity-30">Prev</button><div id="simrep-page-label" class="text-[9px] font-black text-indigo-300 min-w-[72px] text-center">Page 1 / 1</div><button id="simrep-next" onclick="simReportChangePage(1)" class="px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] text-[8px] font-black uppercase tracking-widest text-slate-400 disabled:opacity-30">Next</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulator Full Report Modal -->
+    <div id="simrep-full-modal" class="hidden fixed inset-0 z-[10000] bg-black/85 backdrop-blur-md p-3 sm:p-5 items-center justify-center" onclick="if(event.target===this)simReportClose()">
+        <div class="w-full max-w-5xl max-h-[92vh] rounded-2xl border border-cyan-500/25 bg-[#070b16] shadow-2xl shadow-black/70 flex flex-col overflow-hidden">
+            <div class="flex items-center justify-between gap-4 px-4 sm:px-5 py-3 border-b border-white/[0.08] bg-[#070b16]/95"><div><div class="text-[9px] font-black uppercase tracking-widest text-cyan-400">Full Simulator Report</div><div id="simrep-modal-title" class="text-base sm:text-lg font-black text-white mt-0.5">Attempt Report</div></div><button type="button" onclick="simReportClose()" class="w-9 h-9 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.09] text-slate-400 hover:text-white"><i class="fas fa-times"></i></button></div>
+            <div id="simrep-modal-body" class="overflow-y-auto p-4 sm:p-5 space-y-4"></div>
+        </div>
+    </div>
+
     <!-- REBUTTALS TAB -->
     <div id="supsect-rebuttals" class="supsect-container hidden">
         <!-- Header -->
@@ -2157,6 +2224,7 @@ Their name will be removed from all active dashboard areas.`)) return;
         if (tabId === 'users') { superLoadAdmins(); superLoadAgentPasswords(); }
         if (tabId === 'pranklookup') superLoadPrankNumbers();
         if (tabId === 'simscripts') { simErrorLibraryInit(); simScriptLoadList(); _renderSimErrorPickers('manual'); _renderSimErrorPickers('file'); }
+        if (tabId === 'simreports' && typeof window.simReportInit === 'function') window.simReportInit();
         if (tabId === 'rebuttals') rbAdminInit();
     }
     
@@ -6007,7 +6075,13 @@ New Password: ${newPass}`);
     }
 
     function renderAnalytics(results){
-        results=results||[]; window.__simAdvancedResults=results; const attempts=document.getElementById('sim-int-attempts'),avg=document.getElementById('sim-int-average'),top=document.getElementById('sim-int-top-error'),coach=document.getElementById('sim-int-coaching');
+        results=(results||[]).filter(r=>{
+            const name=r.agentName||r.agent_name||r.agentKey||'Unknown Agent';
+            const rec={agentName:name,userId:r.agentKey||''};
+            if(typeof window.isDeletedAgentRecord==='function' && window.isDeletedAgentRecord(rec)) return false;
+            if(typeof window.isActiveAgentRecord==='function' && !window.isActiveAgentRecord(rec)) return false;
+            return true;
+        }); window.__simAdvancedResults=results; const attempts=document.getElementById('sim-int-attempts'),avg=document.getElementById('sim-int-average'),top=document.getElementById('sim-int-top-error'),coach=document.getElementById('sim-int-coaching');
         if(attempts)attempts.textContent=results.length; if(avg)avg.textContent=results.length?Math.round(results.reduce((s,r)=>s+Number(r.score||0),0)/results.length)+'%':'—';
         const errors={}; const agents={};
         results.forEach(r=>{
@@ -6051,5 +6125,223 @@ New Password: ${newPass}`);
         installPanels(); installSaveBridge(); installEditBridge(); installPickerBridge(); installSmartBridge(); addCoachButtons();
         if(document.getElementById('supsect-simscripts') && window.__simAdvancedSaveBridge){ clearInterval(timer); setInterval(addCoachButtons,700); }
     },250);
+})();
+</script>
+<script>
+(function(){
+    let simRepRows = [];
+    let simRepFiltered = [];
+    let simRepPage = 1;
+    const simRepPageSize = 10;
+    let simRepUnsubscribe = null;
+    let simRepStarted = false;
+
+    function simRepEsc(value){
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch){
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+        });
+    }
+    function simRepArr(v){ return Array.isArray(v) ? v : (v ? [v] : []); }
+    function simRepName(r){ return r.agentName || r.agent_name || r.agentKey || 'Unknown Agent'; }
+    function simRepScript(r){ return r.scriptTitle || r.script_title || 'Untitled Simulator'; }
+    function simRepScore(r){ const n=Number(r.score); return Number.isFinite(n)?n:0; }
+    function simRepGuyanaDate(ts){
+        if(!ts) return '—';
+        try { return new Intl.DateTimeFormat('en-US',{timeZone:'America/Guyana',month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(Number(ts))); }
+        catch(_){ return new Date(Number(ts)).toLocaleString(); }
+    }
+    function simRepDateKey(ts){
+        if(!ts) return '';
+        try { return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Guyana',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Number(ts))); }
+        catch(_){ return ''; }
+    }
+    function simRepResultLabel(r){
+        if(r.critical_fail || r.criticalFail) return {label:'Critical Fail',cls:'text-rose-300 bg-rose-500/10 border-rose-500/25'};
+        if(r.passed === true) return {label:'Passed',cls:'text-emerald-300 bg-emerald-500/10 border-emerald-500/25'};
+        return {label:'Needs Improvement',cls:'text-amber-300 bg-amber-500/10 border-amber-500/25'};
+    }
+    function simRepMode(v){ return String(v||'training').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
+    function simRepListHtml(items, emptyText, cls){
+        items=simRepArr(items).filter(Boolean);
+        if(!items.length) return '<div class="text-[10px] text-slate-600">'+simRepEsc(emptyText||'None recorded.')+'</div>';
+        return '<div class="space-y-1.5">'+items.map(x=>'<div class="rounded-lg border border-white/[0.07] bg-white/[0.025] px-2.5 py-2 text-[10px] '+(cls||'text-slate-300')+'">'+simRepEsc(x)+'</div>').join('')+'</div>';
+    }
+
+    function simRepPopulateSelect(id, values, placeholder){
+        const el=document.getElementById(id); if(!el)return;
+        const current=el.value;
+        const unique=[...new Set(values.filter(Boolean).map(String))].sort((a,b)=>a.localeCompare(b));
+        el.innerHTML='<option value="">'+simRepEsc(placeholder)+'</option>'+unique.map(v=>'<option value="'+simRepEsc(v)+'">'+simRepEsc(v)+'</option>').join('');
+        if(unique.includes(current)) el.value=current;
+    }
+
+    function simRepRenderStats(rows){
+        const attempts=rows.length;
+        const agents=new Set(rows.map(simRepName).filter(Boolean)).size;
+        const avg=attempts?Math.round(rows.reduce((s,r)=>s+simRepScore(r),0)/attempts):0;
+        const passed=rows.filter(r=>r.passed===true && !(r.critical_fail||r.criticalFail)).length;
+        const critical=rows.filter(r=>r.critical_fail||r.criticalFail).length;
+        const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
+        set('simrep-stat-attempts',attempts);
+        set('simrep-stat-agents',agents);
+        set('simrep-stat-average',attempts?avg+'%':'—');
+        set('simrep-stat-pass',attempts?Math.round(passed/attempts*100)+'%':'—');
+        set('simrep-stat-critical',critical);
+    }
+
+    function simRepRenderAgentSummary(rows){
+        const el=document.getElementById('simrep-agent-summary'); if(!el)return;
+        const groups={};
+        rows.forEach(r=>{
+            const name=simRepName(r); if(!groups[name]) groups[name]={rows:[],scores:[],passed:0,last:0,weak:{}};
+            const g=groups[name]; g.rows.push(r); g.scores.push(simRepScore(r)); if(r.passed===true && !(r.critical_fail||r.criticalFail))g.passed++; g.last=Math.max(g.last,Number(r.createdAt||0));
+            simRepArr(r.weak_skills||r.weakSkills).forEach(s=>g.weak[s]=(g.weak[s]||0)+1);
+        });
+        const arr=Object.entries(groups).map(([name,g])=>{
+            const avg=Math.round(g.scores.reduce((a,b)=>a+b,0)/Math.max(1,g.scores.length));
+            const weak=Object.entries(g.weak).sort((a,b)=>b[1]-a[1])[0];
+            return {name,g,avg,passRate:Math.round(g.passed/g.rows.length*100),weak:weak?weak[0]:'No repeated weakness'};
+        }).sort((a,b)=>a.avg-b.avg || b.g.rows.length-a.g.rows.length);
+        const count=document.getElementById('simrep-agent-summary-count');if(count)count.textContent=arr.length+' agent'+(arr.length===1?'':'s');
+        if(!arr.length){el.innerHTML='<div class="text-xs text-slate-600 text-center py-8">No matching agent results.</div>';return;}
+        el.innerHTML=arr.map(a=>`<button type="button" onclick="simReportFilterAgent('${encodeURIComponent(a.name)}')" class="w-full rounded-xl border border-white/[0.08] bg-white/[0.025] hover:bg-white/[0.06] p-3 text-left transition">
+            <div class="flex items-center justify-between gap-2"><strong class="text-xs text-white truncate">${simRepEsc(a.name)}</strong><span class="text-xs font-black ${a.avg>=85?'text-emerald-300':a.avg>=70?'text-amber-300':'text-rose-300'}">${a.avg}%</span></div>
+            <div class="grid grid-cols-2 gap-2 mt-2 text-[9px]"><div class="text-slate-500">${a.g.rows.length} attempt${a.g.rows.length===1?'':'s'}</div><div class="text-right text-slate-500">${a.passRate}% pass</div></div>
+            <div class="mt-2 pt-2 border-t border-white/[0.06] text-[9px] text-slate-600 truncate">Weakest: <span class="text-rose-300/80">${simRepEsc(a.weak)}</span></div>
+        </button>`).join('');
+    }
+
+    function simRepRenderAttemptList(rows){
+        const body=document.getElementById('simrep-attempt-list'); if(!body)return;
+        const totalPages=Math.max(1,Math.ceil(rows.length/simRepPageSize)); if(simRepPage>totalPages)simRepPage=totalPages;
+        const start=(simRepPage-1)*simRepPageSize; const pageRows=rows.slice(start,start+simRepPageSize);
+        if(!pageRows.length){body.innerHTML='<tr><td colspan="8" class="px-4 py-10 text-center text-xs text-slate-600">No simulator attempts match these filters.</td></tr>';}
+        else body.innerHTML=pageRows.map(r=>{
+            const result=simRepResultLabel(r); const score=simRepScore(r); const errors=simRepArr(r.errors_found||r.errorsFound).length;
+            return `<tr class="hover:bg-white/[0.025] transition">
+                <td class="px-4 py-3"><div class="text-xs font-black text-white">${simRepEsc(simRepName(r))}</div><div class="text-[8px] text-slate-600 mt-0.5">${simRepEsc(r.agentKey||'')}</div></td>
+                <td class="px-3 py-3"><div class="text-[11px] font-bold text-slate-200 max-w-[230px] truncate">${simRepEsc(simRepScript(r))}</div><div class="text-[8px] text-slate-600 mt-0.5">${simRepEsc(r.difficulty||'Medium')} · ${simRepEsc(r.call_type||r.callType||'Training Call')}</div></td>
+                <td class="px-3 py-3 text-[9px] text-slate-500 whitespace-nowrap">${simRepEsc(simRepGuyanaDate(r.createdAt))}</td>
+                <td class="px-3 py-3"><span class="text-[8px] font-black uppercase tracking-wider text-indigo-300">${simRepEsc(simRepMode(r.mode))}</span></td>
+                <td class="px-3 py-3 text-center"><span class="text-sm font-black ${score>=85?'text-emerald-300':score>=70?'text-amber-300':'text-rose-300'}">${score}%</span></td>
+                <td class="px-3 py-3 text-center"><span class="inline-flex px-2 py-1 rounded-lg border text-[8px] font-black uppercase tracking-wider ${result.cls}">${result.label}</span></td>
+                <td class="px-3 py-3 text-center"><span class="text-xs font-black ${errors?'text-rose-300':'text-slate-600'}">${errors}</span></td>
+                <td class="px-3 py-3 text-right"><button type="button" onclick="simReportView('${simRepEsc(r.id||'')}')" class="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-300 text-[8px] font-black uppercase tracking-widest whitespace-nowrap"><i class="fas fa-file-alt mr-1"></i> Full Report</button></td>
+            </tr>`;
+        }).join('');
+        const summary=document.getElementById('simrep-list-summary');if(summary)summary.textContent=rows.length+' attempt'+(rows.length===1?'':'s')+' after filters';
+        const pageSummary=document.getElementById('simrep-page-summary');if(pageSummary)pageSummary.textContent=rows.length?('Showing '+(start+1)+'–'+Math.min(start+simRepPageSize,rows.length)+' of '+rows.length):'0 results';
+        const label=document.getElementById('simrep-page-label');if(label)label.textContent='Page '+simRepPage+' / '+totalPages;
+        const prev=document.getElementById('simrep-prev'),next=document.getElementById('simrep-next');if(prev)prev.disabled=simRepPage<=1;if(next)next.disabled=simRepPage>=totalPages;
+    }
+
+    function simRepApply(){
+        const q=String((document.getElementById('simrep-search')||{}).value||'').trim().toLowerCase();
+        const agent=String((document.getElementById('simrep-agent')||{}).value||'');
+        const script=String((document.getElementById('simrep-script')||{}).value||'');
+        const result=String((document.getElementById('simrep-result')||{}).value||'');
+        const mode=String((document.getElementById('simrep-mode')||{}).value||'');
+        const from=String((document.getElementById('simrep-from')||{}).value||'');
+        const to=String((document.getElementById('simrep-to')||{}).value||'');
+        simRepFiltered=simRepRows.filter(r=>{
+            if(agent && simRepName(r)!==agent)return false;
+            if(script && simRepScript(r)!==script)return false;
+            if(mode && String(r.mode||'training')!==mode)return false;
+            if(result==='passed' && !(r.passed===true && !(r.critical_fail||r.criticalFail)))return false;
+            if(result==='failed' && (r.passed===true || r.critical_fail||r.criticalFail))return false;
+            if(result==='critical' && !(r.critical_fail||r.criticalFail))return false;
+            const dk=simRepDateKey(r.createdAt); if(from && dk && dk<from)return false; if(to && dk && dk>to)return false;
+            if(q){
+                const hay=[simRepName(r),simRepScript(r),r.mode,r.difficulty,r.call_type,r.recommended_skill]
+                    .concat(simRepArr(r.errors_found||r.errorsFound),simRepArr(r.weak_skills||r.weakSkills),simRepArr(r.strong_skills||r.strongSkills)).join(' ').toLowerCase();
+                if(!hay.includes(q))return false;
+            }
+            return true;
+        });
+        simRepRenderStats(simRepFiltered); simRepRenderAgentSummary(simRepFiltered); simRepRenderAttemptList(simRepFiltered);
+    }
+
+    window.simReportApplyFilters=function(){simRepPage=1;simRepApply();};
+    window.simReportChangePage=function(delta){simRepPage=Math.max(1,simRepPage+Number(delta||0));simRepRenderAttemptList(simRepFiltered);};
+    window.simReportFilterAgent=function(encoded){const name=decodeURIComponent(encoded||'');const el=document.getElementById('simrep-agent');if(el){el.value=name;simRepPage=1;simRepApply();}};
+    window.simReportResetFilters=function(){['simrep-search','simrep-agent','simrep-script','simrep-result','simrep-mode','simrep-from','simrep-to'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});simRepPage=1;simRepApply();};
+    window.simReportRefresh=function(){simRepApply();};
+
+    function simRepOnData(rows){
+        window.__simReportRawResults=(rows||[]).slice();
+        simRepRows=(rows||[]).filter(r=>{
+            if(typeof window.isDeletedAgentRecord==='function' && window.isDeletedAgentRecord({agentName:simRepName(r),userId:r.agentKey||''})) return false;
+            if(typeof window.isActiveAgentRecord==='function' && !window.isActiveAgentRecord({agentName:simRepName(r),userId:r.agentKey||''})) return false;
+            return true;
+        }).slice().sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0));
+        window.__simFullReportResults=simRepRows;
+        simRepPopulateSelect('simrep-agent',simRepRows.map(simRepName),'All Agents');
+        simRepPopulateSelect('simrep-script',simRepRows.map(simRepScript),'All Scripts');
+        simRepApply();
+    }
+
+    window.simReportInit=function(){
+        if(simRepStarted){simRepApply();return;}
+        simRepStarted=true;
+        const attach=function(attempt){
+            if(typeof window.listenForSimResults==='function'){
+                if(typeof simRepUnsubscribe==='function'){try{simRepUnsubscribe();}catch(_){}}
+                simRepUnsubscribe=window.listenForSimResults(simRepOnData);
+            } else if(attempt<30) setTimeout(()=>attach(attempt+1),300);
+            else simRepOnData([]);
+        };
+        attach(0);
+    };
+
+    window.simReportView=function(id){
+        const r=simRepRows.find(x=>String(x.id||'')===String(id||'')); if(!r)return;
+        const modal=document.getElementById('simrep-full-modal'), title=document.getElementById('simrep-modal-title'), body=document.getElementById('simrep-modal-body'); if(!modal||!body)return;
+        const result=simRepResultLabel(r),score=simRepScore(r),steps=simRepArr(r.step_history||r.stepHistory),end=r.end_decision||r.endDecision||null,errorReview=r.call_error_review||r.callErrorReview||null,phrase=r.phrase_review||r.phraseReview||null;
+        if(title)title.textContent=simRepName(r)+' — '+simRepScript(r);
+        const summaryCards=`<div class="grid grid-cols-2 md:grid-cols-6 gap-2">
+            <div class="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div class="text-[8px] uppercase tracking-widest text-slate-600 font-black">Score</div><div class="text-xl font-black ${score>=85?'text-emerald-300':score>=70?'text-amber-300':'text-rose-300'}">${score}%</div></div>
+            <div class="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div class="text-[8px] uppercase tracking-widest text-slate-600 font-black">Result</div><div class="text-[10px] mt-1 font-black ${r.passed===true?'text-emerald-300':'text-amber-300'}">${simRepEsc(result.label)}</div></div>
+            <div class="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div class="text-[8px] uppercase tracking-widest text-slate-600 font-black">Mode</div><div class="text-[10px] mt-1 font-black text-indigo-300">${simRepEsc(simRepMode(r.mode))}</div></div>
+            <div class="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div class="text-[8px] uppercase tracking-widest text-slate-600 font-black">Difficulty</div><div class="text-[10px] mt-1 font-black text-white">${simRepEsc(r.difficulty||'Medium')}</div></div>
+            <div class="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div class="text-[8px] uppercase tracking-widest text-slate-600 font-black">Steps</div><div class="text-[10px] mt-1 font-black text-cyan-300">${simRepEsc(r.steps_answered!=null?r.steps_answered:steps.length)} / ${simRepEsc(r.steps_total!=null?r.steps_total:(steps.length||'—'))}</div></div>
+            <div class="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div class="text-[8px] uppercase tracking-widest text-slate-600 font-black">Avg Response</div><div class="text-[10px] mt-1 font-black text-blue-300">${Number(r.average_response_seconds||0)?Number(r.average_response_seconds).toFixed(1)+'s':'—'}</div></div>
+        </div>`;
+        const identity=`<div class="rounded-2xl border border-white/10 bg-white/[0.02] p-4"><div class="text-[9px] uppercase tracking-widest text-cyan-300 font-black mb-3">Attempt Details</div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-[10px]">
+            <div><span class="text-slate-600">Agent</span><div class="font-black text-white mt-0.5">${simRepEsc(simRepName(r))}</div></div><div><span class="text-slate-600">Simulator</span><div class="font-black text-white mt-0.5">${simRepEsc(simRepScript(r))}</div></div><div><span class="text-slate-600">Completed</span><div class="font-bold text-slate-300 mt-0.5">${simRepEsc(simRepGuyanaDate(r.createdAt))}</div></div>
+            <div><span class="text-slate-600">Call Type</span><div class="font-bold text-slate-300 mt-0.5">${simRepEsc(r.call_type||r.callType||'Training Call')}</div></div><div><span class="text-slate-600">Customer Personality</span><div class="font-bold text-slate-300 mt-0.5">${simRepEsc(r.customerPersonality||r.customer_personality||'—')}</div></div><div><span class="text-slate-600">Pass Requirement</span><div class="font-bold text-slate-300 mt-0.5">${simRepEsc(r.passRequirement||r.pass_requirement||85)}%</div></div>
+            <div><span class="text-slate-600">Handling Score</span><div class="font-bold text-slate-300 mt-0.5">${r.handling_score!=null?simRepEsc(r.handling_score)+'%':'—'}</div></div><div><span class="text-slate-600">Total Deductions</span><div class="font-bold text-rose-300 mt-0.5">${r.total_deduction!=null?'-'+simRepEsc(r.total_deduction)+' pts':'—'}</div></div><div><span class="text-slate-600">Critical Error</span><div class="font-bold mt-0.5 ${r.critical_fail?'text-rose-300':'text-emerald-300'}">${r.critical_fail?'YES — Automatic Fail':'No'}</div></div>
+        </div></div>`;
+        const disposition=`<div class="rounded-2xl border border-${end&&end.correct===false?'rose':'emerald'}-500/20 bg-${end&&end.correct===false?'rose':'emerald'}-500/[0.04] p-4"><div class="text-[9px] uppercase tracking-widest ${end&&end.correct===false?'text-rose-300':'text-emerald-300'} font-black mb-3">Disposition Review</div>${end?`<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-[10px]"><div><span class="text-slate-600">Agent Selected</span><div class="font-black text-white mt-1">${simRepEsc(end.selected_label||end.selected||'—')}</div></div><div><span class="text-slate-600">Correct Disposition</span><div class="font-black text-white mt-1">${simRepEsc(end.expected_label||end.expected||'Not graded')}</div></div></div><div class="mt-3 text-[10px] ${end.correct===false?'text-rose-300':end.correct===true?'text-emerald-300':'text-slate-400'} font-bold">${end.correct===true?'✓ Correct disposition':end.correct===false?'✕ Incorrect disposition':'Disposition was not graded'}${end.ended_early?' · Call ended early':''}</div>${end.note?'<div class="mt-2 text-[10px] text-slate-400">'+simRepEsc(end.note)+'</div>':''}`:'<div class="text-[10px] text-slate-600">Detailed disposition data was not captured for this older attempt.</div>'}</div>`;
+        let errorHtml='<div class="rounded-2xl border border-rose-500/20 bg-rose-500/[0.035] p-4"><div class="text-[9px] uppercase tracking-widest text-rose-300 font-black mb-3">Call Error Review</div>';
+        if(errorReview){errorHtml+=`<div class="grid grid-cols-1 md:grid-cols-2 gap-3"><div><div class="text-[8px] uppercase tracking-widest text-slate-600 font-black mb-1">Agent Selected</div>${simRepListHtml(errorReview.selected,'No errors selected.')}</div><div><div class="text-[8px] uppercase tracking-widest text-slate-600 font-black mb-1">Correct Answer Key</div>${simRepListHtml(errorReview.expected,'No listed errors.')}</div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3"><div><div class="text-[8px] uppercase tracking-widest text-rose-300 font-black mb-1">Missed</div>${simRepListHtml(errorReview.missed,'Nothing missed.','text-rose-200')}</div><div><div class="text-[8px] uppercase tracking-widest text-orange-300 font-black mb-1">Incorrectly Selected</div>${simRepListHtml(errorReview.extra,'No extra errors selected.','text-orange-200')}</div></div>`;}
+        else errorHtml+=`<div class="grid grid-cols-1 md:grid-cols-2 gap-3"><div><div class="text-[8px] uppercase tracking-widest text-rose-300 font-black mb-1">Errors Found</div>${simRepListHtml(r.errors_found||r.errorsFound,'No errors recorded.')}</div><div><div class="text-[8px] uppercase tracking-widest text-amber-300 font-black mb-1">Missed Call Errors</div>${simRepListHtml(r.missed_call_errors,'No missed errors recorded.')}</div></div><div class="text-[9px] text-slate-600 mt-3">This is an older report; the exact selected-vs-correct call-error review was not stored.</div>`;
+        errorHtml+='</div>';
+        const required=phrase?(phrase.required||[]):[], forbidden=phrase?(phrase.forbidden||[]):[], missing=phrase?(phrase.missing_required||phrase.missingRequired||[]):simRepArr(r.missing_required_phrases), used=phrase?(phrase.used_forbidden||phrase.usedForbidden||[]):simRepArr(r.used_forbidden_phrases);
+        const phraseHtml=`<div class="rounded-2xl border border-violet-500/20 bg-violet-500/[0.03] p-4"><div class="text-[9px] uppercase tracking-widest text-violet-300 font-black mb-3">Script & Phrase Compliance</div><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><div class="text-[8px] uppercase tracking-widest text-emerald-300 font-black mb-2">Required Phrases</div>${required.length?'<div class="space-y-1.5">'+required.map(x=>{const bad=missing.some(m=>String(m).toLowerCase()===String(x).toLowerCase());return '<div class="rounded-lg px-2.5 py-2 border '+(bad?'border-rose-500/20 bg-rose-500/[0.05] text-rose-300':'border-emerald-500/15 bg-emerald-500/[0.04] text-emerald-300')+' text-[10px]">'+(bad?'✕ ':'✓ ')+simRepEsc(x)+'</div>';}).join('')+'</div>':simRepListHtml(missing,'No required phrase checklist stored.')}</div><div><div class="text-[8px] uppercase tracking-widest text-rose-300 font-black mb-2">Forbidden Phrases</div>${forbidden.length?'<div class="space-y-1.5">'+forbidden.map(x=>{const bad=used.some(m=>String(m).toLowerCase()===String(x).toLowerCase());return '<div class="rounded-lg px-2.5 py-2 border '+(bad?'border-rose-500/20 bg-rose-500/[0.05] text-rose-300':'border-white/[0.07] bg-white/[0.02] text-slate-400')+' text-[10px]">'+(bad?'⚠ Used: ':'✓ Avoided: ')+simRepEsc(x)+'</div>';}).join('')+'</div>':simRepListHtml(used,'No forbidden phrase checklist stored.')}</div></div></div>`;
+        const coaching=`<div class="rounded-2xl border border-amber-500/20 bg-amber-500/[0.035] p-4"><div class="text-[9px] uppercase tracking-widest text-amber-300 font-black mb-3">Skills & Coaching</div><div class="grid grid-cols-1 md:grid-cols-3 gap-3"><div><div class="text-[8px] uppercase tracking-widest text-emerald-300 font-black mb-1">Strong Skills</div>${simRepListHtml(r.strong_skills||r.strongSkills,'None established yet.')}</div><div><div class="text-[8px] uppercase tracking-widest text-rose-300 font-black mb-1">Weak Skills</div>${simRepListHtml(r.weak_skills||r.weakSkills,'No weak skill recorded.')}</div><div><div class="text-[8px] uppercase tracking-widest text-cyan-300 font-black mb-1">Recommended Next Focus</div><div class="rounded-lg border border-cyan-500/15 bg-cyan-500/[0.04] p-3 text-[10px] text-cyan-200 font-bold">${simRepEsc(r.recommended_skill||'Full Call Flow')}</div>${r.recommended_script_title?'<div class="text-[9px] text-slate-500 mt-2">Next simulator: <span class="text-slate-300">'+simRepEsc(r.recommended_script_title)+'</span></div>':''}</div></div>${r.training_note?'<div class="mt-3 rounded-xl border border-violet-500/15 bg-violet-500/[0.04] p-3"><div class="text-[8px] uppercase tracking-widest text-violet-300 font-black mb-1">Training Tip / Coach Note</div><div class="text-[10px] leading-relaxed text-slate-300 whitespace-pre-wrap">'+simRepEsc(r.training_note)+'</div></div>':''}${r.correct_agent_action?'<div class="mt-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-3"><div class="text-[8px] uppercase tracking-widest text-emerald-300 font-black mb-1">Correct Agent Action</div><div class="text-[10px] leading-relaxed text-slate-300">'+simRepEsc(r.correct_agent_action)+'</div></div>':''}</div>`;
+        let stepsHtml='<div class="rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.025] p-4"><div class="flex items-center justify-between gap-3 mb-3"><div class="text-[9px] uppercase tracking-widest text-indigo-300 font-black">Step-by-Step Call Breakdown</div><div class="text-[8px] text-slate-600">'+steps.length+' captured step'+(steps.length===1?'':'s')+'</div></div>';
+        if(!steps.length) stepsHtml+='<div class="rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-3 text-[10px] text-amber-200">This attempt was completed before full step-by-step reporting was added. Summary data above is still available.</div>';
+        else stepsHtml+='<div class="space-y-2">'+steps.map((s,i)=>{const q=String(s.chosen_quality||s.quality||'').toLowerCase();const color=q==='best'?'emerald':q==='ok'?'amber':q==='weak'?'orange':'rose';return `<div class="rounded-xl border border-${color}-500/20 bg-${color}-500/[0.035] p-3"><div class="flex items-start justify-between gap-3"><div><div class="text-[8px] uppercase tracking-widest text-slate-600 font-black">Step ${simRepEsc(s.step_number||i+1)} · ${simRepEsc(s.step_label||s.stepLabel||'')}</div><div class="text-[9px] text-cyan-300 mt-0.5">${simRepEsc(s.skill||'Call Flow')}</div></div><div class="text-[8px] font-black uppercase tracking-widest text-${color}-300">${simRepEsc(q||'ungraded')}${s.timed_out?' · timed out':''}</div></div><div class="mt-2 text-[10px] text-slate-400 italic">Customer: “${simRepEsc(s.customer_line||s.customerLine||'')}”</div><div class="mt-2 text-[10px] font-bold text-${color}-200">Agent selected: “${simRepEsc(s.chosen_text||s.chosenText||'')}”</div>${q!=='best'&&(s.ideal_text||s.idealText)?'<div class="mt-1 text-[10px] text-emerald-300">Better response: “'+simRepEsc(s.ideal_text||s.idealText)+'”</div>':''}<div class="mt-2 text-[8px] text-slate-600">Response time: ${Number(s.response_seconds||s.responseSeconds||0)?Number(s.response_seconds||s.responseSeconds).toFixed(1)+' sec':'Not captured'}</div></div>`;}).join('')+'</div>';
+        stepsHtml+='</div>';
+        body.innerHTML=summaryCards+identity+disposition+errorHtml+phraseHtml+coaching+stepsHtml;
+        modal.classList.remove('hidden');modal.classList.add('flex');
+    };
+    window.simReportClose=function(){const m=document.getElementById('simrep-full-modal');if(m){m.classList.add('hidden');m.classList.remove('flex');}};
+
+    window.simReportExportCSV=function(){
+        const rows=simRepFiltered.length?simRepFiltered:simRepRows;
+        if(!rows.length)return;
+        const headers=['Agent','Agent Key','Simulator','Date (Guyana)','Mode','Difficulty','Call Type','Score','Pass Requirement','Result','Critical Fail','Steps Answered','Steps Total','Average Response Seconds','Disposition Correct','Errors Found','Weak Skills','Strong Skills','Recommended Skill'];
+        const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+        const lines=[headers.map(q).join(',')];
+        rows.forEach(r=>{const result=simRepResultLabel(r).label;lines.push([
+            simRepName(r),r.agentKey||'',simRepScript(r),simRepGuyanaDate(r.createdAt),simRepMode(r.mode),r.difficulty||'',r.call_type||r.callType||'',simRepScore(r),r.passRequirement||r.pass_requirement||'',result,!!(r.critical_fail||r.criticalFail),r.steps_answered||'',r.steps_total||'',r.average_response_seconds||'',r.disposition_correct,simRepArr(r.errors_found||r.errorsFound).join(' | '),simRepArr(r.weak_skills||r.weakSkills).join(' | '),simRepArr(r.strong_skills||r.strongSkills).join(' | '),r.recommended_skill||''
+        ].map(q).join(','));});
+        const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='call-simulator-report-'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    };
+
+    window.addEventListener('biz-active-roster-updated',function(){ if(simRepStarted && window.__simReportRawResults) simRepOnData(window.__simReportRawResults); });
+    window.addEventListener('biz-deleted-agents-updated',function(){ if(simRepStarted && window.__simReportRawResults) simRepOnData(window.__simReportRawResults); });
+    document.addEventListener('keydown',function(e){if(e.key==='Escape'){const m=document.getElementById('simrep-full-modal');if(m&&!m.classList.contains('hidden'))window.simReportClose();}});
 })();
 </script>
