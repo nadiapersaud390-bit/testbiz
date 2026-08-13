@@ -599,6 +599,33 @@ window.listenForSimScripts = function(callback) {
 
 window.saveSimScript = async function(scriptObj) {
     if (!database) return { success: false, error: 'Firebase database is not ready.' };
+
+    function sanitizeValue(value) {
+        if (value === undefined || typeof value === 'function' || typeof value === 'symbol') return undefined;
+        if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+        if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+        if (Array.isArray(value)) return value.map(sanitizeValue).filter(v => v !== undefined);
+        if (typeof value === 'object') {
+            const out = {};
+            Object.keys(value).forEach(key => {
+                const cleaned = sanitizeValue(value[key]);
+                if (cleaned !== undefined) out[key] = cleaned;
+            });
+            return out;
+        }
+        return String(value);
+    }
+
+    function findInvalidFirebaseKey(value, path) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+        for (const key of Object.keys(value)) {
+            if (/[.#$\/\[\]]/.test(key)) return (path ? path + '.' : '') + key;
+            const child = findInvalidFirebaseKey(value[key], (path ? path + '.' : '') + key);
+            if (child) return child;
+        }
+        return '';
+    }
+
     try {
         const source = scriptObj && typeof scriptObj === 'object' ? scriptObj : {};
         const existingId = String(source.id || '').trim();
@@ -608,12 +635,15 @@ window.saveSimScript = async function(scriptObj) {
         const scriptId = existingId || targetRef.key;
 
         // Never store `id` inside the record. The RTDB node key is the ID.
-        // This prevents old/stale embedded IDs from making Edit save to the
-        // wrong Firebase path.
-        const payload = { ...source };
+        let payload = sanitizeValue({ ...source });
         delete payload.id;
         payload.updatedAt = Date.now();
         if (!payload.createdAt) payload.createdAt = payload.updatedAt;
+
+        const invalidPath = findInvalidFirebaseKey(payload, '');
+        if (invalidPath) {
+            throw new Error('Firebase rejected a field name containing . # $ / [ ] at: ' + invalidPath);
+        }
 
         await set(targetRef, payload);
         return { success: true, id: scriptId };

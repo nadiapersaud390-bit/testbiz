@@ -5164,7 +5164,7 @@ New Password: ${newPass}`);
             setTimeout(function(){ if (typeof window.simScriptCloseManager === 'function') window.simScriptCloseManager('upload'); }, 750);
             setTimeout(function(){ if (statusEl) statusEl.innerHTML = ''; }, 4000);
         } else {
-            if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Error saving. Check Firebase.</span>';
+            var uploadError = result && result.error ? result.error : 'Check Firebase permissions or connection.'; if (statusEl) statusEl.innerHTML = '<span class="text-red-400">Error saving: ' + _simEsc(uploadError) + '</span>';
         }
     };
 
@@ -5208,7 +5208,8 @@ New Password: ${newPass}`);
         if (sc.expected_behavior || sc.expectedBehavior) lines.push('EXPECTED BEHAVIOR: ' + (sc.expected_behavior || sc.expectedBehavior));
         if (sc.common_mistake || sc.commonMistake) lines.push('COMMON MISTAKE: ' + (sc.common_mistake || sc.commonMistake));
         if (sc.coach_questions || sc.coachQuestions) lines.push('COACH QUESTIONS: ' + (sc.coach_questions || sc.coachQuestions || []).join('; '));
-        var savedSeverity = sc.error_severity || sc.errorSeverity || {};
+        var savedSeverityRaw = sc.error_severity || sc.errorSeverity || {};
+        var savedSeverity = Array.isArray(savedSeverityRaw) ? savedSeverityRaw.reduce(function(map,item){ if(item && item.error) map[String(item.error)] = String(item.severity || 'major').toLowerCase(); return map; }, {}) : savedSeverityRaw;
         Object.keys(savedSeverity).forEach(function(error) { lines.push('ERROR SEVERITY: ' + error + ' | ' + savedSeverity[error]); });
         _splitSimList(sc.required_phrases || sc.requiredPhrases || []).forEach(function(item) { lines.push('REQUIRED PHRASE: ' + item); });
         _splitSimList(sc.forbidden_phrases || sc.forbiddenPhrases || []).forEach(function(item) { lines.push('FORBIDDEN PHRASE: ' + item); });
@@ -5770,6 +5771,26 @@ New Password: ${newPass}`);
         setTimeout(()=>{ simAdvancedRenderSeverity('manual'); simAdvancedRenderSeverity('file'); },50);
     }
 
+    function severityToMap(value){
+        if (!value) return {};
+        if (Array.isArray(value)) {
+            const map={};
+            value.forEach(item=>{
+                if (!item || typeof item !== 'object') return;
+                const error=String(item.error||item.text||'').trim();
+                const severity=String(item.severity||item.level||'major').trim().toLowerCase();
+                if (error) map[error]=severity || 'major';
+            });
+            return map;
+        }
+        if (typeof value === 'object') return value;
+        return {};
+    }
+    function severityToFirebaseList(value){
+        const map=severityToMap(value);
+        return Object.keys(map).map(error=>({error:error,severity:String(map[error]||'major').toLowerCase()}));
+    }
+
     function config(scope){
         let sev={}; try{sev=JSON.parse((field(scope,'severity-json')||{}).value||'{}');}catch(_){sev={};}
         return {
@@ -5816,7 +5837,7 @@ New Password: ${newPass}`);
         if(field(scope,'coach-questions')) field(scope,'coach-questions').value=(sc.coach_questions||sc.coachQuestions||[]).join('; ');
         if(field(scope,'pass')) field(scope,'pass').value=sc.pass_requirement||sc.passRequirement||85;
         if(field(scope,'cert')) field(scope,'cert').value=sc.certification_score||sc.certificationScore||90;
-        if(field(scope,'severity-json')) field(scope,'severity-json').value=JSON.stringify(sc.error_severity||sc.errorSeverity||{});
+        if(field(scope,'severity-json')) field(scope,'severity-json').value=JSON.stringify(severityToMap(sc.error_severity||sc.errorSeverity||{}));
         simAdvancedRenderSeverity(scope);
     }
 
@@ -5942,7 +5963,7 @@ New Password: ${newPass}`);
         window.saveSimScript=async function(obj){
             const scope=window.__simAdvancedSaveScope;
             if(scope && document.getElementById(ids(scope,'panel'))){
-                const c=config(scope); Object.assign(obj,c,{ simulatorMode:c.simulator_mode, customerPersonalities:c.customer_personalities, randomObjections:c.random_objections, objectionsPerCall:c.objections_per_call, responseTimerSeconds:c.response_timer_seconds, errorSeverity:c.error_severity, coachPurpose:c.coach_purpose, expectedBehavior:c.expected_behavior, commonMistake:c.common_mistake, coachQuestions:c.coach_questions, passRequirement:c.pass_requirement, certificationScore:c.certification_score });
+                const c=config(scope); const severityList=severityToFirebaseList(c.error_severity); Object.assign(obj,c,{ error_severity:severityList, simulatorMode:c.simulator_mode, customerPersonalities:c.customer_personalities, randomObjections:c.random_objections, objectionsPerCall:c.objections_per_call, responseTimerSeconds:c.response_timer_seconds, errorSeverity:severityList, coachPurpose:c.coach_purpose, expectedBehavior:c.expected_behavior, commonMistake:c.common_mistake, coachQuestions:c.coach_questions, passRequirement:c.pass_requirement, certificationScore:c.certification_score });
             }
             return originalSave(obj);
         };
@@ -6018,7 +6039,8 @@ New Password: ${newPass}`);
         const errors=split((sc.correct_call_errors||sc.correctCallErrors||[]).join? (sc.correct_call_errors||sc.correctCallErrors||[]).join('\n') : (sc.correct_call_errors||sc.correctCallErrors||''));
         const coachQsRaw=sc.coach_questions||sc.coachQuestions||['Why did you choose that response?','What should happen next?'];
         const coachQs=Array.isArray(coachQsRaw)?coachQsRaw:String(coachQsRaw||'').split(/\r?\n|\s*;\s*/).filter(Boolean);
-        document.getElementById('sim-coach-title').textContent=sc.title||'Training Call'; document.getElementById('sim-coach-body').innerHTML=[['Purpose',sc.coach_purpose||sc.coachPurpose||sc.training_note||'Practice this simulator and identify the correct call flow.'],['Expected Behavior',sc.expected_behavior||sc.expectedBehavior||'Follow the approved flow and choose the strongest response.'],['Common Mistake',sc.common_mistake||sc.commonMistake||errors.join('; ')||'Skipping required flow or mishandling the objection.'],['Coach Questions',coachQs.map(esc).join('<br>')],['Pass Requirement',(sc.pass_requirement||sc.passRequirement||85)+'%'+(errors.some(e=>(sc.error_severity||sc.errorSeverity||{})[e]==='critical')?' · No critical errors':'')]].map(x=>`<div class="rounded-xl border border-white/10 bg-white/[0.03] p-3"><div class="text-[9px] font-black uppercase tracking-widest text-violet-300 mb-1">${x[0]}</div><div class="text-xs leading-relaxed text-slate-300">${x[1]}</div></div>`).join(''); modal.classList.remove('hidden');modal.classList.add('flex');
+        const coachSeverity=severityToMap(sc.error_severity||sc.errorSeverity||{});
+        document.getElementById('sim-coach-title').textContent=sc.title||'Training Call'; document.getElementById('sim-coach-body').innerHTML=[['Purpose',sc.coach_purpose||sc.coachPurpose||sc.training_note||'Practice this simulator and identify the correct call flow.'],['Expected Behavior',sc.expected_behavior||sc.expectedBehavior||'Follow the approved flow and choose the strongest response.'],['Common Mistake',sc.common_mistake||sc.commonMistake||errors.join('; ')||'Skipping required flow or mishandling the objection.'],['Coach Questions',coachQs.map(esc).join('<br>')],['Pass Requirement',(sc.pass_requirement||sc.passRequirement||85)+'%'+(errors.some(e=>coachSeverity[e]==='critical')?' · No critical errors':'')]].map(x=>`<div class="rounded-xl border border-white/10 bg-white/[0.03] p-3"><div class="text-[9px] font-black uppercase tracking-widest text-violet-300 mb-1">${x[0]}</div><div class="text-xs leading-relaxed text-slate-300">${x[1]}</div></div>`).join(''); modal.classList.remove('hidden');modal.classList.add('flex');
     };
 
     function addCoachButtons(){

@@ -1652,7 +1652,10 @@
             ? Math.round((handlingPct * 0.8) + (dispositionPct * 0.2))
             : handlingPct;
         _phraseReview = _buildPhraseReview();
-        const severityMap = (_activeScript && (_activeScript.error_severity || _activeScript.errorSeverity)) || {};
+        const rawSeverity = (_activeScript && (_activeScript.error_severity || _activeScript.errorSeverity)) || {};
+        const severityMap = Array.isArray(rawSeverity)
+            ? rawSeverity.reduce((map, item) => { if (item && item.error) map[String(item.error)] = String(item.severity || 'major').toLowerCase(); return map; }, {})
+            : rawSeverity;
         const missedErrorList = _callErrorDecision ? (_callErrorDecision.missed || []) : [];
         const extraErrorList = _callErrorDecision ? (_callErrorDecision.extra || []) : [];
         const severityPenalty = (error) => {
