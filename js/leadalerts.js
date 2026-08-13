@@ -627,7 +627,8 @@ function checkLeadAlerts(newAgents) {
           quote: quote,
           stat: stat,
           tier: tier
-        }
+        },
+        tabMessage: '🎉 Lead for you, ' + firstName + '!'
       });
       return;
     }
@@ -781,6 +782,17 @@ function _buildLeadPersonalCard(layer) {
   const card = document.createElement('div');
   card.className = 'lead-personal-card ' + (_leadAlertCardData.tier || 'regular');
 
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'lead-personal-close';
+  closeBtn.setAttribute('aria-label', 'Close celebration');
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', function(ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    dismissLeadAlert();
+  });
+
   const badge = document.createElement('div');
   badge.className = 'lead-personal-badge';
   badge.textContent = _leadAlertCardData.badge || 'Great job';
@@ -801,6 +813,7 @@ function _buildLeadPersonalCard(layer) {
   stat.className = 'lead-personal-stat';
   stat.textContent = _leadAlertCardData.stat || '';
 
+  card.appendChild(closeBtn);
   card.appendChild(badge);
   card.appendChild(title);
   if (_leadAlertCardData.message) card.appendChild(msg);
@@ -880,7 +893,7 @@ function _startLeadAlertExperience(blinkMessage) {
 }
 
 window._renderLeadAlert = _renderAlert;
-function _renderAlert({icon, name, msg, quote, firstLead = false, isUploadAlert = false, personal = false, personalCard = null, durationMs = null, returnDurationMs = null}) {
+function _renderAlert({icon, name, msg, quote, firstLead = false, isUploadAlert = false, personal = false, personalCard = null, durationMs = null, returnDurationMs = null, tabMessage = ''}) {
   const banner = document.getElementById('lead-alert-banner');
   if (!banner) return;
   const inner  = banner.querySelector('.lab-inner');
@@ -914,7 +927,8 @@ function _renderAlert({icon, name, msg, quote, firstLead = false, isUploadAlert 
   _leadAlertVisibleMs = durationMs || LEAD_CELEBRATION_VISIBLE_MS;
   _leadAlertReturnMs = returnDurationMs || LEAD_CELEBRATION_VISIBLE_MS;
 
-  _startLeadAlertExperience(icon + ' ' + name + (firstLead ? ' — First Lead Today!' : ' — New Lead!'));
+  const blinkText = tabMessage || (icon + ' ' + name + (firstLead ? ' — First Lead Today!' : ' — New Lead!'));
+  _startLeadAlertExperience(blinkText);
 }
 
 function dismissLeadAlert() {

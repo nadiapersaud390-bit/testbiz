@@ -471,115 +471,253 @@ body.announcement-open { overflow:hidden; }
   pointer-events: none;
   z-index: 2;
 }
+.lead-personal-card-wrap::before,
+.lead-personal-card-wrap::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(710px, calc(100vw - 20px));
+  height: min(420px, calc(100vh - 110px));
+  transform: translate(-50%, -50%);
+  border-radius: 38px;
+  pointer-events: none;
+}
+.lead-personal-card-wrap::before {
+  padding: 3px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(34,211,238,.95),
+    rgba(59,130,246,.95),
+    rgba(168,85,247,.95),
+    rgba(236,72,153,.95),
+    rgba(245,158,11,.95),
+    rgba(34,197,94,.95),
+    rgba(34,211,238,.95)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: leadEdgeRun 3.2s linear infinite, leadEdgeFlicker 1.8s ease-in-out infinite alternate;
+  opacity: .95;
+}
+.lead-personal-card-wrap::after {
+  background: conic-gradient(
+    from 180deg,
+    rgba(34,211,238,.22),
+    rgba(168,85,247,.18),
+    rgba(236,72,153,.2),
+    rgba(245,158,11,.18),
+    rgba(34,197,94,.18),
+    rgba(34,211,238,.22)
+  );
+  filter: blur(18px);
+  opacity: .72;
+  animation: leadEdgeRunReverse 5.2s linear infinite;
+}
 .lead-personal-card {
   position: relative;
-  width: min(640px, calc(100vw - 32px));
-  padding: 28px 26px 24px;
-  border-radius: 30px;
+  width: min(680px, calc(100vw - 30px));
+  padding: 32px 30px 28px;
+  border-radius: 34px;
   color: #fff;
   text-align: center;
-  background: linear-gradient(145deg, rgba(12, 20, 38, 0.80), rgba(27, 15, 53, 0.72));
-  border: 1px solid rgba(255,255,255,.16);
-  box-shadow: 0 30px 90px rgba(0,0,0,.42), 0 0 28px rgba(34,211,238,.12);
-  backdrop-filter: blur(20px) saturate(1.12);
-  -webkit-backdrop-filter: blur(20px) saturate(1.12);
-  animation: leadPersonalCardIn .55s cubic-bezier(.2,.9,.2,1.08) both, leadPersonalCardFloat 2.6s ease-in-out .6s infinite;
+  background: linear-gradient(155deg, rgba(4, 8, 20, 0.94), rgba(12, 18, 36, 0.90) 48%, rgba(26, 11, 49, 0.88));
+  border: 1px solid rgba(115, 131, 255, 0.24);
+  box-shadow: 0 35px 120px rgba(0,0,0,.68), 0 0 32px rgba(56,189,248,.14), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(28px) saturate(1.16);
+  -webkit-backdrop-filter: blur(28px) saturate(1.16);
+  animation: leadPersonalCardIn .58s cubic-bezier(.18,.88,.22,1.08) both, leadPersonalCardFloat 3s ease-in-out .65s infinite, leadPersonalCardPulse 2.9s ease-in-out 1.1s infinite;
   overflow: hidden;
 }
 .lead-personal-card::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at top left, rgba(255,255,255,.10), transparent 36%), radial-gradient(circle at bottom right, rgba(168,85,247,.12), transparent 42%);
+  background:
+    radial-gradient(circle at 15% 12%, rgba(56,189,248,.16), transparent 30%),
+    radial-gradient(circle at 82% 24%, rgba(168,85,247,.18), transparent 32%),
+    radial-gradient(circle at 50% 100%, rgba(14,165,233,.09), transparent 45%);
+  pointer-events: none;
+}
+.lead-personal-card::after {
+  content: '';
+  position: absolute;
+  top: -120%;
+  left: -25%;
+  width: 42%;
+  height: 320%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+  transform: rotate(18deg);
+  animation: leadPersonalShine 3.8s ease-in-out 1s infinite;
   pointer-events: none;
 }
 .lead-personal-card.first {
-  background: linear-gradient(145deg, rgba(73, 40, 7, 0.88), rgba(36, 18, 2, 0.76));
-  box-shadow: 0 30px 90px rgba(0,0,0,.42), 0 0 34px rgba(245,158,11,.16);
+  background: linear-gradient(155deg, rgba(21, 12, 2, 0.96), rgba(52, 30, 4, 0.92) 46%, rgba(22, 13, 3, 0.90));
+  border-color: rgba(245,158,11,.32);
+  box-shadow: 0 35px 120px rgba(0,0,0,.72), 0 0 38px rgba(245,158,11,.16), inset 0 1px 0 rgba(255,255,255,.06);
 }
 .lead-personal-card.milestone {
-  background: linear-gradient(145deg, rgba(53, 16, 70, 0.88), rgba(11, 30, 59, 0.76));
-  box-shadow: 0 30px 90px rgba(0,0,0,.45), 0 0 36px rgba(168,85,247,.20);
+  background: linear-gradient(155deg, rgba(16, 8, 34, 0.96), rgba(29, 9, 49, 0.92) 45%, rgba(7, 19, 43, 0.90));
+  border-color: rgba(168,85,247,.34);
+  box-shadow: 0 35px 120px rgba(0,0,0,.72), 0 0 42px rgba(168,85,247,.20), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.lead-personal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.92);
+  font-family: 'Inter', sans-serif;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 3;
+  pointer-events: auto;
+  transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.lead-personal-close:hover {
+  transform: scale(1.08);
+  background: rgba(239,68,68,.18);
+  box-shadow: 0 0 22px rgba(239,68,68,.18);
 }
 .lead-personal-badge {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
-  padding: 6px 14px;
+  min-height: 36px;
+  padding: 7px 16px;
   border-radius: 999px;
-  margin-bottom: 16px;
-  background: rgba(255,255,255,.10);
-  border: 1px solid rgba(255,255,255,.18);
+  margin-bottom: 18px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.20);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.03) inset, 0 0 20px rgba(79,70,229,.18);
   font-family: 'Orbitron', sans-serif;
   font-size: 11px;
   font-weight: 900;
-  letter-spacing: .14em;
+  letter-spacing: .16em;
   text-transform: uppercase;
   color: #f8fafc;
+  animation: leadBadgePulse 1.8s ease-in-out infinite;
 }
 .lead-personal-title {
   position: relative;
   font-family: 'Orbitron', sans-serif;
-  font-size: clamp(26px, 5.2vw, 40px);
+  font-size: clamp(28px, 5.4vw, 44px);
   font-weight: 900;
   letter-spacing: .02em;
-  line-height: 1.08;
-  margin-bottom: 12px;
-  text-shadow: 0 10px 30px rgba(0,0,0,.34);
+  line-height: 1.06;
+  margin-bottom: 14px;
+  text-shadow: 0 12px 34px rgba(0,0,0,.42), 0 0 18px rgba(255,255,255,.08);
+  animation: leadTitleGlow 2.2s ease-in-out infinite;
 }
 .lead-personal-msg {
   position: relative;
-  max-width: 520px;
+  max-width: 560px;
   margin: 0 auto;
   font-family: 'Inter', sans-serif;
-  font-size: clamp(15px, 2.7vw, 19px);
-  font-weight: 700;
-  line-height: 1.55;
-  color: rgba(255,255,255,.96);
+  font-size: clamp(16px, 2.75vw, 20px);
+  font-weight: 800;
+  line-height: 1.5;
+  color: rgba(255,255,255,.97);
 }
 .lead-personal-quote {
   position: relative;
-  max-width: 520px;
-  margin: 18px auto 0;
+  max-width: 540px;
+  margin: 20px auto 0;
   padding-top: 16px;
-  border-top: 1px solid rgba(255,255,255,.10);
+  border-top: 1px solid rgba(255,255,255,.11);
   font-family: 'Inter', sans-serif;
-  font-size: clamp(14px, 2.4vw, 17px);
+  font-size: clamp(14px, 2.35vw, 17px);
   font-style: italic;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.55;
-  color: rgba(255,255,255,.82);
+  color: rgba(248,250,252,.84);
 }
 .lead-personal-stat {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-top: 18px;
-  padding: 10px 16px;
-  border-radius: 14px;
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.10);
+  min-width: 150px;
+  margin-top: 20px;
+  padding: 12px 18px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.05));
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 12px 28px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.06);
   font-family: 'Inter', sans-serif;
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 16px;
+  font-weight: 900;
   letter-spacing: .02em;
   color: #fef3c7;
+  animation: leadStatPulse 1.8s ease-in-out infinite;
 }
 @keyframes leadPersonalCardIn {
-  from { opacity: 0; transform: translateY(18px) scale(.92); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  0%   { opacity: 0; transform: translateY(28px) scale(.88); }
+  70%  { opacity: 1; transform: translateY(-6px) scale(1.015); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes leadPersonalCardFloat {
   0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-6px); }
+  50%      { transform: translateY(-8px); }
+}
+@keyframes leadPersonalCardPulse {
+  0%, 100% { box-shadow: 0 35px 120px rgba(0,0,0,.68), 0 0 32px rgba(56,189,248,.14), inset 0 1px 0 rgba(255,255,255,.06); }
+  50%      { box-shadow: 0 38px 130px rgba(0,0,0,.74), 0 0 46px rgba(168,85,247,.20), inset 0 1px 0 rgba(255,255,255,.08); }
+}
+@keyframes leadEdgeRun {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+@keyframes leadEdgeRunReverse {
+  from { transform: translate(-50%, -50%) rotate(360deg) scale(1.015); }
+  to   { transform: translate(-50%, -50%) rotate(0deg) scale(1.015); }
+}
+@keyframes leadEdgeFlicker {
+  0%   { opacity: .72; filter: brightness(.95); }
+  50%  { opacity: .98; filter: brightness(1.18); }
+  100% { opacity: .82; filter: brightness(1.04); }
+}
+@keyframes leadPersonalShine {
+  0%, 100% { opacity: 0; transform: translateX(0) rotate(18deg); }
+  15%      { opacity: .0; }
+  40%      { opacity: .85; }
+  70%      { opacity: 0; transform: translateX(340%) rotate(18deg); }
+}
+@keyframes leadBadgePulse {
+  0%, 100% { transform: translateY(0) scale(1); box-shadow: 0 0 0 1px rgba(255,255,255,.03) inset, 0 0 20px rgba(79,70,229,.18); }
+  50%      { transform: translateY(-1px) scale(1.03); box-shadow: 0 0 0 1px rgba(255,255,255,.04) inset, 0 0 28px rgba(56,189,248,.24); }
+}
+@keyframes leadTitleGlow {
+  0%, 100% { text-shadow: 0 12px 34px rgba(0,0,0,.42), 0 0 18px rgba(255,255,255,.08); }
+  50%      { text-shadow: 0 12px 34px rgba(0,0,0,.44), 0 0 28px rgba(255,255,255,.15), 0 0 18px rgba(56,189,248,.12); }
+}
+@keyframes leadStatPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
 }
 @media (max-width: 640px) {
-  .lead-personal-card { padding: 22px 18px 20px; border-radius: 24px; }
+  .lead-personal-card-wrap::before,
+  .lead-personal-card-wrap::after {
+    width: min(98vw, 710px);
+    height: min(430px, calc(100vh - 80px));
+    border-radius: 28px;
+  }
+  .lead-personal-card { width: min(96vw, 680px); padding: 24px 18px 22px; border-radius: 24px; }
   .lead-personal-badge { font-size: 10px; letter-spacing: .12em; margin-bottom: 12px; }
-  .lead-personal-stat { width: 100%; }
+  .lead-personal-close { top: 10px; right: 10px; width: 30px; height: 30px; font-size: 20px; }
+  .lead-personal-title { font-size: clamp(24px, 9vw, 34px); }
+  .lead-personal-msg { font-size: 16px; }
+  .lead-personal-stat { width: 100%; min-width: 0; }
 }
 #lead-celebration-layer::before {
   content: '';
@@ -631,7 +769,7 @@ body.lead-celebration-active main,
 body.lead-celebration-active #app,
 body.lead-celebration-active .dashboard-container {
   animation: leadPageLight .95s ease-in-out infinite alternate;
-  filter: blur(2px);
+  filter: blur(4px) brightness(.72);
 }
 @keyframes leadConfettiFall {
   0%   { transform: translate3d(0,-14vh,0) rotate(0deg); }
@@ -646,8 +784,8 @@ body.lead-celebration-active .dashboard-container {
   to   { opacity: .34; filter: brightness(1.12); }
 }
 @keyframes leadPageLight {
-  from { filter: blur(2px) brightness(1); }
-  to   { filter: blur(2px) brightness(1.03); }
+  from { filter: blur(4px) brightness(.68); }
+  to   { filter: blur(4px) brightness(.76); }
 }
 @media (prefers-reduced-motion: reduce) {
   #lead-celebration-layer::before,
