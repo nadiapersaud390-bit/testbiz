@@ -66,6 +66,17 @@ try {
 // fast cache for pages that render before the realtime listener finishes.
 const DELETED_AGENT_CACHE_KEY = 'biz_deleted_agents_cache_v1';
 let _deletedAgents = {};
+let _deletedAgentIdSet = new Set();
+let _deletedAgentNameSet = new Set();
+let _activeAgentIdSet = new Set();
+let _activeAgentNameSet = new Set();
+let _agentFilterEpoch = 0;
+const _agentReportFilterCache = new Map();
+
+function _invalidateAgentReportFilterCache() {
+    _agentFilterEpoch++;
+    _agentReportFilterCache.clear();
+}
 
 function _normalizeAgentToken(value) {
     return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -88,13 +99,8 @@ window.isDeletedAgentRecord = function(recordOrName, maybeId) {
     const ids = [rec.userId, rec.ytelId, rec.id, rec.agentId, rec.agentID, rec.userid]
         .map(_normalizeAgentToken).filter(Boolean);
     const names = [rec.fullName, rec.name, rec.agentName, rec.rawName, rec.ytelName]
-        .map(_normalizeAgentToken).filter(Boolean);
-    return Object.values(_deletedAgents || {}).some(d => {
-        if (!d) return false;
-        const dids = [d.userId, d.ytelId, d.id, d.agentId].map(_normalizeAgentToken).filter(Boolean);
-        const dnames = [d.fullName, d.name, d.agentName, d.ytelName, d.normalizedName].map(_normalizeAgentToken).filter(Boolean);
-        return ids.some(v => dids.includes(v)) || names.some(v => dnames.includes(v));
-    });
+        .map(_normalizeRosterName).filter(Boolean);
+    return ids.some(v => _deletedAgentIdSet.has(v)) || names.some(v => _deletedAgentNameSet.has(v));
 };
 window.filterDeletedAgents = function(arr) {
     return Array.isArray(arr) ? arr.filter(row => !window.isDeletedAgentRecord(row)) : [];
@@ -111,6 +117,30 @@ function _normalizeRosterName(value) {
         .replace(/\s*\((bb|pr|rm|berbice|providence|remote)\)\s*$/i, '')
         .trim();
 }
+function _rebuildDeletedAgentIndexes() {
+    _deletedAgentIdSet = new Set();
+    _deletedAgentNameSet = new Set();
+    Object.values(_deletedAgents || {}).forEach(d => {
+        if (!d) return;
+        [d.userId, d.ytelId, d.id, d.agentId].map(_normalizeAgentToken).filter(Boolean).forEach(v => _deletedAgentIdSet.add(v));
+        [d.fullName, d.name, d.agentName, d.ytelName, d.normalizedName].map(_normalizeRosterName).filter(Boolean).forEach(v => _deletedAgentNameSet.add(v));
+    });
+}
+function _rebuildActiveRosterIndexes() {
+    _activeAgentIdSet = new Set();
+    _activeAgentNameSet = new Set();
+    const roster = Array.isArray(_activeAgentRosterCache) && _activeAgentRosterCache.length
+        ? _activeAgentRosterCache
+        : (Array.isArray(window.allAgentProfiles) ? window.allAgentProfiles : []);
+    roster.forEach(a => {
+        if (!a) return;
+        const ids = [a.userId, a.ytelId, a.id, a.agentId].map(_normalizeAgentToken).filter(Boolean);
+        const names = [a.fullName, a.name, a.agentName, a.ytelName].map(_normalizeRosterName).filter(Boolean);
+        if (ids.some(v => _deletedAgentIdSet.has(v)) || names.some(v => _deletedAgentNameSet.has(v))) return;
+        ids.forEach(v => _activeAgentIdSet.add(v));
+        names.forEach(v => _activeAgentNameSet.add(v));
+    });
+}
 window.isActiveAgentRecord = function(recordOrName, maybeId) {
     const roster = Array.isArray(_activeAgentRosterCache) && _activeAgentRosterCache.length
         ? _activeAgentRosterCache
@@ -119,13 +149,11 @@ window.isActiveAgentRecord = function(recordOrName, maybeId) {
     const rec = (recordOrName && typeof recordOrName === 'object') ? recordOrName : { name:recordOrName, userId:maybeId };
     const ids = [rec.userId, rec.ytelId, rec.id, rec.agentId, rec.agentID].map(_normalizeAgentToken).filter(Boolean);
     const names = [rec.fullName, rec.name, rec.agentName, rec.rawName, rec.ytelName].map(_normalizeRosterName).filter(Boolean);
-    return roster.some(a => {
-        if (window.isDeletedAgentRecord(a)) return false;
-        const aids = [a.userId, a.ytelId, a.id, a.agentId].map(_normalizeAgentToken).filter(Boolean);
-        const anames = [a.fullName, a.name, a.agentName, a.ytelName].map(_normalizeRosterName).filter(Boolean);
-        return ids.some(v => aids.includes(v)) || names.some(v => anames.includes(v));
-    });
+    return ids.some(v => _activeAgentIdSet.has(v)) || names.some(v => _activeAgentNameSet.has(v));
 };
+_rebuildDeletedAgentIndexes();
+_rebuildActiveRosterIndexes();
+
 window.filterToActiveAgents = function(arr) {
     return Array.isArray(arr) ? arr.filter(row => window.isActiveAgentRecord(row)) : [];
 };
@@ -141,10 +169,27 @@ function _filterDeletedReport(report) {
     return out;
 }
 window.filterDeletedAgentReport = _filterDeletedReport;
+function _filterDeletedReportCached(cacheKey, report) {
+    if (!report || typeof report !== 'object') return report;
+    const dataLen = Array.isArray(report.data) ? report.data.length : 0;
+    const sig = String(cacheKey || '') + '|' + String(report.uploadedAt || '') + '|' + String(report.expiresAt || '') + '|' + dataLen + '|' + _agentFilterEpoch;
+    const hit = _agentReportFilterCache.get(sig);
+    if (hit) return hit;
+    const filtered = _filterDeletedReport(report);
+    _agentReportFilterCache.set(sig, filtered);
+    if (_agentReportFilterCache.size > 160) {
+        const firstKey = _agentReportFilterCache.keys().next().value;
+        if (firstKey) _agentReportFilterCache.delete(firstKey);
+    }
+    return filtered;
+}
 
 if (database) {
     onValue(ref(database, 'biz_deleted_agents'), snap => {
         _deletedAgents = snap.val() || {};
+        _rebuildDeletedAgentIndexes();
+        _rebuildActiveRosterIndexes();
+        _invalidateAgentReportFilterCache();
         _saveDeletedAgentCache();
         window.dispatchEvent(new CustomEvent('biz-deleted-agents-updated', { detail: window.getDeletedAgents() }));
 
@@ -171,6 +216,8 @@ if (database) {
         let roster = snap.val() || [];
         if (!Array.isArray(roster)) roster = Object.values(roster);
         _activeAgentRosterCache = roster.filter(Boolean);
+        _rebuildActiveRosterIndexes();
+        _invalidateAgentReportFilterCache();
         try { localStorage.setItem('biz_master_roster', JSON.stringify(_activeAgentRosterCache)); } catch (_) {}
         window.allAgentProfiles = _activeAgentRosterCache.slice();
         window.dispatchEvent(new CustomEvent('biz-active-roster-updated', { detail:_activeAgentRosterCache.slice() }));
@@ -204,6 +251,9 @@ window.purgeAgentEverywhere = async function(agentData) {
     const tombstone = { userId, ytelId, fullName, normalizedName:_normalizeAgentToken(fullName), deletedAt:new Date().toISOString() };
     await set(ref(database, 'biz_deleted_agents/' + tombKey), tombstone);
     _deletedAgents[tombKey] = tombstone;
+    _rebuildDeletedAgentIndexes();
+    _rebuildActiveRosterIndexes();
+    _invalidateAgentReportFilterCache();
     _saveDeletedAgentCache();
 
     const matches = (row) => {
@@ -1308,7 +1358,10 @@ window.listenForAgentReports = function(callback) {
     if (!database) return;
     onValue(ref(database, 'agent_reports'), (snapshot) => {
         const data = snapshot.val() || {};
-        const reportsArray = Object.keys(data).map(k => ({id: k, ...data[k]})).map(_filterDeletedReport);
+        const reportsArray = Object.keys(data).map(k => {
+            const report = {id: k, ...data[k]};
+            return _filterDeletedReportCached('shared:' + k, report);
+        });
         // Sort descending by timestamp
         reportsArray.sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
         if (callback) callback(reportsArray);
@@ -1347,7 +1400,10 @@ window.listenForAgentReportsPrivate = function(adminKey, callback) {
     if (!database) return;
     onValue(ref(database, 'agent_reports_private/' + adminKey), (snapshot) => {
         const data = snapshot.val() || {};
-        const arr = Object.keys(data).map(k => ({id: k, ...data[k]})).map(_filterDeletedReport);
+        const arr = Object.keys(data).map(k => {
+            const report = {id: k, ...data[k]};
+            return _filterDeletedReportCached('private:' + adminKey + ':' + k, report);
+        });
         arr.sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
         if (callback) callback(arr);
     });
