@@ -3,6 +3,10 @@ let leadAlertInitialized = false;
 let alertViewerName = '';
 let alertViewerYtelId = '';
 
+// Expose the renderer immediately for admin/super-admin console testing.
+// Function declarations are hoisted, so this is safe before the implementation appears below.
+window._renderLeadAlert = function(options) { return _renderAlert(options || {}); };
+
 // ── TIER 1: First lead — Breaking the Ice (100 quotes) ──
 const QUOTES_FIRST_LEAD = [
   "That's how you break the ice — now keep the heat coming!",
@@ -892,7 +896,7 @@ function _startLeadAlertExperience(blinkMessage) {
   }
 }
 
-window._renderLeadAlert = _renderAlert;
+window._renderLeadAlert = function(options) { return _renderAlert(options || {}); };
 function _renderAlert({icon, name, msg, quote, firstLead = false, isUploadAlert = false, personal = false, personalCard = null, durationMs = null, returnDurationMs = null, tabMessage = ''}) {
   const banner = document.getElementById('lead-alert-banner');
   if (!banner) return;
@@ -946,6 +950,49 @@ function dismissLeadAlert() {
   document.body.style.paddingTop = '';
   stopTabBlink();
 }
+
+// Easy admin/super-admin console preview.
+window.testPersonalLeadCelebration = function(agentName, leadCount) {
+  const firstName = String(agentName || 'Babita').trim() || 'Babita';
+  const count = Math.max(1, Number(leadCount) || 2);
+  const isFirst = count === 1;
+  const isMilestone = count >= 5 && count % 5 === 0;
+  const tier = isFirst ? 'first' : (isMilestone ? 'milestone' : 'regular');
+  const heading = isFirst
+    ? firstName + ", you're on the board!"
+    : isMilestone
+      ? firstName + ', you hit a milestone!'
+      : 'Great job, ' + firstName + '!';
+  const message = isFirst
+    ? 'You just got your first lead of the day. Keep the momentum going!'
+    : isMilestone
+      ? "Amazing work — you're now at " + count + ' leads today. Stay locked in and keep pushing!'
+      : "You just got another lead — you're now at " + count + ' leads today!';
+  const quote = isFirst
+    ? 'The first one opens the door. Now go get number two!'
+    : isMilestone
+      ? 'Strong shifts are built one transfer at a time. Keep building!'
+      : 'Momentum is everything — keep pushing and make the next call count!';
+  return window._renderLeadAlert({
+    icon: isFirst ? '🥇' : (isMilestone ? '🏆' : '🎉'),
+    name: heading,
+    msg: message,
+    quote: quote,
+    firstLead: isFirst,
+    personal: true,
+    durationMs: 30000,
+    returnDurationMs: 30000,
+    personalCard: {
+      badge: isFirst ? 'FIRST LEAD' : (isMilestone ? 'MILESTONE UNLOCKED' : 'KEEP PUSHING'),
+      title: heading,
+      message: message,
+      quote: quote,
+      stat: count + (count === 1 ? ' lead today' : ' leads today'),
+      tier: tier
+    },
+    tabMessage: '🎉 Lead for you, ' + firstName + '!'
+  });
+};
 
 // One canonical close routine. Other legacy files delegate to this function.
 window._dismissLeadAlertFully = dismissLeadAlert;
