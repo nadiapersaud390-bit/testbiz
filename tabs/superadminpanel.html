@@ -249,21 +249,148 @@
     box-shadow: 0 12px 24px -12px rgba(0,0,0,0.4);
     background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
 }
+
+/* ── SUPER ADMIN RESPONSIVE LAYOUT ────────────────────────────────
+   Keep every Super Admin control inside the phone viewport. Wide
+   report tables keep their own horizontal scroller instead of making
+   the entire dashboard wider than the screen. */
+.superadmin-root,
+.superadmin-root .supsect-container {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+.superadmin-root * { box-sizing: border-box; }
+
+.superadmin-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 8px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: visible;
+}
+.superadmin-tabs .sup-tab-btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 9px 10px;
+    line-height: 1.25;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+}
+
+.superadmin-scroll-x {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+.superadmin-scroll-x > .superadmin-wide-row,
+#tracker-grid-rows > .grid {
+    min-width: 650px;
+}
+
+/* Flexible rows must be allowed to shrink on narrow devices. */
+.superadmin-root .flex,
+.superadmin-root .grid { min-width: 0; }
+.superadmin-root input,
+.superadmin-root select,
+.superadmin-root textarea,
+.superadmin-root button { max-width: 100%; }
+.superadmin-root img,
+.superadmin-root svg { max-width: 100%; }
+
+@media (max-width: 640px) {
+    .superadmin-root {
+        padding: 10px 4px !important;
+        overflow-x: hidden;
+    }
+
+    .superadmin-header-card {
+        padding: 14px 10px !important;
+        margin-bottom: 12px !important;
+        border-radius: 16px !important;
+    }
+    .superadmin-header-title-row { gap: 7px !important; }
+    .superadmin-header-crown { font-size: 24px !important; }
+    .superadmin-header-title {
+        font-size: clamp(18px, 6vw, 24px) !important;
+        line-height: 1.05;
+    }
+    .superadmin-header-subtitle {
+        font-size: 10px !important;
+        line-height: 1.35;
+        letter-spacing: .08em !important;
+    }
+
+    .superadmin-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        padding: 6px !important;
+        margin-bottom: 16px !important;
+        border-radius: 14px !important;
+    }
+    .superadmin-tabs .sup-tab-btn {
+        min-height: 40px;
+        padding: 8px 5px;
+        border-radius: 10px;
+        font-size: 8.5px;
+        letter-spacing: .045em;
+    }
+
+    .superadmin-root .supsect-container > h3 {
+        font-size: 17px !important;
+        margin-bottom: 14px !important;
+    }
+
+    /* Tailwind utility min-widths on filter/search rows can otherwise
+       push the whole page outside the iPhone viewport. */
+    .superadmin-root .flex-1 { min-width: 0 !important; }
+    .superadmin-root .min-w-\[240px\],
+    .superadmin-root .min-w-\[150px\],
+    .superadmin-root .min-w-\[140px\],
+    .superadmin-root .min-w-\[130px\] { min-width: 0 !important; }
+
+    /* Forms/filters stack cleanly when two controls cannot fit. */
+    .superadmin-root select { width: 100%; }
+
+    /* Cards use tighter phone spacing but retain desktop spacing above 640px. */
+    .superadmin-root .p-6 { padding: 16px !important; }
+    .superadmin-root .p-5 { padding: 14px !important; }
+    .superadmin-root .gap-6 { gap: 12px !important; }
+
+    /* Small 3-column metric rows remain readable rather than forcing width. */
+    #supsect-logs .grid-cols-3 { grid-template-columns: 1fr !important; }
+
+    /* Modal stays fully usable above Safari's bottom bar. */
+    .agent-modal-overlay { padding: 10px; }
+    .agent-modal-container {
+        width: 100%;
+        max-width: 100%;
+        max-height: calc(100dvh - 20px);
+        border-radius: 20px;
+    }
+}
 </style>
-<div class="p-4 max-w-5xl mx-auto">
+<div class="superadmin-root p-4 max-w-5xl mx-auto">
     <!-- Super Admin Header -->
     <div class="text-center mb-6">
-        <div class="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/50 rounded-2xl p-4 mb-4">
-            <div class="flex items-center justify-center gap-3 mb-2">
-                <span class="text-4xl">👑</span>
-                <span class="text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent uppercase">Super Admin</span>
-                <span class="text-4xl">👑</span>
+        <div class="superadmin-header-card bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/50 rounded-2xl p-4 mb-4">
+            <div class="superadmin-header-title-row flex items-center justify-center gap-3 mb-2">
+                <span class="superadmin-header-crown text-4xl">👑</span>
+                <span class="superadmin-header-title text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent uppercase">Super Admin</span>
+                <span class="superadmin-header-crown text-4xl">👑</span>
             </div>
-            <p class="text-yellow-400 text-sm font-bold uppercase tracking-wider">Full System Access & Audit Logs</p>
+            <p class="superadmin-header-subtitle text-yellow-400 text-sm font-bold uppercase tracking-wider">Full System Access & Audit Logs</p>
         </div>
     </div>
     <!-- Internal Tabs Nav -->
-    <div class="flex flex-wrap items-center justify-center gap-2 mb-6 bg-black/40 p-2 rounded-2xl border border-white/5 mx-auto">
+    <div class="superadmin-tabs mb-6 bg-black/40 p-2 rounded-2xl border border-white/5 mx-auto">
         <button onclick="switchSupTab('overview')" id="suptab-overview" class="sup-tab-btn active">Overview</button>
         <button onclick="switchSupTab('profiles')" id="suptab-profiles" class="sup-tab-btn">Profiles</button>
         <button onclick="switchSupTab('attendance')" id="suptab-attendance" class="sup-tab-btn">Attendance</button>
@@ -306,8 +433,8 @@
                     <div class="text-[8px] text-slate-600 uppercase tracking-wider">Superadmin View Only</div>
                 </div>
             </div>
-            <div class="bg-black/50 border border-cyan-500/20 rounded-2xl overflow-hidden mb-6 shadow-[0_0_20px_rgba(6,182,212,0.08)]">
-                <div class="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-0 bg-cyan-500/5 border-b border-cyan-500/15 px-4 py-2">
+            <div class="superadmin-scroll-x bg-black/50 border border-cyan-500/20 rounded-2xl mb-6 shadow-[0_0_20px_rgba(6,182,212,0.08)]">
+                <div class="superadmin-wide-row grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-0 bg-cyan-500/5 border-b border-cyan-500/15 px-4 py-2">
                     <div class="text-[8px] font-black uppercase tracking-widest text-cyan-600">Admin</div>
                     <div class="text-[8px] font-black uppercase tracking-widest text-cyan-600 text-center px-3">Status</div>
                     <div class="text-[8px] font-black uppercase tracking-widest text-cyan-600 text-center px-3">Login At</div>
