@@ -557,6 +557,53 @@ function populateWeekDropdown() {
     }
 }
 
+// Weekly performance must use the same duplicate-lead rule as Agent Stats:
+// for the same agent + phone number, only the agent's last call to that number
+// can qualify as a lead.
+function ahNormalizeLeadNumber(raw) {
+    if (!raw) return '';
+    const digits = String(raw).replace(/\D/g, '');
+    return digits ? digits.slice(-10) : '';
+}
+
+function ahGetCountableLeadSet(rows) {
+    const source = Array.isArray(rows) ? rows : [];
+    const countable = new Set();
+    const lastByAgentAndNumber = new Map();
+
+    source.forEach((row, idx) => {
+        const num = ahNormalizeLeadNumber(row && row.leadNumber);
+        if (!num) return;
+        const agentKey = String((row && (row.agentName || row.rawName || row.name)) || '').trim().toUpperCase();
+        const key = `${agentKey}::${num}`;
+        const existing = lastByAgentAndNumber.get(key);
+        if (!existing) {
+            lastByAgentAndNumber.set(key, { row, idx });
+            return;
+        }
+        const hasTimes = typeof row.callTime === 'number' && typeof existing.row.callTime === 'number';
+        if (hasTimes) {
+            if (row.callTime > existing.row.callTime) lastByAgentAndNumber.set(key, { row, idx });
+        } else {
+            lastByAgentAndNumber.set(key, { row, idx });
+        }
+    });
+
+    source.forEach(row => {
+        const num = ahNormalizeLeadNumber(row && row.leadNumber);
+        if (!num) {
+            countable.add(row);
+            return;
+        }
+        const agentKey = String((row && (row.agentName || row.rawName || row.name)) || '').trim().toUpperCase();
+        const key = `${agentKey}::${num}`;
+        const winner = lastByAgentAndNumber.get(key);
+        if (winner && winner.row === row) countable.add(row);
+    });
+
+    return countable;
+}
+
 async function loadWeeklyDataForWeek(weekKey) {
     const reports = window.allAgentReports || [];
     const roster = window.allAgentProfiles || [];
@@ -630,11 +677,17 @@ async function loadWeeklyDataForWeek(weekKey) {
     roster.forEach(agent => {
         const id = String(agent.userId || agent.ytelId || '').trim();
         const displayName = agent.fullName || agent.name || '';
-        const team = agent.team || normalizeTeam('', displayName);
+        // The CURRENT master roster is authoritative for team assignment.
+        // Historical report rows may contain a stale BB/PR value after an agent
+        // is moved to another office/team.
+        const team = normalizeTeam(agent.team, displayName);
         const entry = { id, displayName, team };
         if (id) rosterById.set(id, entry);
         const nameKey = normalizeName(displayName);
-        if (nameKey) rosterByName.set(nameKey, entry);
+        if (nameKey) {
+            if (!rosterByName.has(nameKey)) rosterByName.set(nameKey, []);
+            rosterByName.get(nameKey).push(entry);
+        }
     });
 
     // Resolve a row (or roster record) to a stable canonical key + display info.
@@ -646,13 +699,28 @@ async function loadWeeklyDataForWeek(weekKey) {
     function resolveAgent({ id, name, team, rawName }) {
         const cleanId = String(id || '').trim();
         const nameKey = normalizeName(name || rawName || '');
+        const reportTeam = normalizeTeam(team, rawName || name);
         let rosterEntry = null;
-        if (cleanId && rosterById.has(cleanId)) rosterEntry = rosterById.get(cleanId);
-        else if (nameKey && rosterByName.has(nameKey)) rosterEntry = rosterByName.get(nameKey);
+
+        // ID is authoritative and must accept BOTH raw CSV `agentId` and saved
+        // historical `ytelId` (the caller supplies either one here).
+        if (cleanId && rosterById.has(cleanId)) {
+            rosterEntry = rosterById.get(cleanId);
+        } else if (nameKey && rosterByName.has(nameKey)) {
+            const matches = rosterByName.get(nameKey);
+            if (matches.length === 1) {
+                rosterEntry = matches[0];
+            } else if (matches.length > 1) {
+                // Avoid assigning a same-name PR agent to BB (or vice versa).
+                // Use the report/prefix team only to disambiguate duplicate names;
+                // the matched roster record still supplies the final team.
+                rosterEntry = matches.find(entry => entry.team === reportTeam) || null;
+            }
+        }
 
         const finalId = (rosterEntry && rosterEntry.id) || cleanId;
         const finalName = (rosterEntry && rosterEntry.displayName) || name || rawName || '';
-        const finalTeam = (rosterEntry && rosterEntry.team) || team || normalizeTeam(team, rawName || name);
+        const finalTeam = (rosterEntry && rosterEntry.team) || reportTeam;
         const key = finalId ? `id:${finalId}` : `name:${nameKey}`;
         return { key, id: finalId, name: finalName, team: finalTeam };
     }
@@ -662,26 +730,31 @@ async function loadWeeklyDataForWeek(weekKey) {
     const agentWeeklyMap = new Map(); // canonical key -> { id, name, team, transfers }
 
     weekReports.forEach(report => {
-        (report.data || []).forEach(row => {
+        const reportRows = report.data || [];
+        const countable = ahGetCountableLeadSet(reportRows);
+
+        reportRows.forEach(row => {
             const agentName = row.agentName || row.name || row['Agent Name'] || '';
             const rawName = row.rawName || agentName;
-            if (!agentName && !row.agentId) return;
+            if (!agentName && !row.agentId && !row.ytelId) return;
 
             // Skip PH training accounts that slipped into old Firebase records
             if (/^PH(?![A-Za-z])/i.test(rawName)) return;
 
-            // 🔥 FIX: Use the SAME lead-count rule as the dashboard's Weekly tab so
-            // both views show identical totals.  Live-pushed rows carry dailyLeads;
-            // raw CSV rows carry duration (in seconds) and are counted as a lead
-            // when duration >= 120s (matching js/dashboard.js).
-            let leadCount = Number(row.dailyLeads) || 0;
-            if (leadCount === 0 && row.duration !== undefined && row.duration !== null && row.duration !== '') {
-                leadCount = Number(row.duration) >= 120 ? 1 : 0;
-            }
+            // Use the SAME rule as Agent Stats / Daily:
+            // raw calls count only when duration >= 120 AND this is the last call
+            // by this agent to this Lead Number. Aggregated rows use dailyLeads.
+            const hasDuration = row.duration !== undefined && row.duration !== null && row.duration !== '';
+            let leadCount = hasDuration
+                ? (countable.has(row) && Number(row.duration) >= 120 ? 1 : 0)
+                : (Number(row.dailyLeads) || 0);
             if (leadCount <= 0) return;
 
             const resolved = resolveAgent({
-                id: row.agentId,
+                // Raw CSV rows use agentId; saved historical reports commonly use
+                // ytelId. Weekly must recognize both or team resolution can fall
+                // back to stale report metadata.
+                id: row.agentId || row.ytelId,
                 name: agentName,
                 team: row.team,
                 rawName

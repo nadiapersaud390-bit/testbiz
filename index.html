@@ -10,19 +10,6 @@
     <style>
         /* ── RESPONSIVE ZOOM FIX ── */
 
-        html, body {
-            width: 100%;
-            max-width: 100%;
-            overflow-x: hidden;
-        }
-
-        .main-container > [id$="-view"] {
-            width: 100%;
-            max-width: 100%;
-            min-width: 0;
-            box-sizing: border-box;
-        }
-
         .main-container {
             width: 100%;
             max-width: 1400px;
@@ -1073,7 +1060,63 @@
             .dashboard-live-meta { font-size: 10px !important; }
             .dashboard-title { font-size: 30px !important; }
         }
-    </style>
+    
+        /* Payroll disclaimer — dashboard-wide notice */
+        .payroll-unofficial-notice {
+            width: min(980px, calc(100% - 24px));
+            margin: 10px auto 16px;
+            padding: 11px 16px;
+            border: 1px solid rgba(250, 204, 21, 0.34);
+            background: rgba(250, 204, 21, 0.08);
+            border-radius: 13px;
+            color: #fde68a;
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+        .payroll-unofficial-notice i { margin-right: 7px; color: #facc15; }
+
+        /* Daily rankings payroll notice */
+        #leaderboard-view .rankings-header-bar {
+            display: grid !important;
+            grid-template-columns: auto minmax(280px, 1fr) auto !important;
+            align-items: center !important;
+            gap: 16px !important;
+        }
+        #leaderboard-view .daily-payroll-inline {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            justify-self: center;
+            padding: 8px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(250,204,21,.38);
+            background: rgba(250,204,21,.09);
+            color: #fcd34d;
+            text-align: center;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: .075em;
+            text-transform: uppercase;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+        #leaderboard-view .daily-payroll-inline i { margin-right: 7px; color: #facc15; }
+        @media (max-width: 900px) {
+            #leaderboard-view .rankings-header-bar {
+                grid-template-columns: 1fr !important;
+                justify-items: center !important;
+                gap: 9px !important;
+            }
+            #leaderboard-view .daily-payroll-inline {
+                white-space: normal;
+                width: min(100%,560px);
+            }
+        }
+</style>
 </head>
 <body class="p-4 pb-20 role-pending">
 
@@ -1590,7 +1633,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div id="agent-goal-widget-container" style="display:none;"></div>
     </div>
 
-    <div id="leaderboard-view" data-tab-src="tabs/leaderboard.html?v=5"></div>
+    <div id="leaderboard-view" data-tab-src="tabs/leaderboard.html?v=6"></div>
     <div id="lookup-view" class="hidden"><div class="glass p-6 rounded-3xl border-t-4 border-t-blue-500">
             <div class="flex items-center gap-3 mb-3">
                 <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);">
@@ -1636,7 +1679,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div id="trivia-view" class="hidden" data-tab-src="tabs/trivia.html"></div>
     <div id="chatroom-view" class="hidden" data-tab-src="tabs/chatroom.html"></div>
     <div id="adminpanel-view" class="hidden" data-tab-src="tabs/adminpanel.html?v=12"></div>
-    <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html?v=12"></div>
+    <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html?v=11"></div>
     <div id="agentstats-view" class="hidden" data-tab-src="tabs/agentstats.html"></div>
     <div id="tracker-view" class="hidden" data-tab-src="tabs/tracker.html"></div>
     <div id="simulator-view" class="hidden" data-tab-src="tabs/simulator.html?v=9"></div>
@@ -1646,7 +1689,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="js/config.js?v=2"></script>
 <script src="js/utils.js?v=4"></script>
 <script src="js/session-banner.js"></script>
-<script src="js/dashboard.js?v=7"></script>
+<script src="js/dashboard.js?v=10"></script>
 <script src="js/adminpanel.js?v=3"></script>
 <script src="js/lookup.js?v=2"></script>
 <script src="js/trivia.js"></script>
@@ -1656,7 +1699,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="js/agentstats.js?v=2"></script>
 <script src="js/super-admin.js?v=4"></script>
 <script src="js/agentprofiles.js?v=3"></script>
-<script src="js/adminhub.js?v=3"></script>
+<script src="js/adminhub.js?v=5"></script>
 <script src="js/tracker.js?v=4"></script>
 <script src="js/chatroom.js?v=7"></script>
 <script src="js/goals.js?v=8"></script>
@@ -1687,6 +1730,24 @@ function _injectTab(tabId, html) {
         oldScript.parentNode.replaceChild(newScript, oldScript);
     });
     _loadedTabs.add(tabId);
+
+    // Always show the Daily payroll disclaimer between LIVE RANKINGS and the performance date.
+    if (tabId === 'leaderboard-view') {
+        const title = el.querySelector('#ranking-title');
+        const dayIndicator = el.querySelector('#day-indicator');
+        if (title && dayIndicator && !el.querySelector('.daily-payroll-inline')) {
+            const notice = document.createElement('div');
+            notice.className = 'daily-payroll-inline';
+            notice.setAttribute('role', 'note');
+            notice.setAttribute('aria-label', 'Payroll status notice');
+            notice.innerHTML = '<i class="fas fa-circle-info"></i>These numbers are unofficial until payroll';
+            const header = title.parentElement;
+            if (header) {
+                header.classList.add('rankings-header-bar');
+                header.insertBefore(notice, dayIndicator);
+            }
+        }
+    }
 }
 
 // Fetch + inject (shows spinner only if not pre-fetched yet)

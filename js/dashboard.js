@@ -125,6 +125,13 @@ function subscribeRosterFromFirestore() {
             try { localStorage.setItem('biz_master_roster', JSON.stringify(list)); } catch (e) {}
             const state = window._asLastLiveState || null;
             agents = buildAgentsFromRoster(state);
+            // Weekly history may have been processed before the roster finished
+            // loading. Always rebuild it now: the calculation seeds every active
+            // roster agent at zero, then overlays any uploaded Mon-Fri totals.
+            // This both preserves current PR/BB assignments and keeps 0 agents visible.
+            const refreshedWeekly = calculateWeeklyCumulativeTotals();
+            window._weeklyCumulativeTotals = refreshedWeekly;
+            weeklyAccumulatedData = refreshedWeekly;
             if (agents.length > 0) {
                 agents[0].todayName = (state && state.dateLabel) || (typeof getGuyanaToday === 'function' ? getGuyanaToday() : '');
                 let pr = 0, bb = 0, rm = 0;
@@ -172,6 +179,146 @@ async function loadFullRoster(force) {
         }
     }
     return fullRoster;
+}
+
+// Keep historical/weekly counting identical to Agent Stats daily counting.
+// Raw dialer reports can contain repeated calls to the same phone number; only
+// the LAST call by the same agent to that number is eligible to count.
+function normalizeDashboardLeadNumber(raw) {
+    if (!raw) return '';
+    const digits = String(raw).replace(/\D/g, '');
+    return digits ? digits.slice(-10) : '';
+}
+
+function getDashboardCountableLeadSet(rows) {
+    const countable = new Set();
+    if (!Array.isArray(rows)) return countable;
+
+    const lastRowByAgentAndNumber = new Map();
+    rows.forEach((row, idx) => {
+        const num = normalizeDashboardLeadNumber(row && row.leadNumber);
+        if (!num) return;
+
+        const agentKey = String((row && (row.agentName || row.rawName)) || '').trim().toUpperCase();
+        const leadKey = `${agentKey}::${num}`;
+        const existing = lastRowByAgentAndNumber.get(leadKey);
+        if (!existing) {
+            lastRowByAgentAndNumber.set(leadKey, { row, idx });
+            return;
+        }
+
+        const hasTimes = typeof row.callTime === 'number' && typeof existing.row.callTime === 'number';
+        if (hasTimes) {
+            if (row.callTime > existing.row.callTime) lastRowByAgentAndNumber.set(leadKey, { row, idx });
+        } else {
+            lastRowByAgentAndNumber.set(leadKey, { row, idx });
+        }
+    });
+
+    rows.forEach(row => {
+        const num = normalizeDashboardLeadNumber(row && row.leadNumber);
+        if (!num) {
+            countable.add(row);
+            return;
+        }
+        const agentKey = String((row && (row.agentName || row.rawName)) || '').trim().toUpperCase();
+        const leadKey = `${agentKey}::${num}`;
+        const winner = lastRowByAgentAndNumber.get(leadKey);
+        if (winner && winner.row === row) countable.add(row);
+    });
+
+    return countable;
+}
+
+function normalizeDashboardAgentName(name) {
+    return String(name || '')
+        .replace(/^(GYP|GYB|GTM|RM)\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toUpperCase();
+}
+
+function resolveDashboardAgent(row) {
+    const cleanId = String((row && (row.agentId || row.ytelId)) || '').trim();
+    const rowName = (row && (row.agentName || row.name)) || '';
+    const rawName = (row && row.rawName) || rowName;
+    const cleanName = normalizeDashboardAgentName(rowName || rawName);
+    const reportTeam = normalizeTeam(row && row.team, rawName || rowName);
+
+    let rosterMatch = null;
+
+    // Prefer exact ID. Historical weekly rows can contain an old BB/PR team,
+    // so the CURRENT master roster must be authoritative whenever we can match
+    // the person to a roster record.
+    if (cleanId) {
+        rosterMatch = fullRoster.find(r => {
+            if (!r || r.hiddenFromDisplay) return false;
+            const rosterId = String(r.userId || r.ytelId || '').trim();
+            return rosterId && rosterId === cleanId;
+        }) || null;
+    }
+
+    // Fall back to normalized name. If duplicate names exist, use the report
+    // team only to disambiguate which roster record is meant; the final team
+    // still comes from that roster record.
+    if (!rosterMatch && cleanName) {
+        const nameMatches = fullRoster.filter(r => {
+            if (!r || r.hiddenFromDisplay) return false;
+            return normalizeDashboardAgentName(r.fullName || r.name || '') === cleanName;
+        });
+        if (nameMatches.length === 1) {
+            rosterMatch = nameMatches[0];
+        } else if (nameMatches.length > 1) {
+            rosterMatch = nameMatches.find(r => normalizeTeam(r.team, r.fullName || r.name) === reportTeam) || null;
+        }
+    }
+
+    const finalId = String((rosterMatch && (rosterMatch.userId || rosterMatch.ytelId)) || cleanId || '').trim();
+    const finalName = (rosterMatch && (rosterMatch.fullName || rosterMatch.name)) || rowName || rawName || '';
+    const finalTeam = rosterMatch
+        ? normalizeTeam(rosterMatch.team, rosterMatch.fullName || rosterMatch.name)
+        : reportTeam;
+    const key = finalId ? `ID:${finalId}` : `NAME:${normalizeDashboardAgentName(finalName)}`;
+
+    return { key, id: finalId, name: finalName, team: finalTeam, rawName };
+}
+
+function buildDashboardDayAggregate(rows) {
+    const sourceRows = Array.isArray(rows) ? rows : [];
+    const countable = getDashboardCountableLeadSet(sourceRows);
+    const agg = {};
+
+    sourceRows.forEach(d => {
+        if (!d) return;
+        const rawName = d.rawName || d.agentName || d.name || '';
+        if (rawName && /^PH(?![A-Za-z])/i.test(rawName)) return;
+
+        const resolved = resolveDashboardAgent(d);
+        if (!resolved.name && !resolved.id) return;
+
+        let leadCount = 0;
+        const hasDuration = d.duration !== undefined && d.duration !== null && d.duration !== '';
+        if (hasDuration) {
+            // Raw CSV row: use the same duplicate-number rule as Agent Stats.
+            leadCount = countable.has(d) && Number(d.duration) >= 120 ? 1 : 0;
+        } else {
+            // Already-aggregated report row (for example an admin push).
+            leadCount = Number(d.dailyLeads) || 0;
+        }
+
+        if (!agg[resolved.key]) {
+            agg[resolved.key] = {
+                name: resolved.name,
+                leads: 0,
+                rawName: resolved.rawName,
+                ytelId: resolved.id,
+                team: resolved.team
+            };
+        }
+        agg[resolved.key].leads += leadCount;
+    });
+
+    return agg;
 }
 
 function buildAgentsFromRoster(state) {
@@ -331,36 +478,85 @@ function updateRealTimeLeadTracking(newAgents) {
     }
 }
 
-// Calculate weekly cumulative totals from ALL uploaded days this week
+// Calculate weekly cumulative totals from ALL uploaded days this week.
+// IMPORTANT: seed the map from the CURRENT master roster first so active agents
+// remain visible on the Weekly leaderboard even when their weekly total is 0.
 function calculateWeeklyCumulativeTotals() {
-    if (!dayHistory || dayHistory.length === 0) return {};
-    
     const weeklyTotals = {};
-    
-    // Get ALL days that have data (Monday-Friday) - NOT just completed days
-    const daysWithData = dayHistory.filter(day => day.agents && day.agents.length > 0);
+
+    // Start with every current, displayable roster agent at zero. This also makes
+    // the roster the authoritative source for the person's current PR/BB/RM team.
+    (Array.isArray(fullRoster) ? fullRoster : []).forEach(rosterAgent => {
+        if (!rosterAgent || rosterAgent.hiddenFromDisplay) return;
+
+        const rosterName = rosterAgent.fullName || rosterAgent.name || '';
+        if (!rosterName || /^PH(?![A-Za-z])/i.test(rosterName)) return;
+
+        const resolved = resolveDashboardAgent({
+            agentId: rosterAgent.userId || rosterAgent.ytelId,
+            ytelId: rosterAgent.ytelId || rosterAgent.userId,
+            agentName: rosterName,
+            name: rosterName,
+            rawName: rosterName,
+            team: rosterAgent.team
+        });
+        const agentKey = resolved.id || resolved.key || normalizeDashboardAgentName(resolved.name || rosterName);
+        if (!agentKey) return;
+
+        weeklyTotals[agentKey] = {
+            name: resolved.name || rosterName,
+            ytelId: resolved.id || rosterAgent.userId || rosterAgent.ytelId || '',
+            team: normalizeTeam(resolved.team, resolved.rawName || resolved.name || rosterName),
+            leads: 0
+        };
+    });
+
+    // Get ALL days that have data (Monday-Friday) - NOT just completed days.
+    // If there are no uploaded days yet, return the zero-seeded roster instead
+    // of an empty object so Weekly still shows everybody.
+    const daysWithData = Array.isArray(dayHistory)
+        ? dayHistory.filter(day => day.agents && day.agents.length > 0)
+        : [];
     
     console.log('[Weekly] Days with data:', daysWithData.map(d => `${d.dayName}: ${d.agents.length} agents`));
     
-    // Accumulate leads across ALL days that have data
+    // Accumulate leads across ALL days that have data. Re-resolve every stored
+    // day row against the CURRENT master roster before assigning its team. This
+    // prevents a historical BB/PR value (or an early calculation made before
+    // the roster finished loading) from putting a PR agent under BB weekly.
     daysWithData.forEach(day => {
         if (day.agents && day.agents.length > 0) {
             day.agents.forEach(agent => {
-                const agentKey = agent.ytelId || agent.name.toUpperCase();
+                const resolved = resolveDashboardAgent({
+                    agentId: agent.ytelId || agent.agentId,
+                    ytelId: agent.ytelId || agent.agentId,
+                    agentName: agent.name,
+                    name: agent.name,
+                    rawName: agent.rawName || agent.name,
+                    team: agent.team
+                });
+                const agentKey = resolved.id || resolved.key || normalizeDashboardAgentName(resolved.name || agent.name);
+                if (!agentKey) return;
                 if (!weeklyTotals[agentKey]) {
                     weeklyTotals[agentKey] = {
-                        name: agent.name,
-                        ytelId: agent.ytelId,
-                        team: normalizeTeam(agent.team, agent.name),
+                        name: resolved.name || agent.name,
+                        ytelId: resolved.id || agent.ytelId || '',
+                        team: normalizeTeam(resolved.team, resolved.rawName || resolved.name || agent.name),
                         leads: 0
                     };
+                } else {
+                    // Roster team is authoritative even if an older day snapshot
+                    // was created with stale team metadata.
+                    weeklyTotals[agentKey].team = normalizeTeam(resolved.team, resolved.rawName || resolved.name || agent.name);
+                    weeklyTotals[agentKey].name = resolved.name || weeklyTotals[agentKey].name;
+                    weeklyTotals[agentKey].ytelId = resolved.id || weeklyTotals[agentKey].ytelId;
                 }
                 weeklyTotals[agentKey].leads += agent.leads || 0;
             });
         }
     });
     
-    console.log('[Weekly] Cumulative totals calculated for', Object.keys(weeklyTotals).length, 'agents');
+    console.log('[Weekly] Cumulative totals calculated for', Object.keys(weeklyTotals).length, 'roster agents (including zero totals)');
     return weeklyTotals;
 }
 
@@ -617,32 +813,10 @@ function _subscribeLiveDashboard() {
                     
                     console.log(`Processing ${day} report: ${r.reportDate} - Found ${r.data ? r.data.length : 0} rows`);
                     
-                    const agg = {};
-                    (r.data || []).forEach(d => {
-                        const id = d.agentId || d.ytelId || d.name;
-                        const name = d.agentName || d.name;
-                        const rawName = d.rawName || (d.prefix ? (d.prefix + ' ' + name) : name);
-                        
-                        // Skip PH training accounts
-                        if (rawName && /^PH(?![A-Za-z])/i.test(rawName)) return;
-                        
-                        if (id) {
-                            if (!agg[id]) {
-                                agg[id] = { 
-                                    name: name, 
-                                    leads: 0, 
-                                    rawName: rawName,
-                                    ytelId: id 
-                                };
-                            }
-                            
-                            let leadCount = d.dailyLeads || 0;
-                            if (leadCount === 0 && d.duration !== undefined) {
-                                leadCount = Number(d.duration) >= 120 ? 1 : 0;
-                            }
-                            agg[id].leads += leadCount;
-                        }
-                    });
+                    // IMPORTANT: Build each day's totals with the SAME rules used by
+                    // Agent Stats / the Daily board: dedupe repeated Lead Numbers first,
+                    // then resolve each report row to the canonical roster agent.
+                    const agg = buildDashboardDayAggregate(r.data || []);
                     
                     return {
                         day: day,
@@ -656,7 +830,7 @@ function _subscribeLiveDashboard() {
                             leads: a.leads,
                             ytelId: a.ytelId,
                             rawName: a.rawName,
-                            team: typeof normalizeTeam === 'function' ? normalizeTeam('', a.rawName) : 'PR'
+                            team: a.team || (typeof normalizeTeam === 'function' ? normalizeTeam('', a.rawName) : 'PR')
                         }))
                     };
                 });
@@ -820,7 +994,7 @@ function render() {
                 ytelId: a.ytelId,
                 rawName: a.name
             }))
-            .sort((a, b) => b.leads - a.leads);
+            .sort((a, b) => (b.leads - a.leads) || String(a.name).localeCompare(String(b.name)));
         
         fullList.forEach(a => {
             const leads = a.leads || 0;
