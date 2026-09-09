@@ -196,6 +196,7 @@ async function superAdminLogin(email, password) {
         role: admin.role || 'admin',
         isSuper: false,
         hiddenTabs: admin.hiddenTabs || [],
+        adminHubHiddenTabs: Array.isArray(admin.adminHubHiddenTabs) ? admin.adminHubHiddenTabs : ['profiles', 'attendance'],
         adminToolUploadScope: admin.adminToolUploadScope || 'all'
     }));
     sessionStorage.setItem('adminLoggedIn', 'true');
@@ -254,6 +255,7 @@ async function addNewAdmin(email, password, name, role = 'admin') {
         addedBy: currentAdmin.email,
         addedAt: new Date().toISOString(),
         hiddenTabs: [],
+        adminHubHiddenTabs: ['profiles', 'attendance'],
         adminToolUploadScope: 'all'
     };
 

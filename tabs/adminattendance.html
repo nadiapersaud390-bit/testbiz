@@ -1,0 +1,115 @@
+<style>
+.att-team-btn { padding:6px 14px; border-radius:10px; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; color:#64748b; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); cursor:pointer; transition:all .15s; }
+.att-team-btn:hover { color:#fff; }
+.att-team-btn.active { background:rgba(59,130,246,.2); color:#60a5fa; border-color:rgba(59,130,246,.35); }
+</style>
+<!-- Shared Attendance Hub for regular Admin Hub -->
+<div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+            <h3 class="text-xl font-black text-white uppercase">📅 Attendance Hub</h3>
+            <div class="flex flex-wrap gap-2 items-center">
+                <input type="date" id="att-date-picker" onchange="ahAttDateChanged(this.value)" class="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold cursor-pointer">
+                <button onclick="switchAttView('daily')" id="att-v-daily" class="px-4 py-2 rounded-xl text-[10px] font-black bg-blue-500 text-white shadow-lg shadow-blue-900/40">Daily</button>
+                <button onclick="switchAttView('weekly')" id="att-v-weekly" class="px-4 py-2 rounded-xl text-[10px] font-black text-slate-400 hover:text-white transition">Weekly</button>
+                <button onclick="switchAttView('monthly')" id="att-v-monthly" class="px-4 py-2 rounded-xl text-[10px] font-black text-slate-400 hover:text-white transition">Monthly</button>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-4">
+            <button onclick="filterAttTeam('ALL')" id="att-t-all" class="att-team-btn active">All Teams</button>
+            <button onclick="filterAttTeam('BB')" id="att-t-bb" class="att-team-btn">Berbice</button>
+            <button onclick="filterAttTeam('PR')" id="att-t-pr" class="att-team-btn">Providence</button>
+            <button onclick="filterAttTeam('RM')" id="att-t-rm" class="att-team-btn">Remote</button>
+        </div>
+        <div id="att-view-daily" class="att-view-content">
+            <div class="flex flex-wrap gap-4 mb-4 text-sm items-center justify-between">
+                <div id="att-summary-counts" class="flex flex-wrap gap-4"></div>
+            </div>
+            <!-- Bulk Action Toolbar (hidden until rows selected) -->
+            <div id="att-bulk-toolbar" style="display:none" class="mb-3 flex flex-wrap items-center gap-3 bg-blue-500/10 border border-blue-500/25 rounded-2xl px-4 py-3">
+                <span id="att-bulk-count" class="text-[10px] font-black text-blue-400 uppercase tracking-widest">0 Selected</span>
+                <span class="text-slate-600 text-[10px]">|</span>
+                <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Set Status:</span>
+                <select id="att-bulk-status-sel" class="bg-black/50 border border-white/15 rounded-xl px-3 py-1.5 text-white text-[11px] font-bold outline-none">
+                    <option value="">-- choose --</option>
+                    <option value="Training">Training</option>
+                    <option value="Present">Present</option>
+                    <option value="Late">Late</option>
+                    <option value="Absent">Absent</option>
+                    <option value="Personal Out">Personal Out</option>
+                    <option value="Vacation">Vacation</option>
+                    <option value="Sick">Sick</option>
+                    <option value="Off">Off</option>
+                    <option value="Holiday">Holiday</option>
+                </select>
+                <button onclick="ahApplyBulkStatus()" class="px-4 py-1.5 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-300 text-[10px] font-black uppercase tracking-widest hover:bg-blue-500/35 transition active:scale-95">
+                    <i class="fas fa-check mr-1"></i> Apply
+                </button>
+                <button onclick="ahBulkClearSelection()" class="ml-auto px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition">
+                    <i class="fas fa-times mr-1"></i> Clear
+                </button>
+            </div>
+            <div class="bg-white/5 p-4 rounded-2xl overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead><tr class="text-[9px] font-black text-slate-500 border-b border-white/10">
+                        <th class="p-3 w-8"><input type="checkbox" id="att-select-all" onchange="ahToggleSelectAll(this.checked)" class="w-3.5 h-3.5 accent-blue-500 cursor-pointer"></th>
+                        <th class="p-3">#</th><th>Agent</th><th>Team</th><th>Status</th><th class="text-right">Clocked In</th><th class="text-center">Edit</th>
+                     </tr></thead>
+                    <tbody id="att-daily-list"></tbody>
+                 </table>
+            </div>
+        </div>
+        <div id="att-view-weekly" class="att-view-content hidden">
+            <div class="bg-white/5 p-4 rounded-2xl"><div id="att-weekly-matrix" class="py-10 text-slate-500 text-center">Select a team to load weekly data</div></div>
+        </div>
+        <div id="att-view-monthly" class="att-view-content hidden">
+            <div class="flex flex-wrap gap-2 mb-4 items-center">
+                <select id="att-month-select" onchange="ahLoadMonthlyMatrix()" class="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-white text-[11px] font-bold outline-none cursor-pointer"></select>
+                <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Select team above to filter</span>
+            </div>
+            <div class="bg-white/5 p-4 rounded-2xl overflow-x-auto"><div id="att-monthly-matrix" class="py-10 text-slate-500 text-center">Select a month to load data</div></div>
+        </div>
+        <!-- Attendance Edit Modal -->
+        <div id="att-edit-panel" style="display:none" class="fixed inset-0 z-[9999] flex items-center justify-center p-4" onclick="if(event.target===this)ahCloseAttEdit()">
+            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+            <div class="relative w-full max-w-md bg-[#0f1117] border border-yellow-500/30 rounded-2xl shadow-2xl p-6">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <div class="text-[9px] font-black text-yellow-500 uppercase tracking-widest mb-0.5">Edit Attendance</div>
+                        <div id="att-edit-name" class="text-white font-black text-base uppercase tracking-tight">—</div>
+                    </div>
+                    <button onclick="ahCloseAttEdit()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 text-sm transition"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Status</label>
+                        <select id="att-edit-status" class="w-full bg-black/50 border border-white/15 rounded-xl px-4 py-2.5 text-white text-sm font-bold outline-none focus:border-yellow-500/50 transition">
+                            <option value="Training">Training</option>
+                            <option value="Present">Present</option>
+                            <option value="Late">Late</option>
+                            <option value="Absent">Absent</option>
+                            <option value="Personal Out">Personal Out</option>
+                            <option value="Vacation">Vacation</option>
+                            <option value="Sick">Sick</option>
+                            <option value="Off">Off</option>
+                            <option value="Holiday">Holiday</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Clocked In Time</label>
+                        <input type="time" id="att-edit-time" class="w-full bg-black/50 border border-white/15 rounded-xl px-4 py-2.5 text-white text-sm font-bold outline-none focus:border-yellow-500/50 transition">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Notes / Reason <span class="text-slate-600 normal-case font-bold">(optional)</span></label>
+                        <textarea id="att-edit-notes" rows="3" placeholder="e.g. Called in sick, doctor's note provided..." class="w-full bg-black/50 border border-white/15 rounded-xl px-4 py-2.5 text-white text-[12px] font-medium outline-none focus:border-yellow-500/50 transition resize-none placeholder-slate-600"></textarea>
+                    </div>
+                </div>
+                <div id="att-edit-status-msg" class="text-[11px] text-center mt-4 min-h-[18px]"></div>
+                <div class="flex gap-3 mt-4">
+                    <button onclick="ahSaveAttEdit()" class="flex-1 bg-yellow-500 hover:bg-yellow-400 active:scale-95 text-black font-black py-2.5 rounded-xl text-[12px] uppercase tracking-widest transition">Save Changes</button>
+                    <button onclick="ahCloseAttEdit()" class="bg-white/5 hover:bg-white/10 border border-white/10 px-5 py-2.5 rounded-xl text-slate-400 text-[12px] font-black transition">Cancel</button>
+                </div>
+                <input type="hidden" id="att-edit-agent-id">
+                <input type="hidden" id="att-edit-agent-name">
+                <input type="hidden" id="att-edit-agent-team">
+                <input type="hidden" id="att-edit-date">
+            </div>
+        </div>

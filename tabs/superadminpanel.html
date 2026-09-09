@@ -1102,6 +1102,22 @@
                         </div>
                     </div>
                 </div>
+                <div id="um-adminhub-perms-section" class="bg-cyan-500/5 border border-cyan-500/20 rounded-2xl p-4">
+                    <div class="text-[9px] font-black uppercase tracking-widest text-cyan-400 mb-1 flex items-center gap-2">
+                        <i class="fas fa-sliders-h"></i> Inside Admin Hub — choose exactly what this admin can see
+                    </div>
+                    <div class="text-[9px] text-slate-500 font-bold mb-3">These permissions only control the sections inside the normal Admin Hub.</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="stats" checked> <span>📊 Agent Stats</span></label>
+                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="rebuttals" checked> <span>🧠 Rebuttal Intel</span></label>
+                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="performance" checked> <span>🏆 Weekly Perf</span></label>
+                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="zero" checked> <span>👻 Zero Perf</span></label>
+                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="targetboard" checked> <span>🎯 Target Board</span></label>
+                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="profiles"> <span>👤 Profiles</span></label>
+                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="attendance"> <span>📅 Attendance</span></label>
+                    </div>
+                    <div class="mt-3 text-[9px] text-cyan-300/80 font-bold"><i class="fas fa-info-circle mr-1"></i>Profiles and Attendance are off by default for regular admins until you enable them.</div>
+                </div>
                 <style>
                     .um-tab-perm-label { display:flex; align-items:center; gap:8px; cursor:pointer; padding:6px 10px; border-radius:10px; border:1px solid rgba(99,102,241,0.15); background:rgba(99,102,241,0.05); font-size:11px; font-weight:700; color:#94a3b8; transition:background 0.15s; }
                     .um-tab-perm-label:hover { background:rgba(99,102,241,0.12); color:#e2e8f0; }
@@ -2681,13 +2697,22 @@ Their name will be removed from all active dashboard areas.`)) return;
 
         // Tab permissions — hide section for super admin, load saved hiddenTabs for others
         const tabPermsSection = document.getElementById('um-tab-perms-section');
+        const hubPermsSection = document.getElementById('um-adminhub-perms-section');
         if (admin._isSuper) {
             if (tabPermsSection) tabPermsSection.style.display = 'none';
+            if (hubPermsSection) hubPermsSection.style.display = 'none';
         } else {
             if (tabPermsSection) tabPermsSection.style.display = '';
+            if (hubPermsSection) hubPermsSection.style.display = '';
             const hiddenTabs = admin.hiddenTabs || [];
             document.querySelectorAll('.um-tab-cb').forEach(cb => {
                 cb.checked = !hiddenTabs.includes(cb.getAttribute('data-tab'));
+            });
+            // Fine-grained permissions inside the normal Admin Hub. Legacy admin records
+            // keep their existing analytics access, while Profiles + Attendance stay opt-in.
+            const hubHiddenTabs = Array.isArray(admin.adminHubHiddenTabs) ? admin.adminHubHiddenTabs : ['profiles', 'attendance'];
+            document.querySelectorAll('.um-adminhub-cb').forEach(cb => {
+                cb.checked = !hubHiddenTabs.includes(cb.getAttribute('data-hubtab'));
             });
             // Admin Tools sub-panel: show/hide + set scope
             const adminToolsCb = document.getElementById('um-admintools-cb');
@@ -2740,6 +2765,11 @@ Their name will be removed from all active dashboard areas.`)) return;
         document.querySelectorAll('.um-tab-cb').forEach(cb => {
             if (!cb.checked) hiddenTabs.push(cb.getAttribute('data-tab'));
         });
+        // Read fine-grained Admin Hub permissions.
+        const adminHubHiddenTabs = [];
+        document.querySelectorAll('.um-adminhub-cb').forEach(cb => {
+            if (!cb.checked) adminHubHiddenTabs.push(cb.getAttribute('data-hubtab'));
+        });
         // Admin Tools upload scope
         const scopeAllEl = document.getElementById('um-scope-all');
         const adminToolUploadScope = (scopeAllEl && scopeAllEl.checked) ? 'all' : 'self';
@@ -2762,6 +2792,7 @@ Their name will be removed from all active dashboard areas.`)) return;
             admins[key].name = name;
             admins[key].role = role;
             admins[key].hiddenTabs = hiddenTabs;
+            admins[key].adminHubHiddenTabs = adminHubHiddenTabs;
             admins[key].adminToolUploadScope = adminToolUploadScope;
             if (newPass) admins[key].password = btoa(newPass);
             if (typeof window.saveAdminRecordToFirebase !== 'function') {

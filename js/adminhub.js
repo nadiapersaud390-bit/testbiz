@@ -19,6 +19,57 @@ const ahTeamColors = {
 // IDs that can log in but receive ZERO admin features
 window._RESTRICTED_ADMIN_IDS = ['0000'];
 
+
+const ADMIN_HUB_TABS = ['stats', 'rebuttals', 'performance', 'zero', 'targetboard', 'profiles', 'attendance'];
+const ADMIN_HUB_LEGACY_DEFAULT_HIDDEN = ['profiles', 'attendance'];
+
+function _getCurrentAdminHubHiddenTabs() {
+    let admin = {};
+    try { admin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch (e) {}
+    const email = String(admin.email || '').trim().toLowerCase();
+    if (admin.isSuper === true || admin.role === 'super_admin' || email === 'rose') return [];
+    try {
+        const directory = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+        const latest = directory[email];
+        if (latest && Array.isArray(latest.adminHubHiddenTabs)) return latest.adminHubHiddenTabs;
+    } catch (e) {}
+    return Array.isArray(admin.adminHubHiddenTabs) ? admin.adminHubHiddenTabs : ADMIN_HUB_LEGACY_DEFAULT_HIDDEN.slice();
+}
+
+window.canAccessAdminHubTab = function(tabId) {
+    const tab = String(tabId || '').trim().toLowerCase();
+    if (!ADMIN_HUB_TABS.includes(tab)) return false;
+    return !_getCurrentAdminHubHiddenTabs().includes(tab);
+};
+
+window.applyAdminHubPermissions = function() {
+    const hidden = _getCurrentAdminHubHiddenTabs();
+    ADMIN_HUB_TABS.forEach(tab => {
+        const btn = document.getElementById('ah-tab-' + tab);
+        if (btn) btn.classList.toggle('hidden', hidden.includes(tab));
+    });
+    const active = document.querySelector('.ah-tab-btn.active:not(.hidden)');
+    if (!active) {
+        const first = ADMIN_HUB_TABS.find(tab => !hidden.includes(tab) && document.getElementById('ah-tab-' + tab));
+        if (first && typeof window.switchAdminHubTab === 'function') window.switchAdminHubTab(first);
+    }
+};
+
+window.ensureAgentProfileModal = async function() {
+    if (document.getElementById('ap-modal-overlay')) return true;
+    try {
+        const html = await fetch('tabs/agentprofiles.html?v=4').then(r => r.ok ? r.text() : Promise.reject(new Error('Profile template unavailable')));
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const modal = doc.getElementById('ap-modal-overlay') || doc.getElementById('ap-modal');
+        if (modal) {
+            modal.id = 'ap-modal-overlay';
+            document.body.appendChild(modal);
+            return true;
+        }
+    } catch (e) { console.error('[AdminHub] Could not load agent profile modal:', e); }
+    return false;
+};
+
 // Helper function to check permissions based on admin email
 function getAdminPermissions(adminEmail) {
     const email = String(adminEmail || '').toLowerCase();
@@ -313,12 +364,118 @@ function escapeHtml(str) {
     });
 }
 
+// Daily Zero screenshot helper. Captures the entire card, including rows below the viewport.
+function ahGetGuyanaDisplayDate() {
+    try {
+        return new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Guyana',
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        }).format(new Date());
+    } catch (e) {
+        return new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    }
+}
+
+function ahGetGuyanaFileDate() {
+    try {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Guyana', year: 'numeric', month: '2-digit', day: '2-digit'
+        }).formatToParts(new Date());
+        const out = {};
+        parts.forEach(p => { if (p.type !== 'literal') out[p.type] = p.value; });
+        return `${out.year}-${out.month}-${out.day}`;
+    } catch (e) {
+        return new Date().toISOString().slice(0, 10);
+    }
+}
+
+function ahLoadHtml2Canvas() {
+    if (window.html2canvas) return Promise.resolve(window.html2canvas);
+    if (window.__ahHtml2CanvasPromise) return window.__ahHtml2CanvasPromise;
+
+    window.__ahHtml2CanvasPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        script.async = true;
+        script.onload = () => window.html2canvas ? resolve(window.html2canvas) : reject(new Error('Screenshot library did not load.'));
+        script.onerror = () => reject(new Error('Could not load the screenshot library. Check the internet connection and try again.'));
+        document.head.appendChild(script);
+    });
+    return window.__ahHtml2CanvasPromise;
+}
+
+window.captureZeroPerformanceDaily = async function() {
+    const card = document.getElementById('ah-zero-daily-card');
+    const list = document.getElementById('ah-zero-daily-list');
+    const button = document.getElementById('ah-zero-screenshot-btn');
+    if (!card || !list) return;
+
+    if (/Loading/i.test(list.textContent || '')) {
+        alert('Daily Zero Performance is still loading. Try the screenshot again when the list is ready.');
+        return;
+    }
+
+    const originalButtonHtml = button ? button.innerHTML : '';
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Creating Screenshot...';
+    }
+
+    try {
+        const html2canvas = await ahLoadHtml2Canvas();
+
+        // Capture the full rendered card rather than only the visible browser viewport.
+        const canvas = await html2canvas(card, {
+            backgroundColor: '#0f172a',
+            scale: Math.min(2, Math.max(1, window.devicePixelRatio || 1)),
+            useCORS: true,
+            logging: false,
+            width: card.scrollWidth,
+            height: card.scrollHeight,
+            windowWidth: Math.max(document.documentElement.clientWidth, card.scrollWidth),
+            windowHeight: Math.max(document.documentElement.clientHeight, card.scrollHeight),
+            scrollX: 0,
+            scrollY: -window.scrollY
+        });
+
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
+        if (!blob) throw new Error('Could not create screenshot image.');
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `zero-performance-daily-${ahGetGuyanaFileDate()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+        if (button) {
+            button.innerHTML = '<i class="fas fa-check mr-2"></i>Screenshot Saved';
+            setTimeout(() => {
+                if (button) button.innerHTML = originalButtonHtml;
+            }, 1800);
+        }
+    } catch (error) {
+        console.error('[Zero Performance] Screenshot failed:', error);
+        alert(`Screenshot failed: ${error.message}`);
+        if (button) button.innerHTML = originalButtonHtml;
+    } finally {
+        if (button) button.disabled = false;
+    }
+};
+
 // Lazy-loaded version of Zero Performance (only runs when clicked)
 function ahInitZeroPerfLazy() {
     console.log('[AdminHub] Loading Zero Performance tab...');
     const dailyList = document.getElementById('ah-zero-daily-list');
     const weeklyList = document.getElementById('ah-zero-weekly-list');
     if (!dailyList || !weeklyList) return;
+
+    const dailyDate = document.getElementById('ah-zero-daily-date');
+    const dailyCount = document.getElementById('ah-zero-daily-count');
+    if (dailyDate) dailyDate.textContent = ahGetGuyanaDisplayDate();
+    if (dailyCount) dailyCount.textContent = 'Loading...';
 
     dailyList.innerHTML = '<div class="py-10 text-center text-cyan-400 font-bold uppercase text-[9px] tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i> Loading daily data...</div>';
     weeklyList.innerHTML = '<div class="py-10 text-center text-cyan-400 font-bold uppercase text-[9px] tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i> Loading weekly data...</div>';
@@ -420,9 +577,17 @@ function ahInitZeroPerfLazy() {
         }
 
         if (roster.length === 0) {
+            if (dailyCount) dailyCount.textContent = '0 Agents';
             dailyList.innerHTML = '<div class="py-10 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">No agents in roster yet</div>';
         } else {
             const zeros = roster.filter(p => getDailyCount(p) === 0);
+            zeros.sort((a, b) => {
+                const ta = String(a.team || '');
+                const tb = String(b.team || '');
+                if (ta !== tb) return ta.localeCompare(tb);
+                return String(a.name || a.fullName || '').localeCompare(String(b.name || b.fullName || ''));
+            });
+            if (dailyCount) dailyCount.textContent = `${zeros.length} Agent${zeros.length === 1 ? '' : 's'}`;
             if (zeros.length === 0) {
                 dailyList.innerHTML = '<div class="py-10 text-center text-green-500 font-bold uppercase text-[9px] tracking-widest">✅ All agents have transfers today!</div>';
             } else {
@@ -1343,6 +1508,14 @@ let ahAttSelectedReportId = 'live';
 let ahAttSelectedDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guyana' });
 let _ahAttUnsubscribe = null;
 
+function _getAttendanceEditorName() {
+    try {
+        const a = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
+        return a.name || a.email || 'Admin';
+    } catch (e) { return 'Admin'; }
+}
+
+
 window.ahSelectAttReport = function(id) {
     ahAttSelectedReportId = id;
     renderDailyAttendance();
@@ -1485,6 +1658,7 @@ async function renderDailyAttendance() {
         </tr>`;
     }).join('');
 }
+window.renderDailyAttendance = renderDailyAttendance;
 
 // ===== BULK ATTENDANCE ACTIONS =====
 
@@ -1547,7 +1721,7 @@ window.ahBulkMark = async function(status) {
             status: status,
             clockedAt: (existingTime && existingTime !== '--:--') ? existingTime : '--:--',
             editedAt: new Date().toISOString(),
-            editedBy: 'Rose'
+            editedBy: _getAttendanceEditorName()
         };
         if (typeof window.rtdbSet === 'function' && typeof window.rtdbRef === 'function') {
             saves.push(window.rtdbSet(window.rtdbRef('attendance/' + date + '/' + agentId), record));
@@ -1613,7 +1787,7 @@ window.ahSaveAttEdit = async function() {
             clockedAt: time || '--:--',
             notes: notes,
             editedAt: new Date().toISOString(),
-            editedBy: 'Rose',
+            editedBy: _getAttendanceEditorName(),
             adminEdited: true
         };
         if (typeof window.rtdbSet === 'function' && typeof window.rtdbRef === 'function') {
