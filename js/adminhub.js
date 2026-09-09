@@ -155,17 +155,85 @@ function getAdminPermissions(adminEmail) {
     };
 }
 
-// Internal tab switcher
-window.switchAdminHubTab = function(tabId) {
+// Shared loaders for permission-controlled Admin Hub sections.
+// These live in the main JS file (not only in the injected HTML fragment) so
+// regular admins never get an empty Profiles/Attendance workspace.
+window.loadAdminHubProfiles = async function() {
+    const host = document.getElementById('ah-profiles-host');
+    if (!host) return false;
+
+    if (!host.dataset.loaded) {
+        host.innerHTML = '<div class="py-16 text-center text-blue-400 text-xs font-black uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading Profiles...</div>';
+        try {
+            const response = await fetch('tabs/agentprofiles.html?v=5', { cache: 'no-store' });
+            if (!response.ok) throw new Error('Profiles template returned ' + response.status);
+            const html = await response.text();
+            if (!html || !html.includes('ap-agent-list')) throw new Error('Profiles template was empty or invalid');
+            host.innerHTML = html;
+            host.dataset.loaded = '1';
+        } catch (e) {
+            console.error('[AdminHub] Profiles failed to load:', e);
+            host.innerHTML = '<div class="py-16 text-center"><div class="text-red-400 text-xs font-black uppercase tracking-widest mb-3">Profiles could not load</div><button type="button" onclick="loadAdminHubProfiles()" class="px-4 py-2 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-300 text-[10px] font-black uppercase">Retry</button></div>';
+            delete host.dataset.loaded;
+            return false;
+        }
+    }
+
+    // initAgentProfiles may already be subscribed from another workspace.
+    // apFilterAgents always renders the current roster into the newly mounted host.
+    if (typeof window.initAgentProfiles === 'function') await window.initAgentProfiles();
+    if (typeof window.apFilterAgents === 'function') window.apFilterAgents();
+    return true;
+};
+
+window.loadAdminHubAttendance = async function() {
+    const host = document.getElementById('ah-attendance-host');
+    if (!host) return false;
+
+    if (!host.dataset.loaded) {
+        host.innerHTML = '<div class="py-16 text-center text-blue-400 text-xs font-black uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading Attendance...</div>';
+        try {
+            const response = await fetch('tabs/adminattendance.html?v=2', { cache: 'no-store' });
+            if (!response.ok) throw new Error('Attendance template returned ' + response.status);
+            const html = await response.text();
+            if (!html || !html.includes('att-daily-list')) throw new Error('Attendance template was empty or invalid');
+            host.innerHTML = html;
+            host.dataset.loaded = '1';
+        } catch (e) {
+            console.error('[AdminHub] Attendance failed to load:', e);
+            host.innerHTML = '<div class="py-16 text-center"><div class="text-red-400 text-xs font-black uppercase tracking-widest mb-3">Attendance could not load</div><button type="button" onclick="loadAdminHubAttendance()" class="px-4 py-2 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-300 text-[10px] font-black uppercase">Retry</button></div>';
+            delete host.dataset.loaded;
+            return false;
+        }
+    }
+
+    const picker = document.getElementById('att-date-picker');
+    if (picker && !picker.value) {
+        picker.value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guyana' });
+        ahAttSelectedDate = picker.value;
+    }
+    if (typeof window.ahPopulateMonthSelect === 'function') window.ahPopulateMonthSelect();
+    if (typeof window.renderDailyAttendance === 'function') await window.renderDailyAttendance();
+    return true;
+};
+
+// Internal tab switcher. This is deliberately self-contained because Admin Hub
+// HTML is lazy-injected and its inline handler may not yet be registered.
+window.switchAdminHubTab = async function(tabId) {
+    tabId = String(tabId || '').trim().toLowerCase();
+
+    if (typeof window.canAccessAdminHubTab === 'function' && !window.canAccessAdminHubTab(tabId)) {
+        console.warn('[AdminHub] Unauthorized section blocked:', tabId);
+        if (typeof window.showDashboardAccessDenied === 'function') window.showDashboardAccessDenied();
+        if (typeof window.applyAdminHubPermissions === 'function') window.applyAdminHubPermissions();
+        return;
+    }
+
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
     const permissions = getAdminPermissions(currentAdmin.email);
 
     if (tabId === 'stats' && !permissions.canSeeStats) {
         console.warn('Unauthorized access to Agent Stats blocked.');
-        return;
-    }
-    if (tabId === 'trivia' && !permissions.canSeeTrivia) {
-        console.warn('Unauthorized access to Trivia blocked.');
         return;
     }
 
@@ -176,24 +244,34 @@ window.switchAdminHubTab = function(tabId) {
         if (btn.id === `ah-tab-${tabId}`) btn.classList.add('active');
     });
 
-    document.querySelectorAll('.ah-section').forEach(sect => {
-        sect.classList.add('hidden');
-    });
+    document.querySelectorAll('.ah-section').forEach(sect => sect.classList.add('hidden'));
     const target = document.getElementById(`ah-sect-${tabId}`);
-    if (target) target.classList.remove('hidden');
+    if (!target) {
+        console.error('[AdminHub] Section missing from DOM:', tabId);
+        return;
+    }
+    target.classList.remove('hidden');
 
-    // Lazy load expensive modules only when clicked
+    // These two are shared management workspaces and must mount their HTML first.
+    if (tabId === 'profiles') {
+        await window.loadAdminHubProfiles();
+        return;
+    }
+    if (tabId === 'attendance') {
+        await window.loadAdminHubAttendance();
+        return;
+    }
+
+    // Lazy load expensive modules only when clicked.
     if (tabId === 'stats' && typeof window.renderAgentStatsHistory === 'function') window.renderAgentStatsHistory();
     if (tabId === 'rebuttals') initRebuttalIntel();
     if (tabId === 'performance') initWeeklyPerformance();
     if (tabId === 'targetboard') loadTargetBoard();
 
-    // Only initialize Zero Performance when the tab is actually clicked
     if (tabId === 'zero') {
         ahInitZeroPerfLazy();
         ahZeroPerfInitialized = true;
     }
-
 };
 
 // If an agent is removed while Zero Performance is open, redraw immediately

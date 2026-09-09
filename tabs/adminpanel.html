@@ -317,43 +317,12 @@ async function switchAdminHubTab(tabId) {
     if (activeBtn) activeBtn.classList.add('active');
 
     if (tabId === 'profiles') {
-        const host = document.getElementById('ah-profiles-host');
-        if (host && !host.dataset.loaded) {
-            host.innerHTML = '<div class="py-16 text-center text-blue-400 text-xs font-black uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading Profiles...</div>';
-            try {
-                const html = await fetch('tabs/agentprofiles.html?v=4').then(r => r.ok ? r.text() : Promise.reject(new Error('Could not load Profiles')));
-                host.innerHTML = html;
-                host.dataset.loaded = '1';
-            } catch (e) {
-                host.innerHTML = '<div class="py-16 text-center text-red-400 text-xs font-black uppercase tracking-widest">Could not load Profiles</div>';
-                return;
-            }
-        }
-        if (typeof window.initAgentProfiles === 'function') window.initAgentProfiles();
-        if (typeof window.apFilterAgents === 'function') window.apFilterAgents();
+        if (typeof window.loadAdminHubProfiles === 'function') await window.loadAdminHubProfiles();
         return;
     }
 
     if (tabId === 'attendance') {
-        const host = document.getElementById('ah-attendance-host');
-        if (host && !host.dataset.loaded) {
-            host.innerHTML = '<div class="py-16 text-center text-blue-400 text-xs font-black uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading Attendance...</div>';
-            try {
-                const html = await fetch('tabs/adminattendance.html?v=1').then(r => r.ok ? r.text() : Promise.reject(new Error('Could not load Attendance')));
-                host.innerHTML = html;
-                host.dataset.loaded = '1';
-            } catch (e) {
-                host.innerHTML = '<div class="py-16 text-center text-red-400 text-xs font-black uppercase tracking-widest">Could not load Attendance</div>';
-                return;
-            }
-        }
-        if (typeof window.ahPopulateMonthSelect === 'function') window.ahPopulateMonthSelect();
-        if (typeof window.ahAttDateChanged === 'function') {
-            const picker = document.getElementById('att-date-picker');
-            if (picker && !picker.value) picker.value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guyana' });
-        }
-        if (typeof window.renderDailyAttendance === 'function') window.renderDailyAttendance();
-        else if (typeof renderDailyAttendance === 'function') renderDailyAttendance();
+        if (typeof window.loadAdminHubAttendance === 'function') await window.loadAdminHubAttendance();
         return;
     }
 
