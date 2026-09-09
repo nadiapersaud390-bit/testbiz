@@ -1330,6 +1330,7 @@ function getDashboardAccessState() {
             if (latest && typeof latest === 'object') {
                 if (Array.isArray(latest.hiddenTabs)) currentAdmin.hiddenTabs = latest.hiddenTabs;
                 if (Array.isArray(latest.adminHubHiddenTabs)) currentAdmin.adminHubHiddenTabs = latest.adminHubHiddenTabs;
+                if (latest.adminHubPermissions && typeof latest.adminHubPermissions === 'object' && !Array.isArray(latest.adminHubPermissions)) currentAdmin.adminHubPermissions = latest.adminHubPermissions;
                 if (latest.adminToolUploadScope) currentAdmin.adminToolUploadScope = latest.adminToolUploadScope;
             }
         } catch (e) {}
@@ -1446,7 +1447,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <div id="agent-session-banner" style="max-width:980px;margin:8px auto 12px;"></div>
 
-<script type="module" src="js/firebase.js?v=14"></script>
+<script type="module" src="js/firebase.js?v=15"></script>
 
 <div id="broadcast-bar" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="bc-title">
   <div class="bc-backdrop"></div>
@@ -1680,7 +1681,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div id="trivia-view" class="hidden" data-tab-src="tabs/trivia.html"></div>
     <div id="chatroom-view" class="hidden" data-tab-src="tabs/chatroom.html"></div>
     <div id="adminpanel-view" class="hidden" data-tab-src="tabs/adminpanel.html?v=15"></div>
-    <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html?v=14"></div>
+    <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html?v=15"></div>
     <div id="agentstats-view" class="hidden" data-tab-src="tabs/agentstats.html"></div>
     <div id="tracker-view" class="hidden" data-tab-src="tabs/tracker.html"></div>
     <div id="simulator-view" class="hidden" data-tab-src="tabs/simulator.html?v=9"></div>
@@ -1698,9 +1699,9 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="js/broadcast.js?v=4"></script>
 <script src="js/topperformer.js?v=2"></script>
 <script src="js/agentstats.js?v=2"></script>
-<script src="js/super-admin.js?v=5"></script>
+<script src="js/super-admin.js?v=6"></script>
 <script src="js/agentprofiles.js?v=4"></script>
-<script src="js/adminhub.js?v=9"></script>
+<script src="js/adminhub.js?v=10"></script>
 <script src="js/tracker.js?v=4"></script>
 <script src="js/chatroom.js?v=7"></script>
 <script src="js/goals.js?v=8"></script>
@@ -1891,6 +1892,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 role: verifiedRecord.role || 'admin',
                 hiddenTabs: verifiedRecord.hiddenTabs || [],
                 adminHubHiddenTabs: Array.isArray(verifiedRecord.adminHubHiddenTabs) ? verifiedRecord.adminHubHiddenTabs : ['profiles', 'attendance'],
+                adminHubPermissions: (verifiedRecord.adminHubPermissions && typeof verifiedRecord.adminHubPermissions === 'object' && !Array.isArray(verifiedRecord.adminHubPermissions)) ? verifiedRecord.adminHubPermissions : null,
                 adminToolUploadScope: verifiedRecord.adminToolUploadScope || 'all',
                 isSuper: false
             };
@@ -1973,6 +1975,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 const newHidden = Array.isArray(record.hiddenTabs) ? record.hiddenTabs : [];
                 const newHubHidden = Array.isArray(record.adminHubHiddenTabs) ? record.adminHubHiddenTabs : ['profiles', 'attendance'];
+                const newHubPermissions = (record.adminHubPermissions && typeof record.adminHubPermissions === 'object' && !Array.isArray(record.adminHubPermissions)) ? record.adminHubPermissions : null;
                 const newScope = record.adminToolUploadScope || session.adminToolUploadScope || 'all';
 
                 // Keep the local directory synchronized with this exact live Firebase record.
@@ -1982,11 +1985,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     directory[adminKey] = { ...record, email: record.email || adminKey };
                     localStorage.setItem('biz_admins_list_v1', JSON.stringify(directory));
                 } catch (e) {}
-                const oldSignature = JSON.stringify({ hiddenTabs: session.hiddenTabs || [], adminHubHiddenTabs: session.adminHubHiddenTabs || ['profiles', 'attendance'], adminToolUploadScope: session.adminToolUploadScope || 'all' });
-                const newSignature = JSON.stringify({ hiddenTabs: newHidden, adminHubHiddenTabs: newHubHidden, adminToolUploadScope: newScope });
+                const oldSignature = JSON.stringify({ hiddenTabs: session.hiddenTabs || [], adminHubHiddenTabs: session.adminHubHiddenTabs || ['profiles', 'attendance'], adminHubPermissions: session.adminHubPermissions || null, adminToolUploadScope: session.adminToolUploadScope || 'all' });
+                const newSignature = JSON.stringify({ hiddenTabs: newHidden, adminHubHiddenTabs: newHubHidden, adminHubPermissions: newHubPermissions, adminToolUploadScope: newScope });
                 if (newSignature === oldSignature) return;
                 session.hiddenTabs = newHidden;
                 session.adminHubHiddenTabs = newHubHidden;
+                session.adminHubPermissions = newHubPermissions;
                 session.adminToolUploadScope = newScope;
                 sessionStorage.setItem('currentAdmin', JSON.stringify(session));
                 setupRoleBasedTabs();

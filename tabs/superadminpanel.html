@@ -2693,9 +2693,30 @@ Their name will be removed from all active dashboard areas.`)) return;
     }
 
     // ── Edit Modal ──────────────────────────────────────────────
-    window.umOpenEditModal = function(key) {
-        const admin = window._umAdminsCache[key];
+    window.umOpenEditModal = async function(key) {
+        let admin = window._umAdminsCache[key];
         if (!admin) return;
+
+        // Always refresh a regular admin directly from Firebase before drawing the
+        // permission checkboxes. This prevents an older live-list cache entry from
+        // making a permission that was just saved appear unchecked when Edit is reopened.
+        if (!admin._isSuper && typeof window.getAdminRecordFromFirebase === 'function') {
+            try {
+                const remote = await window.getAdminRecordFromFirebase(key);
+                if (remote && typeof remote === 'object') {
+                    admin = { ...remote, _key: key, _isSuper: false };
+                    window._umAdminsCache[key] = admin;
+                    try {
+                        const admins = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+                        admins[key] = remote;
+                        localStorage.setItem('biz_admins_list_v1', JSON.stringify(admins));
+                    } catch (e) {}
+                }
+            } catch (e) {
+                console.warn('[UserManagement] Could not refresh admin before opening Edit; using live cache.', e);
+            }
+        }
+
         document.getElementById('um-edit-key').value = key;
         document.getElementById('um-modal-title').textContent = admin.name || admin.email;
         document.getElementById('um-edit-email').value = admin.email || key;
@@ -2720,9 +2741,15 @@ Their name will be removed from all active dashboard areas.`)) return;
             });
             // Fine-grained permissions inside the normal Admin Hub. Legacy admin records
             // keep their existing analytics access, while Profiles + Attendance stay opt-in.
+            const hubPermissionMap = (admin.adminHubPermissions && typeof admin.adminHubPermissions === 'object' && !Array.isArray(admin.adminHubPermissions))
+                ? admin.adminHubPermissions
+                : null;
             const hubHiddenTabs = Array.isArray(admin.adminHubHiddenTabs) ? admin.adminHubHiddenTabs : ['profiles', 'attendance'];
             document.querySelectorAll('.um-adminhub-cb').forEach(cb => {
-                cb.checked = !hubHiddenTabs.includes(cb.getAttribute('data-hubtab'));
+                const tabId = String(cb.getAttribute('data-hubtab') || '').trim().toLowerCase();
+                cb.checked = hubPermissionMap
+                    ? hubPermissionMap[tabId] === true
+                    : !hubHiddenTabs.includes(tabId);
             });
             // Admin Tools sub-panel: show/hide + set scope
             const adminToolsCb = document.getElementById('um-admintools-cb');
@@ -2781,10 +2808,19 @@ Their name will be removed from all active dashboard areas.`)) return;
             .map(cb => String(cb.getAttribute('data-tab') || '').trim().toLowerCase())
             .filter(Boolean);
 
-        const adminHubHiddenTabs = Array.from(document.querySelectorAll('.um-adminhub-cb'))
+        const adminHubCheckboxes = Array.from(document.querySelectorAll('.um-adminhub-cb'));
+        const adminHubHiddenTabs = adminHubCheckboxes
             .filter(cb => !cb.checked)
             .map(cb => String(cb.getAttribute('data-hubtab') || '').trim().toLowerCase())
             .filter(Boolean);
+        // Persist the explicit allowed/denied state as a map. Firebase RTDB removes
+        // empty arrays, so relying only on adminHubHiddenTabs made "all tabs allowed"
+        // look like a legacy record the next time Edit Admin was opened.
+        const adminHubPermissions = {};
+        adminHubCheckboxes.forEach(cb => {
+            const tabId = String(cb.getAttribute('data-hubtab') || '').trim().toLowerCase();
+            if (tabId) adminHubPermissions[tabId] = cb.checked === true;
+        });
 
         const scopeAllEl = document.getElementById('um-scope-all');
         const adminToolUploadScope = (scopeAllEl && scopeAllEl.checked) ? 'all' : 'self';
@@ -2826,6 +2862,8 @@ Their name will be removed from all active dashboard areas.`)) return;
                     email: remoteBefore.email || key,
                     hiddenTabs,
                     adminHubHiddenTabs,
+                    adminHubPermissions,
+                    adminHubPermissionsVersion: 2,
                     adminToolUploadScope
                 };
                 if (newPass) patch.password = btoa(newPass);
@@ -2849,8 +2887,14 @@ Their name will be removed from all active dashboard areas.`)) return;
                 const actualMain = norm(verified.hiddenTabs);
                 const expectedHub = norm(adminHubHiddenTabs);
                 const actualHub = norm(verified.adminHubHiddenTabs);
+                const verifiedHubMap = (verified.adminHubPermissions && typeof verified.adminHubPermissions === 'object' && !Array.isArray(verified.adminHubPermissions))
+                    ? verified.adminHubPermissions : {};
+                const expectedHubMap = {};
+                Object.keys(adminHubPermissions).sort().forEach(k => { expectedHubMap[k] = adminHubPermissions[k] === true; });
+                const actualHubMap = {};
+                Object.keys(adminHubPermissions).sort().forEach(k => { actualHubMap[k] = verifiedHubMap[k] === true; });
                 if (JSON.stringify(expectedMain) !== JSON.stringify(actualMain) ||
-                    JSON.stringify(expectedHub) !== JSON.stringify(actualHub) ||
+                    JSON.stringify(expectedHubMap) !== JSON.stringify(actualHubMap) ||
                     (verified.adminToolUploadScope || 'all') !== adminToolUploadScope) {
                     throw new Error('Firebase did not retain the selected permissions');
                 }
@@ -2868,7 +2912,7 @@ Their name will be removed from all active dashboard areas.`)) return;
 
                 // Useful on a same-browser test session and harmless on other sessions.
                 window.dispatchEvent(new CustomEvent('biz-admin-permissions-saved', {
-                    detail: { adminKey: key, hiddenTabs: expectedMain, adminHubHiddenTabs: expectedHub }
+                    detail: { adminKey: key, hiddenTabs: expectedMain, adminHubHiddenTabs: expectedHub, adminHubPermissions: expectedHubMap }
                 }));
             }
 

@@ -23,6 +23,11 @@ window._RESTRICTED_ADMIN_IDS = ['0000'];
 const ADMIN_HUB_TABS = ['stats', 'rebuttals', 'performance', 'zero', 'targetboard', 'profiles', 'attendance'];
 const ADMIN_HUB_LEGACY_DEFAULT_HIDDEN = ['profiles', 'attendance'];
 
+function _hiddenTabsFromPermissionMap(permissionMap) {
+    if (!permissionMap || typeof permissionMap !== 'object' || Array.isArray(permissionMap)) return null;
+    return ADMIN_HUB_TABS.filter(tab => permissionMap[tab] !== true);
+}
+
 function _getCurrentAdminHubHiddenTabs() {
     let admin = {};
     try { admin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}'); } catch (e) {}
@@ -31,8 +36,14 @@ function _getCurrentAdminHubHiddenTabs() {
     try {
         const directory = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
         const latest = directory[email];
-        if (latest && Array.isArray(latest.adminHubHiddenTabs)) return latest.adminHubHiddenTabs;
+        if (latest) {
+            const mappedHidden = _hiddenTabsFromPermissionMap(latest.adminHubPermissions);
+            if (mappedHidden) return mappedHidden;
+            if (Array.isArray(latest.adminHubHiddenTabs)) return latest.adminHubHiddenTabs;
+        }
     } catch (e) {}
+    const sessionMappedHidden = _hiddenTabsFromPermissionMap(admin.adminHubPermissions);
+    if (sessionMappedHidden) return sessionMappedHidden;
     return Array.isArray(admin.adminHubHiddenTabs) ? admin.adminHubHiddenTabs : ADMIN_HUB_LEGACY_DEFAULT_HIDDEN.slice();
 }
 
