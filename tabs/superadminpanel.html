@@ -2761,76 +2761,134 @@ Their name will be removed from all active dashboard areas.`)) return;
     };
 
     window.umSaveEdit = async function() {
-        const key = document.getElementById('um-edit-key').value;
+        const rawKey = document.getElementById('um-edit-key').value;
+        const key = String(rawKey || '').trim().toLowerCase();
         const name = (document.getElementById('um-edit-name').value || '').trim();
         const role = document.getElementById('um-edit-role').value;
         const newPass = document.getElementById('um-edit-newpass').value;
         const confirmPass = document.getElementById('um-edit-confirmpass').value;
         const statusEl = document.getElementById('um-modal-status');
+        const saveBtn = document.querySelector('#um-edit-modal button[onclick="umSaveEdit()"]');
 
         if (!name) { statusEl.innerHTML = '<span class="text-red-400">❌ Name cannot be empty</span>'; return; }
         if (newPass && newPass !== confirmPass) { statusEl.innerHTML = '<span class="text-red-400">❌ Passwords do not match</span>'; return; }
         if (newPass && newPass.length < 4) { statusEl.innerHTML = '<span class="text-red-400">❌ Password must be at least 4 characters</span>'; return; }
+        if (!key) { statusEl.innerHTML = '<span class="text-red-400">❌ Admin ID is missing</span>'; return; }
 
-        statusEl.innerHTML = '<span class="text-yellow-400"><i class="fas fa-spinner fa-spin mr-1"></i>Saving to Firebase…</span>';
+        // Read the checkbox state before any asynchronous work changes the modal.
+        const hiddenTabs = Array.from(document.querySelectorAll('.um-tab-cb'))
+            .filter(cb => !cb.checked)
+            .map(cb => String(cb.getAttribute('data-tab') || '').trim().toLowerCase())
+            .filter(Boolean);
 
-        const cached = window._umAdminsCache[key] || {};
+        const adminHubHiddenTabs = Array.from(document.querySelectorAll('.um-adminhub-cb'))
+            .filter(cb => !cb.checked)
+            .map(cb => String(cb.getAttribute('data-hubtab') || '').trim().toLowerCase())
+            .filter(Boolean);
 
-        // Read tab permissions (which tabs are unchecked = hidden)
-        const hiddenTabs = [];
-        document.querySelectorAll('.um-tab-cb').forEach(cb => {
-            if (!cb.checked) hiddenTabs.push(cb.getAttribute('data-tab'));
-        });
-        // Read fine-grained Admin Hub permissions.
-        const adminHubHiddenTabs = [];
-        document.querySelectorAll('.um-adminhub-cb').forEach(cb => {
-            if (!cb.checked) adminHubHiddenTabs.push(cb.getAttribute('data-hubtab'));
-        });
-        // Admin Tools upload scope
         const scopeAllEl = document.getElementById('um-scope-all');
         const adminToolUploadScope = (scopeAllEl && scopeAllEl.checked) ? 'all' : 'self';
 
-        if (cached._isSuper) {
-            // Edit super admin
-            const superRaw = localStorage.getItem('biz_super_admin_v1');
-            const superAdmin = superRaw ? JSON.parse(superRaw) : {};
-            superAdmin.name = name;
-            superAdmin.role = role;
-            if (newPass) superAdmin.password = btoa(newPass);
-            localStorage.setItem('biz_super_admin_v1', JSON.stringify(superAdmin));
-            if (typeof window.saveSuperAdminToFirebase === 'function') {
-                try { await window.saveSuperAdminToFirebase(superAdmin); } catch(e) {}
-            }
-        } else {
-            // Edit regular admin
-            const admins = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
-            if (!admins[key]) { statusEl.innerHTML = '<span class="text-red-400">❌ Admin not found</span>'; return; }
-            admins[key].name = name;
-            admins[key].role = role;
-            admins[key].hiddenTabs = hiddenTabs;
-            admins[key].adminHubHiddenTabs = adminHubHiddenTabs;
-            admins[key].adminToolUploadScope = adminToolUploadScope;
-            if (newPass) admins[key].password = btoa(newPass);
-            if (typeof window.saveAdminRecordToFirebase !== 'function') {
-                statusEl.innerHTML = '<span class="text-red-400">❌ Firebase is not connected</span>';
-                return;
-            }
-            try {
-                await window.saveAdminRecordToFirebase(key, admins[key]);
-                localStorage.setItem('biz_admins_list_v1', JSON.stringify(admins));
-            } catch (e) {
-                console.error('Admin edit failed:', e);
-                statusEl.innerHTML = '<span class="text-red-400">❌ Firebase save failed. Changes were not applied.</span>';
-                return;
-            }
+        const cached = window._umAdminsCache[rawKey] || window._umAdminsCache[key] || {};
+        const isSuperRecord = !!cached._isSuper;
+
+        statusEl.innerHTML = '<span class="text-yellow-400"><i class="fas fa-spinner fa-spin mr-1"></i>Saving permissions to Firebase…</span>';
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.style.opacity = '0.6';
+            saveBtn.style.pointerEvents = 'none';
         }
 
-        if (typeof window.writeAdminActivityLog === 'function') {
-            window.writeAdminActivityLog('user_management', 'Edited admin: ' + key + (newPass ? ' (password changed)' : ''));
-        }
+        try {
+            if (isSuperRecord) {
+                const superRaw = localStorage.getItem('biz_super_admin_v1');
+                const superAdmin = superRaw ? JSON.parse(superRaw) : {};
+                superAdmin.name = name;
+                superAdmin.role = role;
+                if (newPass) superAdmin.password = btoa(newPass);
+                if (typeof window.saveSuperAdminToFirebase !== 'function') {
+                    throw new Error('Firebase super-admin service is unavailable');
+                }
+                await window.saveSuperAdminToFirebase(superAdmin);
+                localStorage.setItem('biz_super_admin_v1', JSON.stringify(superAdmin));
+            } else {
+                if (typeof window.getAdminRecordFromFirebase !== 'function') {
+                    throw new Error('Firebase admin reader is unavailable');
+                }
 
-        statusEl.innerHTML = '<span class="text-green-400">✅ Saved successfully!</span>';
-        setTimeout(() => { umCloseEditModal(); superLoadAdmins(); }, 1000);
+                // Firebase is authoritative. Do not require a matching/still-fresh localStorage entry.
+                const remoteBefore = await window.getAdminRecordFromFirebase(key);
+                if (!remoteBefore) throw new Error('Admin was not found in Firebase');
+
+                const patch = {
+                    name,
+                    role,
+                    email: remoteBefore.email || key,
+                    hiddenTabs,
+                    adminHubHiddenTabs,
+                    adminToolUploadScope
+                };
+                if (newPass) patch.password = btoa(newPass);
+
+                if (typeof window.updateAdminRecordInFirebase === 'function') {
+                    await window.updateAdminRecordInFirebase(key, patch);
+                } else if (typeof window.saveAdminRecordToFirebase === 'function') {
+                    // Compatibility fallback for an old cached firebase.js.
+                    await window.saveAdminRecordToFirebase(key, { ...remoteBefore, ...patch });
+                } else {
+                    throw new Error('Firebase admin writer is unavailable');
+                }
+
+                // Read it back. Never tell the user it saved unless Firebase now contains
+                // the exact dashboard + Admin Tools permission arrays selected in the modal.
+                const verified = await window.getAdminRecordFromFirebase(key);
+                if (!verified) throw new Error('Saved record could not be verified');
+
+                const norm = arr => Array.isArray(arr) ? arr.map(v => String(v || '').trim().toLowerCase()).filter(Boolean).sort() : [];
+                const expectedMain = norm(hiddenTabs);
+                const actualMain = norm(verified.hiddenTabs);
+                const expectedHub = norm(adminHubHiddenTabs);
+                const actualHub = norm(verified.adminHubHiddenTabs);
+                if (JSON.stringify(expectedMain) !== JSON.stringify(actualMain) ||
+                    JSON.stringify(expectedHub) !== JSON.stringify(actualHub) ||
+                    (verified.adminToolUploadScope || 'all') !== adminToolUploadScope) {
+                    throw new Error('Firebase did not retain the selected permissions');
+                }
+
+                // Refresh both cache forms immediately so reopening Edit shows the saved state.
+                try {
+                    const admins = JSON.parse(localStorage.getItem('biz_admins_list_v1') || '{}');
+                    if (rawKey && rawKey !== key) delete admins[rawKey];
+                    admins[key] = verified;
+                    localStorage.setItem('biz_admins_list_v1', JSON.stringify(admins));
+                } catch (e) {}
+
+                if (rawKey && rawKey !== key) delete window._umAdminsCache[rawKey];
+                window._umAdminsCache[key] = { ...verified, _key: key, _isSuper: false };
+
+                // Useful on a same-browser test session and harmless on other sessions.
+                window.dispatchEvent(new CustomEvent('biz-admin-permissions-saved', {
+                    detail: { adminKey: key, hiddenTabs: expectedMain, adminHubHiddenTabs: expectedHub }
+                }));
+            }
+
+            if (typeof window.writeAdminActivityLog === 'function') {
+                window.writeAdminActivityLog('user_management', 'Edited admin: ' + key + (newPass ? ' (password changed)' : '') + ' (permissions verified)');
+            }
+
+            statusEl.innerHTML = '<span class="text-green-400">✅ Saved & verified in Firebase!</span>';
+            setTimeout(() => { umCloseEditModal(); superLoadAdmins(); }, 850);
+        } catch (e) {
+            console.error('Admin edit failed:', e);
+            const msg = (e && e.message) ? e.message : 'Firebase save failed';
+            statusEl.innerHTML = '<span class="text-red-400">❌ ' + escapeHtml(msg) + '. Nothing was reported as saved.</span>';
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.style.opacity = '';
+                saveBtn.style.pointerEvents = '';
+            }
+        }
     };
 
     window.umDeleteAdmin = async function() {

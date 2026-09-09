@@ -1310,6 +1310,21 @@ window.saveAdminRecordToFirebase = async function(adminKey, adminRecord) {
     });
 };
 
+// Update only the fields that changed on an admin record. Permission edits use this
+// instead of replacing the whole record from a possibly stale localStorage snapshot.
+window.updateAdminRecordInFirebase = async function(adminKey, patch) {
+    if (!database) throw new Error('Firebase database is not initialized');
+    const normalizedKey = String(adminKey || '').trim().toLowerCase();
+    if (!normalizedKey) throw new Error('Admin key is required');
+    if (/[.#$\[\]\/]/.test(normalizedKey)) throw new Error('Invalid Firebase admin key');
+    if (!patch || typeof patch !== 'object') throw new Error('Admin update is required');
+    await update(ref(database, 'admins_list/' + normalizedKey), {
+        ...patch,
+        email: patch.email || normalizedKey,
+        permissionsUpdatedAt: Date.now()
+    });
+};
+
 window.deleteAdminFromFirebase = async function(adminKey) {
     if (!database) throw new Error('Firebase database is not initialized');
     const normalizedKey = String(adminKey || '').trim().toLowerCase();
