@@ -1679,7 +1679,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div id="prank-view" class="hidden" data-tab-src="tabs/prank.html?v=2"></div>
     <div id="trivia-view" class="hidden" data-tab-src="tabs/trivia.html"></div>
     <div id="chatroom-view" class="hidden" data-tab-src="tabs/chatroom.html"></div>
-    <div id="adminpanel-view" class="hidden" data-tab-src="tabs/adminpanel.html?v=14"></div>
+    <div id="adminpanel-view" class="hidden" data-tab-src="tabs/adminpanel.html?v=15"></div>
     <div id="superadminpanel-view" class="hidden" data-tab-src="tabs/superadminpanel.html?v=13"></div>
     <div id="agentstats-view" class="hidden" data-tab-src="tabs/agentstats.html"></div>
     <div id="tracker-view" class="hidden" data-tab-src="tabs/tracker.html"></div>
@@ -1700,7 +1700,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="js/agentstats.js?v=2"></script>
 <script src="js/super-admin.js?v=5"></script>
 <script src="js/agentprofiles.js?v=4"></script>
-<script src="js/adminhub.js?v=7"></script>
+<script src="js/adminhub.js?v=8"></script>
 <script src="js/tracker.js?v=4"></script>
 <script src="js/chatroom.js?v=7"></script>
 <script src="js/goals.js?v=8"></script>
@@ -1724,6 +1724,13 @@ function _injectTab(tabId, html) {
     const el = document.getElementById(tabId);
     if (!el || !html) return;
     el.innerHTML = html;
+
+    // Admin Hub permission gating must happen before the fragment's scripts run.
+    // Its tab buttons are shipped hidden by default, then only assigned tabs are revealed.
+    if (tabId === 'adminpanel-view' && typeof window.applyAdminHubPermissions === 'function') {
+        window.applyAdminHubPermissions();
+    }
+
     el.querySelectorAll('script').forEach(oldScript => {
         const newScript = document.createElement('script');
         Array.from(oldScript.attributes).forEach(a => newScript.setAttribute(a.name, a.value));
@@ -1731,6 +1738,11 @@ function _injectTab(tabId, html) {
         oldScript.parentNode.replaceChild(newScript, oldScript);
     });
     _loadedTabs.add(tabId);
+
+    // Re-apply once more after fragment scripts have registered their handlers.
+    if (tabId === 'adminpanel-view' && typeof window.applyAdminHubPermissions === 'function') {
+        window.applyAdminHubPermissions();
+    }
 
     // Always show the Daily payroll disclaimer between LIVE RANKINGS and the performance date.
     if (tabId === 'leaderboard-view') {

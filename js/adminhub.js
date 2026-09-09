@@ -43,16 +43,46 @@ window.canAccessAdminHubTab = function(tabId) {
 };
 
 window.applyAdminHubPermissions = function() {
-    const hidden = _getCurrentAdminHubHiddenTabs();
+    const hidden = _getCurrentAdminHubHiddenTabs().map(v => String(v || '').trim().toLowerCase());
+    const allowed = ADMIN_HUB_TABS.filter(tab => !hidden.includes(tab));
+
+    // Fail closed in the DOM: a section that is not assigned is never displayed,
+    // even for a frame while Admin Hub is loading or while live permissions change.
     ADMIN_HUB_TABS.forEach(tab => {
+        const isAllowed = allowed.includes(tab);
         const btn = document.getElementById('ah-tab-' + tab);
-        if (btn) btn.classList.toggle('hidden', hidden.includes(tab));
+        const section = document.getElementById('ah-sect-' + tab);
+        if (btn) {
+            btn.classList.toggle('hidden', !isAllowed);
+            btn.style.display = isAllowed ? '' : 'none';
+            btn.setAttribute('aria-hidden', isAllowed ? 'false' : 'true');
+            btn.setAttribute('aria-disabled', isAllowed ? 'false' : 'true');
+            if (!isAllowed) btn.classList.remove('active');
+        }
+        if (section && !isAllowed) section.classList.add('hidden');
     });
-    const active = document.querySelector('.ah-tab-btn.active:not(.hidden)');
-    if (!active) {
-        const first = ADMIN_HUB_TABS.find(tab => !hidden.includes(tab) && document.getElementById('ah-tab-' + tab));
-        if (first && typeof window.switchAdminHubTab === 'function') window.switchAdminHubTab(first);
+
+    // Keep the admin on an assigned section. If their current/active section was
+    // removed, move directly to the first allowed one without exposing other tabs.
+    let current = String(ahCurrentSubTab || '').trim().toLowerCase();
+    const activeBtn = document.querySelector('.ah-tab-btn.active');
+    if (activeBtn && activeBtn.id.indexOf('ah-tab-') === 0) {
+        current = activeBtn.id.replace('ah-tab-', '');
     }
+
+    if (!allowed.includes(current) || !document.getElementById('ah-tab-' + current)) {
+        const first = allowed.find(tab => document.getElementById('ah-tab-' + tab));
+        if (first && typeof window.switchAdminHubTab === 'function') {
+            window.switchAdminHubTab(first);
+        }
+        return;
+    }
+
+    // If this is the first render, make the assigned current tab visible/active.
+    const currentBtn = document.getElementById('ah-tab-' + current);
+    const currentSection = document.getElementById('ah-sect-' + current);
+    if (currentBtn && !currentBtn.classList.contains('active')) currentBtn.classList.add('active');
+    if (currentSection && !document.querySelector('.ah-section:not(.hidden)')) currentSection.classList.remove('hidden');
 };
 
 window.ensureAgentProfileModal = async function() {
