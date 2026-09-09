@@ -1022,7 +1022,7 @@
     <!-- Edit Admin Modal -->
     <div id="um-edit-modal" class="fixed inset-0 z-[10001] items-center justify-center p-4" style="display:none;">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="umCloseEditModal()"></div>
-        <div class="relative w-full max-w-lg bg-gradient-to-b from-[#0f172a] to-[#1e293b] border border-yellow-500/30 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="relative w-full max-w-2xl bg-gradient-to-b from-[#0f172a] to-[#1e293b] border border-yellow-500/30 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]">
             <div class="bg-gradient-to-r from-yellow-500/10 to-orange-500/5 border-b border-white/8 px-6 py-4 flex items-center justify-between">
                 <div class="flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-yellow-500/20 flex items-center justify-center">
@@ -1085,38 +1085,48 @@
                                 <input type="checkbox" class="um-tab-cb" id="um-admintools-cb" data-tab="adminpanel" checked onchange="umToggleAdminToolsSub(this.checked)">
                                 <span>🛡 Admin Tools</span>
                             </label>
-                            <div id="um-admintools-sub" class="mt-2 ml-2 p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
-                                <div class="text-[9px] font-black uppercase tracking-widest text-cyan-400 mb-2 flex items-center gap-1.5"><i class="fas fa-upload"></i> Upload Scope</div>
-                                <div class="text-[10px] text-slate-400 font-medium mb-2">When this admin uploads stats — who can see it?</div>
-                                <div class="flex flex-col gap-1.5">
-                                    <label class="flex items-center gap-2 cursor-pointer hover:text-white transition">
-                                        <input type="radio" name="um-adminToolUploadScope" value="all" id="um-scope-all" class="accent-cyan-400" checked>
-                                        <span class="text-[11px] font-bold text-slate-300">🌐 Broadcast — everyone (all admins + agents)</span>
-                                    </label>
-                                    <label class="flex items-center gap-2 cursor-pointer hover:text-white transition">
-                                        <input type="radio" name="um-adminToolUploadScope" value="self" id="um-scope-self">
-                                        <span class="text-[11px] font-bold text-slate-300">🔒 Private — only visible to this admin</span>
-                                    </label>
+
+                            <div id="um-admintools-sub" class="mt-2 p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
+                                <div class="flex items-start justify-between gap-3 mb-3">
+                                    <div>
+                                        <div class="text-[9px] font-black uppercase tracking-widest text-cyan-400 flex items-center gap-1.5">
+                                            <i class="fas fa-sliders-h"></i> Admin Tools Access
+                                        </div>
+                                        <div class="text-[10px] text-slate-400 font-medium mt-1">Choose exactly which tabs this admin can open inside Admin Tools.</div>
+                                    </div>
+                                    <div class="flex gap-1 shrink-0">
+                                        <button type="button" onclick="umSetAdminHubAccess(true)" class="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-[9px] font-black text-emerald-300 hover:bg-emerald-500/20 transition">ALL</button>
+                                        <button type="button" onclick="umSetAdminHubAccess(false)" class="px-2 py-1 rounded-lg bg-red-500/10 border border-red-500/25 text-[9px] font-black text-red-300 hover:bg-red-500/20 transition">NONE</button>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="stats" checked> <span>📊 Agent Stats</span></label>
+                                    <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="rebuttals" checked> <span>🧠 Rebuttal Intel</span></label>
+                                    <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="performance" checked> <span>🏆 Weekly Perf</span></label>
+                                    <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="zero" checked> <span>👻 Zero Perf</span></label>
+                                    <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="targetboard" checked> <span>🎯 Target Board</span></label>
+                                    <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="profiles"> <span>👤 Profiles</span></label>
+                                    <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="attendance"> <span>📅 Attendance</span></label>
+                                </div>
+
+                                <div class="mt-3 pt-3 border-t border-cyan-500/15">
+                                    <div class="text-[9px] font-black uppercase tracking-widest text-cyan-400 mb-2 flex items-center gap-1.5"><i class="fas fa-upload"></i> Agent Stats Upload Scope</div>
+                                    <div class="text-[10px] text-slate-400 font-medium mb-2">When this admin uploads stats — who can see the uploaded report?</div>
+                                    <div class="flex flex-col gap-1.5">
+                                        <label class="flex items-center gap-2 cursor-pointer hover:text-white transition">
+                                            <input type="radio" name="um-adminToolUploadScope" value="all" id="um-scope-all" class="accent-cyan-400" checked>
+                                            <span class="text-[11px] font-bold text-slate-300">🌐 Broadcast — everyone (all admins + agents)</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer hover:text-white transition">
+                                            <input type="radio" name="um-adminToolUploadScope" value="self" id="um-scope-self">
+                                            <span class="text-[11px] font-bold text-slate-300">🔒 Private — only visible to this admin</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                <div id="um-adminhub-perms-section" class="bg-cyan-500/5 border border-cyan-500/20 rounded-2xl p-4">
-                    <div class="text-[9px] font-black uppercase tracking-widest text-cyan-400 mb-1 flex items-center gap-2">
-                        <i class="fas fa-sliders-h"></i> Inside Admin Hub — choose exactly what this admin can see
-                    </div>
-                    <div class="text-[9px] text-slate-500 font-bold mb-3">These permissions only control the sections inside the normal Admin Hub.</div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="stats" checked> <span>📊 Agent Stats</span></label>
-                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="rebuttals" checked> <span>🧠 Rebuttal Intel</span></label>
-                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="performance" checked> <span>🏆 Weekly Perf</span></label>
-                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="zero" checked> <span>👻 Zero Perf</span></label>
-                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="targetboard" checked> <span>🎯 Target Board</span></label>
-                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="profiles"> <span>👤 Profiles</span></label>
-                        <label class="um-tab-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="attendance"> <span>📅 Attendance</span></label>
-                    </div>
-                    <div class="mt-3 text-[9px] text-cyan-300/80 font-bold"><i class="fas fa-info-circle mr-1"></i>Profiles and Attendance are off by default for regular admins until you enable them.</div>
                 </div>
                 <style>
                     .um-tab-perm-label { display:flex; align-items:center; gap:8px; cursor:pointer; padding:6px 10px; border-radius:10px; border:1px solid rgba(99,102,241,0.15); background:rgba(99,102,241,0.05); font-size:11px; font-weight:700; color:#94a3b8; transition:background 0.15s; }
@@ -2742,6 +2752,12 @@ Their name will be removed from all active dashboard areas.`)) return;
     window.umToggleAdminToolsSub = function(checked) {
         const sub = document.getElementById('um-admintools-sub');
         if (sub) sub.style.display = checked ? '' : 'none';
+    };
+
+    window.umSetAdminHubAccess = function(allowed) {
+        document.querySelectorAll('.um-adminhub-cb').forEach(cb => {
+            cb.checked = !!allowed;
+        });
     };
 
     window.umSaveEdit = async function() {
