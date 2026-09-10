@@ -99,7 +99,7 @@ window.applyAdminHubPermissions = function() {
 window.ensureAgentProfileModal = async function() {
     if (document.getElementById('ap-modal-overlay')) return true;
     try {
-        const html = await fetch('tabs/agentprofiles.html?v=4').then(r => r.ok ? r.text() : Promise.reject(new Error('Profile template unavailable')));
+        const html = await fetch('tabs/agentprofiles.html?v=5').then(r => r.ok ? r.text() : Promise.reject(new Error('Profile template unavailable')));
         const doc = new DOMParser().parseFromString(html, 'text/html');
         const modal = doc.getElementById('ap-modal-overlay') || doc.getElementById('ap-modal');
         if (modal) {
@@ -160,60 +160,71 @@ function getAdminPermissions(adminEmail) {
 // regular admins never get an empty Profiles/Attendance workspace.
 window.loadAdminHubProfiles = async function() {
     const host = document.getElementById('ah-profiles-host');
-    if (!host) return false;
-
-    if (!host.dataset.loaded) {
-        host.innerHTML = '<div class="py-16 text-center text-blue-400 text-xs font-black uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading Profiles...</div>';
-        try {
-            const response = await fetch('tabs/agentprofiles.html?v=5', { cache: 'no-store' });
-            if (!response.ok) throw new Error('Profiles template returned ' + response.status);
-            const html = await response.text();
-            if (!html || !html.includes('ap-agent-list')) throw new Error('Profiles template was empty or invalid');
-            host.innerHTML = html;
-            host.dataset.loaded = '1';
-        } catch (e) {
-            console.error('[AdminHub] Profiles failed to load:', e);
-            host.innerHTML = '<div class="py-16 text-center"><div class="text-red-400 text-xs font-black uppercase tracking-widest mb-3">Profiles could not load</div><button type="button" onclick="loadAdminHubProfiles()" class="px-4 py-2 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-300 text-[10px] font-black uppercase">Retry</button></div>';
-            delete host.dataset.loaded;
-            return false;
-        }
+    if (!host) {
+        console.error('[AdminHub] Profiles host is missing from the Admin Hub DOM');
+        return false;
     }
 
-    // initAgentProfiles may already be subscribed from another workspace.
-    // apFilterAgents always renders the current roster into the newly mounted host.
-    if (typeof window.initAgentProfiles === 'function') await window.initAgentProfiles();
-    if (typeof window.apFilterAgents === 'function') window.apFilterAgents();
+    // Mount from the inert template shipped inside adminpanel.html. This avoids a
+    // second fetch and fixes deployments where the tab button appeared but the
+    // nested profile fragment never rendered.
+    if (!host.dataset.loaded) {
+        const tpl = document.getElementById('ah-profiles-template');
+        if (!tpl || !tpl.content) {
+            host.innerHTML = '<div class="py-16 text-center text-red-400 text-xs font-black uppercase tracking-widest">Profiles template is unavailable. Reload the dashboard.</div>';
+            return false;
+        }
+        host.replaceChildren(tpl.content.cloneNode(true));
+        host.dataset.loaded = '1';
+    }
+
+    // Start/refresh the shared roster only after the profile DOM exists.
+    try {
+        if (typeof window.initAgentProfiles === 'function') await window.initAgentProfiles();
+        if (typeof window.apFilterAgents === 'function') window.apFilterAgents();
+    } catch (e) {
+        console.error('[AdminHub] Profiles failed to initialize:', e);
+        const list = document.getElementById('ap-agent-list');
+        if (list) list.innerHTML = '<div class="col-span-full py-12 text-center text-red-400 text-xs font-black uppercase tracking-widest">Profiles could not initialize. Please reload and try again.</div>';
+        return false;
+    }
     return true;
 };
 
 window.loadAdminHubAttendance = async function() {
     const host = document.getElementById('ah-attendance-host');
-    if (!host) return false;
+    if (!host) {
+        console.error('[AdminHub] Attendance host is missing from the Admin Hub DOM');
+        return false;
+    }
 
+    // Mount the complete Attendance UI from a local inert template. No nested
+    // page request is required, so the section cannot open as an empty panel.
     if (!host.dataset.loaded) {
-        host.innerHTML = '<div class="py-16 text-center text-blue-400 text-xs font-black uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading Attendance...</div>';
-        try {
-            const response = await fetch('tabs/adminattendance.html?v=2', { cache: 'no-store' });
-            if (!response.ok) throw new Error('Attendance template returned ' + response.status);
-            const html = await response.text();
-            if (!html || !html.includes('att-daily-list')) throw new Error('Attendance template was empty or invalid');
-            host.innerHTML = html;
-            host.dataset.loaded = '1';
-        } catch (e) {
-            console.error('[AdminHub] Attendance failed to load:', e);
-            host.innerHTML = '<div class="py-16 text-center"><div class="text-red-400 text-xs font-black uppercase tracking-widest mb-3">Attendance could not load</div><button type="button" onclick="loadAdminHubAttendance()" class="px-4 py-2 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-300 text-[10px] font-black uppercase">Retry</button></div>';
-            delete host.dataset.loaded;
+        const tpl = document.getElementById('ah-attendance-template');
+        if (!tpl || !tpl.content) {
+            host.innerHTML = '<div class="py-16 text-center text-red-400 text-xs font-black uppercase tracking-widest">Attendance template is unavailable. Reload the dashboard.</div>';
             return false;
         }
+        host.replaceChildren(tpl.content.cloneNode(true));
+        host.dataset.loaded = '1';
     }
 
-    const picker = document.getElementById('att-date-picker');
-    if (picker && !picker.value) {
-        picker.value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guyana' });
-        ahAttSelectedDate = picker.value;
+    try {
+        // Attendance depends on the active roster. initAgentProfiles now starts
+        // the subscription even if the Profiles workspace has never been opened.
+        if (typeof window.initAgentProfiles === 'function') await window.initAgentProfiles();
+
+        if (!ahAttSelectedDate) ahAttSelectedDate = ahGetTodayISO();
+        if (typeof window.ahPopulateMonthSelect === 'function') window.ahPopulateMonthSelect();
+        if (typeof window.ahSyncAttendancePicker === 'function') window.ahSyncAttendancePicker();
+        if (typeof window.renderDailyAttendance === 'function') await window.renderDailyAttendance();
+    } catch (e) {
+        console.error('[AdminHub] Attendance failed to initialize:', e);
+        const list = document.getElementById('att-daily-list');
+        if (list) list.innerHTML = '<tr><td colspan="7" class="py-10 text-center text-red-400 text-xs font-black uppercase tracking-widest">Attendance could not initialize. Please reload and try again.</td></tr>';
+        return false;
     }
-    if (typeof window.ahPopulateMonthSelect === 'function') window.ahPopulateMonthSelect();
-    if (typeof window.renderDailyAttendance === 'function') await window.renderDailyAttendance();
     return true;
 };
 
@@ -1640,8 +1651,366 @@ window.ahSelectAttReport = function(id) {
     renderDailyAttendance();
 };
 
+function ahAttParseISODate(iso) {
+    const parts = String(iso || '').split('-').map(Number);
+    if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return null;
+    // Midday local time avoids UTC/date-boundary weekday shifts in Guyana.
+    return new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+}
+
+function ahAttDateToISO(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function ahAttGetWorkWeek(dateIso) {
+    const selected = ahAttParseISODate(dateIso) || new Date();
+    const dow = selected.getDay(); // Sun=0 ... Sat=6
+    const daysFromMonday = (dow + 6) % 7;
+    const monday = new Date(selected);
+    monday.setDate(selected.getDate() - daysFromMonday);
+    monday.setHours(12, 0, 0, 0);
+    const days = [];
+    for (let i = 0; i < 5; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        days.push(ahAttDateToISO(d));
+    }
+    return days;
+}
+
+function ahAttHeaderParts(dateIso) {
+    const d = ahAttParseISODate(dateIso);
+    if (!d) return { weekday: '', date: dateIso };
+    return {
+        weekday: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+        date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()
+    };
+}
+
+function ahGetTodayISO() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guyana' });
+}
+
+function ahAttDateToWeekValue(dateIso) {
+    const d = ahAttParseISODate(dateIso) || ahAttParseISODate(ahGetTodayISO()) || new Date();
+    const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = utc.getUTCDay() || 7;
+    utc.setUTCDate(utc.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+    const weekNum = Math.ceil((((utc - yearStart) / 86400000) + 1) / 7);
+    return `${utc.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+function ahAttWeekValueToMondayISO(weekVal) {
+    const m = String(weekVal || '').match(/^(\d{4})-W(\d{2})$/);
+    if (!m) return null;
+    const year = Number(m[1]);
+    const week = Number(m[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(week) || week < 1 || week > 53) return null;
+    const jan4 = new Date(Date.UTC(year, 0, 4));
+    const jan4Day = jan4.getUTCDay() || 7;
+    const monday = new Date(jan4);
+    monday.setUTCDate(jan4.getUTCDate() - jan4Day + 1 + ((week - 1) * 7));
+    return `${monday.getUTCFullYear()}-${String(monday.getUTCMonth() + 1).padStart(2, '0')}-${String(monday.getUTCDate()).padStart(2, '0')}`;
+}
+
+function ahAttSyncMonthSelectFromDate() {
+    const sel = document.getElementById('att-month-select');
+    const monthVal = String(ahAttSelectedDate || ahGetTodayISO()).slice(0, 7);
+    if (!sel) return monthVal;
+    if (!sel.options || !sel.options.length) {
+        if (typeof window.ahPopulateMonthSelect === 'function') window.ahPopulateMonthSelect();
+    }
+    const exists = Array.from(sel.options || []).some(o => o.value === monthVal);
+    if (!exists && monthVal) {
+        const [year, month] = monthVal.split('-').map(Number);
+        if (Number.isFinite(year) && Number.isFinite(month)) {
+            const d = new Date(year, month - 1, 1);
+            const opt = document.createElement('option');
+            opt.value = monthVal;
+            opt.textContent = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            sel.insertBefore(opt, sel.firstChild || null);
+        }
+    }
+    sel.value = monthVal;
+    return monthVal;
+}
+
+window.ahSyncAttendancePicker = function() {
+    const view = ahAttCurrentView || 'daily';
+    const modeSel = document.getElementById('att-range-mode');
+    const helper = document.getElementById('att-picker-helper');
+    const dailyWrap = document.getElementById('att-picker-daily-wrap');
+    const weeklyWrap = document.getElementById('att-picker-weekly-wrap');
+    const monthlyWrap = document.getElementById('att-picker-monthly-wrap');
+    const dateInp = document.getElementById('att-date-picker');
+    const weekInp = document.getElementById('att-week-picker');
+    const monthInp = document.getElementById('att-month-picker');
+
+    if (modeSel) modeSel.value = view;
+    if (dailyWrap) dailyWrap.classList.toggle('hidden', view !== 'daily');
+    if (weeklyWrap) weeklyWrap.classList.toggle('hidden', view !== 'weekly');
+    if (monthlyWrap) monthlyWrap.classList.toggle('hidden', view !== 'monthly');
+
+    if (!ahAttSelectedDate) ahAttSelectedDate = ahGetTodayISO();
+    if (dateInp) dateInp.value = ahAttSelectedDate;
+    if (weekInp) weekInp.value = ahAttDateToWeekValue(ahAttSelectedDate);
+    const monthVal = String(ahAttSelectedDate).slice(0, 7);
+    if (monthInp) monthInp.value = monthVal;
+    ahAttSyncMonthSelectFromDate();
+
+    if (helper) {
+        let text = 'Choose a single date to view or edit attendance.';
+        if (view === 'weekly') text = 'Choose any work week. Attendance will show Monday to Friday for that week.';
+        if (view === 'monthly') text = 'Choose any month. Attendance will show Monday to Friday for the selected month.';
+        helper.textContent = text;
+    }
+};
+
+window.ahChangeAttPickerMode = function(mode) {
+    const next = ['daily', 'weekly', 'monthly'].includes(String(mode)) ? String(mode) : 'daily';
+    window.switchAttView(next);
+};
+
+window.ahAttWeekChanged = function(weekVal) {
+    const monday = ahAttWeekValueToMondayISO(weekVal);
+    if (!monday) return;
+    ahAttSelectedDate = monday;
+    if (typeof window.ahSyncAttendancePicker === 'function') window.ahSyncAttendancePicker();
+    ahLoadWeeklyMatrix(ahAttFilterTeam);
+};
+
+window.ahAttMonthChanged = function(monthVal) {
+    const m = String(monthVal || '').match(/^(\d{4}-\d{2})$/);
+    if (!m) return;
+    ahAttSelectedDate = `${m[1]}-01`;
+    ahAttSyncMonthSelectFromDate();
+    if (typeof window.ahSyncAttendancePicker === 'function') window.ahSyncAttendancePicker();
+    ahLoadMonthlyMatrix();
+};
+
+function ahAttEscape(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function ahAttStatusMeta(status) {
+    const key = String(status || '').trim();
+    const map = {
+        'Training':     { label: 'TRAINING', short: 'T',  cls: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
+        'Present':      { label: 'PRESENT',  short: 'P',  cls: 'text-green-400 bg-green-500/10 border-green-500/20' },
+        'Late':         { label: 'LATE',     short: 'L',  cls: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
+        'Absent':       { label: 'ABSENT',   short: 'A',  cls: 'text-red-400 bg-red-500/10 border-red-500/20' },
+        'Personal Out': { label: 'P. OUT',   short: 'PO', cls: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
+        'Vacation':     { label: 'VACATION', short: 'V',  cls: 'text-purple-400 bg-purple-500/10 border-purple-500/20' },
+        'Sick':         { label: 'SICK',     short: 'S',  cls: 'text-rose-400 bg-rose-500/10 border-rose-500/20' },
+        'Off':          { label: 'OFF',      short: 'O',  cls: 'text-slate-400 bg-slate-500/10 border-slate-500/20' },
+        'Holiday':      { label: 'HOLIDAY',  short: 'H',  cls: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' }
+    };
+    return map[key] || { label: '—', short: '—', cls: 'text-slate-600 bg-white/[0.02] border-white/5' };
+}
+
+
+// ===== ATTENDANCE NAVIGATION + AGENT HISTORY =====
+// Monthly reports are wider than the viewport. Keep a second scrollbar and
+// arrow controls at the top so admins never have to scroll to the bottom just
+// to move sideways.
+window.ahInitMonthlyScroll = function() {
+    const main = document.getElementById('att-monthly-scroll');
+    const top = document.getElementById('att-monthly-top-scroll');
+    const spacer = document.getElementById('att-monthly-top-spacer');
+    if (!main || !top || !spacer) return;
+
+    const syncWidth = () => {
+        spacer.style.width = Math.max(main.scrollWidth, main.clientWidth) + 'px';
+        top.scrollLeft = main.scrollLeft;
+    };
+    syncWidth();
+
+    let syncing = false;
+    top.onscroll = function() {
+        if (syncing) return;
+        syncing = true;
+        main.scrollLeft = top.scrollLeft;
+        requestAnimationFrame(() => { syncing = false; });
+    };
+    main.onscroll = function() {
+        if (syncing) return;
+        syncing = true;
+        top.scrollLeft = main.scrollLeft;
+        requestAnimationFrame(() => { syncing = false; });
+    };
+
+    if (window.ResizeObserver && !main._ahMonthlyResizeObserver) {
+        main._ahMonthlyResizeObserver = new ResizeObserver(syncWidth);
+        main._ahMonthlyResizeObserver.observe(main);
+        const table = main.querySelector('table');
+        if (table) main._ahMonthlyResizeObserver.observe(table);
+    }
+};
+
+window.ahScrollMonthly = function(direction) {
+    const main = document.getElementById('att-monthly-scroll');
+    if (!main) return;
+    const amount = Math.max(320, Math.round(main.clientWidth * 0.72));
+    main.scrollBy({ left: (Number(direction) < 0 ? -amount : amount), behavior: 'smooth' });
+};
+
+function ahEnsureAgentAttendanceHistoryModal() {
+    let modal = document.getElementById('ah-agent-attendance-history-modal');
+    if (modal) return modal;
+
+    modal = document.createElement('div');
+    modal.id = 'ah-agent-attendance-history-modal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:10060;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.76);backdrop-filter:blur(8px);';
+    modal.innerHTML = `
+        <div id="ah-agent-attendance-history-card" style="width:min(980px,96vw);max-height:90vh;display:flex;flex-direction:column;background:#0b101b;border:1px solid rgba(56,189,248,.28);border-radius:24px;box-shadow:0 30px 90px rgba(0,0,0,.55);overflow:hidden;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 22px;border-bottom:1px solid rgba(255,255,255,.08);background:#0e1522;">
+                <div style="min-width:0;">
+                    <div style="font-size:10px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#38bdf8;">Agent Attendance History</div>
+                    <div id="ah-agent-attendance-history-name" style="margin-top:4px;font-size:20px;font-weight:900;color:white;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">—</div>
+                    <div id="ah-agent-attendance-history-id" style="font-size:11px;font-weight:800;color:#64748b;margin-top:2px;">—</div>
+                </div>
+                <button type="button" onclick="ahCloseAgentAttendanceHistory()" aria-label="Close attendance history" style="flex:0 0 auto;width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;cursor:pointer;font-size:18px;">×</button>
+            </div>
+            <div id="ah-agent-attendance-history-body" style="overflow:auto;padding:20px 22px 24px;min-height:260px;">
+                <div style="padding:50px 10px;text-align:center;color:#60a5fa;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.12em;">Loading attendance…</div>
+            </div>
+        </div>`;
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) window.ahCloseAgentAttendanceHistory();
+    });
+    document.body.appendChild(modal);
+
+    if (!window._ahAttendanceHistoryEscapeBound) {
+        window._ahAttendanceHistoryEscapeBound = true;
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const m = document.getElementById('ah-agent-attendance-history-modal');
+                if (m && m.style.display !== 'none') window.ahCloseAgentAttendanceHistory();
+            }
+        });
+    }
+    return modal;
+}
+
+window.ahCloseAgentAttendanceHistory = function() {
+    const modal = document.getElementById('ah-agent-attendance-history-modal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+};
+
+window.ahOpenAgentAttendanceHistory = async function(encodedAgentId, encodedName) {
+    const agentId = decodeURIComponent(String(encodedAgentId || ''));
+    let agentName = decodeURIComponent(String(encodedName || ''));
+    if (!agentName) {
+        const profile = (window.allAgentProfiles || []).find(p => String(p.userId || p.ytelId || '') === agentId);
+        agentName = profile ? (profile.fullName || profile.name || 'Agent') : 'Agent';
+    }
+
+    const modal = ahEnsureAgentAttendanceHistoryModal();
+    const nameEl = document.getElementById('ah-agent-attendance-history-name');
+    const idEl = document.getElementById('ah-agent-attendance-history-id');
+    const body = document.getElementById('ah-agent-attendance-history-body');
+    if (nameEl) nameEl.textContent = agentName;
+    if (idEl) idEl.textContent = 'ID ' + (agentId || '—');
+    if (body) body.innerHTML = '<div style="padding:50px 10px;text-align:center;color:#60a5fa;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.12em;"><i class="fas fa-spinner fa-spin" style="margin-right:8px"></i>Loading all attendance…</div>';
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    try {
+        if (typeof window.rtdbGet !== 'function' || typeof window.rtdbRef !== 'function') {
+            throw new Error('Attendance database service is not ready.');
+        }
+        const snap = await window.rtdbGet(window.rtdbRef('attendance'));
+        const attendanceRoot = snap && typeof snap.val === 'function' ? (snap.val() || {}) : {};
+        const rows = [];
+
+        Object.entries(attendanceRoot).forEach(([date, dayRows]) => {
+            if (!dayRows || typeof dayRows !== 'object') return;
+            let rec = dayRows[agentId];
+            if (!rec) {
+                rec = Object.values(dayRows).find(r => r && String(r.agentId || r.userId || r.ytelId || '') === agentId);
+            }
+            if (!rec) return;
+            rows.push({ date, ...rec });
+        });
+        rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+        const counts = {};
+        rows.forEach(r => {
+            const key = String(r.status || 'No Record');
+            counts[key] = (counts[key] || 0) + 1;
+        });
+        const attended = rows.filter(r => ['Present','Late','Training'].includes(String(r.status || ''))).length;
+        const attPct = rows.length ? Math.round(attended / rows.length * 100) : 0;
+
+        const summaryOrder = ['Present','Late','Absent','Training','Personal Out','Vacation','Sick','Off','Holiday'];
+        const summaryCards = summaryOrder.filter(k => counts[k]).map(k => {
+            const meta = ahAttStatusMeta(k);
+            return `<div class="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 min-w-[112px]">
+                <div class="text-[9px] font-black uppercase tracking-widest text-slate-500">${ahAttEscape(k)}</div>
+                <div class="text-xl font-black mt-1 ${meta.cls.split(' ')[0]}">${counts[k]}</div>
+            </div>`;
+        }).join('');
+
+        let html = `<div class="flex flex-wrap gap-3 mb-5">
+            <div class="rounded-2xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 min-w-[120px]"><div class="text-[9px] font-black uppercase tracking-widest text-blue-300">Recorded Days</div><div class="text-xl font-black text-white mt-1">${rows.length}</div></div>
+            <div class="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 min-w-[120px]"><div class="text-[9px] font-black uppercase tracking-widest text-cyan-300">Attendance %</div><div class="text-xl font-black text-white mt-1">${rows.length ? attPct + '%' : '—'}</div></div>
+            ${summaryCards}
+        </div>`;
+
+        if (!rows.length) {
+            html += '<div class="rounded-2xl border border-white/10 bg-white/[0.025] py-14 text-center text-slate-500 text-[11px] font-black uppercase tracking-widest">No attendance records found for this agent.</div>';
+        } else {
+            html += `<div class="rounded-2xl border border-white/10 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[720px] text-left">
+                        <thead><tr class="bg-white/[0.04] border-b border-white/10 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                            <th class="px-4 py-3">Date</th><th class="px-4 py-3">Day</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Clocked In</th><th class="px-4 py-3">Notes</th><th class="px-4 py-3">Updated By</th>
+                        </tr></thead><tbody>`;
+            rows.forEach(r => {
+                const d = ahAttParseISODate(r.date);
+                const dateLabel = d ? d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : r.date;
+                const dayLabel = d ? d.toLocaleDateString('en-US', { weekday:'long' }) : '—';
+                const meta = ahAttStatusMeta(r.status || '');
+                html += `<tr class="border-b border-white/5 hover:bg-white/[0.03]">
+                    <td class="px-4 py-3 text-[11px] font-black text-white whitespace-nowrap">${ahAttEscape(dateLabel)}</td>
+                    <td class="px-4 py-3 text-[10px] font-bold text-slate-400">${ahAttEscape(dayLabel)}</td>
+                    <td class="px-4 py-3"><span class="inline-flex px-2 py-1 rounded-lg border text-[9px] font-black ${meta.cls}">${ahAttEscape(meta.label)}</span></td>
+                    <td class="px-4 py-3 text-[10px] font-bold text-slate-300 whitespace-nowrap">${ahAttEscape(r.clockedAt || '--:--')}</td>
+                    <td class="px-4 py-3 text-[10px] text-slate-400 max-w-[260px]">${ahAttEscape(r.notes || '—')}</td>
+                    <td class="px-4 py-3 text-[10px] text-slate-500">${ahAttEscape(r.editedBy || '—')}</td>
+                </tr>`;
+            });
+            html += '</tbody></table></div></div>';
+        }
+        if (body) body.innerHTML = html;
+    } catch (err) {
+        console.error('Agent attendance history load error:', err);
+        if (body) body.innerHTML = `<div class="rounded-2xl border border-red-500/20 bg-red-500/10 p-6 text-center"><div class="text-red-400 font-black text-sm">Unable to load attendance history</div><div class="text-slate-500 text-[10px] mt-2">${ahAttEscape(err && err.message ? err.message : 'Please try again.')}</div><button type="button" class="mt-4 px-4 py-2 rounded-xl bg-white/10 text-white text-[10px] font-black" onclick="ahOpenAgentAttendanceHistory('${encodeURIComponent(agentId)}','${encodeURIComponent(agentName)}')">RETRY</button></div>`;
+    }
+};
+
 window.ahAttDateChanged = function(dateStr) {
     if (dateStr) ahAttSelectedDate = dateStr;
+    if (typeof window.ahSyncAttendancePicker === 'function') window.ahSyncAttendancePicker();
+
+    if (ahAttCurrentView === 'weekly') {
+        ahLoadWeeklyMatrix(ahAttFilterTeam);
+        return;
+    }
+
+    if (ahAttCurrentView === 'monthly') {
+        ahAttSyncMonthSelectFromDate();
+        ahLoadMonthlyMatrix();
+        return;
+    }
+
     renderDailyAttendance();
 };
 
@@ -1660,9 +2029,15 @@ window.switchAttView = function(view) {
         }
     });
 
+    if (typeof window.ahSyncAttendancePicker === 'function') window.ahSyncAttendancePicker();
+
     if (view === 'daily') renderDailyAttendance();
     if (view === 'weekly') ahLoadWeeklyMatrix(ahAttFilterTeam);
-    if (view === 'monthly') ahLoadMonthlyMatrix();
+    if (view === 'monthly') {
+        if (typeof window.ahPopulateMonthSelect === 'function') window.ahPopulateMonthSelect();
+        ahAttSyncMonthSelectFromDate();
+        ahLoadMonthlyMatrix();
+    }
 };
 
 window.filterAttTeam = function(team) {
@@ -1681,9 +2056,7 @@ async function renderDailyAttendance() {
     const list = document.getElementById('att-daily-list');
     if (!list) return;
 
-    // Update date picker if present
-    const picker = document.getElementById('att-date-picker');
-    if (picker && !picker.value) picker.value = ahAttSelectedDate;
+    if (typeof window.ahSyncAttendancePicker === 'function') window.ahSyncAttendancePicker();
 
     list.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-blue-400 text-[10px] font-black uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading attendance...</td></tr>';
 
@@ -1755,8 +2128,10 @@ async function renderDailyAttendance() {
             </td>
             <td class="py-3 px-2 text-[10px] font-black text-slate-600">${i+1}</td>
             <td class="py-3">
-                <div class="text-[12px] font-black text-white uppercase tracking-tight">${a.name}</div>
-                <div class="text-[8px] text-slate-500 font-bold">${a.ytelId || '----'}</div>
+                <button type="button" onclick="ahOpenAgentAttendanceHistory('${encodeURIComponent(String(a.ytelId || ''))}','${nameEsc}')" class="text-left group" title="View full attendance history">
+                    <div class="text-[12px] font-black text-white uppercase tracking-tight group-hover:text-cyan-300 transition">${ahAttEscape(a.name)}</div>
+                    <div class="text-[8px] text-slate-500 font-bold group-hover:text-cyan-500 transition">${ahAttEscape(a.ytelId || '----')} · VIEW ATTENDANCE</div>
+                </button>
             </td>
             <td class="py-3">
                 <span class="px-2 py-1 rounded bg-${colorClass}/10 text-${colorClass} text-[8px] font-black uppercase tracking-widest border border-${colorClass}/20">${team}</span>
@@ -1934,39 +2309,57 @@ window.ahCloseAttEdit = function() {
 window.ahPopulateMonthSelect = function() {
     const sel = document.getElementById('att-month-select');
     if (!sel) return;
-    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
+    const baseDate = ahAttParseISODate(ahAttSelectedDate) || new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
     sel.innerHTML = '';
-    for (let i = 0; i < 6; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const val = d.toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit' });
+    for (let i = 0; i < 12; i++) {
+        const d = new Date(baseDate.getFullYear(), baseDate.getMonth() - i, 1);
+        const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
         const opt = document.createElement('option');
         opt.value = val;
         opt.textContent = label;
         sel.appendChild(opt);
     }
+    ahAttSyncMonthSelectFromDate();
 };
 
 window.ahLoadMonthlyMatrix = async function() {
     const container = document.getElementById('att-monthly-matrix');
     if (!container) return;
     const sel = document.getElementById('att-month-select');
-    const monthVal = sel ? sel.value : null;
-    if (!monthVal) { container.innerHTML = '<div class="py-10 text-slate-500 text-center font-bold">Select a month above.</div>'; return; }
+    let monthVal = sel ? sel.value : null;
+    if (!monthVal) monthVal = String(ahAttSelectedDate || ahGetTodayISO()).slice(0, 7);
+    if (!monthVal) {
+        container.innerHTML = '<div class="py-10 text-slate-500 text-center font-bold">Select a month above.</div>';
+        return;
+    }
+    if (sel) sel.value = monthVal;
+    ahAttSelectedDate = `${monthVal}-01`;
+    if (typeof window.ahSyncAttendancePicker === 'function') window.ahSyncAttendancePicker();
 
-    container.innerHTML = '<div class="py-10 text-blue-400 text-center font-bold text-[10px] uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading monthly data...</div>';
+    container.innerHTML = '<div class="py-10 text-blue-400 text-center font-bold text-[10px] uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading Monday–Friday monthly attendance...</div>';
 
     const [year, month] = monthVal.split('-').map(Number);
     const daysInMonth = new Date(year, month, 0).getDate();
     const days = [];
-    for (let d = 1; d <= daysInMonth; d++) {
-        const iso = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const dow = new Date(iso).getDay();
-        if (dow !== 0) days.push(iso); // skip Sundays
+
+    // Monthly attendance is Monday-Friday only. Build dates using local midday
+    // so browser timezone conversion cannot move a date to the previous day.
+    for (let day = 1; day <= daysInMonth; day++) {
+        const local = new Date(year, month - 1, day, 12, 0, 0, 0);
+        const dow = local.getDay();
+        if (dow >= 1 && dow <= 5) days.push(ahAttDateToISO(local));
     }
 
-    const roster = (window.allAgentProfiles || []).filter(p => {
-        if (p.status === 'Inactive') return false;
+    let roster = [];
+    try {
+        roster = await ahGetActiveRoster();
+    } catch (e) {
+        roster = (window.allAgentProfiles || []).slice();
+    }
+    roster = roster.filter(p => {
+        const status = String(p.status || '').toLowerCase();
+        if (['inactive','quit','fired','deleted','archived'].includes(status)) return false;
         if (ahAttFilterTeam === 'ALL') return true;
         return normalizeTeam(p.team, p.fullName) === ahAttFilterTeam;
     });
@@ -1976,106 +2369,171 @@ window.ahLoadMonthlyMatrix = async function() {
         return;
     }
 
-    let allRecs = {};
+    const allRecs = {};
     if (typeof window.getAttendanceForDate === 'function') {
-        const results = await Promise.all(days.map(dt => window.getAttendanceForDate(dt)));
+        const results = await Promise.all(days.map(dt => window.getAttendanceForDate(dt).catch(() => ({}))));
         days.forEach((dt, i) => { allRecs[dt] = results[i] || {}; });
     }
 
-    const shortDays = days.map(dt => {
-        const d = new Date(dt + 'T12:00:00');
-        return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
-    });
+    const monthLabel = new Date(year, month - 1, 1, 12).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const teamLabel = ahAttFilterTeam === 'ALL' ? 'All Teams' : ahAttFilterTeam === 'BB' ? 'Berbice' : ahAttFilterTeam === 'PR' ? 'Providence' : 'Remote';
 
-    const statusColor = s => s === 'Present' ? '#22c55e' : s === 'Late' ? '#eab308' : s === 'Absent' ? '#ef4444' : '#374151';
-    const statusLetter = s => s === 'Present' ? 'P' : s === 'Late' ? 'L' : s === 'Absent' ? 'A' : '—';
+    let html = `<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="text-[10px] font-black text-blue-400 uppercase tracking-[0.18em]">Monthly Attendance</div>
+            <div class="text-sm font-black text-white mt-1">${ahAttEscape(monthLabel)} <span class="text-slate-500">• Monday–Friday</span></div>
+        </div>
+        <div class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest">${ahAttEscape(teamLabel)}</div>
+    </div>`;
 
-    let html = `<table class="text-[9px] font-bold min-w-full border-collapse">
-        <thead><tr class="sticky top-0 bg-[#070d1a] z-10">
-            <th class="py-2 px-3 text-left text-slate-400 font-black uppercase whitespace-nowrap min-w-[140px]">Agent</th>`;
-    days.forEach((dt, i) => {
-        html += `<th class="py-2 px-1 text-center text-slate-500 whitespace-nowrap">${shortDays[i]}</th>`;
+    html += `<div class="mb-2 flex items-center gap-2">
+        <button type="button" onclick="ahScrollMonthly(-1)" class="w-9 h-9 shrink-0 rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 transition" title="Scroll left" aria-label="Scroll monthly attendance left"><i class="fas fa-chevron-left"></i></button>
+        <div id="att-monthly-top-scroll" class="flex-1 overflow-x-scroll overflow-y-hidden" style="height:16px;scrollbar-gutter:stable;">
+            <div id="att-monthly-top-spacer" style="height:1px;width:100%;"></div>
+        </div>
+        <button type="button" onclick="ahScrollMonthly(1)" class="w-9 h-9 shrink-0 rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 transition" title="Scroll right" aria-label="Scroll monthly attendance right"><i class="fas fa-chevron-right"></i></button>
+    </div>
+    <div class="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-2 text-center">Use the arrows or scrollbar to move across the month · Click an agent to view full attendance</div>
+    <div id="att-monthly-scroll" class="overflow-x-auto pb-3" style="scrollbar-gutter:stable;"><table class="text-[9px] font-bold min-w-max w-full border-collapse">
+        <thead><tr class="sticky top-0 bg-[#0f1420] z-10 border-b border-white/10">
+            <th class="py-3 px-3 text-left text-slate-400 font-black uppercase whitespace-nowrap min-w-[170px] sticky left-0 bg-[#0f1420] z-20">Agent</th>`;
+
+    days.forEach(dt => {
+        const hp = ahAttHeaderParts(dt);
+        html += `<th class="py-2 px-2 text-center min-w-[62px] whitespace-nowrap">
+            <div class="text-[8px] font-black text-blue-400 tracking-wider">${hp.weekday}</div>
+            <div class="text-[9px] font-black text-slate-300 mt-0.5">${hp.date}</div>
+        </th>`;
     });
-    html += `<th class="py-2 px-3 text-center text-slate-400">%</th></tr></thead><tbody>`;
+    html += `<th class="py-2 px-3 text-center text-slate-400 min-w-[62px]">ATT %</th></tr></thead><tbody>`;
 
     roster.forEach(p => {
-        const agentId = String(p.userId);
-        let presentCount = 0;
-        html += `<tr class="border-b border-white/5 hover:bg-white/5 transition">
-            <td class="py-2 px-3 text-white font-black whitespace-nowrap uppercase text-[10px]">${p.fullName}</td>`;
+        const agentId = String(p.userId || p.ytelId || '');
+        let attendedCount = 0;
+        let recordedCount = 0;
+        const displayName = p.fullName || p.name || 'Unknown';
+        const historyId = encodeURIComponent(agentId);
+        const historyName = encodeURIComponent(displayName);
+        html += `<tr class="border-b border-white/5 hover:bg-white/[0.03] transition">
+            <td class="py-2.5 px-3 text-white font-black whitespace-nowrap uppercase text-[10px] sticky left-0 bg-[#111622] z-[5]">
+                <button type="button" onclick="ahOpenAgentAttendanceHistory('${historyId}','${historyName}')" class="text-left group" title="View all attendance for ${ahAttEscape(displayName)}">
+                    <span class="group-hover:text-cyan-300 transition">${ahAttEscape(displayName)}</span><br>
+                    <span class="text-[8px] text-slate-600 group-hover:text-cyan-500 transition">${ahAttEscape(agentId)} · VIEW ALL</span>
+                </button>
+            </td>`;
+
         days.forEach(dt => {
             const rec = allRecs[dt] && allRecs[dt][agentId];
-            const s = rec ? rec.status : 'Absent';
-            if (s === 'Present' || s === 'Late') presentCount++;
-            html += `<td class="py-2 px-1 text-center">
-                <span style="color:${statusColor(s)}" title="${s} on ${dt}">${statusLetter(s)}</span>
+            const status = rec && rec.status ? rec.status : '';
+            const meta = ahAttStatusMeta(status);
+            if (status) {
+                recordedCount++;
+                if (status === 'Present' || status === 'Late' || status === 'Training') attendedCount++;
+            }
+            html += `<td class="py-2 px-1 text-center" title="${ahAttEscape(status || 'No attendance record')} • ${dt}">
+                <span class="inline-flex min-w-[27px] justify-center px-1.5 py-1 rounded-lg border text-[8px] font-black ${meta.cls}">${meta.short}</span>
             </td>`;
         });
-        const pct = days.length > 0 ? Math.round((presentCount / days.length) * 100) : 0;
-        const pctColor = pct >= 90 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-red-400';
-        html += `<td class="py-2 px-3 text-center font-black ${pctColor}">${pct}%</td></tr>`;
+
+        const pct = recordedCount > 0 ? Math.round((attendedCount / recordedCount) * 100) : null;
+        const pctClass = pct === null ? 'text-slate-600' : pct >= 90 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-red-400';
+        html += `<td class="py-2 px-3 text-center font-black ${pctClass}">${pct === null ? '—' : pct + '%'}</td></tr>`;
     });
 
-    html += '</tbody></table>';
-    html += '<div class="flex gap-4 mt-4 text-[9px] font-black uppercase tracking-widest">'
-        + '<span style="color:#22c55e">■ P = Present</span>'
-        + '<span style="color:#eab308">■ L = Late</span>'
-        + '<span style="color:#ef4444">■ A = Absent</span>'
-        + '<span class="text-slate-500">— = No Data</span></div>';
+    html += '</tbody></table></div>';
+    html += `<div class="flex flex-wrap gap-x-4 gap-y-2 mt-4 text-[8px] font-black uppercase tracking-widest text-slate-500">
+        <span class="text-green-400">P = Present</span>
+        <span class="text-yellow-400">L = Late</span>
+        <span class="text-indigo-400">T = Training</span>
+        <span class="text-red-400">A = Absent</span>
+        <span class="text-orange-400">PO = Personal Out</span>
+        <span class="text-purple-400">V = Vacation</span>
+        <span class="text-rose-400">S = Sick</span>
+        <span>O = Off</span>
+        <span class="text-cyan-400">H = Holiday</span>
+        <span>— = No Record</span>
+    </div>`;
     container.innerHTML = html;
+    requestAnimationFrame(() => { if (typeof window.ahInitMonthlyScroll === 'function') window.ahInitMonthlyScroll(); });
 };
 
 async function ahLoadWeeklyMatrix(team) {
     const container = document.getElementById('att-weekly-matrix');
     if (!container) return;
-    if (team === 'ALL') {
-        container.innerHTML = '<div class="py-10 text-slate-600 font-bold uppercase text-[10px] tracking-widest border border-dashed border-white/10 rounded-2xl text-center">Select BB, PR, or RM to load weekly data</div>';
-        return;
-    }
 
-    container.innerHTML = '<div class="py-10 text-blue-400 font-bold uppercase text-[10px] tracking-widest text-center"><i class="fas fa-spinner fa-spin mr-2"></i> Loading weekly attendance from Firebase...</div>';
+    container.innerHTML = '<div class="py-10 text-blue-400 font-bold uppercase text-[10px] tracking-widest text-center"><i class="fas fa-spinner fa-spin mr-2"></i> Loading Monday–Friday attendance from Firebase...</div>';
 
-    // Build list of past 6 working days (Mon-Sat)
-    const days = [];
-    const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guyana' }));
-    while (days.length < 6) {
-        const dow = d.getDay(); // 0=Sun, 6=Sat
-        if (dow !== 0) {
-            days.unshift(d.toLocaleDateString('en-CA', { timeZone: 'America/Guyana' }));
-        }
-        d.setDate(d.getDate() - 1);
-    }
+    // A weekly report is always the calendar workweek containing the selected
+    // attendance date: Monday, Tuesday, Wednesday, Thursday, Friday.
+    const days = ahAttGetWorkWeek(ahAttSelectedDate);
 
-    // Fetch all days in parallel
     const allRecs = await Promise.all(days.map(dt =>
-        typeof window.getAttendanceForDate === 'function' ? window.getAttendanceForDate(dt) : Promise.resolve({})
+        typeof window.getAttendanceForDate === 'function'
+            ? window.getAttendanceForDate(dt).catch(() => ({}))
+            : Promise.resolve({})
     ));
 
-    const roster = (window.allAgentProfiles || []).filter(p =>
-        normalizeTeam(p.team, p.fullName) === team && p.status !== 'Inactive'
-    );
+    let roster = [];
+    try {
+        roster = await ahGetActiveRoster();
+    } catch (e) {
+        roster = (window.allAgentProfiles || []).slice();
+    }
+
+    roster = roster.filter(p => {
+        const status = String(p.status || '').toLowerCase();
+        if (['inactive','quit','fired','deleted','archived'].includes(status)) return false;
+        if (team === 'ALL') return true;
+        return normalizeTeam(p.team, p.fullName) === team;
+    });
 
     if (roster.length === 0) {
-        container.innerHTML = '<div class="py-10 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center">No agents for this team.</div>';
+        container.innerHTML = '<div class="py-10 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center">No agents found for this team filter.</div>';
         return;
     }
 
-    const dayLabels = days.map(dt => {
-        const d2 = new Date(dt + 'T12:00:00');
-        return d2.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    });
+    const first = ahAttParseISODate(days[0]);
+    const last = ahAttParseISODate(days[4]);
+    const rangeLabel = first && last
+        ? `${first.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${last.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+        : `${days[0]} – ${days[4]}`;
+    const teamLabel = team === 'ALL' ? 'All Teams' : team === 'BB' ? 'Berbice' : team === 'PR' ? 'Providence' : 'Remote';
 
-    let html = '<div class="overflow-x-auto"><table class="w-full text-left"><thead><tr class="text-[9px] font-black text-slate-500 border-b border-white/10"><th class="p-3">Agent</th>';
-    dayLabels.forEach(dl => { html += `<th class="p-2 text-center text-[8px]">${dl}</th>`; });
+    let html = `<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="text-[10px] font-black text-blue-400 uppercase tracking-[0.18em]">Work Week</div>
+            <div class="text-sm font-black text-white mt-1">${ahAttEscape(rangeLabel)} <span class="text-slate-500">• Monday–Friday</span></div>
+        </div>
+        <div class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest">${ahAttEscape(teamLabel)}</div>
+    </div>`;
+
+    html += '<div class="overflow-x-auto"><table class="w-full min-w-[780px] text-left"><thead><tr class="text-[9px] font-black text-slate-500 border-b border-white/10"><th class="p-3 min-w-[190px]">Agent</th>';
+    days.forEach(dt => {
+        const hp = ahAttHeaderParts(dt);
+        html += `<th class="p-2 text-center min-w-[112px]">
+            <div class="text-[9px] font-black text-blue-400 tracking-[0.12em]">${hp.weekday}</div>
+            <div class="text-[10px] font-black text-slate-300 mt-1">${hp.date}</div>
+        </th>`;
+    });
     html += '</tr></thead><tbody>';
 
     roster.forEach(p => {
-        html += `<tr class="hover:bg-white/5 border-b border-white/5"><td class="py-2 px-3 text-[11px] font-black text-white uppercase">${p.fullName}<br><span class="text-[8px] text-slate-500">${p.userId}</span></td>`;
-        allRecs.forEach(recs => {
-            const rec = recs[String(p.userId)];
-            const st = rec ? rec.status : 'Absent';
-            const cls = st === 'Present' ? 'text-green-400 bg-green-500/10' : st === 'Late' ? 'text-yellow-400 bg-yellow-500/10' : 'text-red-500/60 bg-red-500/5';
-            html += `<td class="py-2 px-1 text-center"><span class="text-[8px] font-black px-1.5 py-0.5 rounded ${cls}">${st === 'Absent' ? '—' : st.toUpperCase()}</span></td>`;
+        const agentId = String(p.userId || p.ytelId || '');
+        const displayName = p.fullName || p.name || 'Unknown';
+        html += `<tr class="hover:bg-white/[0.03] border-b border-white/5">
+            <td class="py-3 px-3 text-[11px] font-black text-white uppercase">
+                <button type="button" onclick="ahOpenAgentAttendanceHistory('${encodeURIComponent(agentId)}','${encodeURIComponent(displayName)}')" class="text-left group" title="View full attendance history">
+                    <span class="group-hover:text-cyan-300 transition">${ahAttEscape(displayName)}</span><br><span class="text-[8px] text-slate-500 group-hover:text-cyan-500 transition">${ahAttEscape(agentId)} · VIEW ALL</span>
+                </button>
+            </td>`;
+
+        allRecs.forEach((recs, idx) => {
+            const rec = recs && recs[agentId];
+            const status = rec && rec.status ? rec.status : '';
+            const meta = ahAttStatusMeta(status);
+            html += `<td class="py-3 px-1 text-center" title="${ahAttEscape(status || 'No attendance record')} • ${days[idx]}">
+                <span class="inline-flex items-center justify-center px-2 py-1 rounded-lg border text-[8px] font-black whitespace-nowrap ${meta.cls}">${status ? meta.label : '—'}</span>
+            </td>`;
         });
         html += '</tr>';
     });

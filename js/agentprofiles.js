@@ -5,14 +5,21 @@
 
 let allAgentProfiles = [];
 let apIsSubscribed = false;
+let apInitRetryTimer = null;
 
 window.initAgentProfiles = async function() {
-    if (apIsSubscribed) return;
-
     const container = document.getElementById('ap-agent-list');
-    if (!container) return;
 
-    container.innerHTML = '<div class="col-span-full py-10 text-center text-blue-400 text-[10px] font-black uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading Agents...</div>';
+    // The roster is shared by Profiles, Attendance, and performance tools. Start
+    // the Firebase listener even when the Profiles markup has not been mounted yet.
+    if (apIsSubscribed) {
+        if (container && typeof window.apFilterAgents === 'function') window.apFilterAgents();
+        return;
+    }
+
+    if (container) {
+        container.innerHTML = '<div class="col-span-full py-10 text-center text-blue-400 text-[10px] font-black uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Loading Agents...</div>';
+    }
 
     // Primary: RTDB biz_master_roster (real-time)
     if (typeof window.listenForMasterRoster === 'function') {
@@ -25,6 +32,10 @@ window.initAgentProfiles = async function() {
             allAgentProfiles = profiles;
             window.allAgentProfiles = allAgentProfiles;
             apFilterAgents();
+            if (typeof window.renderDailyAttendance === 'function') {
+                const attSection = document.getElementById('ah-sect-attendance');
+                if (attSection && !attSection.classList.contains('hidden')) window.renderDailyAttendance();
+            }
         });
         apIsSubscribed = true;
     } else if (typeof window.listenToAgentProfiles === 'function') {
@@ -33,10 +44,24 @@ window.initAgentProfiles = async function() {
             allAgentProfiles = profiles || [];
             window.allAgentProfiles = allAgentProfiles;
             apFilterAgents();
+            if (typeof window.renderDailyAttendance === 'function') {
+                const attSection = document.getElementById('ah-sect-attendance');
+                if (attSection && !attSection.classList.contains('hidden')) window.renderDailyAttendance();
+            }
         });
         apIsSubscribed = true;
     } else {
-        container.innerHTML = '<div class="col-span-full py-10 text-center text-red-400 font-bold uppercase tracking-widest">❌ Database Connection Failed</div>';
+        // Firebase's module script can finish a moment after the dashboard shell.
+        // Retry instead of leaving Profiles/Attendance permanently blank.
+        if (container) {
+            container.innerHTML = '<div class="col-span-full py-10 text-center text-blue-400 text-[10px] font-black uppercase tracking-widest"><i class="fas fa-spinner fa-spin mr-2"></i>Connecting to roster...</div>';
+        }
+        if (!apInitRetryTimer) {
+            apInitRetryTimer = setTimeout(() => {
+                apInitRetryTimer = null;
+                if (!apIsSubscribed && typeof window.initAgentProfiles === 'function') window.initAgentProfiles();
+            }, 500);
+        }
     }
 };
 
@@ -184,6 +209,223 @@ window.apFilterAgents = function() {
     }).join('');
 };
 
+// Keep the Agent Profile editor independent from the Admin Hub scroll/transform.
+// The modal is moved to <body>, its header and footer stay visible, and only the
+// form fields scroll. This also guarantees that outside-click closes reliably.
+window.apPrepareModalForViewport = function(overlay) {
+    if (!overlay) return;
+
+    // Inject the modal UX CSS once. Keeping this here means both the standalone
+    // Profiles page and the Profiles copy inside Admin Tools use the same layout.
+    if (!document.getElementById('ap-modal-viewport-styles')) {
+        const style = document.createElement('style');
+        style.id = 'ap-modal-viewport-styles';
+        style.textContent = `
+            #ap-modal-overlay.ap-modal-viewport {
+                position: fixed !important;
+                inset: 0 !important;
+                z-index: 2147483000 !important;
+                align-items: center !important;
+                justify-content: center !important;
+                padding: 16px !important;
+                overflow: hidden !important;
+                isolation: isolate;
+            }
+            #ap-modal-overlay.ap-modal-viewport > [data-ap-backdrop] {
+                position: absolute !important;
+                inset: 0 !important;
+                background: rgba(2, 6, 23, 0.86) !important;
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                cursor: default;
+            }
+            #ap-modal-overlay.ap-modal-viewport .ap-modal-card {
+                position: relative !important;
+                z-index: 1 !important;
+                width: min(780px, 100%) !important;
+                max-width: 780px !important;
+                max-height: calc(100dvh - 32px) !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                border-radius: 26px !important;
+                border: 1px solid rgba(148, 163, 184, 0.20) !important;
+                background: linear-gradient(180deg, rgba(15, 23, 42, 0.985), rgba(7, 12, 27, 0.99)) !important;
+                box-shadow: 0 30px 90px rgba(0, 0, 0, 0.62) !important;
+            }
+            #ap-modal-overlay.ap-modal-viewport .ap-modal-main {
+                min-height: 0 !important;
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                padding: 0 !important;
+            }
+            #ap-modal-overlay.ap-modal-viewport .ap-modal-header {
+                flex: 0 0 auto !important;
+                margin: 0 !important;
+                padding: 20px 24px 18px !important;
+                border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
+                background: rgba(15, 23, 42, 0.96) !important;
+            }
+            #ap-modal-overlay.ap-modal-viewport .ap-modal-header h3 {
+                line-height: 1.1 !important;
+            }
+            #ap-modal-overlay.ap-modal-viewport .ap-modal-close {
+                width: 42px !important;
+                height: 42px !important;
+                flex: 0 0 42px !important;
+                border: 1px solid rgba(148, 163, 184, 0.16) !important;
+                background: rgba(255, 255, 255, 0.06) !important;
+            }
+            #ap-modal-overlay.ap-modal-viewport .ap-modal-close:hover {
+                background: rgba(255, 255, 255, 0.12) !important;
+            }
+            #ap-modal-overlay.ap-modal-viewport #ap-form {
+                min-height: 0 !important;
+                flex: 1 1 auto !important;
+                overflow-y: auto !important;
+                overscroll-behavior: contain;
+                padding: 20px 24px 24px !important;
+                margin: 0 !important;
+                scrollbar-gutter: stable;
+            }
+            #ap-modal-overlay.ap-modal-viewport #ap-form::-webkit-scrollbar {
+                width: 7px;
+            }
+            #ap-modal-overlay.ap-modal-viewport #ap-form::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            #ap-modal-overlay.ap-modal-viewport #ap-form::-webkit-scrollbar-thumb {
+                background: rgba(148, 163, 184, 0.24);
+                border-radius: 999px;
+            }
+            #ap-modal-overlay.ap-modal-viewport .ap-modal-actions {
+                flex: 0 0 auto !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 12px !important;
+                margin: 0 !important;
+                padding: 14px 20px !important;
+                border-top: 1px solid rgba(148, 163, 184, 0.14) !important;
+                background: rgba(8, 15, 31, 0.98) !important;
+                box-shadow: 0 -14px 32px rgba(0, 0, 0, 0.22) !important;
+            }
+            #ap-modal-overlay.ap-modal-viewport .ap-modal-actions #ap-save-btn {
+                min-height: 48px !important;
+                flex: 1 1 auto !important;
+                width: auto !important;
+                margin: 0 !important;
+            }
+            #ap-modal-overlay.ap-modal-viewport .ap-modal-actions #ap-delete-btn {
+                min-height: 48px !important;
+                margin: 0 !important;
+            }
+            #ap-modal-overlay.ap-modal-viewport #ap-submit-status {
+                flex: 0 0 auto !important;
+                min-height: 38px !important;
+                padding: 8px 16px !important;
+                background: rgba(2, 6, 23, 0.92) !important;
+            }
+            @media (max-width: 640px) {
+                #ap-modal-overlay.ap-modal-viewport {
+                    padding: 8px !important;
+                }
+                #ap-modal-overlay.ap-modal-viewport .ap-modal-card {
+                    width: 100% !important;
+                    max-height: calc(100dvh - 16px) !important;
+                    border-radius: 20px !important;
+                }
+                #ap-modal-overlay.ap-modal-viewport .ap-modal-header {
+                    padding: 16px 16px 14px !important;
+                }
+                #ap-modal-overlay.ap-modal-viewport #ap-form {
+                    padding: 16px !important;
+                }
+                #ap-modal-overlay.ap-modal-viewport .ap-modal-actions {
+                    padding: 12px !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // A fixed modal nested inside a transformed/scrolling Admin Hub can be clipped.
+    // Mount it directly under body so it is always centered in the browser viewport.
+    if (overlay.parentElement !== document.body) {
+        document.body.appendChild(overlay);
+    }
+    overlay.classList.add('ap-modal-viewport');
+
+    const card = Array.from(overlay.children).find(el => el.querySelector && el.querySelector('#ap-form'));
+    const form = overlay.querySelector('#ap-form');
+    const saveBtn = overlay.querySelector('#ap-save-btn');
+    const deleteBtn = overlay.querySelector('#ap-delete-btn');
+    const status = overlay.querySelector('#ap-submit-status');
+    if (!card || !form) return;
+
+    card.classList.add('ap-modal-card');
+    const main = card.children[0];
+    if (main && main !== status) {
+        main.classList.add('ap-modal-main');
+        const header = main.children[0];
+        if (header && header !== form) {
+            header.classList.add('ap-modal-header');
+            const closeBtn = header.querySelector('button[onclick*="apCloseModal"]');
+            if (closeBtn) {
+                closeBtn.classList.add('ap-modal-close');
+                closeBtn.setAttribute('aria-label', 'Close agent profile');
+                closeBtn.setAttribute('title', 'Close');
+            }
+        }
+    }
+
+    // Move the action row out of the scrolling form. The Save button remains tied
+    // to the form through the HTML form attribute, so validation/submit still works.
+    if (saveBtn) {
+        const actions = saveBtn.parentElement;
+        if (actions) {
+            actions.classList.add('ap-modal-actions');
+            if (actions.parentElement !== card) {
+                card.insertBefore(actions, status || null);
+            }
+        }
+        saveBtn.setAttribute('form', 'ap-form');
+        saveBtn.setAttribute('type', 'submit');
+    }
+    if (deleteBtn) deleteBtn.setAttribute('type', 'button');
+
+    const backdrop = overlay.children[0];
+    if (backdrop && backdrop !== card) {
+        backdrop.setAttribute('data-ap-backdrop', 'true');
+        // Use one centralized outside-click handler rather than relying on an
+        // inline backdrop handler that can be lost when the modal is re-mounted.
+        backdrop.removeAttribute('onclick');
+    }
+
+    if (overlay.dataset.apOutsideCloseBound !== '1') {
+        overlay.dataset.apOutsideCloseBound = '1';
+        overlay.addEventListener('pointerdown', function(event) {
+            const currentCard = overlay.querySelector('.ap-modal-card');
+            if (!currentCard || !currentCard.contains(event.target)) {
+                window.apCloseModal();
+            }
+        });
+    }
+};
+
+// Escape is another safe, expected way to dismiss a modal.
+if (!window.__apEscapeCloseBound) {
+    window.__apEscapeCloseBound = true;
+    document.addEventListener('keydown', function(event) {
+        if (event.key !== 'Escape') return;
+        const overlay = document.getElementById('ap-modal-overlay');
+        if (overlay && !overlay.classList.contains('hidden') && overlay.style.display !== 'none') {
+            window.apCloseModal();
+        }
+    });
+}
+
 // Open popup modal
 window.apOpenModal = function(mode = 'add', userId = null) {
     const overlay = document.getElementById('ap-modal-overlay');
@@ -196,6 +438,8 @@ window.apOpenModal = function(mode = 'add', userId = null) {
     const saveBtn = document.getElementById('ap-save-btn');
 
     if (!overlay || !form) { console.error('Agent modal not found'); return; }
+
+    window.apPrepareModalForViewport(overlay);
 
     form.reset();
     if (statusDiv) statusDiv.innerHTML = '';
