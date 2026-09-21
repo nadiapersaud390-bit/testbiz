@@ -461,7 +461,7 @@ if (!window.__apEscapeCloseBound) {
 }
 
 // Open popup modal
-window.apOpenModal = async function(mode = 'add', userId = null) {
+window.apOpenModal = async function(mode = 'add', userId = null, sourceProfile = null) {
     if (!document.getElementById('ap-modal-overlay') && typeof window.ensureAgentProfileModal === 'function') {
         await window.ensureAgentProfileModal();
     }
@@ -485,7 +485,8 @@ window.apOpenModal = async function(mode = 'add', userId = null) {
     if (saveBtn) { saveBtn.disabled = false; saveBtn.innerText = 'Save Profile'; }
 
     if (mode === 'edit' && userId) {
-        const agent = allAgentProfiles.find(p => String(p.userId) === String(userId));
+        const agent = sourceProfile && String(sourceProfile.userId) === String(userId)
+            ? sourceProfile : allAgentProfiles.find(p => String(p.userId) === String(userId));
         if (!agent) { alert('This agent profile is no longer available. Refresh Profiles and try again.'); return; }
 
         if (title) title.innerText = 'Edit Agent';

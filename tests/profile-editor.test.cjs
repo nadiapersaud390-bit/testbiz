@@ -38,5 +38,11 @@ vm.runInContext("allAgentProfiles = [{userId:1085, fullName:'Leah Alena Smith', 
  await context.window.apOpenModal('edit','1085');
  assert.equal(elements.get('ap-modal-overlay').style.display,'flex');
  assert.equal(warnings.length,0);
+ vm.runInContext('allAgentProfiles = [];',context);
+ await context.window.apOpenModal('edit','1085',{userId:'1085',fullName:'Leah Alena Smith',team:'PR',breakSchedule:{morning:{time:'12:10',minutes:12},afternoon:{time:'16:30',minutes:10}}});
+ assert.equal(elements.get('ap-break-morning').value,'12:10');
+ await context.window.apHandleSubmit({preventDefault(){}});
+ assert.equal(saved[1].breakSchedule.morning.minutes,12);
+ assert.equal(saved[1].fullName,'Leah Alena Smith');
  console.log('Profile checks passed: numeric roster ID, cached form upgrade, populated schedules, successful save, close and lazy modal recovery.');
 })().catch(e=>{console.error(e);process.exit(1)});

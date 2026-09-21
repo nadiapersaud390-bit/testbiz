@@ -44,3 +44,5 @@ The Break Monitoring sub-tab lists each active agent with morning and afternoon 
 Admins can choose any valid time of day for either the morning or afternoon break. These are labels only, with no before-noon or after-noon restriction. Availability still begins at the chosen time, once per slot per day.
 
 Break Monitoring includes All teams, Berbice (BB), Providence (PR) and Remote (RM) buttons. The selected team filters schedules, active-break cards, totals, overdue counts and today’s returns. Selection remains in place through live data updates. Voice and browser alerts still cover every team.
+
+Admins with Profiles editing access can click Set breaks on either schedule row in Break Monitoring. The profile editor opens in place and focuses the selected break time. Save Profile updates the shared Firebase profile and roster, so both the monitor and agent dashboard receive the change live. Active breaks retain their original duration. Admins without Profiles access see View only.

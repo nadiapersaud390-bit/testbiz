@@ -112,6 +112,7 @@
   function teamTabs() {
     return `<nav class="break-team-tabs" aria-label="Break monitoring teams">${Object.entries(teamNames).map(([id,name]) => `<button type="button" data-break-team="${id}" aria-pressed="${selectedTeam === id}" class="${selectedTeam === id ? 'is-selected' : ''}">${name}</button>`).join('')}</nav><p class="break-team-caption">Viewing ${teamNames[selectedTeam]}. Voice and browser alerts remain enabled for all teams.</p>`;
   }
+  const canEditBreaks = () => role === 'admin' && typeof window.canAccessAdminHubTab === 'function' && window.canAccessAdminHubTab('profiles');
   function rosterOverview() {
     const agents = roster.filter(a => a && a.userId && matchesTeam(a) && !a.hidden && !['inactive','quit','fired','replaced','deleted','archived'].includes(String(a.status || '').toLowerCase()))
       .sort((a,b) => String(a.fullName || '').localeCompare(String(b.fullName || '')));
@@ -123,9 +124,9 @@
       const configured = C.validSchedule(schedule, slot);
       const status = active ? 'On break' : record?.returnedAt ? 'Returned' : configured ? 'Not started' : 'Not scheduled';
       const search = `${a.fullName || ''} ${id} ${a.team || ''}`.toLowerCase();
-      return `<tr data-break-roster-row="${esc(search)}" ${search.includes(rosterSearch.toLowerCase()) ? '' : 'hidden'}><td><strong>${esc(a.fullName || id)}</strong><small>${esc(a.team || '')} • ${esc(id)}</small></td><td>${slot === 'morning' ? 'Morning' : 'Afternoon'}</td><td>${esc(timeLabel(schedule?.time))}</td><td>${configured ? schedule.minutes + ' min' : 'Not set'}</td><td>${record ? stamp(record.startedAt) : '—'}${active && active.date !== renderedDay ? '<small>' + esc(active.date) + '</small>' : ''}</td><td>${record?.returnedAt ? stamp(record.returnedAt) : '—'}</td><td>${active ? `<span class="break-timer break-roster-timer" data-break-timer="${esc(id)}"></span>` : record?.returnedAt ? C.duration(record.returnedAt-record.startedAt) + ' used' : '—'}${record && record.minutes !== schedule?.minutes ? '<small>Started with ' + record.minutes + ' min</small>' : ''}</td><td>${record?.returnedAt ? C.duration(record.returnedAt-C.dueAt(record)) : '—'}</td><td><span class="break-status-pill" ${active ? `data-break-status="${esc(id)}"` : ''}>${status}</span></td></tr>`;
+      return `<tr data-break-roster-row="${esc(search)}" ${search.includes(rosterSearch.toLowerCase()) ? '' : 'hidden'}><td><strong>${esc(a.fullName || id)}</strong><small>${esc(a.team || '')} • ${esc(id)}</small></td><td>${slot === 'morning' ? 'Morning' : 'Afternoon'}</td><td>${esc(timeLabel(schedule?.time))}</td><td>${configured ? schedule.minutes + ' min' : 'Not set'}</td><td>${record ? stamp(record.startedAt) : '—'}${active && active.date !== renderedDay ? '<small>' + esc(active.date) + '</small>' : ''}</td><td>${record?.returnedAt ? stamp(record.returnedAt) : '—'}</td><td>${active ? `<span class="break-timer break-roster-timer" data-break-timer="${esc(id)}"></span>` : record?.returnedAt ? C.duration(record.returnedAt-record.startedAt) + ' used' : '—'}${record && record.minutes !== schedule?.minutes ? '<small>Started with ' + record.minutes + ' min</small>' : ''}</td><td>${record?.returnedAt ? C.duration(record.returnedAt-C.dueAt(record)) : '—'}</td><td><span class="break-status-pill" ${active ? `data-break-status="${esc(id)}"` : ''}>${status}</span></td><td>${canEditBreaks() ? `<button type="button" class="break-edit-button" data-edit-breaks="${esc(id)}" data-edit-slot="${slot}" ${!live() ? 'disabled' : ''}>Set breaks</button>` : '<span class="break-hint">View only</span>'}</td></tr>`;
     })).join('');
-    return `<section class="break-roster"><div class="break-roster-heading"><div><h3>Agent schedules &amp; activity</h3><p>Morning and afternoon • Today, ${esc(renderedDay)} • Guyana time</p></div><label class="break-roster-search">Find an agent<input type="search" data-break-search value="${esc(rosterSearch)}" placeholder="Name, ID or team" aria-label="Search break schedules"></label></div><div class="break-table-wrap"><table><thead><tr><th>Agent / team</th><th>Break</th><th>Scheduled</th><th>Allowed</th><th>Started</th><th>Returned</th><th>Timer / time used</th><th>Overrun</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="9">No active agents found.</td></tr>'}</tbody></table></div></section>`;
+    return `<section class="break-roster"><div class="break-roster-heading"><div><h3>Agent schedules &amp; activity</h3><p>Morning and afternoon • Today, ${esc(renderedDay)} • Guyana time</p></div><label class="break-roster-search">Find an agent<input type="search" data-break-search value="${esc(rosterSearch)}" placeholder="Name, ID or team" aria-label="Search break schedules"></label></div><div class="break-table-wrap"><table><thead><tr><th>Agent / team</th><th>Break</th><th>Scheduled</th><th>Allowed</th><th>Started</th><th>Returned</th><th>Timer / time used</th><th>Overrun</th><th>Status</th><th>Manage</th></tr></thead><tbody>${rows || '<tr><td colspan="10">No active agents found.</td></tr>'}</tbody></table></div></section>`;
   }
   function render() {
     renderedDay = C.day(now());
@@ -151,7 +152,7 @@
       content = teamTabs() + `<div class="break-summary"><span><b data-break-count>${records.length}</b> on break</span><span><b data-overdue-count>${overdue}</b> overdue</span><button data-voice ${!('speechSynthesis' in window) ? 'disabled' : ''}>${!('speechSynthesis' in window) ? 'Voice unavailable in this browser' : audioEnabled ? 'Voice alerts on • Test' : 'Enable voice alerts'}</button><button data-notifications ${!notificationSupported() ? 'disabled' : ''}>${notificationLabel()}</button></div><div class="break-live-list">${records.map(r => `<div class="break-current"><div><strong>${esc(r.name)}</strong><p>${esc(r.team)} • ${esc(r.slot)} • Started ${stamp(r.startedAt)} • ${r.minutes} min</p></div><strong class="break-timer" data-break-timer="${esc(r.userId)}"></strong></div>`).join('') || '<p class="break-hint">No agents are currently on break.</p>'}</div>`;
       content += rosterOverview();
       const todayRecords = Object.values(states).flatMap(s => Object.values(s.days?.[renderedDay] || {})).filter(r => r.returnedAt && matchesTeam(r));
-      content += `<details class="break-history"><summary>Today’s returns (${todayRecords.length})</summary><div class="break-table-wrap"><table><thead><tr><th>Agent</th><th>Break</th><th>Started</th><th>Returned</th><th>Time used</th><th>Overrun</th></tr></thead><tbody>${todayRecords.sort((a,b) => b.returnedAt-a.returnedAt).map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.slot)}</td><td>${stamp(r.startedAt)}</td><td>${stamp(r.returnedAt)}</td><td>${C.duration(r.returnedAt-r.startedAt)}</td><td>${C.duration(r.returnedAt-C.dueAt(r))}</td></tr>`).join('') || '<tr><td colspan="6">No returns recorded today.</td></tr>'}</tbody></table></div></details><p class="break-hint">Set morning and afternoon times and minutes in Agent Profiles. Enable voice and browser notifications, then keep this dashboard open. Alerts continue while you use other dashboard sections or browser tabs. Sleeping devices or suspended tabs may delay alerts.</p>`;
+      content += `<details class="break-history"><summary>Today’s returns (${todayRecords.length})</summary><div class="break-table-wrap"><table><thead><tr><th>Agent</th><th>Break</th><th>Started</th><th>Returned</th><th>Time used</th><th>Overrun</th></tr></thead><tbody>${todayRecords.sort((a,b) => b.returnedAt-a.returnedAt).map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.slot)}</td><td>${stamp(r.startedAt)}</td><td>${stamp(r.returnedAt)}</td><td>${C.duration(r.returnedAt-r.startedAt)}</td><td>${C.duration(r.returnedAt-C.dueAt(r))}</td></tr>`).join('') || '<tr><td colspan="6">No returns recorded today.</td></tr>'}</tbody></table></div></details><p class="break-hint">Use Set breaks beside an agent to update their profile’s morning and afternoon times and minutes. Changes apply to future breaks; a running timer keeps its original duration. Enable voice and browser notifications, then keep this dashboard open. Alerts continue while you use other dashboard sections or browser tabs. Sleeping devices or suspended tabs may delay alerts.</p>`;
     }
     const historyOpen = panel.querySelector('details')?.open;
     const heading = `<div class="break-heading"><h2>${role === 'admin' ? 'Agent break monitor' : 'Today’s schedule'}</h2><span class="${live() ? 'break-online' : 'break-offline'}">${esc(connection)}</span></div>`;
@@ -211,6 +212,19 @@
   panel.addEventListener('click', async e => {
     const button = e.target.closest('button');
     if (!button) return;
+    if (button.dataset.editBreaks) {
+      if (!canEditBreaks() || !live()) return;
+      const selected = roster.find(a => String(a.userId) === button.dataset.editBreaks);
+      try {
+        if (!selected || typeof window.apOpenModal !== 'function') throw new Error('Agent editor is unavailable. Refresh and try again.');
+        await window.apOpenModal('edit', String(selected.userId), selected);
+        const input = document.getElementById('ap-break-' + (button.dataset.editSlot === 'afternoon' ? 'afternoon' : 'morning'));
+        if (input) { input.scrollIntoView({block:'center', behavior:'smooth'}); input.focus({preventScroll:true}); }
+      } catch (err) {
+        document.getElementById('break-action-status').textContent = 'Could not open break settings: ' + err.message;
+      }
+      return;
+    }
     if (role === 'admin' && Object.prototype.hasOwnProperty.call(teamNames, button.dataset.breakTeam)) {
       selectedTeam = button.dataset.breakTeam;
       render();
