@@ -99,7 +99,7 @@ window.applyAdminHubPermissions = function() {
 window.ensureAgentProfileModal = async function() {
     if (document.getElementById('ap-modal-overlay')) return true;
     try {
-        const html = await fetch('tabs/agentprofiles.html?v=5').then(r => r.ok ? r.text() : Promise.reject(new Error('Profile template unavailable')));
+        const html = await fetch('tabs/agentprofiles.html?v=7').then(r => r.ok ? r.text() : Promise.reject(new Error('Profile template unavailable')));
         const doc = new DOMParser().parseFromString(html, 'text/html');
         const modal = doc.getElementById('ap-modal-overlay') || doc.getElementById('ap-modal');
         if (modal) {

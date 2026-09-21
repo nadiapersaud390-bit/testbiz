@@ -3,7 +3,7 @@
 
 // Import Firebase modules
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, set, push, get, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, onValue, set, push, get, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, doc, setDoc, getDoc, getDocs, collection, query, orderBy, onSnapshot, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -52,6 +52,7 @@ try {
     window.rtdbUpdate = update;
     window.rtdbPush = push;
     window.rtdbRemove = remove;
+    window.rtdbRunTransaction = runTransaction;
     
     console.log("Firebase & Firestore initialized successfully");
 } catch (error) {
@@ -2274,7 +2275,7 @@ window.saveAgentProfileToRTDB = async function(agentData) {
     if (!database) return { success: false, error: 'Database not initialized' };
     try {
         const agentId = String(agentData.userId);
-        await set(ref(database, 'agent_profiles/' + agentId), {
+        await update(ref(database, 'agent_profiles/' + agentId), {
             ...agentData,
             updatedAt: new Date().toISOString()
         });
@@ -2283,6 +2284,8 @@ window.saveAgentProfileToRTDB = async function(agentData) {
         if (!Array.isArray(roster)) roster = Object.values(roster);
         const idx = roster.findIndex(a => String(a.userId || a.id || '') === agentId);
         const entry = {
+            ...(idx >= 0 ? roster[idx] : {}),
+            ...agentData,
             fullName: agentData.fullName || '',
             userId: agentId,
             team: agentData.team || 'PR',

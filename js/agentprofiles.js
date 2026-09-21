@@ -102,8 +102,19 @@ window.apHandleSubmit = async function(e) {
         return;
     }
 
+    const breakSchedule = {};
+    for (const slot of ['morning', 'afternoon']) {
+        const time = document.getElementById('ap-break-' + slot).value;
+        const minutes = Number(document.getElementById('ap-break-' + slot + '-minutes').value);
+        if (!Number.isInteger(minutes) || minutes < 1 || minutes > 120 ||
+            (time && (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time) || (slot === 'morning' ? time >= '12:00' : time < '12:00')))) {
+            statusDiv.textContent = 'Enter a valid ' + slot + ' start time and 1 to 120 whole minutes.';
+            return;
+        }
+        breakSchedule[slot] = { time, minutes };
+    }
     const hidden = !!(document.getElementById('ap-hidden-toggle') || {}).checked;
-    const agentData = { userId, fullName, team, ytelName, shift, status, lunchTime: lunch, breakTime: breakVal, hidden };
+    const agentData = { userId, fullName, team, ytelName, shift, status, lunchTime: lunch, breakTime: breakVal, breakSchedule, hidden };
 
     saveBtn.disabled = true;
     saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
@@ -464,6 +475,11 @@ window.apOpenModal = function(mode = 'add', userId = null) {
         document.getElementById('ap-lunch').value = agent.lunchTime || '';
         const brk = document.getElementById('ap-break');
         if (brk) brk.value = agent.breakTime || '';
+        for (const slot of ['morning', 'afternoon']) {
+            const schedule = agent.breakSchedule?.[slot] || {};
+            document.getElementById('ap-break-' + slot).value = schedule.time || '';
+            document.getElementById('ap-break-' + slot + '-minutes').value = schedule.minutes || 10;
+        }
 
         // Hidden toggle
         const hiddenSection = document.getElementById('ap-hidden-section');
