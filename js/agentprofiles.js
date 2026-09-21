@@ -77,9 +77,26 @@ window.apAutoFillYtel = function() {
     ytelInput.value = `${prefix} ${name.trim().toUpperCase()} (${team})`;
 };
 
+// Older cached profile fragments may not contain the scheduled-break inputs.
+// Upgrade their form before opening or saving so an absent input cannot abort the editor.
+window.apEnsureBreakFields = function(form) {
+    if (!form || form.querySelector('#ap-break-morning')) return;
+    form.insertAdjacentHTML('beforeend', `<fieldset class="col-span-full border border-blue-400/20 rounded-2xl p-4 space-y-3">
+                            <legend class="text-sm font-bold text-blue-300 px-2">Scheduled breaks</legend>
+                            <p class="text-xs text-slate-400">Guyana time. Each break is available once per day, from its scheduled time. Leave a time blank to disable that break.</p>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="text-xs text-slate-300">Morning start<input id="ap-break-morning" type="time" max="11:59" class="mt-2 w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white"></label>
+                                <label class="text-xs text-slate-300">Morning minutes<input id="ap-break-morning-minutes" type="number" min="1" max="120" step="1" value="10" required class="mt-2 w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white"></label>
+                                <label class="text-xs text-slate-300">Afternoon start<input id="ap-break-afternoon" type="time" min="12:00" class="mt-2 w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white"></label>
+                                <label class="text-xs text-slate-300">Afternoon minutes<input id="ap-break-afternoon-minutes" type="number" min="1" max="120" step="1" value="10" required class="mt-2 w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white"></label>
+                            </div>
+                        </fieldset>`);
+};
+
 // Form Submission
 window.apHandleSubmit = async function(e) {
     e.preventDefault();
+    window.apEnsureBreakFields(document.getElementById('ap-form'));
     const statusDiv = document.getElementById('ap-submit-status');
     const saveBtn = document.getElementById('ap-save-btn');
 
@@ -170,7 +187,7 @@ window.apFilterAgents = function() {
 
     const q = search.toLowerCase();
     const filtered = allAgentProfiles.filter(p => {
-        const matchSearch = (p.fullName || '').toLowerCase().includes(q) || (p.userId || '').includes(q) || (p.ytelName || '').toLowerCase().includes(q);
+        const matchSearch = (p.fullName || '').toLowerCase().includes(q) || String(p.userId || '').includes(q) || (p.ytelName || '').toLowerCase().includes(q);
         const matchTeam = teamFilter === 'ALL' || p.team === teamFilter;
         return matchSearch && matchTeam;
     });
@@ -438,7 +455,10 @@ if (!window.__apEscapeCloseBound) {
 }
 
 // Open popup modal
-window.apOpenModal = function(mode = 'add', userId = null) {
+window.apOpenModal = async function(mode = 'add', userId = null) {
+    if (!document.getElementById('ap-modal-overlay') && typeof window.ensureAgentProfileModal === 'function') {
+        await window.ensureAgentProfileModal();
+    }
     const overlay = document.getElementById('ap-modal-overlay');
     const form = document.getElementById('ap-form');
     const title = document.getElementById('ap-modal-title');
@@ -448,7 +468,9 @@ window.apOpenModal = function(mode = 'add', userId = null) {
     const userIdInput = document.getElementById('ap-userid');
     const saveBtn = document.getElementById('ap-save-btn');
 
-    if (!overlay || !form) { console.error('Agent modal not found'); return; }
+    if (!overlay || !form) { alert('The agent editor could not load. Please refresh the page and try again.'); return; }
+
+    window.apEnsureBreakFields(form);
 
     window.apPrepareModalForViewport(overlay);
 
@@ -457,8 +479,8 @@ window.apOpenModal = function(mode = 'add', userId = null) {
     if (saveBtn) { saveBtn.disabled = false; saveBtn.innerText = 'Save Profile'; }
 
     if (mode === 'edit' && userId) {
-        const agent = allAgentProfiles.find(p => p.userId === userId);
-        if (!agent) return;
+        const agent = allAgentProfiles.find(p => String(p.userId) === String(userId));
+        if (!agent) { alert('This agent profile is no longer available. Refresh Profiles and try again.'); return; }
 
         if (title) title.innerText = 'Edit Agent';
         if (modeInput) modeInput.value = 'edit';

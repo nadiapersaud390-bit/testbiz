@@ -3,10 +3,10 @@
 ## Set up and use
 
 1. Upload the updated project, including the new `js/break-core.js`, `js/breaks.js` and `css/breaks.css` files.
-2. In Admin Tools > Agent Profiles, edit an agent. Set a morning start time, afternoon start time and the duration in minutes for each, then save. Times use Guyana time. Blank times disable the corresponding break. Existing text break notes are preserved; they do not automatically create schedules.
+2. In Admin Tools > Profiles, edit an agent. Set a morning start time, afternoon start time and the duration in minutes for each, then save. Times use Guyana time. Blank times disable the corresponding break. Existing text break notes are preserved; they do not automatically create schedules.
 3. Agents see **Your breaks** at the top of the dashboard. **Start break** becomes available from the scheduled time. The timer starts only after they click and Firebase accepts the change. Each slot can be used once per Guyana calendar day; an active break must be returned from before another starts.
 4. Agents sign back into their calling system, then click **I’m back**. The app records the return; it does not control or verify the external phone-system login.
-5. Every admin (including super admins) sees the live break monitor. Click **Enable voice alerts** in each open admin dashboard. When a timer expires, it displays an alert and says, for example: “Alice, your break time is up. Time to log in back.” Multiple names are queued. Dismissing an alert does not mark an agent back.
+5. The live break monitor is located inside Admin Tools. Click **Enable voice alerts** in each open admin dashboard. When a timer expires, it displays an alert and says, for example: “Alice, your break time is up. Time to log in back.” Multiple names are queued. Dismissing an alert does not mark an agent back.
 6. The admin monitor shows active and overdue timers, plus today's return times, elapsed time and overruns. Changing a profile's duration affects future breaks, not a break already running.
 
 ## Timing, refreshes and connectivity
@@ -34,3 +34,7 @@ Validation completed: JavaScript syntax, core tests and simulated runtime tests 
 Admins should click **Enable voice alerts** and **Enable browser notifications**, then choose Allow in the browser permission prompt. The dashboard remains subscribed and speaks agent names even when another app section or browser tab is selected. Desktop notifications include the agent name and “Time to log in back.” Clicking one focuses the dashboard. Notifications close when the agent records their return. A scheduled deadline check supplements the regular countdown check.
 
 The dashboard tab must remain open, connected and not suspended. Operating-system notification settings, Do Not Disturb, muted audio, sleeping computers and browser tab suspension can suppress or delay notifications. This update does not include push notifications from a server for closed/suspended pages. Notification permission usually requires HTTPS or localhost.
+
+The admin monitor is mounted only in Admin Tools, beneath its heading. The agent break buttons remain on the agent dashboard. Monitoring, spoken reminders and browser notifications initialize globally and continue when Admin Tools is hidden or has not yet been opened. The embedded Admin Tools profile form includes both break schedules.
+
+Profile editor fix: numeric and string agent IDs now match, cached forms gain missing break fields before opening/saving, and missing editors are loaded on demand. Verified with `node tests/profile-editor.test.cjs` using an isolated DOM/database simulation.

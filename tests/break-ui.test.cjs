@@ -11,7 +11,7 @@ const roster=[{userId:'1234',fullName:'Alice Test',team:'BB',status:'Agent',brea
 (async()=>{
  const browser=await chromium.launch({headless:true});
  const context=await browser.newContext();
- await context.route('http://break-test/**',route=>route.fulfill({contentType:'text/html',body:`<html><head><style>body{background:#020617;font-family:Arial;margin:24px}${css}</style></head><body><div id="break-alerts"></div><section id="break-panel"></section></body></html>`}));
+ await context.route('http://break-test/**',route=>route.fulfill({contentType:'text/html',body:`<html><head><style>body{background:#020617;font-family:Arial;margin:24px}${css}</style></head><body><div id="break-alerts"></div><section id="break-panel" hidden></section><div id="admin-break-monitor-host"></div></body></html>`}));
  const errors=[];
  async function mount(role,state={},mobile=false){
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));

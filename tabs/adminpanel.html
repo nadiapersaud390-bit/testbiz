@@ -16,6 +16,8 @@
         </div>
     </div>
 
+    <div id="admin-break-monitor-host"></div>
+
     <!-- Tab Navigation -->
     <div class="flex flex-wrap gap-2 mb-8 border-b border-white/10 pb-4">
         <button onclick="switchAdminHubTab('stats')" id="ah-tab-stats" class="ah-tab-btn hidden active">
@@ -346,12 +348,20 @@
                                    class="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-sm focus:border-blue-500 outline-none transition-all font-bold">
                         </div>
 
-                        <!-- Break Time (Firebase Only) -->
                         <div class="space-y-2">
-                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Break Time (FB Only)</label>
-                            <input type="text" id="ap-break" placeholder="e.g. 15m Morning" 
-                                   class="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-sm focus:border-blue-500 outline-none transition-all font-bold">
+                            <label for="ap-break" class="text-[10px] font-black text-slate-400 uppercase">Break notes (optional)</label>
+                            <input type="text" id="ap-break" placeholder="Optional instructions" class="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-white text-sm">
                         </div>
+                        <fieldset class="col-span-full border border-blue-400/20 rounded-2xl p-4 space-y-3">
+                            <legend class="text-sm font-bold text-blue-300 px-2">Scheduled breaks</legend>
+                            <p class="text-xs text-slate-400">Guyana time. Each break is available once per day, from its scheduled time. Leave a time blank to disable that break.</p>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="text-xs text-slate-300">Morning start<input id="ap-break-morning" type="time" max="11:59" class="mt-2 w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white"></label>
+                                <label class="text-xs text-slate-300">Morning minutes<input id="ap-break-morning-minutes" type="number" min="1" max="120" step="1" value="10" required class="mt-2 w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white"></label>
+                                <label class="text-xs text-slate-300">Afternoon start<input id="ap-break-afternoon" type="time" min="12:00" class="mt-2 w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white"></label>
+                                <label class="text-xs text-slate-300">Afternoon minutes<input id="ap-break-afternoon-minutes" type="number" min="1" max="120" step="1" value="10" required class="mt-2 w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white"></label>
+                            </div>
+                        </fieldset>
                     </div>
 
                     <!-- Hidden / No Login Toggle (edit mode only) -->
@@ -424,6 +434,7 @@
     .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(56,189,248,0.3); }
 </style>
+
             </template>
         </div>
 

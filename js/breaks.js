@@ -10,6 +10,16 @@
   const panel = document.getElementById('break-panel');
   const alerts = document.getElementById('break-alerts');
   if (!panel || !alerts) return;
+  // Keep monitoring global, but show its admin controls only inside Admin Tools.
+  window.mountAdminBreakMonitor = function () {
+    if (role !== 'admin') return;
+    const host = document.getElementById('admin-break-monitor-host');
+    if (!host) { panel.hidden = true; return; }
+    if (panel.parentElement !== host) host.appendChild(panel);
+    panel.hidden = false;
+  };
+  if (role === 'admin') window.mountAdminBreakMonitor();
+  else panel.hidden = false;
   let roster = [], states = {}, offset = 0, clockReady = false, connected = false;
   let rosterReady = false, statesReady = false, busy = false, failure = '', audioEnabled = false;
   let renderedDay = '', pendingSpeech = [], speaking = false;
@@ -64,6 +74,7 @@
         desktopAlerts.set(key, notice);
         notice.onclick = () => {
           window.focus();
+          if (typeof window.switchTab === 'function') window.switchTab('adminpanel');
           panel.scrollIntoView({behavior:'smooth', block:'start'});
           notice.close();
         };

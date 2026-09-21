@@ -11,7 +11,9 @@ function mount(role, initial={}) {
   const handlers={}, intervals=[], listeners={}, spoken=[], notifications=[];
   let state=initial, time=start;
   const node=()=>({innerHTML:'',dataset:{},addEventListener(type,cb){this[type]=cb},querySelector(){return null},querySelectorAll(){return []}});
-  const panel=node(),alerts=node(),message=node();
+  const panel=node(),alerts=node(),message=node(),host=node();
+  host.appendChild=el=>{el.parentElement=host};
+  let hostLoaded=false;
   function Notification(title, options) { this.title=title; this.options=options; this.closed=false; this.close=()=>{this.closed=true}; notifications.push(this); }
   Notification.permission='default'; Notification.requestPermission=async()=>{Notification.permission='granted';return 'granted'};
   const window={BreakCore:C,Notification,addEventListener(t,cb){handlers[t]=cb},rtdbRef:x=>x,
@@ -20,10 +22,10 @@ function mount(role, initial={}) {
   function publish(next){state=next;for(const p of ['biz_agent_breaks','biz_agent_breaks/1234'])listeners[p]?.({val:()=>p==='biz_agent_breaks'?state:state['1234']||null});}
   window.rtdbRunTransaction=async(p,fn,options)=>{assert.equal(p,'biz_agent_breaks/1234');assert.equal(options.applyLocally,false);const next=fn(state['1234']||null);if(!next)return{committed:false};publish({'1234':JSON.parse(JSON.stringify(next).replaceAll('{".sv":"timestamp"}',String(time)))});return{committed:true};};
   class Clock extends Date {static now(){return time}}
-  vm.runInNewContext(source,{window,sessionStorage:{getItem:k=>k==='bizUserRole'?role:JSON.stringify({ytelId:'1234',name:'Alice'})},document:{hidden:true,visibilityState:"hidden",getElementById:id=>id==='break-panel'?panel:id==='break-alerts'?alerts:message,addEventListener(){}},Date:Clock,SpeechSynthesisUtterance:function(text){this.text=text},setInterval(fn,ms){intervals.push({fn,ms});return intervals.length},clearInterval(){},setTimeout(){return 1},clearTimeout(){},console});
+  vm.runInNewContext(source,{window,sessionStorage:{getItem:k=>k==='bizUserRole'?role:JSON.stringify({ytelId:'1234',name:'Alice'})},document:{hidden:true,visibilityState:"hidden",getElementById:id=>id==='break-panel'?panel:id==='break-alerts'?alerts:id==='admin-break-monitor-host'?(hostLoaded?host:null):message,addEventListener(){}},Date:Clock,SpeechSynthesisUtterance:function(text){this.text=text},setInterval(fn,ms){intervals.push({fn,ms});return intervals.length},clearInterval(){},setTimeout(){return 1},clearTimeout(){},console});
   intervals.find(x=>x.ms===250).fn();
   const click=async attrs=>{const button={dataset:attrs,hasAttribute:k=>(k==='data-voice'&&attrs.voice)||(k==='data-notifications'&&attrs.notifications)};await panel.click({target:{closest:()=>button}});};
-  return{panel,alerts,spoken,notifications,publish,click,state:()=>state,setTime(t){time=t;handlers.focus()},offline(){listeners['.info/connected']({val:()=>false})}};
+  return{panel,alerts,spoken,notifications,publish,click,mountAdmin(){hostLoaded=true;window.mountAdminBreakMonitor();assert.equal(panel.parentElement,host)},state:()=>state,setTime(t){time=t;handlers.focus()},offline(){listeners['.info/connected']({val:()=>false})}};
 }
 (async()=>{
  const agent=mount('agent');
@@ -32,7 +34,7 @@ function mount(role, initial={}) {
  const running=agent.state();assert.equal(running['1234'].active.minutes,10);
  const recovered=mount('agent',running);assert.match(recovered.panel.innerHTML,/I’m back/);
  const first=mount('admin',running),second=mount('admin',running);
- for(const admin of [first,second]){await admin.click({voice:true});await admin.click({notifications:true});admin.setTime(start+600000);assert.match(admin.alerts.innerHTML,/Alice: break is up/);assert.ok(admin.spoken.includes('Alice, your break time is up. Time to log in back.'));admin.setTime(start+610000);assert.equal(admin.spoken.filter(x=>x.startsWith('Alice')).length,1);assert.equal(admin.notifications.length,1);assert.equal(admin.notifications[0].title,'Alice: break time is up');assert.equal(admin.notifications[0].options.body,'Time to log in back.');}
+ for(const admin of [first,second]){assert.equal(admin.panel.hidden,true);admin.mountAdmin();assert.equal(admin.panel.hidden,false);await admin.click({voice:true});await admin.click({notifications:true});admin.setTime(start+600000);assert.match(admin.alerts.innerHTML,/Alice: break is up/);assert.ok(admin.spoken.includes('Alice, your break time is up. Time to log in back.'));admin.setTime(start+610000);assert.equal(admin.spoken.filter(x=>x.startsWith('Alice')).length,1);assert.equal(admin.notifications.length,1);assert.equal(admin.notifications[0].title,'Alice: break time is up');assert.equal(admin.notifications[0].options.body,'Time to log in back.');}
  agent.setTime(start+660000);await agent.click({return:running['1234'].active.id});
  assert.equal(agent.state()['1234'].active,null);
  for(const admin of [first,second]){admin.publish(agent.state());assert.equal(admin.alerts.innerHTML,'');assert.equal(admin.notifications[0].closed,true);assert.match(admin.panel.innerHTML,/Today’s returns \(1\)/);assert.match(admin.panel.innerHTML,/01:00/);}
