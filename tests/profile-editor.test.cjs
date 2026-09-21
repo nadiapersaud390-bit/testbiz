@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const elements = new Map();
 function el(id) {
  let value = '';
- const element = {id, style:{}, classList:{add(){},remove(){}},innerHTML:'',checked:false,
+ const element = {id, removeAttribute(){}, style:{}, classList:{add(){},remove(){}},innerHTML:'',checked:false,
    get value(){return value},set value(v){value=String(v)},
    querySelector(selector){return elements.get(selector.slice(1)) || null},
    insertAdjacentHTML(position,html){for(const match of html.matchAll(/id="([^"]+)"/g))if(!elements.has(match[1]))el(match[1]);},

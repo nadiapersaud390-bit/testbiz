@@ -6,7 +6,7 @@
   function scheduledAt(date, time) { return Date.parse(date + 'T' + time + ':00-04:00'); }
   function validSchedule(s, slot) {
     return s && /^([01]\d|2[0-3]):[0-5]\d$/.test(s.time) && Number.isInteger(s.minutes) &&
-      s.minutes >= 1 && s.minutes <= 120 && (slot === 'morning' ? s.time < '12:00' : s.time >= '12:00');
+      s.minutes >= 1 && s.minutes <= 120;
   }
   function dueAt(record) { return Number(record.startedAt) + record.minutes * 60000; }
   function available(state, schedule, slot, now) {

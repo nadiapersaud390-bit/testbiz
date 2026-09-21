@@ -39,10 +39,21 @@ function mount(role, initial={}) {
  assert.match(first.panel.innerHTML,/2:00 PM/);
  assert.match(first.panel.innerHTML,/Not started/);
  assert.match(first.panel.innerHTML,/data-break-search/);
+ await first.click({breakTeam:'RM'});
+ assert.match(first.panel.innerHTML,/Viewing Remote/);
+ assert.doesNotMatch(first.panel.innerHTML,/<strong>Alice<\/strong>/);
+ assert.match(first.panel.innerHTML,/data-break-count>0/);
+ await first.click({breakTeam:'BB'});
+ assert.match(first.panel.innerHTML,/<strong>Alice<\/strong>/);
+ assert.match(first.panel.innerHTML,/data-break-count>1/);
+ await first.click({breakTeam:'PR'});
+ assert.doesNotMatch(first.panel.innerHTML,/<strong>Alice<\/strong>/);
+ // Keep a different team selected while Alice's break expires: alerts must still fire.
+
  for(const admin of [first,second]){assert.equal(admin.panel.hidden,true);admin.mountAdmin();assert.equal(admin.panel.hidden,false);await admin.click({voice:true});await admin.click({notifications:true});admin.setTime(start+600000);assert.match(admin.alerts.innerHTML,/Alice: break is up/);assert.ok(admin.spoken.includes('Alice, your break time is up. Time to log in back.'));admin.setTime(start+610000);assert.equal(admin.spoken.filter(x=>x.startsWith('Alice')).length,1);assert.equal(admin.notifications.length,1);assert.equal(admin.notifications[0].title,'Alice: break time is up');assert.equal(admin.notifications[0].options.body,'Time to log in back.');}
  agent.setTime(start+660000);await agent.click({return:running['1234'].active.id});
  assert.equal(agent.state()['1234'].active,null);
- for(const admin of [first,second]){admin.publish(agent.state());assert.equal(admin.alerts.innerHTML,'');assert.equal(admin.notifications[0].closed,true);assert.match(admin.panel.innerHTML,/Today’s returns \(1\)/);assert.match(admin.panel.innerHTML,/01:00/);}
+ for(const admin of [first,second]){await admin.click({breakTeam:'ALL'});admin.publish(agent.state());assert.equal(admin.alerts.innerHTML,'');assert.equal(admin.notifications[0].closed,true);assert.match(admin.panel.innerHTML,/Today’s returns \(1\)/);assert.match(admin.panel.innerHTML,/01:00/);}
  await agent.click({start:'morning'});assert.equal(agent.state()['1234'].active,null);
  const off=mount('agent');off.offline();await off.click({start:'morning'});assert.equal(off.state()['1234'],undefined);
  console.log('Runtime checks passed: realtime listeners, start/return transactions, refresh recovery, two-admin hidden-page visual/voice/desktop expiry, speech deduplication, return history and offline gating.');

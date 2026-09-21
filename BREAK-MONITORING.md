@@ -40,3 +40,7 @@ The admin monitor is mounted only in Admin Tools > Break Monitoring. The agent b
 Profile editor fix: numeric and string agent IDs now match, cached forms gain missing break fields before opening/saving, and missing editors are loaded on demand. Verified with `node tests/profile-editor.test.cjs` using an isolated DOM/database simulation.
 
 The Break Monitoring sub-tab lists each active agent with morning and afternoon schedule, allowed minutes, actual start/return, countdown or time used, overrun and status. Search by name, ID or team. Times are set through Profiles. The new sub-tab is available to existing admins with Admin Tools access unless their permission map explicitly disables breaks; it does not grant access to Admin Tools itself.
+
+Admins can choose any valid time of day for either the morning or afternoon break. These are labels only, with no before-noon or after-noon restriction. Availability still begins at the chosen time, once per slot per day.
+
+Break Monitoring includes All teams, Berbice (BB), Providence (PR) and Remote (RM) buttons. The selected team filters schedules, active-break cards, totals, overdue counts and today’s returns. Selection remains in place through live data updates. Voice and browser alerts still cover every team.

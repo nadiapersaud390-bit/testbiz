@@ -6,7 +6,7 @@ const identity = {userId:'1234',name:'Alice',team:'BB'};
 assert.equal(C.day(Date.parse('2026-09-22T02:00:00Z')), '2026-09-21');
 assert.equal(C.available(null,schedule,'morning',at('09:59')),false);
 assert.equal(C.available(null,schedule,'morning',at('10:00')),true);
-assert.equal(C.validSchedule({time:'13:00',minutes:10},'morning'),false);
+assert.equal(C.validSchedule({time:'13:00',minutes:10},'morning'),true);
 assert.equal(C.validSchedule({time:'10:00',minutes:0},'morning'),false);
 assert.equal(C.validSchedule({time:'25:00',minutes:10},'afternoon'),false);
 const first = C.begin(null,schedule,'morning',at('10:00'),identity,at('10:00'));
@@ -23,4 +23,6 @@ assert.equal(C.available(returned,schedule,'morning',at('10:00')+86400000),true)
 assert.equal(C.available(first,schedule,'morning',at('10:00')+86400000),false);
 assert.equal(C.duration(61000),'01:01');
 assert.equal(C.duration(-1000),'00:00');
-console.log('Break core: 17 assertions passed.');
+assert.equal(C.available(null,{time:'12:10',minutes:10},'morning',at('12:10')),true);
+assert.equal(C.available(null,{time:'09:00',minutes:10},'afternoon',at('09:00')),true);
+console.log('Break core: 19 assertions passed.');

@@ -25,7 +25,7 @@
   let renderedDay = '', pendingSpeech = [], speaking = false;
   const announced = new Set(), acknowledged = new Set(), notified = new Set();
   const desktopAlerts = new Map();
-  let deadlineTimer = null, notificationNotice = '', agentExpanded = false, rosterSearch = '';
+  let deadlineTimer = null, notificationNotice = '', agentExpanded = false, rosterSearch = '', selectedTeam = 'ALL';
   panel.dataset.breakRole = role;
   const notificationSupported = () => 'Notification' in window;
   const notificationLabel = () => !notificationSupported() ? 'Browser notifications unavailable' : window.Notification.permission === 'granted' ? 'Browser notifications on' : window.Notification.permission === 'denied' ? 'Notifications blocked • Help' : 'Enable browser notifications';
@@ -103,8 +103,17 @@
     const next = activeRecords().map(C.dueAt).filter(t => t > now()).sort((a,b) => a-b)[0];
     if (next && live()) deadlineTimer = setTimeout(() => { tick(); scheduleDeadline(); }, Math.min(2147483647, Math.max(0, next - now())));
   }
+  const teamNames = {ALL:'All teams', BB:'Berbice', PR:'Providence', RM:'Remote'};
+  function matchesTeam(item) {
+    const current = roster.find(a => String(a.userId) === String(item.userId));
+    const team = String(current?.team || item.team || '').trim().toUpperCase();
+    return selectedTeam === 'ALL' || team === selectedTeam;
+  }
+  function teamTabs() {
+    return `<nav class="break-team-tabs" aria-label="Break monitoring teams">${Object.entries(teamNames).map(([id,name]) => `<button type="button" data-break-team="${id}" aria-pressed="${selectedTeam === id}" class="${selectedTeam === id ? 'is-selected' : ''}">${name}</button>`).join('')}</nav><p class="break-team-caption">Viewing ${teamNames[selectedTeam]}. Voice and browser alerts remain enabled for all teams.</p>`;
+  }
   function rosterOverview() {
-    const agents = roster.filter(a => a && a.userId && !a.hidden && !['inactive','quit','fired','replaced','deleted','archived'].includes(String(a.status || '').toLowerCase()))
+    const agents = roster.filter(a => a && a.userId && matchesTeam(a) && !a.hidden && !['inactive','quit','fired','replaced','deleted','archived'].includes(String(a.status || '').toLowerCase()))
       .sort((a,b) => String(a.fullName || '').localeCompare(String(b.fullName || '')));
     const rows = agents.flatMap(a => C.slots.map(slot => {
       const id = String(a.userId), state = states[id] || {};
@@ -137,11 +146,11 @@
         }).join('') + '</div>';
       }
     } else {
-      const records = activeRecords();
+      const records = activeRecords().filter(matchesTeam);
       const overdue = records.filter(r => now() >= C.dueAt(r)).length;
-      content = `<div class="break-summary"><span><b data-break-count>${records.length}</b> on break</span><span><b data-overdue-count>${overdue}</b> overdue</span><button data-voice ${!('speechSynthesis' in window) ? 'disabled' : ''}>${!('speechSynthesis' in window) ? 'Voice unavailable in this browser' : audioEnabled ? 'Voice alerts on • Test' : 'Enable voice alerts'}</button><button data-notifications ${!notificationSupported() ? 'disabled' : ''}>${notificationLabel()}</button></div><div class="break-live-list">${records.map(r => `<div class="break-current"><div><strong>${esc(r.name)}</strong><p>${esc(r.team)} • ${esc(r.slot)} • Started ${stamp(r.startedAt)} • ${r.minutes} min</p></div><strong class="break-timer" data-break-timer="${esc(r.userId)}"></strong></div>`).join('') || '<p class="break-hint">No agents are currently on break.</p>'}</div>`;
+      content = teamTabs() + `<div class="break-summary"><span><b data-break-count>${records.length}</b> on break</span><span><b data-overdue-count>${overdue}</b> overdue</span><button data-voice ${!('speechSynthesis' in window) ? 'disabled' : ''}>${!('speechSynthesis' in window) ? 'Voice unavailable in this browser' : audioEnabled ? 'Voice alerts on • Test' : 'Enable voice alerts'}</button><button data-notifications ${!notificationSupported() ? 'disabled' : ''}>${notificationLabel()}</button></div><div class="break-live-list">${records.map(r => `<div class="break-current"><div><strong>${esc(r.name)}</strong><p>${esc(r.team)} • ${esc(r.slot)} • Started ${stamp(r.startedAt)} • ${r.minutes} min</p></div><strong class="break-timer" data-break-timer="${esc(r.userId)}"></strong></div>`).join('') || '<p class="break-hint">No agents are currently on break.</p>'}</div>`;
       content += rosterOverview();
-      const todayRecords = Object.values(states).flatMap(s => Object.values(s.days?.[renderedDay] || {})).filter(r => r.returnedAt);
+      const todayRecords = Object.values(states).flatMap(s => Object.values(s.days?.[renderedDay] || {})).filter(r => r.returnedAt && matchesTeam(r));
       content += `<details class="break-history"><summary>Today’s returns (${todayRecords.length})</summary><div class="break-table-wrap"><table><thead><tr><th>Agent</th><th>Break</th><th>Started</th><th>Returned</th><th>Time used</th><th>Overrun</th></tr></thead><tbody>${todayRecords.sort((a,b) => b.returnedAt-a.returnedAt).map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.slot)}</td><td>${stamp(r.startedAt)}</td><td>${stamp(r.returnedAt)}</td><td>${C.duration(r.returnedAt-r.startedAt)}</td><td>${C.duration(r.returnedAt-C.dueAt(r))}</td></tr>`).join('') || '<tr><td colspan="6">No returns recorded today.</td></tr>'}</tbody></table></div></details><p class="break-hint">Set morning and afternoon times and minutes in Agent Profiles. Enable voice and browser notifications, then keep this dashboard open. Alerts continue while you use other dashboard sections or browser tabs. Sleeping devices or suspended tabs may delay alerts.</p>`;
     }
     const historyOpen = panel.querySelector('details')?.open;
@@ -177,7 +186,7 @@
     });
     const records = activeRecords().filter(r => now() >= C.dueAt(r));
     const count = panel.querySelector('[data-overdue-count]');
-    if (count) count.textContent = records.length;
+    if (count) count.textContent = records.filter(matchesTeam).length;
     // Never announce stale cached state while offline or before server-clock synchronization.
     if (!live()) return;
     const visible = records.filter(r => !acknowledged.has(alertKey(r)));
@@ -202,6 +211,12 @@
   panel.addEventListener('click', async e => {
     const button = e.target.closest('button');
     if (!button) return;
+    if (role === 'admin' && Object.prototype.hasOwnProperty.call(teamNames, button.dataset.breakTeam)) {
+      selectedTeam = button.dataset.breakTeam;
+      render();
+      panel.querySelector(`[data-break-team="${selectedTeam}"]`)?.focus();
+      return;
+    }
     if (button.hasAttribute('data-break-toggle') && role === 'agent') {
       agentExpanded = !agentExpanded;
       button.setAttribute('aria-expanded', String(agentExpanded));
