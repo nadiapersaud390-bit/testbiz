@@ -20,12 +20,12 @@ const ahTeamColors = {
 window._RESTRICTED_ADMIN_IDS = ['0000'];
 
 
-const ADMIN_HUB_TABS = ['stats', 'rebuttals', 'performance', 'zero', 'targetboard', 'profiles', 'attendance'];
+const ADMIN_HUB_TABS = ['stats', 'rebuttals', 'performance', 'zero', 'targetboard', 'profiles', 'attendance', 'breaks'];
 const ADMIN_HUB_LEGACY_DEFAULT_HIDDEN = ['profiles', 'attendance'];
 
 function _hiddenTabsFromPermissionMap(permissionMap) {
     if (!permissionMap || typeof permissionMap !== 'object' || Array.isArray(permissionMap)) return null;
-    return ADMIN_HUB_TABS.filter(tab => permissionMap[tab] !== true);
+    return ADMIN_HUB_TABS.filter(tab => tab === 'breaks' ? permissionMap[tab] === false : permissionMap[tab] !== true);
 }
 
 function _getCurrentAdminHubHiddenTabs() {

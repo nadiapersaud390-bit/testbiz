@@ -34,6 +34,11 @@ function mount(role, initial={}) {
  const running=agent.state();assert.equal(running['1234'].active.minutes,10);
  const recovered=mount('agent',running);assert.match(recovered.panel.innerHTML,/I’m back/);
  const first=mount('admin',running),second=mount('admin',running);
+ assert.match(first.panel.innerHTML,/Agent schedules &amp; activity/);
+ assert.match(first.panel.innerHTML,/10:00 AM/);
+ assert.match(first.panel.innerHTML,/2:00 PM/);
+ assert.match(first.panel.innerHTML,/Not started/);
+ assert.match(first.panel.innerHTML,/data-break-search/);
  for(const admin of [first,second]){assert.equal(admin.panel.hidden,true);admin.mountAdmin();assert.equal(admin.panel.hidden,false);await admin.click({voice:true});await admin.click({notifications:true});admin.setTime(start+600000);assert.match(admin.alerts.innerHTML,/Alice: break is up/);assert.ok(admin.spoken.includes('Alice, your break time is up. Time to log in back.'));admin.setTime(start+610000);assert.equal(admin.spoken.filter(x=>x.startsWith('Alice')).length,1);assert.equal(admin.notifications.length,1);assert.equal(admin.notifications[0].title,'Alice: break time is up');assert.equal(admin.notifications[0].options.body,'Time to log in back.');}
  agent.setTime(start+660000);await agent.click({return:running['1234'].active.id});
  assert.equal(agent.state()['1234'].active,null);

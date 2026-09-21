@@ -25,7 +25,8 @@
   let renderedDay = '', pendingSpeech = [], speaking = false;
   const announced = new Set(), acknowledged = new Set(), notified = new Set();
   const desktopAlerts = new Map();
-  let deadlineTimer = null, notificationNotice = '';
+  let deadlineTimer = null, notificationNotice = '', agentExpanded = false, rosterSearch = '';
+  panel.dataset.breakRole = role;
   const notificationSupported = () => 'Notification' in window;
   const notificationLabel = () => !notificationSupported() ? 'Browser notifications unavailable' : window.Notification.permission === 'granted' ? 'Browser notifications on' : window.Notification.permission === 'denied' ? 'Notifications blocked • Help' : 'Enable browser notifications';
   const now = () => Date.now() + offset;
@@ -75,7 +76,18 @@
         notice.onclick = () => {
           window.focus();
           if (typeof window.switchTab === 'function') window.switchTab('adminpanel');
-          panel.scrollIntoView({behavior:'smooth', block:'start'});
+          const openBreaks = () => {
+            if (document.getElementById('ah-sect-breaks') && typeof window.switchAdminHubTab === 'function') {
+              window.switchAdminHubTab('breaks');
+              panel.scrollIntoView({behavior:'smooth', block:'start'});
+              return true;
+            }
+            return false;
+          };
+          if (!openBreaks()) {
+            let attempts = 0;
+            const waitForTab = setInterval(() => { if (openBreaks() || ++attempts >= 40) clearInterval(waitForTab); }, 250);
+          }
           notice.close();
         };
       } catch (_) {
@@ -90,6 +102,21 @@
     deadlineTimer = null;
     const next = activeRecords().map(C.dueAt).filter(t => t > now()).sort((a,b) => a-b)[0];
     if (next && live()) deadlineTimer = setTimeout(() => { tick(); scheduleDeadline(); }, Math.min(2147483647, Math.max(0, next - now())));
+  }
+  function rosterOverview() {
+    const agents = roster.filter(a => a && a.userId && !a.hidden && !['inactive','quit','fired','replaced','deleted','archived'].includes(String(a.status || '').toLowerCase()))
+      .sort((a,b) => String(a.fullName || '').localeCompare(String(b.fullName || '')));
+    const rows = agents.flatMap(a => C.slots.map(slot => {
+      const id = String(a.userId), state = states[id] || {};
+      const active = state.active?.slot === slot ? state.active : null;
+      const record = active || state.days?.[renderedDay]?.[slot];
+      const schedule = a.breakSchedule?.[slot];
+      const configured = C.validSchedule(schedule, slot);
+      const status = active ? 'On break' : record?.returnedAt ? 'Returned' : configured ? 'Not started' : 'Not scheduled';
+      const search = `${a.fullName || ''} ${id} ${a.team || ''}`.toLowerCase();
+      return `<tr data-break-roster-row="${esc(search)}" ${search.includes(rosterSearch.toLowerCase()) ? '' : 'hidden'}><td><strong>${esc(a.fullName || id)}</strong><small>${esc(a.team || '')} • ${esc(id)}</small></td><td>${slot === 'morning' ? 'Morning' : 'Afternoon'}</td><td>${esc(timeLabel(schedule?.time))}</td><td>${configured ? schedule.minutes + ' min' : 'Not set'}</td><td>${record ? stamp(record.startedAt) : '—'}${active && active.date !== renderedDay ? '<small>' + esc(active.date) + '</small>' : ''}</td><td>${record?.returnedAt ? stamp(record.returnedAt) : '—'}</td><td>${active ? `<span class="break-timer break-roster-timer" data-break-timer="${esc(id)}"></span>` : record?.returnedAt ? C.duration(record.returnedAt-record.startedAt) + ' used' : '—'}${record && record.minutes !== schedule?.minutes ? '<small>Started with ' + record.minutes + ' min</small>' : ''}</td><td>${record?.returnedAt ? C.duration(record.returnedAt-C.dueAt(record)) : '—'}</td><td><span class="break-status-pill" ${active ? `data-break-status="${esc(id)}"` : ''}>${status}</span></td></tr>`;
+    })).join('');
+    return `<section class="break-roster"><div class="break-roster-heading"><div><h3>Agent schedules &amp; activity</h3><p>Morning and afternoon • Today, ${esc(renderedDay)} • Guyana time</p></div><label class="break-roster-search">Find an agent<input type="search" data-break-search value="${esc(rosterSearch)}" placeholder="Name, ID or team" aria-label="Search break schedules"></label></div><div class="break-table-wrap"><table><thead><tr><th>Agent / team</th><th>Break</th><th>Scheduled</th><th>Allowed</th><th>Started</th><th>Returned</th><th>Timer / time used</th><th>Overrun</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="9">No active agents found.</td></tr>'}</tbody></table></div></section>`;
   }
   function render() {
     renderedDay = C.day(now());
@@ -113,11 +140,19 @@
       const records = activeRecords();
       const overdue = records.filter(r => now() >= C.dueAt(r)).length;
       content = `<div class="break-summary"><span><b data-break-count>${records.length}</b> on break</span><span><b data-overdue-count>${overdue}</b> overdue</span><button data-voice ${!('speechSynthesis' in window) ? 'disabled' : ''}>${!('speechSynthesis' in window) ? 'Voice unavailable in this browser' : audioEnabled ? 'Voice alerts on • Test' : 'Enable voice alerts'}</button><button data-notifications ${!notificationSupported() ? 'disabled' : ''}>${notificationLabel()}</button></div><div class="break-live-list">${records.map(r => `<div class="break-current"><div><strong>${esc(r.name)}</strong><p>${esc(r.team)} • ${esc(r.slot)} • Started ${stamp(r.startedAt)} • ${r.minutes} min</p></div><strong class="break-timer" data-break-timer="${esc(r.userId)}"></strong></div>`).join('') || '<p class="break-hint">No agents are currently on break.</p>'}</div>`;
+      content += rosterOverview();
       const todayRecords = Object.values(states).flatMap(s => Object.values(s.days?.[renderedDay] || {})).filter(r => r.returnedAt);
       content += `<details class="break-history"><summary>Today’s returns (${todayRecords.length})</summary><div class="break-table-wrap"><table><thead><tr><th>Agent</th><th>Break</th><th>Started</th><th>Returned</th><th>Time used</th><th>Overrun</th></tr></thead><tbody>${todayRecords.sort((a,b) => b.returnedAt-a.returnedAt).map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.slot)}</td><td>${stamp(r.startedAt)}</td><td>${stamp(r.returnedAt)}</td><td>${C.duration(r.returnedAt-r.startedAt)}</td><td>${C.duration(r.returnedAt-C.dueAt(r))}</td></tr>`).join('') || '<tr><td colspan="6">No returns recorded today.</td></tr>'}</tbody></table></div></details><p class="break-hint">Set morning and afternoon times and minutes in Agent Profiles. Enable voice and browser notifications, then keep this dashboard open. Alerts continue while you use other dashboard sections or browser tabs. Sleeping devices or suspended tabs may delay alerts.</p>`;
     }
     const historyOpen = panel.querySelector('details')?.open;
-    panel.innerHTML = `<div class="break-heading"><h2>${role === 'admin' ? 'Agent break monitor' : 'Your breaks'}</h2><span class="${live() ? 'break-online' : 'break-offline'}">${esc(connection)}</span></div>${content}<p id="break-action-status" role="status"></p><p id="break-notification-status" class="break-hint" role="status">${esc(notificationNotice)}</p>`;
+    const heading = `<div class="break-heading"><h2>${role === 'admin' ? 'Agent break monitor' : 'Today’s schedule'}</h2><span class="${live() ? 'break-online' : 'break-offline'}">${esc(connection)}</span></div>`;
+    if (role === 'agent') {
+      const active = states[agentId]?.active;
+      const badge = active ? `<span class="break-timer break-compact-timer" data-break-timer="${esc(agentId)}"></span>` : '<span class="break-dropdown-caption">Schedule &amp; timer</span>';
+      panel.innerHTML = `<button type="button" class="break-dropdown-toggle" data-break-toggle aria-expanded="${agentExpanded}" aria-controls="agent-break-details"><span class="break-dropdown-label"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>My breaks</span></span><span class="break-dropdown-meta">${badge}<svg class="break-chevron" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg></span></button><div id="agent-break-details" ${agentExpanded ? '' : 'hidden'}>${heading}${content}</div><p id="break-action-status" role="status"></p>`;
+    } else {
+      panel.innerHTML = `${heading}${content}<p id="break-action-status" role="status"></p><p id="break-notification-status" class="break-hint" role="status">${esc(notificationNotice)}</p>`;
+    }
     if (historyOpen && panel.querySelector('details')) panel.querySelector('details').open = true;
     tick();
     scheduleDeadline();
@@ -130,6 +165,12 @@
       const remaining = C.dueAt(r) - now();
       el.textContent = remaining > 0 ? C.duration(remaining) + ' left' : C.duration(-remaining) + ' overdue';
       el.classList.toggle('break-overdue', remaining <= 0);
+    });
+    panel.querySelectorAll('[data-break-status]').forEach(el => {
+      const record = states[el.dataset.breakStatus]?.active;
+      const overdue = record && now() >= C.dueAt(record);
+      el.textContent = overdue ? 'Overdue' : 'On break';
+      el.classList.toggle('break-overdue', !!overdue);
     });
     panel.querySelectorAll('[data-start]').forEach(button => {
       button.disabled = !live() || busy || !C.available(states[agentId], agent()?.breakSchedule?.[button.dataset.start], button.dataset.start, now());
@@ -151,9 +192,22 @@
       if (!announced.has(key)) { announced.add(key); voice(r); }
     });
   }
+  panel.addEventListener('input', e => {
+    if (!e.target.hasAttribute('data-break-search')) return;
+    rosterSearch = e.target.value;
+    panel.querySelectorAll('[data-break-roster-row]').forEach(row => {
+      row.hidden = !row.dataset.breakRosterRow.includes(rosterSearch.trim().toLowerCase());
+    });
+  });
   panel.addEventListener('click', async e => {
     const button = e.target.closest('button');
     if (!button) return;
+    if (button.hasAttribute('data-break-toggle') && role === 'agent') {
+      agentExpanded = !agentExpanded;
+      button.setAttribute('aria-expanded', String(agentExpanded));
+      document.getElementById('agent-break-details').hidden = !agentExpanded;
+      return;
+    }
     if (button.hasAttribute('data-notifications') && role === 'admin') {
       if (!notificationSupported()) return;
       if (window.Notification.permission === 'denied') {

@@ -33,11 +33,13 @@ const roster=[{userId:'1234',fullName:'Alice Test',team:'BB',status:'Agent',brea
   return page;
  }
  const agent=await mount('agent',{},true);
+ assert.equal(await agent.locator('[data-break-toggle]').getAttribute('aria-expanded'),'false');
+ await agent.locator('[data-break-toggle]').click();
  assert.equal(await agent.locator('[data-start="morning"]').isEnabled(),true);
  assert.equal(await agent.locator('[data-start="afternoon"]').isDisabled(),true);
  await agent.locator('[data-start="morning"]').click();
  await agent.waitForSelector('[data-return]');
- assert.match(await agent.locator('.break-timer').innerText(),/10:00 left/);
+ assert.match(await agent.locator('.break-compact-timer').innerText(),/10:00 left/);
  const state=await agent.evaluate(()=>window.testState);
  const recovered=await mount('agent',state);
  assert.equal(await recovered.locator('[data-return]').count(),1);
