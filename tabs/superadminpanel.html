@@ -1126,6 +1126,7 @@
                                     <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="targetboard" checked> <span>🎯 Target Board</span></label>
                                     <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="profiles"> <span>👤 Profiles</span></label>
                                     <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="attendance"> <span>📅 Attendance</span></label>
+                                    <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="calendar"> <span>🗓️ Calendar</span></label>
                                 </div>
 
                                 <div class="mt-3 pt-3 border-t border-cyan-500/15">
@@ -2762,7 +2763,7 @@ Their name will be removed from all active dashboard areas.`)) return;
             const hubHiddenTabs = Array.isArray(admin.adminHubHiddenTabs) ? admin.adminHubHiddenTabs : ['profiles', 'attendance'];
             document.querySelectorAll('.um-adminhub-cb').forEach(cb => {
                 const tabId = String(cb.getAttribute('data-hubtab') || '').trim().toLowerCase();
-                cb.checked = hubPermissionMap
+                cb.checked = tabId === 'calendar' ? admin.calendarAccess === true : hubPermissionMap
                     ? hubPermissionMap[tabId] === true
                     : !hubHiddenTabs.includes(tabId);
             });
@@ -2879,6 +2880,7 @@ Their name will be removed from all active dashboard areas.`)) return;
                     adminHubHiddenTabs,
                     adminHubPermissions,
                     adminHubPermissionsVersion: 2,
+                    calendarAccess: adminHubPermissions.calendar === true,
                     adminToolUploadScope
                 };
                 if (newPass) patch.password = btoa(newPass);

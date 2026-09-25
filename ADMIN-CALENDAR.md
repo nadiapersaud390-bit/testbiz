@@ -4,7 +4,7 @@
 
 The **Admin Calendar** button is available on the dashboard navigation and in Admin Tools / Super Admin. It appears only after the current admin's live access record is verified. Agents never receive the button or calendar subscriptions.
 
-Superadmin opens **Admin Calendar > Manage access** and checks the admins who should have access. Every regular admin starts with access off. Granted admins can view, create, edit, delete, and receive calendar reminders. Only the master superadmin can change this calendar allowlist. This permission is independent of the other Admin Tools permissions.
+Superadmin opens **Edit Admin > Admin Tools Access**, checks **Calendar**, then saves. The Calendar button appears beside Attendance in the Admin Hub tab row. The existing **Admin Calendar > Manage access** control also stays synchronized with this permission. Every regular admin starts with access off. Granted admins can view, create, edit, delete, and receive calendar reminders. Only the master superadmin can change this calendar allowlist. This permission is independent of the other Admin Tools permissions.
 
 Revoking access removes the button, closes and clears the calendar, unsubscribes from its data, and closes active calendar desktop notifications. There is no local permission fallback. Deleting the admin's directory record also removes calendar access.
 
