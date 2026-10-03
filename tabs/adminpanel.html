@@ -72,27 +72,29 @@
             <div id="qa-view-review" class="qa-view">
                 <div class="qa-card">
                     <div class="qa-card-heading">
-                        <div><h4>Call Review</h4><p>Enter the call details and record a manual or AI-assisted review.</p></div>
+                        <div><h4>Call Review</h4><p>Enter the call details, paste a transcript for an AI draft, or complete a manual review.</p></div>
                         <span class="qa-badge">Admin review required</span>
                     </div>
                     <input type="hidden" id="qa-edit-id" value="">
                     <div class="qa-form-grid">
-                        <label>Agent <select id="qa-agent" required><option value="">Select an agent</option></select></label>
+                        <label>Agent <select id="qa-agent" required><option value="">Select an agent</option></select><span id="qa-agent-status" class="qa-inline-status" role="status">Loading active agent list…</span></label>
                         <label>Team <select id="qa-team"><option value="">Select team</option><option value="BB">Berbice</option><option value="PR">Providence</option><option value="RM">Remote</option></select></label>
                         <label>Call date <input type="date" id="qa-date" required></label>
-                        <label>Call ID <input type="text" id="qa-call-id" maxlength="80" placeholder="Optional reference"></label>
-                        <label>Customer phone last 4 digits <input type="text" id="qa-phone-last4" inputmode="numeric" maxlength="4" placeholder="Optional"></label>
+                        <label>Call Number <input type="text" id="qa-call-number" maxlength="80" placeholder="Optional call reference"></label>
+                        <label>Customer Number <input type="tel" id="qa-customer-number" autocomplete="off" maxlength="40" placeholder="Optional customer number"></label>
                         <label>Outcome <select id="qa-outcome"><option value="Pending">Needs review</option><option value="Valid">Valid</option><option value="Invalid">Invalid</option></select></label>
                         <label>Primary reason <select id="qa-primary-reason"><option value="">Select reason</option><option>Under $200k revenue</option><option>Trucking</option><option>Attorney</option><option>No qualified call</option><option>Unqualified business</option><option>Other</option><option>Unclear audio</option></select></label>
                         <label>Additional reason <input type="text" id="qa-additional-reason" maxlength="120" placeholder="Optional"></label>
                         <label>Issue source <select id="qa-issue-source"><option value="">Select source</option><option>Agent</option><option>Lead data</option><option>Process or system</option><option>Unclear</option></select></label>
                     </div>
-                    <div class="qa-audio-panel">
-                        <div class="qa-audio-copy"><strong><i class="fas fa-headphones"></i> Audio review</strong><span>Choose a recording to play here or send to the configured secure review service. Audio is not saved with the report.</span></div>
-                        <input type="file" id="qa-audio-file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.webm">
-                        <div id="qa-audio-preview" class="qa-audio-preview"></div>
-                        <button type="button" id="qa-ai-button" class="qa-button qa-button-ai" onclick="qaRunAIReview()">Generate AI draft review</button>
-                        <div id="qa-ai-status" class="qa-inline-status" role="status">AI review service is not connected yet. Manual reviews and reports are available.</div>
+                    <div class="qa-transcript-panel">
+                        <div class="qa-transcript-copy"><strong><i class="fas fa-file-lines"></i> AI-assisted review</strong><span>Paste the call transcript below. Speaker labels and timestamps help the review give specific evidence. No audio upload is used, and the transcript is not saved with the QA record.</span></div>
+                        <label class="qa-transcript-input-label" for="qa-transcript-input">Call transcript<textarea id="qa-transcript-input" rows="8" maxlength="100000" placeholder="[00:12] Agent: Thank you for calling...&#10;[00:18] Customer: My business is..."></textarea></label>
+                        <div class="qa-ai-controls">
+                            <label for="qa-service-code">AI service access code<input type="password" id="qa-service-code" autocomplete="off" maxlength="512" placeholder="Provided by your system administrator"><span>Held in this page only; never saved with the review.</span></label>
+                            <button type="button" id="qa-ai-button" class="qa-button qa-button-ai" onclick="qaRunAIReview()">Generate AI draft review</button>
+                        </div>
+                        <div id="qa-ai-status" class="qa-inline-status" role="status">Checking AI review service…</div>
                     </div>
                     <div class="qa-form-grid qa-notes-grid">
                         <label>QA notes <textarea id="qa-notes" rows="3" placeholder="What did you notice during the call?"></textarea></label>
@@ -127,7 +129,7 @@
                         <label>Agent <input type="search" id="qa-filter-agent" placeholder="Search agent" oninput="qaRenderReport()"></label>
                     </div>
                     <div id="qa-report-status" class="qa-inline-status" role="status"></div>
-                    <div class="qa-table-wrap"><table class="qa-table"><thead><tr><th>Date</th><th>Agent</th><th>Team</th><th>Call ID</th><th>Outcome</th><th>Primary reason</th><th>Issue source</th><th>Finding / coaching</th><th>Review</th></tr></thead><tbody id="qa-report-body"></tbody></table></div>
+                    <div class="qa-table-wrap"><table class="qa-table"><thead><tr><th>Date</th><th>Agent</th><th>Team</th><th>Call Number</th><th>Customer Number</th><th>Outcome</th><th>Primary reason</th><th>Issue source</th><th>Finding / coaching</th><th>Review</th></tr></thead><tbody id="qa-report-body"></tbody></table></div>
                     <p class="qa-report-footnote">AI findings are suggestions. An authorized reviewer must confirm or change each outcome.</p>
                 </div>
             </div>

@@ -1,6 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { handleQAReviewApi } = require("./qa-review-api");
 
 const port = Number(process.env.PORT || 5000);
 const root = path.resolve(__dirname, "..");
@@ -122,6 +123,10 @@ const server = http.createServer((req, res) => {
   const requestUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
 
   if (handleActivityApi(req, res, requestUrl)) {
+    return;
+  }
+
+  if (handleQAReviewApi(req, res, requestUrl)) {
     return;
   }
 

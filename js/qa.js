@@ -5,11 +5,12 @@
     const $ = function (id) { return document.getElementById(id); };
     let qaRecords = [];
     let qaListener = null;
-    let qaAudioUrl = '';
     let qaAIResult = null;
     let qaSaving = false;
-    let qaAudioBound = false;
     let qaAgentBound = false;
+    let qaRosterBound = false;
+    let qaRosterListener = null;
+    let qaServiceMessage = 'Checking AI review service…';
 
     function esc(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
@@ -41,34 +42,76 @@
         return '';
     }
 
+    function normalizeRoster(source) {
+        let list = Array.isArray(source) ? source.slice() : (source && typeof source === 'object' ? Object.values(source) : []);
+        if (typeof window.filterDeletedAgents === 'function') list = window.filterDeletedAgents(list);
+        const seen = new Set();
+        return list.filter(function (agent) {
+            if (!agent || String(agent.status || '').toLowerCase() === 'inactive') return false;
+            const id = String(agent.userId || agent.userID || agent.ytelId || agent.id || agent.agentId || agent.agentID || agent.userid || '').trim();
+            if (!id || seen.has(id.toLowerCase())) return false;
+            seen.add(id.toLowerCase());
+            return true;
+        }).sort(function (a, b) {
+            const an = String(a.fullName || a.name || a.agentName || a.ytelName || '').toLowerCase();
+            const bn = String(b.fullName || b.name || b.agentName || b.ytelName || '').toLowerCase();
+            return an.localeCompare(bn);
+        });
+    }
+
     function roster() {
         let list = Array.isArray(window.allAgentProfiles) ? window.allAgentProfiles.slice() : [];
         if (!list.length) {
             try {
                 const cached = JSON.parse(localStorage.getItem('biz_master_roster') || '[]');
-                if (Array.isArray(cached)) list = cached;
+                if (Array.isArray(cached) || (cached && typeof cached === 'object')) list = cached;
             } catch (_) {}
         }
-        if (typeof window.filterDeletedAgents === 'function') list = window.filterDeletedAgents(list);
-        return list.filter(Boolean).sort(function (a, b) {
-            const an = String(a.fullName || a.name || a.agentName || '').toLowerCase();
-            const bn = String(b.fullName || b.name || b.agentName || '').toLowerCase();
-            return an.localeCompare(bn);
-        });
+        return normalizeRoster(list);
     }
 
-    function populateAgents(selectedId) {
+    function populateAgents(selectedId, source) {
         const select = $('qa-agent');
-        if (!select) return;
+        if (!select) return 0;
         const oldValue = selectedId || select.value;
-        select.innerHTML = '<option value="">Select an agent</option>' + roster().map(function (agent) {
-            const id = String(agent.userId || agent.ytelId || agent.id || agent.agentId || '').trim();
+        const agents = source === undefined ? roster() : normalizeRoster(source);
+        select.innerHTML = '<option value="">Select an agent</option>' + agents.map(function (agent) {
+            const id = String(agent.userId || agent.userID || agent.ytelId || agent.id || agent.agentId || agent.agentID || agent.userid || '').trim();
             const name = String(agent.fullName || agent.name || agent.agentName || agent.ytelName || id || 'Agent').trim();
             const team = cleanTeam(agent.team || agent.group || agent.location);
-            if (!id) return '';
             return '<option value="' + esc(id) + '" data-name="' + esc(name) + '" data-team="' + esc(team) + '">' + esc(name) + ' · ' + esc(id) + '</option>';
         }).join('');
         if (oldValue) select.value = oldValue;
+        return agents.length;
+    }
+
+    function applyRosterUpdate(source) {
+        const agents = normalizeRoster(source);
+        window.allAgentProfiles = agents.slice();
+        try { localStorage.setItem('biz_master_roster', JSON.stringify(agents)); } catch (_) {}
+        const selectedId = $('qa-agent') ? $('qa-agent').value : '';
+        const count = populateAgents(selectedId, agents);
+        setStatus('qa-agent-status', count ? count + ' active agent' + (count === 1 ? '' : 's') + ' loaded.' : 'No active agents were found. Check the Firebase agent roster.', count ? '' : 'error');
+    }
+
+    function bindAgentRoster() {
+        if (qaRosterBound) return;
+        qaRosterBound = true;
+        window.addEventListener('biz-active-roster-updated', function (event) {
+            applyRosterUpdate(event && event.detail ? event.detail : roster());
+        });
+        window.addEventListener('biz-deleted-agents-updated', function () {
+            applyRosterUpdate(window.allAgentProfiles || roster());
+        });
+        if (typeof window.listenForMasterRoster === 'function') {
+            qaRosterListener = window.listenForMasterRoster(applyRosterUpdate);
+        } else if (window.rtdbRef && window.rtdbGet) {
+            window.rtdbGet(window.rtdbRef('biz_master_roster')).then(function (snapshot) {
+                applyRosterUpdate(snapshot && typeof snapshot.val === 'function' ? snapshot.val() : []);
+            }).catch(function () {
+                setStatus('qa-agent-status', 'Could not load the Firebase agent roster. Try reopening QA.', 'error');
+            });
+        }
     }
 
     function setStatus(id, message, kind) {
@@ -77,6 +120,39 @@
         el.textContent = message || '';
         el.classList.toggle('is-error', kind === 'error');
         el.classList.toggle('is-success', kind === 'success');
+    }
+
+    async function checkQAService() {
+        const endpoint = String(window.QA_REVIEW_ENDPOINT || '').trim();
+        if (!endpoint) {
+            qaServiceMessage = 'AI review service is not configured. Manual review is available.';
+            setStatus('qa-ai-status', qaServiceMessage, 'error');
+            return;
+        }
+        try {
+            const statusUrl = endpoint.replace(/\/$/, '') + '/status';
+            const response = await fetch(statusUrl, { cache: 'no-store', credentials: 'same-origin' });
+            const bodyText = await response.text();
+            let result = {};
+            try { result = JSON.parse(bodyText); } catch (_) {}
+            if (!response.ok) {
+                qaServiceMessage = response.status === 404
+                    ? 'The AI review route is not available on this host. Deploy the app with its Node server.'
+                    : 'Could not check AI service status (HTTP ' + response.status + ').';
+                setStatus('qa-ai-status', qaServiceMessage, 'error');
+                return;
+            }
+            if (result.ready) {
+                qaServiceMessage = 'AI draft service connected. Paste a transcript and enter the service access code.';
+                setStatus('qa-ai-status', qaServiceMessage, 'success');
+            } else {
+                qaServiceMessage = 'The AI route is reachable, but server credentials are not configured yet. Manual review is available.';
+                setStatus('qa-ai-status', qaServiceMessage, 'error');
+            }
+        } catch (_) {
+            qaServiceMessage = 'Could not reach the AI review route. Check that the Node server is deployed.';
+            setStatus('qa-ai-status', qaServiceMessage, 'error');
+        }
     }
 
     function setBusy(busy) {
@@ -136,7 +212,8 @@
             '<td>' + esc(asDate(r)) + '</td>' +
             '<td><strong>' + esc(r.agentName || 'Unknown') + '</strong><br><span class="qa-muted">' + esc(r.agentId || '') + '</span></td>' +
             '<td>' + esc(cleanTeam(r.team) || r.team || '—') + '</td>' +
-            '<td>' + esc(r.callId || '—') + '</td>' +
+            '<td>' + esc(r.callNumber || r.callId || '—') + '</td>' +
+            '<td>' + esc(r.customerNumber || (r.phoneLast4 ? '…' + r.phoneLast4 : '—')) + '</td>' +
             '<td><span class="qa-outcome-pill">Invalid</span></td>' +
             '<td>' + esc(r.primaryReason || '—') + (r.additionalReason ? '<br><span class="qa-muted">' + esc(r.additionalReason) + '</span>' : '') + '</td>' +
             '<td>' + esc(r.issueSource || '—') + '</td>' +
@@ -151,7 +228,7 @@
         if (!body) return;
         const rows = selectedInvalidRecords();
         if (!rows.length) {
-            body.innerHTML = '<tr><td class="qa-empty" colspan="9">No invalid calls match these filters yet.</td></tr>';
+            body.innerHTML = '<tr><td class="qa-empty" colspan="10">No invalid calls match these filters yet.</td></tr>';
             return;
         }
         body.innerHTML = rows.map(rowMarkup).join('');
@@ -172,89 +249,46 @@
         setStatus('qa-report-status', qaRecords.length ? 'Live QA records loaded.' : 'No QA records yet.', '');
     }
 
-    function ensureAudioPreview() {
-        const input = $('qa-audio-file');
-        if (!input || qaAudioBound) return;
-        qaAudioBound = true;
-        input.addEventListener('change', function () {
-            const file = input.files && input.files[0];
-            const preview = $('qa-audio-preview');
-            if (qaAudioUrl) URL.revokeObjectURL(qaAudioUrl);
-            qaAudioUrl = '';
-            qaAIResult = null;
-            if (!preview) return;
-            preview.innerHTML = '';
-            if (!file) return;
-            if (file.size > 100 * 1024 * 1024) {
-                input.value = '';
-                setStatus('qa-ai-status', 'This recording is larger than the 100 MB limit.', 'error');
-                return;
-            }
-            if (!file.type.startsWith('audio/') && !/\.(mp3|wav|m4a|aac|ogg|webm)$/i.test(file.name)) {
-                input.value = '';
-                setStatus('qa-ai-status', 'Choose an audio recording such as MP3, WAV, M4A, AAC, OGG, or WEBM.', 'error');
-                return;
-            }
-            qaAudioUrl = URL.createObjectURL(file);
-            const label = document.createElement('div');
-            label.className = 'qa-inline-status';
-            label.textContent = file.name + ' · ' + Math.max(1, Math.round(file.size / 1024)) + ' KB · preview only';
-            const audio = document.createElement('audio');
-            audio.controls = true;
-            audio.preload = 'metadata';
-            audio.src = qaAudioUrl;
-            preview.appendChild(label);
-            preview.appendChild(audio);
-            setStatus('qa-ai-status', window.QA_REVIEW_ENDPOINT ? 'Ready to request an AI draft. The reviewer will confirm the result.' : 'AI review service is not connected yet. The recording stays in this browser and is not uploaded.', '');
-        });
-    }
-
-    function setTranscript(text) {
-        const wrap = $('qa-transcript-wrap');
-        const input = $('qa-transcript');
-        if (!wrap || !input) return;
-        input.value = String(text || '');
-        wrap.hidden = !input.value;
-    }
-
     window.qaRunAIReview = async function () {
-        const fileInput = $('qa-audio-file');
-        const file = fileInput && fileInput.files && fileInput.files[0];
-        if (!file) {
-            setStatus('qa-ai-status', 'Choose an audio file before requesting a draft.', 'error');
+        const transcript = String($('qa-transcript-input') ? $('qa-transcript-input').value : '').trim();
+        if (transcript.length < 20) {
+            setStatus('qa-ai-status', 'Paste a call transcript of at least 20 characters before requesting a draft.', 'error');
             return;
         }
         const endpoint = String(window.QA_REVIEW_ENDPOINT || '').trim();
         if (!endpoint) {
-            setStatus('qa-ai-status', 'AI review service is not connected. The recording was not uploaded. Manual review is ready to use.', 'error');
+            setStatus('qa-ai-status', 'AI review service is not configured. Manual review is ready to use.', 'error');
             return;
         }
-        const agent = $('qa-agent');
-        const option = agent && agent.options[agent.selectedIndex];
-        const payload = new FormData();
-        payload.append('audio', file, file.name);
-        payload.append('agentId', agent ? agent.value : '');
-        payload.append('agentName', option ? option.getAttribute('data-name') || option.textContent : '');
-        payload.append('team', $('qa-team') ? $('qa-team').value : '');
-        payload.append('callDate', $('qa-date') ? $('qa-date').value : '');
-        payload.append('callId', $('qa-call-id') ? $('qa-call-id').value : '');
-        payload.append('reasonCategories', JSON.stringify(['Under $200k revenue', 'Trucking', 'Attorney', 'No qualified call', 'Unqualified business', 'Other', 'Unclear audio']));
-        payload.append('responseFormat', 'json');
-
+        const accessCode = String($('qa-service-code') ? $('qa-service-code').value : '').trim();
+        if (!accessCode) {
+            setStatus('qa-ai-status', 'Enter the AI service access code provided by your system administrator.', 'error');
+            return;
+        }
         const button = $('qa-ai-button');
         if (button) button.disabled = true;
-        setStatus('qa-ai-status', 'Sending the recording to the configured review service…', '');
+        setStatus('qa-ai-status', 'Sending the transcript for an AI draft review…', '');
         try {
-            const response = await fetch(endpoint, { method: 'POST', body: payload, credentials: 'same-origin' });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || 'The review service could not analyze this recording.');
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { Authorization: 'Bearer ' + accessCode, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transcript: transcript }),
+                credentials: 'same-origin'
+            });
+            const bodyText = await response.text();
+            let result = {};
+            try { result = JSON.parse(bodyText); } catch (_) {}
+            if (!response.ok && !result.error) {
+                throw new Error(response.status === 404
+                    ? 'The AI review route is missing on this host. Deploy the app with its Node server.'
+                    : 'The review service returned HTTP ' + response.status + '. Check the Node server and try again.');
+            }
+            if (!response.ok) throw new Error(result.error || 'The review service could not analyze this transcript.');
             const draft = result.draft || result.review || result;
-            const transcript = result.transcript || draft.transcript || '';
-            setTranscript(transcript);
             const evidence = Array.isArray(draft.evidence) ? draft.evidence.map(function (item) {
-                return '[' + String(item.timestamp || item.time || 'time not supplied') + '] ' + String(item.quote || item.text || '') + (item.rule ? ' · ' + String(item.rule) : '');
+                return '[' + String(item.timestamp || item.location || 'reference not supplied') + ']' + (item.speaker ? ' ' + String(item.speaker) + ':' : '') + ' ' + String(item.quote || item.text || '') + (item.rule ? ' · ' + String(item.rule) : '');
             }).filter(Boolean).join('\n') : '';
-            const finding = [draft.summary || draft.finding || '', evidence].filter(Boolean).join('\n');
+            const finding = [draft.summary || draft.finding || '', evidence, draft.limitations ? 'Review limitations: ' + draft.limitations : ''].filter(Boolean).join('\n');
             if ($('qa-finding') && finding) $('qa-finding').value = finding;
             if ($('qa-coaching') && (draft.coachingTip || draft.coaching)) $('qa-coaching').value = draft.coachingTip || draft.coaching;
             if ($('qa-notes') && draft.notes) $('qa-notes').value = draft.notes;
@@ -263,7 +297,10 @@
                 suggestedReason: draft.primaryReason || draft.reason || '',
                 confidence: typeof draft.confidence === 'number' ? draft.confidence : null
             };
-            setStatus('qa-ai-status', 'AI draft ready. Suggested outcome: ' + (qaAIResult.suggestedOutcome || 'not provided') + '. Review the transcript and evidence, then confirm the final outcome yourself.', 'success');
+            const reason = qaAIResult.suggestedReason && qaAIResult.suggestedReason !== 'None' ? ' — ' + qaAIResult.suggestedReason : '';
+            const confidence = typeof qaAIResult.confidence === 'number' ? ' · confidence ' + Math.round(qaAIResult.confidence * 100) + '%' : '';
+            const speaker = draft.agentSpeaker && draft.agentSpeaker !== 'unclear' ? ' Agent speaker: ' + draft.agentSpeaker + '.' : ' Transcript speaker unclear.';
+            setStatus('qa-ai-status', 'AI draft ready.' + speaker + ' Suggestion only: ' + (qaAIResult.suggestedOutcome || 'Pending') + reason + confidence + '. Check the transcript and evidence, then choose the final outcome yourself.', 'success');
         } catch (error) {
             setStatus('qa-ai-status', error.message || 'AI review failed. You can still complete a manual review.', 'error');
         } finally {
@@ -271,20 +308,8 @@
         }
     };
 
-    function clearAudio() {
-        const input = $('qa-audio-file');
-        const preview = $('qa-audio-preview');
-        if (qaAudioUrl) URL.revokeObjectURL(qaAudioUrl);
-        qaAudioUrl = '';
-        qaAIResult = null;
-        if (input) input.value = '';
-        if (preview) preview.innerHTML = '';
-        setTranscript('');
-        setStatus('qa-ai-status', window.QA_REVIEW_ENDPOINT ? 'Choose a recording to request an AI draft.' : 'AI review service is not connected yet. Manual reviews and reports are available.', '');
-    }
-
     window.qaResetForm = function () {
-        ['qa-edit-id', 'qa-call-id', 'qa-phone-last4', 'qa-additional-reason', 'qa-notes', 'qa-finding', 'qa-coaching'].forEach(function (id) {
+        ['qa-edit-id', 'qa-call-number', 'qa-customer-number', 'qa-additional-reason', 'qa-notes', 'qa-finding', 'qa-coaching', 'qa-transcript-input'].forEach(function (id) {
             if ($(id)) $(id).value = '';
         });
         if ($('qa-agent')) $('qa-agent').value = '';
@@ -293,7 +318,8 @@
         if ($('qa-outcome')) $('qa-outcome').value = 'Pending';
         if ($('qa-primary-reason')) $('qa-primary-reason').value = '';
         if ($('qa-issue-source')) $('qa-issue-source').value = '';
-        clearAudio();
+        qaAIResult = null;
+        setStatus('qa-ai-status', qaServiceMessage, '');
         setStatus('qa-save-status', '', '');
         setBusy(false);
     };
@@ -342,8 +368,8 @@
             agentId: agentId,
             agentName: agentName,
             team: cleanTeam($('qa-team') ? $('qa-team').value : ''),
-            callId: String($('qa-call-id') ? $('qa-call-id').value : '').trim(),
-            phoneLast4: String($('qa-phone-last4') ? $('qa-phone-last4').value : '').replace(/\D/g, '').slice(-4),
+            callNumber: String($('qa-call-number') ? $('qa-call-number').value : '').trim(),
+            customerNumber: String($('qa-customer-number') ? $('qa-customer-number').value : '').trim(),
             outcome: outcome,
             primaryReason: primaryReason,
             additionalReason: String($('qa-additional-reason') ? $('qa-additional-reason').value : '').trim(),
@@ -369,7 +395,7 @@
             await window.rtdbSet(window.rtdbRef(QA_PATH + '/' + recordId), record);
             setStatus('qa-save-status', 'Review saved to the shared QA report.', 'success');
             if (typeof window.writeAdminActivityLog === 'function') {
-                window.writeAdminActivityLog('qa_review_saved', 'Saved ' + outcome.toLowerCase() + ' QA review for ' + agentName, { agentId: agentId, callId: record.callId, outcome: outcome });
+                window.writeAdminActivityLog('qa_review_saved', 'Saved ' + outcome.toLowerCase() + ' QA review for ' + agentName, { agentId: agentId, callNumber: record.callNumber, outcome: outcome });
             }
             window.qaResetForm();
         } catch (error) {
@@ -388,8 +414,8 @@
         if ($('qa-edit-id')) $('qa-edit-id').value = record.id;
         if ($('qa-date')) $('qa-date').value = asDate(record);
         if ($('qa-team')) $('qa-team').value = cleanTeam(record.team);
-        if ($('qa-call-id')) $('qa-call-id').value = record.callId || '';
-        if ($('qa-phone-last4')) $('qa-phone-last4').value = record.phoneLast4 || '';
+        if ($('qa-call-number')) $('qa-call-number').value = record.callNumber || record.callId || '';
+        if ($('qa-customer-number')) $('qa-customer-number').value = record.customerNumber || record.phoneLast4 || '';
         if ($('qa-outcome')) $('qa-outcome').value = record.outcome || 'Pending';
         if ($('qa-primary-reason')) $('qa-primary-reason').value = record.primaryReason || '';
         if ($('qa-additional-reason')) $('qa-additional-reason').value = record.additionalReason || '';
@@ -397,7 +423,8 @@
         if ($('qa-notes')) $('qa-notes').value = record.qaNotes || '';
         if ($('qa-finding')) $('qa-finding').value = record.reviewFinding || '';
         if ($('qa-coaching')) $('qa-coaching').value = record.coachingTip || '';
-        clearAudio();
+        if ($('qa-transcript-input')) $('qa-transcript-input').value = '';
+        if ($('qa-ai-status')) setStatus('qa-ai-status', qaServiceMessage, '');
         qaAIResult = record.reviewMethod === 'ai_assisted' ? {
             suggestedOutcome: record.aiSuggestedOutcome || '',
             suggestedReason: record.aiSuggestedReason || '',
@@ -429,11 +456,15 @@
             setStatus('qa-report-status', 'There are no invalid calls in the current filter to export.', 'error');
             return;
         }
-        const headers = ['Date', 'Agent name', 'Agent ID', 'Team', 'Call ID', 'Phone last 4', 'QA notes', 'Review outcome', 'Primary reason', 'Additional reason', 'Issue source', 'Review finding', 'Coaching tip', 'Reviewer', 'AI suggested outcome'];
-        const fields = ['date', 'agentName', 'agentId', 'team', 'callId', 'phoneLast4', 'qaNotes', 'outcome', 'primaryReason', 'additionalReason', 'issueSource', 'reviewFinding', 'coachingTip', 'reviewerName', 'aiSuggestedOutcome'];
+        const headers = ['Date', 'Agent name', 'Agent ID', 'Team', 'Call Number', 'Customer Number', 'QA notes', 'Review outcome', 'Primary reason', 'Additional reason', 'Issue source', 'Review finding', 'Coaching tip', 'Reviewer', 'AI suggested outcome'];
+        const fields = ['date', 'agentName', 'agentId', 'team', 'callNumber', 'customerNumber', 'qaNotes', 'outcome', 'primaryReason', 'additionalReason', 'issueSource', 'reviewFinding', 'coachingTip', 'reviewerName', 'aiSuggestedOutcome'];
         const csvCell = function (value) { return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"'; };
         const csv = [headers.map(csvCell).join(',')].concat(rows.map(function (r) {
-            return fields.map(function (key) { return csvCell(r[key]); }).join(',');
+            return fields.map(function (key) {
+                if (key === 'callNumber') return csvCell(r.callNumber || r.callId || '');
+                if (key === 'customerNumber') return csvCell(r.customerNumber || r.phoneLast4 || '');
+                return csvCell(r[key]);
+            }).join(',');
         })).join('\r\n');
         const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
@@ -452,8 +483,9 @@
             setStatus('qa-report-status', 'QA access is restricted to authorized admins.', 'error');
             return;
         }
-        populateAgents();
-        ensureAudioPreview();
+        const initialAgentCount = populateAgents();
+        setStatus('qa-agent-status', initialAgentCount ? initialAgentCount + ' active agents loaded.' : 'Loading active agent list…', initialAgentCount ? '' : '');
+        checkQAService();
         if (!qaAgentBound && $('qa-agent')) {
             qaAgentBound = true;
             $('qa-agent').addEventListener('change', function () {
@@ -475,6 +507,7 @@
             setStatus('qa-report-status', 'Firebase is still connecting. Reopen QA in a moment.', 'error');
             return;
         }
+        bindAgentRoster();
         if (qaListener) return;
         try {
             qaListener = window.rtdbOnValue(window.rtdbRef(QA_PATH), receiveRecords, function (error) {
