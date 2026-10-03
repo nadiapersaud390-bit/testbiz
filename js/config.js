@@ -20,6 +20,9 @@ function getGuyanaToday() {
   return valid.includes(dayName) ? dayName : 'Monday';
 }
 const PRANK_API_URL = 'https://script.google.com/macros/s/AKfycbxWKiLsRSpxOkes8wgArJ0fa6Ww4hA6EYqgik_lithTNeVrG9Qec3tOHeLRgecfcH6SVA/exec';
+// Optional same-origin endpoint for secure audio transcription and QA drafting.
+// Keep empty until a server-side provider and admin authentication are configured.
+window.QA_REVIEW_ENDPOINT = '';
 
 function normalizeTeam(team, name) {
   const rawTeam = String(team || '').trim().toUpperCase();

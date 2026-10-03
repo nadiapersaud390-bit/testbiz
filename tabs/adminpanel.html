@@ -42,6 +42,9 @@
         <button onclick="switchAdminHubTab('attendance')" id="ah-tab-attendance" class="ah-tab-btn hidden">
             <i class="fas fa-calendar-check"></i> Attendance
         </button>
+        <button onclick="switchAdminHubTab('qa')" id="ah-tab-qa" class="ah-tab-btn hidden">
+            <i class="fas fa-clipboard-check"></i> QA &amp; Invalid Calls
+        </button>
         <button type="button" class="ah-tab-btn" id="ah-calendar-launch" data-calendar-launch hidden onclick="AdminCalendar.open()"><i class="fas fa-calendar-alt"></i> Calendar <span data-calendar-badge></span></button>
     </div>
 
@@ -50,6 +53,84 @@
 
         <div id="ah-sect-breaks" class="ah-section hidden">
             <div id="admin-break-monitor-host"></div>
+        </div>
+
+        <!-- ========== QUALITY ASSURANCE SECTION ========== -->
+        <div id="ah-sect-qa" class="ah-section hidden">
+            <div class="qa-heading-row">
+                <div>
+                    <h3 class="qa-title">Quality Assurance</h3>
+                    <p class="qa-subtitle">Review calls, record coaching, and track invalid-call reasons.</p>
+                </div>
+                <div class="qa-human-note"><i class="fas fa-user-check"></i> An admin confirms every final outcome</div>
+            </div>
+            <div class="qa-inner-tabs" role="tablist" aria-label="Quality assurance views">
+                <button type="button" class="qa-inner-tab is-active" data-qa-view="review" onclick="qaSwitchView('review')">Review a Call</button>
+                <button type="button" class="qa-inner-tab" data-qa-view="report" onclick="qaSwitchView('report')">Invalid Calls Report</button>
+            </div>
+
+            <div id="qa-view-review" class="qa-view">
+                <div class="qa-card">
+                    <div class="qa-card-heading">
+                        <div><h4>Call Review</h4><p>Enter the call details and record a manual or AI-assisted review.</p></div>
+                        <span class="qa-badge">Admin review required</span>
+                    </div>
+                    <input type="hidden" id="qa-edit-id" value="">
+                    <div class="qa-form-grid">
+                        <label>Agent <select id="qa-agent" required><option value="">Select an agent</option></select></label>
+                        <label>Team <select id="qa-team"><option value="">Select team</option><option value="BB">Berbice</option><option value="PR">Providence</option><option value="RM">Remote</option></select></label>
+                        <label>Call date <input type="date" id="qa-date" required></label>
+                        <label>Call ID <input type="text" id="qa-call-id" maxlength="80" placeholder="Optional reference"></label>
+                        <label>Customer phone last 4 digits <input type="text" id="qa-phone-last4" inputmode="numeric" maxlength="4" placeholder="Optional"></label>
+                        <label>Outcome <select id="qa-outcome"><option value="Pending">Needs review</option><option value="Valid">Valid</option><option value="Invalid">Invalid</option></select></label>
+                        <label>Primary reason <select id="qa-primary-reason"><option value="">Select reason</option><option>Under $200k revenue</option><option>Trucking</option><option>Attorney</option><option>No qualified call</option><option>Unqualified business</option><option>Other</option><option>Unclear audio</option></select></label>
+                        <label>Additional reason <input type="text" id="qa-additional-reason" maxlength="120" placeholder="Optional"></label>
+                        <label>Issue source <select id="qa-issue-source"><option value="">Select source</option><option>Agent</option><option>Lead data</option><option>Process or system</option><option>Unclear</option></select></label>
+                    </div>
+                    <div class="qa-audio-panel">
+                        <div class="qa-audio-copy"><strong><i class="fas fa-headphones"></i> Audio review</strong><span>Choose a recording to play here or send to the configured secure review service. Audio is not saved with the report.</span></div>
+                        <input type="file" id="qa-audio-file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.webm">
+                        <div id="qa-audio-preview" class="qa-audio-preview"></div>
+                        <button type="button" id="qa-ai-button" class="qa-button qa-button-ai" onclick="qaRunAIReview()">Generate AI draft review</button>
+                        <div id="qa-ai-status" class="qa-inline-status" role="status">AI review service is not connected yet. Manual reviews and reports are available.</div>
+                    </div>
+                    <div class="qa-form-grid qa-notes-grid">
+                        <label>QA notes <textarea id="qa-notes" rows="3" placeholder="What did you notice during the call?"></textarea></label>
+                        <label>Review finding <textarea id="qa-finding" rows="3" placeholder="Record the evidence and final finding."></textarea></label>
+                        <label>Coaching tip <textarea id="qa-coaching" rows="3" placeholder="Add a practical next step for the agent."></textarea></label>
+                    </div>
+                    <div class="qa-form-actions">
+                        <span id="qa-save-status" class="qa-inline-status" role="status"></span>
+                        <button type="button" class="qa-button qa-button-secondary" onclick="qaResetForm()">Clear</button>
+                        <button type="button" id="qa-save-button" class="qa-button qa-button-primary" onclick="qaSaveReview()">Save Review</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="qa-view-report" class="qa-view" hidden>
+                <div class="qa-stats-grid">
+                    <div class="qa-stat"><span>Total reviewed</span><strong id="qa-stat-total">0</strong></div>
+                    <div class="qa-stat qa-stat-invalid"><span>Invalid calls</span><strong id="qa-stat-invalid">0</strong></div>
+                    <div class="qa-stat qa-stat-pending"><span>Needs review</span><strong id="qa-stat-pending">0</strong></div>
+                    <div class="qa-stat"><span>Top invalid reason</span><strong id="qa-stat-top-reason">—</strong></div>
+                </div>
+                <div class="qa-card">
+                    <div class="qa-report-toolbar">
+                        <h4>Invalid Calls Report</h4>
+                        <button type="button" class="qa-button qa-button-secondary" onclick="qaExportCSV()"><i class="fas fa-file-export"></i> Export CSV</button>
+                    </div>
+                    <div class="qa-filters">
+                        <label>From <input type="date" id="qa-filter-from" onchange="qaRenderReport()"></label>
+                        <label>To <input type="date" id="qa-filter-to" onchange="qaRenderReport()"></label>
+                        <label>Team <select id="qa-filter-team" onchange="qaRenderReport()"><option value="">All teams</option><option value="BB">Berbice</option><option value="PR">Providence</option><option value="RM">Remote</option></select></label>
+                        <label>Reason <select id="qa-filter-reason" onchange="qaRenderReport()"><option value="">All reasons</option><option>Under $200k revenue</option><option>Trucking</option><option>Attorney</option><option>No qualified call</option><option>Unqualified business</option><option>Other</option><option>Unclear audio</option></select></label>
+                        <label>Agent <input type="search" id="qa-filter-agent" placeholder="Search agent" oninput="qaRenderReport()"></label>
+                    </div>
+                    <div id="qa-report-status" class="qa-inline-status" role="status"></div>
+                    <div class="qa-table-wrap"><table class="qa-table"><thead><tr><th>Date</th><th>Agent</th><th>Team</th><th>Call ID</th><th>Outcome</th><th>Primary reason</th><th>Issue source</th><th>Finding / coaching</th><th>Review</th></tr></thead><tbody id="qa-report-body"></tbody></table></div>
+                    <p class="qa-report-footnote">AI findings are suggestions. An authorized reviewer must confirm or change each outcome.</p>
+                </div>
+            </div>
         </div>
 
         <!-- ========== AGENT STATS SECTION ========== -->

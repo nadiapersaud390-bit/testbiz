@@ -20,7 +20,7 @@ const ahTeamColors = {
 window._RESTRICTED_ADMIN_IDS = ['0000'];
 
 
-const ADMIN_HUB_TABS = ['stats', 'rebuttals', 'performance', 'zero', 'targetboard', 'profiles', 'attendance', 'breaks'];
+const ADMIN_HUB_TABS = ['stats', 'rebuttals', 'performance', 'zero', 'targetboard', 'profiles', 'attendance', 'breaks', 'qa'];
 const ADMIN_HUB_LEGACY_DEFAULT_HIDDEN = ['profiles', 'attendance'];
 
 function _hiddenTabsFromPermissionMap(permissionMap) {
@@ -278,6 +278,7 @@ window.switchAdminHubTab = async function(tabId) {
     if (tabId === 'rebuttals') initRebuttalIntel();
     if (tabId === 'performance') initWeeklyPerformance();
     if (tabId === 'targetboard') loadTargetBoard();
+    if (tabId === 'qa' && typeof window.qaInit === 'function') await window.qaInit();
 
     if (tabId === 'zero') {
         ahInitZeroPerfLazy();
