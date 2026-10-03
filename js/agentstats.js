@@ -1,7 +1,7 @@
 /**
  * Agent Stats logic for parsing dialer CSVs and syncing them to Firebase + Leaderboard
  * PRESERVES EXACT CSV ORDER - NO SORTING WHATSOEVER
- * FIXED: Allows momo (admin) to access Agent Stats
+ * Uses the same per-admin Admin Tools permission as the Agent Stats tab
  * FIXED: Counts leads based ONLY on duration >= 120 seconds (Status column ignored for counting)
  * FIXED: Auto-detects semicolon (;), comma (,), tab, or pipe delimiters in CSV files
  */
@@ -16,26 +16,23 @@ let lastAutoPushedReportId = null;
 let previousReportData = null;
 let _asLastUploadedDateLabel = null;
 
-// Helper function to check if current user can access Agent Stats
-// 🔥 FIXED: Allows rose (super admin) AND momo (admin)
+// Agent Stats is also gated inside Admin Tools. Check the saved fine-grained
+// permission here so the content guard matches the tab permission in Admin Hub.
 function canAccessAgentStats() {
     const currentAdmin = JSON.parse(sessionStorage.getItem('currentAdmin') || '{}');
-    const email = String(currentAdmin.email || '').toLowerCase();
-    
-    // Super Admin (rose) has access
-    if (email === 'rose') return true;
-    
-    // Admin (momo) has access
-    if (email === 'momo') return true;
-    
-    // Nadia has access
-    if (email === 'nadia') return true;
-    
-    // Also check role property
-    if (currentAdmin.role === 'super_admin') return true;
-    if (currentAdmin.isSuper === true) return true;
-    
-    return false;
+    const email = String(currentAdmin.email || '').trim().toLowerCase();
+    const restrictedIds = (window._RESTRICTED_ADMIN_IDS || ['0000']).map(id => String(id || '').trim().toLowerCase());
+
+    // Keep explicitly restricted accounts blocked even if a stale permission map allows them.
+    if (restrictedIds.includes(email)) return false;
+    if (email === 'rose' || currentAdmin.role === 'super_admin' || currentAdmin.isSuper === true) return true;
+
+    if (typeof window.canAccessAdminHubTab === 'function') {
+        return window.canAccessAdminHubTab('stats') === true;
+    }
+
+    // Compatibility for pages loaded without Admin Hub's permission helper.
+    return email === 'momo' || email === 'nadia';
 }
 
 // Returns true if a CSV agent-name represents a PH (Philippines) training account.
