@@ -15,6 +15,14 @@
         { key: 'specialistHandoff', section: 'Loan specialist', label: 'Acknowledged the warm handoff and information already collected' },
         { key: 'specialistSupport', section: 'Loan specialist', label: 'Addressed the customer need and explained an accurate next step' }
     ];
+    const OPTIONAL_SECTIONS = [
+        { key: 'callHandling', label: 'Call handling details' },
+        { key: 'agentScorecard', label: 'Agent scorecard' },
+        { key: 'specialistScorecard', label: 'Loan specialist scorecard' },
+        { key: 'strengths', label: 'What went well' },
+        { key: 'coachingPlan', label: 'Coaching plan and follow-up' },
+        { key: 'reviewerNotes', label: 'Reviewer notes' }
+    ];
     let qaRecords = [];
     let qaListener = null;
     let qaSaving = false;
@@ -139,6 +147,68 @@
         button.textContent = busy ? 'Saving…' : ($('qa-edit-id') && $('qa-edit-id').value ? 'Update Call Report' : 'Save Call Report');
     }
 
+    function scorecardMarkup(sectionName) {
+        return '<div class="qa-scorecard-columns"><div class="qa-scorecard-section"><h5>' + esc(sectionName) + ' standards</h5>' +
+            SCORECARD_ITEMS.filter(function (item) { return item.section === sectionName; }).map(function (item) {
+                return '<label>' + esc(item.label) + '<select id="qa-score-' + esc(item.key) + '"><option value="">Not rated</option><option>Meets standard</option><option>Needs coaching</option><option>Not applicable</option></select></label>';
+            }).join('') + '</div></div>';
+    }
+
+    function sectionMarkup(key) {
+        let content = '';
+        if (key === 'callHandling') {
+            content = '<div class="qa-form-grid"><label>Call type <select id="qa-call-type"><option value="">Select type</option><option>Warm transfer</option><option>Direct call</option><option>Follow-up</option><option>Other</option></select></label><label>Loan specialist <input type="text" id="qa-loan-specialist" maxlength="100" placeholder="Name, if applicable"></label></div>' +
+                '<p class="qa-section-note">If the customer requests removal or annual revenue is below $200,000, stop qualification and do not transfer.</p>';
+        } else if (key === 'agentScorecard') {
+            content = scorecardMarkup('Agent');
+        } else if (key === 'specialistScorecard') {
+            content = scorecardMarkup('Loan specialist');
+        } else if (key === 'strengths') {
+            content = '<div class="qa-form-grid"><label class="qa-wide-field">What went well <textarea id="qa-strengths" rows="2" placeholder="Record specific strengths shown on this call."></textarea></label></div>';
+        } else if (key === 'coachingPlan') {
+            content = '<div class="qa-form-grid"><label>Coaching tip <textarea id="qa-coaching" rows="2" placeholder="Give one clear, practical tip."></textarea></label><label>Action plan <textarea id="qa-action-plan" rows="2" placeholder="Record the practice or action agreed with the agent."></textarea></label></div>' +
+                '<div class="qa-follow-up-row"><label><input type="checkbox" id="qa-follow-up-needed"> Coaching follow-up required</label><label>Follow-up date <input type="date" id="qa-follow-up-date"></label></div>';
+        } else if (key === 'reviewerNotes') {
+            content = '<div class="qa-form-grid"><label class="qa-wide-field">Reviewer notes <textarea id="qa-notes" rows="3" placeholder="Add any other relevant review notes."></textarea></label></div>';
+        }
+        const section = OPTIONAL_SECTIONS.find(function (item) { return item.key === key; });
+        if (!section || !content) return '';
+        return '<section class="qa-optional-section" id="qa-section-' + esc(key) + '"><div class="qa-optional-section-heading"><div><h5>' + esc(section.label) + '</h5></div><button type="button" class="qa-remove-section" onclick="qaRemoveSection(\'' + esc(key) + '\')" aria-label="Remove ' + esc(section.label) + ' section">Remove section</button></div>' + content + '</section>';
+    }
+
+    window.qaAddSection = function (sectionKey) {
+        const selector = $('qa-add-section-select');
+        const key = sectionKey || (selector && selector.value);
+        if (!OPTIONAL_SECTIONS.some(function (item) { return item.key === key; })) return false;
+        if ($('qa-section-' + key)) return false;
+        const host = $('qa-optional-sections');
+        if (!host) return false;
+        const markup = sectionMarkup(key);
+        if (!markup) return false;
+        host.insertAdjacentHTML('beforeend', markup);
+        if (selector) {
+            Array.prototype.forEach.call(selector.options || [], function (option) {
+                if (option.value === key) option.disabled = true;
+            });
+            selector.value = '';
+        }
+        return true;
+    };
+
+    window.qaRemoveSection = function (sectionKey) {
+        const section = $('qa-section-' + sectionKey);
+        if (section && typeof section.remove === 'function') section.remove();
+        const selector = $('qa-add-section-select');
+        if (selector) Array.prototype.forEach.call(selector.options || [], function (option) {
+            if (option.value === sectionKey) option.disabled = false;
+        });
+    };
+
+    window.qaOutcomeChanged = function () {
+        const invalidFields = $('qa-invalid-fields');
+        if (invalidFields) invalidFields.hidden = !$('qa-outcome') || $('qa-outcome').value !== 'Invalid';
+    };
+
     function asDate(record) {
         return String(record && (record.date || record.callDate) || '').slice(0, 10);
     }
@@ -206,8 +276,6 @@
         const invalid = reportRecords.filter(function (r) { return String(r.outcome || '').toLowerCase() === 'invalid'; });
         const valid = reportRecords.filter(function (r) { return String(r.outcome || '').toLowerCase() === 'valid'; });
         const pending = reportRecords.filter(function (r) { return String(r.outcome || '').toLowerCase() === 'pending'; });
-        const scores = reportRecords.filter(function (r) { return ['valid', 'invalid'].includes(String(r.outcome || '').toLowerCase()); })
-            .map(scorecardScore).filter(function (score) { return score !== null; });
         const reasons = {};
         invalid.forEach(function (r) {
             const callReasons = [r.primaryReason, r.additionalReason].filter(Boolean).map(normalizeReason);
@@ -220,8 +288,6 @@
         if ($('qa-stat-valid')) $('qa-stat-valid').textContent = String(valid.length);
         if ($('qa-stat-invalid')) $('qa-stat-invalid').textContent = String(invalid.length);
         if ($('qa-stat-pending')) $('qa-stat-pending').textContent = String(pending.length);
-        if ($('qa-stat-coaching')) $('qa-stat-coaching').textContent = String(reportRecords.filter(hasCoachingFlag).length);
-        if ($('qa-stat-score')) $('qa-stat-score').textContent = scores.length ? Math.round(scores.reduce(function (sum, score) { return sum + score; }, 0) / scores.length) + '%' : '—';
         if ($('qa-stat-top-reason')) $('qa-stat-top-reason').textContent = top;
     }
 
@@ -240,7 +306,7 @@
         ].filter(Boolean).join(' · ');
         const score = scorecardScore(r);
         return '<tr>' +
-            '<td><strong>' + esc(asDate(r)) + '</strong><br><span class="qa-muted">' + esc(r.callType || 'Call type not recorded') + '</span></td>' +
+            '<td><strong>' + esc(asDate(r)) + '</strong>' + (r.callType ? '<br><span class="qa-muted">' + esc(r.callType) + '</span>' : '') + '</td>' +
             '<td><strong>' + esc(r.agentName || 'Unknown') + '</strong><br><span class="qa-muted">' + esc(r.agentId || '') + '</span>' + (r.loanSpecialist ? '<br><span class="qa-muted">Specialist: ' + esc(r.loanSpecialist) + '</span>' : '') + '</td>' +
             '<td>' + esc(cleanTeam(r.team) || r.team || '—') + '</td>' +
             '<td>' + esc(r.callNumber || r.callId || '—') + '</td>' +
@@ -286,18 +352,18 @@
     }
 
     window.qaResetForm = function () {
-        ['qa-edit-id', 'qa-call-number', 'qa-customer-number', 'qa-loan-specialist', 'qa-additional-reason', 'qa-notes', 'qa-finding', 'qa-strengths', 'qa-coaching', 'qa-action-plan', 'qa-follow-up-date'].forEach(function (id) {
+        OPTIONAL_SECTIONS.forEach(function (section) { window.qaRemoveSection(section.key); });
+        ['qa-edit-id', 'qa-call-number', 'qa-customer-number', 'qa-additional-reason', 'qa-finding'].forEach(function (id) {
             if ($(id)) $(id).value = '';
         });
-        SCORECARD_ITEMS.forEach(function (item) { if ($('qa-score-' + item.key)) $('qa-score-' + item.key).value = ''; });
-        if ($('qa-follow-up-needed')) $('qa-follow-up-needed').checked = false;
         if ($('qa-agent')) $('qa-agent').value = '';
         if ($('qa-team')) $('qa-team').value = '';
         if ($('qa-date')) $('qa-date').value = localToday();
-        if ($('qa-call-type')) $('qa-call-type').value = '';
         if ($('qa-outcome')) $('qa-outcome').value = 'Pending';
         if ($('qa-primary-reason')) $('qa-primary-reason').value = '';
+        if ($('qa-additional-reason')) $('qa-additional-reason').value = '';
         if ($('qa-issue-source')) $('qa-issue-source').value = '';
+        window.qaOutcomeChanged();
         setStatus('qa-save-status', '', '');
         setBusy(false);
     };
@@ -351,6 +417,11 @@
             return;
         }
         const coachingRequired = Boolean(($('qa-follow-up-needed') && $('qa-follow-up-needed').checked) || SCORECARD_ITEMS.some(function (item) { return scorecard[item.key] === 'Needs coaching'; }));
+        if (coachingRequired && !$('qa-coaching')) {
+            window.qaAddSection('coachingPlan');
+            setStatus('qa-save-status', 'A coaching plan section was added below. Complete it, then save the report again.', '');
+            return;
+        }
         if (coachingRequired && !String($('qa-coaching') ? $('qa-coaching').value : '').trim()) {
             setStatus('qa-save-status', 'Add a practical coaching tip for this follow-up.', 'error');
             return;
@@ -374,7 +445,7 @@
             outcome: outcome,
             primaryReason: outcome === 'Invalid' ? primaryReason : '',
             additionalReason: outcome === 'Invalid' ? String($('qa-additional-reason') ? $('qa-additional-reason').value : '').trim() : '',
-            issueSource: String($('qa-issue-source') ? $('qa-issue-source').value : ''),
+            issueSource: outcome === 'Invalid' ? String($('qa-issue-source') ? $('qa-issue-source').value : '') : '',
             scorecard: scorecard,
             qaNotes: String($('qa-notes') ? $('qa-notes').value : '').trim(),
             reviewFinding: String($('qa-finding') ? $('qa-finding').value : '').trim(),
@@ -412,6 +483,14 @@
         if (!hasQAAccess()) return;
         const record = qaRecords.find(function (r) { return String(r.id) === String(id); });
         if (!record) return;
+        window.qaResetForm();
+        if (record.callType || record.loanSpecialist) window.qaAddSection('callHandling');
+        const scorecard = record.scorecard || {};
+        if (SCORECARD_ITEMS.some(function (item) { return item.section === 'Agent' && scorecard[item.key]; })) window.qaAddSection('agentScorecard');
+        if (SCORECARD_ITEMS.some(function (item) { return item.section === 'Loan specialist' && scorecard[item.key]; })) window.qaAddSection('specialistScorecard');
+        if (record.strengths) window.qaAddSection('strengths');
+        if (record.coachingTip || record.actionPlan || record.needsFollowUp || record.followUpDate) window.qaAddSection('coachingPlan');
+        if (record.qaNotes) window.qaAddSection('reviewerNotes');
         populateAgents(record.agentId);
         if ($('qa-edit-id')) $('qa-edit-id').value = record.id;
         if ($('qa-date')) $('qa-date').value = asDate(record);
@@ -421,6 +500,7 @@
         if ($('qa-customer-number')) $('qa-customer-number').value = record.customerNumber || record.phoneLast4 || '';
         if ($('qa-loan-specialist')) $('qa-loan-specialist').value = record.loanSpecialist || '';
         if ($('qa-outcome')) $('qa-outcome').value = record.outcome || 'Pending';
+        window.qaOutcomeChanged();
         if ($('qa-primary-reason')) $('qa-primary-reason').value = record.primaryReason || '';
         if ($('qa-additional-reason')) $('qa-additional-reason').value = record.additionalReason || '';
         if ($('qa-issue-source')) $('qa-issue-source').value = record.issueSource || '';
@@ -465,8 +545,8 @@
         const csv = [headers.map(csvCell).join(',')].concat(rows.map(function (r) {
             const score = scorecardScore(r);
             const scorecardText = function (section) {
-                return SCORECARD_ITEMS.filter(function (item) { return item.section === section; }).map(function (item) {
-                    return item.label + ': ' + String(r.scorecard && r.scorecard[item.key] || 'Not rated');
+                return SCORECARD_ITEMS.filter(function (item) { return item.section === section && r.scorecard && r.scorecard[item.key]; }).map(function (item) {
+                    return item.label + ': ' + String(r.scorecard[item.key]);
                 }).join(' | ');
             };
             const values = [
@@ -513,26 +593,34 @@
         const detail = function (label, value) {
             return '<div class="detail"><span>' + esc(label) + '</span><strong>' + esc(value || 'Not recorded') + '</strong></div>';
         };
-        const scoreRows = SCORECARD_ITEMS.map(function (item) {
-            const rating = record.scorecard && record.scorecard[item.key] || 'Not rated';
-            return '<tr><td>' + esc(item.section) + '</td><td>' + esc(item.label) + '</td><td>' + esc(rating) + '</td></tr>';
+        const ratedItems = SCORECARD_ITEMS.filter(function (item) { return record.scorecard && record.scorecard[item.key]; });
+        const scoreRows = ratedItems.map(function (item) {
+            return '<tr><td>' + esc(item.section) + '</td><td>' + esc(item.label) + '</td><td>' + esc(record.scorecard[item.key]) + '</td></tr>';
         }).join('');
         const score = scorecardScore(record);
-        const followUp = hasCoachingFlag(record) ? 'Required' : 'Not marked';
         const textBlock = function (label, value) {
-            return '<section class="note"><h2>' + esc(label) + '</h2><p>' + (value ? esc(value).replace(/\n/g, '<br>') : 'Not recorded') + '</p></section>';
+            return value ? '<section class="note"><h2>' + esc(label) + '</h2><p>' + esc(value).replace(/\n/g, '<br>') + '</p></section>' : '';
         };
+        const detailItems = [
+            ['Call date', asDate(record)], ['Call number', record.callNumber || record.callId], ['Customer number', record.customerNumber || record.phoneLast4],
+            ['Agent', (record.agentName || 'Unknown') + (record.agentId ? ' (' + record.agentId + ')' : '')], ['Team', cleanTeam(record.team) || record.team]
+        ];
+        if (record.callType) detailItems.push(['Call type', record.callType]);
+        if (record.loanSpecialist) detailItems.push(['Loan specialist', record.loanSpecialist]);
+        if (record.primaryReason) detailItems.push(['Primary reason', record.primaryReason]);
+        if (record.additionalReason) detailItems.push(['Additional reason', record.additionalReason]);
+        if (record.issueSource) detailItems.push(['Issue source', record.issueSource]);
+        const details = detailItems.map(function (item) { return detail(item[0], item[1]); }).join('');
+        const scorecardBlock = ratedItems.length ? '<section class="note"><h2>Call quality scorecard</h2><table class="score-table"><thead><tr><th>Review area</th><th>Standard</th><th>Rating</th></tr></thead><tbody>' + scoreRows + '</tbody></table></section>' : '';
+        const followUpBlock = hasCoachingFlag(record) || record.followUpDate ? '<div class="grid">' + detail('Coaching follow-up', hasCoachingFlag(record) ? 'Required' : 'Not marked') + (record.followUpDate ? detail('Follow-up date', record.followUpDate) : '') + '</div>' : '';
         const html = '<!doctype html><html><head><meta charset="utf-8"><title>Call Quality Review</title><style>' +
-            'body{font:14px Arial,sans-serif;color:#172033;margin:34px}header{border-bottom:4px solid #0e7490;padding-bottom:18px;margin-bottom:22px}header p{color:#64748b;margin:6px 0}h1{font-size:26px;margin:0;color:#0f2740}h2{font-size:15px;margin:0 0 10px;color:#0f4c68}.eyebrow{font-size:10px;font-weight:bold;letter-spacing:2px;color:#0e7490;margin-bottom:7px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.detail{border:1px solid #d9e2ec;border-radius:7px;padding:10px}.detail span{display:block;color:#64748b;font-size:10px;text-transform:uppercase;margin-bottom:5px}.detail strong{font-size:12px}.badge{display:inline-block;padding:5px 9px;border-radius:20px;background:#e8f5f8;color:#075985;font-weight:bold}.note{border:1px solid #d9e2ec;border-radius:8px;padding:14px;margin:13px 0;break-inside:avoid}.note p{margin:0;line-height:1.55;white-space:normal}.score{font-size:22px;color:#0e7490;font-weight:bold}.score-table{width:100%;border-collapse:collapse;font-size:11px}.score-table td,.score-table th{border-bottom:1px solid #d9e2ec;text-align:left;padding:8px}.score-table th{background:#eff6fa}.signature{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:32px}.signature div{border-top:1px solid #94a3b8;padding-top:7px;color:#64748b;font-size:11px}@media print{body{margin:14mm}header{break-after:avoid}.note{break-inside:avoid}}' +
+            'body{font:14px Arial,sans-serif;color:#172033;margin:34px}header{border-bottom:4px solid #0e7490;padding-bottom:18px;margin-bottom:22px}header p{color:#64748b;margin:6px 0}h1{font-size:26px;margin:0;color:#0f2740}h2{font-size:15px;margin:0 0 10px;color:#0f4c68}.eyebrow{font-size:10px;font-weight:bold;letter-spacing:2px;color:#0e7490;margin-bottom:7px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.detail{border:1px solid #d9e2ec;border-radius:7px;padding:10px}.detail span{display:block;color:#64748b;font-size:10px;text-transform:uppercase;margin-bottom:5px}.detail strong{font-size:12px}.badge{display:inline-block;padding:5px 9px;border-radius:20px;background:#e8f5f8;color:#075985;font-weight:bold}.qa-outcome-pill{display:inline-block;padding:5px 9px;border:1px solid #cbd5e1;border-radius:20px;font-weight:bold}.qa-outcome-valid{background:#ecfdf5;color:#047857;border-color:#a7f3d0}.qa-outcome-invalid{background:#fff1f2;color:#be123c;border-color:#fecdd3}.qa-outcome-pending{background:#fffbeb;color:#a16207;border-color:#fde68a}.note{border:1px solid #d9e2ec;border-radius:8px;padding:14px;margin:13px 0;break-inside:avoid}.note p{margin:0;line-height:1.55;white-space:normal}.score{font-size:22px;color:#0e7490;font-weight:bold}.score-table{width:100%;border-collapse:collapse;font-size:11px}.score-table td,.score-table th{border-bottom:1px solid #d9e2ec;text-align:left;padding:8px}.score-table th{background:#eff6fa}.signature{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:32px}.signature div{border-top:1px solid #94a3b8;padding-top:7px;color:#64748b;font-size:11px}@media print{body{margin:14mm}header{break-after:avoid}.note{break-inside:avoid}}' +
             '</style></head><body><header><div class="eyebrow">QUALITY ASSURANCE</div><h1>Call Quality Review</h1><p>Prepared ' + esc(new Date().toLocaleString()) + '</p></header>' +
-            '<div class="grid">' + detail('Call date', asDate(record)) + detail('Call number', record.callNumber || record.callId) + detail('Customer number', record.customerNumber || record.phoneLast4) +
-            detail('Call type', record.callType) + detail('Agent', (record.agentName || 'Unknown') + (record.agentId ? ' (' + record.agentId + ')' : '')) + detail('Team', cleanTeam(record.team) || record.team) +
-            detail('Loan specialist', record.loanSpecialist) + detail('Primary reason', record.primaryReason) + detail('Issue source', record.issueSource) + '</div>' +
-            '<p>Final outcome: ' + outcomeMarkup(record.outcome) + ' &nbsp; <span class="score">' + (score === null ? 'Score not rated' : score + '% QA score') + '</span></p>' +
-            '<section class="note"><h2>Call quality scorecard</h2><table class="score-table"><thead><tr><th>Review area</th><th>Standard</th><th>Rating</th></tr></thead><tbody>' + scoreRows + '</tbody></table></section>' +
-            textBlock('Review finding and evidence', record.reviewFinding) + textBlock('What went well', record.strengths) + textBlock('Coaching tip', record.coachingTip) +
-            textBlock('Coaching action plan', record.actionPlan) + textBlock('QA notes', record.qaNotes) +
-            '<div class="grid">' + detail('Coaching follow-up', followUp) + detail('Follow-up date', record.followUpDate) + detail('Reviewed by', record.reviewerName) + '</div>' +
+            '<div class="grid">' + details + '</div>' +
+            '<p>Final outcome: ' + outcomeMarkup(record.outcome) + (score === null ? '' : ' &nbsp; <span class="score">' + score + '% QA score</span>') + '</p>' +
+            scorecardBlock + textBlock('Review finding and evidence', record.reviewFinding) + textBlock('What went well', record.strengths) + textBlock('Coaching tip', record.coachingTip) +
+            textBlock('Coaching action plan', record.actionPlan) + textBlock('Reviewer notes', record.qaNotes) + followUpBlock +
+            '<div class="grid">' + detail('Reviewed by', record.reviewerName) + '</div>' +
             '<div class="signature"><div>Reviewer signature</div><div>Agent acknowledgement</div></div></body></html>';
         printWindow.document.open();
         printWindow.document.write(html);

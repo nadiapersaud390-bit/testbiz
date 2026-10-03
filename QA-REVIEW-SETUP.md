@@ -4,12 +4,11 @@ The Admin Tools QA tab is a manual call review and coaching workspace. It stores
 
 ## Complete a call report
 
-1. Select the agent and confirm the team and call date.
-2. Add the call type, Call Number, Customer Number, and loan specialist when applicable.
-3. Set the final outcome to Valid, Invalid, or Pending. An invalid call requires a primary reason.
-4. Rate the applicable agent and loan specialist standards. Choose Not applicable when a standard did not apply. Not applicable items are excluded from the QA score.
-5. Record the finding and call evidence, what went well, one practical coaching tip, and the agreed action plan.
-6. Mark whether coaching follow-up is required and set a follow-up date when needed, then save the report.
+1. Enter the agent, team, call date, Call Number, Customer Number, and final outcome.
+2. For an Invalid outcome, choose the primary reason and issue source, then document the finding and call evidence. An additional reason is optional.
+3. Use **Add a report section** only for details that apply: call handling details, an agent or loan specialist scorecard, strengths, a coaching plan, or reviewer notes. Sections can be removed before saving.
+4. If a scorecard rating is marked Needs coaching, the form adds the coaching plan section and requires a practical tip and action plan before saving.
+5. Save the report. The form clears optional sections for the next call.
 
 The score is the percentage of rated standards marked Meets standard. Needs coaching ratings remain in the denominator; blank and Not applicable ratings do not.
 
@@ -21,7 +20,7 @@ Issue source identifies whether the issue came from the agent, loan specialist, 
 
 ## Call QA report
 
-The report includes call counts for Valid, Invalid, and Pending outcomes, coaching follow-ups, top invalid reason, and average QA score. Pending reviews are excluded from the Calls reviewed total. Use the date, team, outcome, reason, source, and agent filters to focus the report.
+The report summarizes calls reviewed, Valid, Invalid, Pending, and the top invalid reason. Pending reviews are excluded from the Calls reviewed total. Individual call scores and coaching details appear where reviewers added them. Use the date, team, outcome, reason, source, and agent filters to focus the report.
 
 Use Print on a report row to open a formatted call review with call details, scorecard ratings, findings, strengths, coaching, action plan, and reviewer. Use Print Report to print the filtered report, or Export CSV to download the filtered call rows and rating details.
 

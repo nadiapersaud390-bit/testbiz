@@ -12,6 +12,7 @@ class FakeElement {
     this.selectedIndex = 0;
     this.checked = false;
     this.hidden = false;
+    this.disabled = false;
     this.listeners = {};
     this.classList = { toggle() {} };
     this.download = '';
@@ -44,11 +45,32 @@ class FakeElement {
   appendChild() {}
   scrollIntoView() {}
   click() { this.clicked = true; }
-  remove() { this.removed = true; }
+  remove() { this.removed = true; if (this.onRemove) this.onRemove(); }
 }
 
 (async () => {
   const elements = new Map();
+  const markup = fs.readFileSync(require.resolve('../tabs/adminpanel.html'), 'utf8');
+  const qaMarkup = markup.slice(markup.indexOf('<div id="ah-sect-qa"'), markup.indexOf('<!-- ========== AGENT STATS SECTION'));
+  for (const match of qaMarkup.matchAll(/<[^>]*\bid="([^"]+)"[^>]*>/g)) {
+    const element = new FakeElement(match[1]);
+    element.hidden = /\shidden(?:\s|>|=)/.test(match[0]);
+    elements.set(match[1], element);
+  }
+  const sectionSelector = elements.get('qa-add-section-select');
+  sectionSelector.options = Array.from(qaMarkup.matchAll(/<option value="([^"]*)">([^<]*)<\/option>/g), match => ({ value: match[1], textContent: match[2], disabled: false }));
+  const optionalHost = elements.get('qa-optional-sections');
+  optionalHost.insertAdjacentHTML = function (_position, sectionMarkup) {
+    this._innerHTML += sectionMarkup;
+    const ids = Array.from(sectionMarkup.matchAll(/\bid="([^"]+)"/g), match => match[1]);
+    ids.forEach(id => elements.set(id, new FakeElement(id)));
+    const wrapperId = ids.find(id => id.indexOf('qa-section-') === 0);
+    const wrapper = elements.get(wrapperId);
+    wrapper.onRemove = () => {
+      ids.forEach(id => elements.delete(id));
+      this._innerHTML = this._innerHTML.replace(sectionMarkup, '');
+    };
+  };
   const windowEvents = {};
   const database = {};
   let rosterCallback;
@@ -84,10 +106,7 @@ class FakeElement {
     })
   };
   const document = {
-    getElementById(id) {
-      if (!elements.has(id)) elements.set(id, new FakeElement(id));
-      return elements.get(id);
-    },
+    getElementById: id => elements.get(id) || null,
     querySelectorAll: () => [],
     createElement: () => new FakeElement('link'),
     body: new FakeElement('body')
@@ -110,7 +129,13 @@ class FakeElement {
   await window.qaInit();
   assert.equal(typeof rosterCallback, 'function');
 
+  assert.equal(document.getElementById('qa-score-agentOpening'), null, 'scorecards stay hidden until added');
+  assert.equal(document.getElementById('qa-coaching'), null, 'coaching details stay hidden until added');
   const set = (id, value) => { document.getElementById(id).value = value; };
+  assert.equal(window.qaAddSection('callHandling'), true);
+  assert.equal(window.qaAddSection('callHandling'), false, 'a report section can only be added once');
+  window.qaAddSection('agentScorecard');
+  window.qaAddSection('strengths');
   set('qa-agent', '1001');
   set('qa-team', 'BB');
   set('qa-date', '2026-10-03');
@@ -119,6 +144,8 @@ class FakeElement {
   set('qa-customer-number', '5926001234');
   set('qa-loan-specialist', 'Specialist B');
   set('qa-outcome', 'Invalid');
+  window.qaOutcomeChanged();
+  assert.equal(elements.get('qa-invalid-fields').hidden, false);
   set('qa-primary-reason', 'Under $200k revenue');
   set('qa-additional-reason', 'Trucking');
   set('qa-issue-source', 'Agent');
@@ -127,12 +154,15 @@ class FakeElement {
   set('qa-score-ownerIdentity', 'Not applicable');
   set('qa-finding', 'Qualification should have stopped before transfer.');
   set('qa-strengths', 'The agent confirmed the owner name.');
+
+  await window.qaSaveReview();
+  assert.ok(document.getElementById('qa-coaching'), 'a coaching plan is added when a score needs coaching');
   set('qa-coaching', 'Confirm annual revenue before moving forward.');
   set('qa-action-plan', 'Practice the revenue qualification question.');
   set('qa-follow-up-date', '2026-10-10');
-
   await window.qaSaveReview();
   const [saved] = Object.values(database);
+  const savedId = Object.keys(database)[0];
   assert.ok(saved);
   assert.equal(saved.agentName, 'Alice Example');
   assert.equal(saved.callNumber, 'CALL-452');
@@ -148,9 +178,15 @@ class FakeElement {
   assert.match(elements.get('qa-report-body').innerHTML, /50%/);
   assert.equal(elements.get('qa-stat-total').textContent, '1');
   assert.equal(elements.get('qa-stat-invalid').textContent, '1');
-  assert.equal(elements.get('qa-stat-coaching').textContent, '1');
-  assert.equal(elements.get('qa-stat-score').textContent, '50%');
   assert.equal(elements.get('qa-stat-top-reason').textContent, 'Trucking');
+  assert.equal(document.getElementById('qa-score-agentOpening'), null, 'saving clears optional sections for the next call');
+
+  window.qaEditReview(savedId);
+  assert.equal(document.getElementById('qa-score-businessDetails').value, 'Needs coaching', 'editing restores only the sections already on the report');
+  assert.equal(document.getElementById('qa-coaching').value, 'Confirm annual revenue before moving forward.');
+  window.qaResetForm();
+  assert.equal(document.getElementById('qa-coaching'), null, 'clearing the form removes added sections');
+  assert.equal(elements.get('qa-invalid-fields').hidden, true);
 
   database['qa-pending-example'] = { date: '2026-10-02', agentName: 'Pending Agent', outcome: 'Pending' };
   recordCallback({ val: () => database });
@@ -176,10 +212,9 @@ class FakeElement {
   assert.match(printedHtml, /Specialist B/);
   assert.match(printedHtml, /Coaching action plan/);
 
-  const markup = fs.readFileSync(require.resolve('../tabs/adminpanel.html'), 'utf8');
-  const qaMarkup = markup.slice(markup.indexOf('<div id="ah-sect-qa"'), markup.indexOf('<!-- ========== AGENT STATS SECTION'));
   assert.doesNotMatch(qaMarkup, /transcript|service code/i);
   assert.doesNotMatch(qaMarkup, /type="file"/i);
+  assert.doesNotMatch(qaMarkup, /qa-stat-coaching|qa-stat-score/);
   assert.match(qaMarkup, /Professional Call QA Report/);
-  console.log('QA manual report: saved fields, scorecard, coaching follow-up, totals, CSV, printable review, and markup passed.');
+  console.log('QA manual report: core fields, optional sections, coaching prompt, totals, CSV, printable review, and markup passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
