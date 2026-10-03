@@ -46,7 +46,6 @@ class FakeElement {
   const windowEvents = {};
   let rosterCallback;
   const window = {
-    QA_REVIEW_ENDPOINT: '',
     allAgentProfiles: [],
     canAccessAdminHubTab: () => true,
     filterDeletedAgents: list => list.filter(agent => String(agent.userId || agent.ytelId || agent.id) !== 'deleted'),

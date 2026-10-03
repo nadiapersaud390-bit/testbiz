@@ -59,78 +59,110 @@
         <div id="ah-sect-qa" class="ah-section hidden">
             <div class="qa-heading-row">
                 <div>
-                    <h3 class="qa-title">Quality Assurance</h3>
-                    <p class="qa-subtitle">Review calls, record coaching, and track invalid-call reasons.</p>
+                    <h3 class="qa-title">Call Quality Assurance</h3>
+                    <p class="qa-subtitle">Document call results, review standards, and give clear coaching follow-up.</p>
                 </div>
-                <div class="qa-human-note"><i class="fas fa-user-check"></i> An admin confirms every final outcome</div>
+                <div class="qa-human-note"><i class="fas fa-clipboard-check"></i> Completed by an authorized reviewer</div>
             </div>
             <div class="qa-inner-tabs" role="tablist" aria-label="Quality assurance views">
                 <button type="button" class="qa-inner-tab is-active" data-qa-view="review" onclick="qaSwitchView('review')">Review a Call</button>
-                <button type="button" class="qa-inner-tab" data-qa-view="report" onclick="qaSwitchView('report')">Invalid Calls Report</button>
+                <button type="button" class="qa-inner-tab" data-qa-view="report" onclick="qaSwitchView('report')">Call QA Report</button>
             </div>
 
             <div id="qa-view-review" class="qa-view">
                 <div class="qa-card">
                     <div class="qa-card-heading">
-                        <div><h4>Call Review</h4><p>Enter the call details, paste a transcript for an AI draft, or complete a manual review.</p></div>
-                        <span class="qa-badge">Admin review required</span>
+                        <div><h4>Call Review Form</h4><p>Record the call details, rate the agent and loan specialist, and document findings and coaching.</p></div>
+                        <span class="qa-badge">Reviewer-confirmed report</span>
                     </div>
                     <input type="hidden" id="qa-edit-id" value="">
                     <div class="qa-form-grid">
                         <label>Agent <select id="qa-agent" required><option value="">Select an agent</option></select><span id="qa-agent-status" class="qa-inline-status" role="status">Loading active agent list…</span></label>
                         <label>Team <select id="qa-team"><option value="">Select team</option><option value="BB">Berbice</option><option value="PR">Providence</option><option value="RM">Remote</option></select></label>
                         <label>Call date <input type="date" id="qa-date" required></label>
-                        <label>Call Number <input type="text" id="qa-call-number" maxlength="80" placeholder="Optional call reference"></label>
-                        <label>Customer Number <input type="tel" id="qa-customer-number" autocomplete="off" maxlength="40" placeholder="Optional customer number"></label>
-                        <label>Outcome <select id="qa-outcome"><option value="Pending">Needs review</option><option value="Valid">Valid</option><option value="Invalid">Invalid</option></select></label>
-                        <label>Primary reason <select id="qa-primary-reason"><option value="">Select reason</option><option>Under $200k revenue</option><option>Trucking</option><option>Attorney</option><option>No qualified call</option><option>Unqualified business</option><option>Other</option><option>Unclear audio</option></select></label>
-                        <label>Additional reason <input type="text" id="qa-additional-reason" maxlength="120" placeholder="Optional"></label>
-                        <label>Issue source <select id="qa-issue-source"><option value="">Select source</option><option>Agent</option><option>Lead data</option><option>Process or system</option><option>Unclear</option></select></label>
+                        <label>Call type <select id="qa-call-type"><option value="">Select call type</option><option>Outbound lead</option><option>Inbound call</option><option>Warm transfer</option><option>Follow-up</option><option>Other</option></select></label>
+                        <label>Call Number <input type="text" id="qa-call-number" maxlength="80" placeholder="Call reference"></label>
+                        <label>Customer Number <input type="tel" id="qa-customer-number" autocomplete="off" maxlength="40" placeholder="Customer phone number"></label>
+                        <label>Loan specialist <input type="text" id="qa-loan-specialist" maxlength="100" placeholder="If the call was transferred"></label>
+                        <label>Final outcome <select id="qa-outcome"><option value="Pending">Pending review</option><option value="Valid">Valid</option><option value="Invalid">Invalid</option></select></label>
+                        <label>Primary reason <select id="qa-primary-reason"><option value="">Select reason</option><option>Under $200k revenue</option><option>Trucking</option><option>Attorney / Legal</option><option>No qualified call</option><option>Unqualified business</option><option>DNC / Removal Request</option><option>Prank / Not Serious</option><option>Partner Call</option><option>Other</option><option>Unclear audio</option><option>Unclear / Incomplete Record</option></select></label>
+                        <label>Additional reason <input type="text" id="qa-additional-reason" maxlength="120" placeholder="Optional second issue"></label>
+                        <label>Issue source <select id="qa-issue-source"><option value="">Select source</option><option>Agent</option><option>Loan Specialist</option><option>Both</option><option>Lead data</option><option>Process or system</option><option>Caller or partner</option><option>Unclear</option></select></label>
                     </div>
-                    <div class="qa-transcript-panel">
-                        <div class="qa-transcript-copy"><strong><i class="fas fa-file-lines"></i> AI-assisted review</strong><span>Paste the call transcript below. Speaker labels and timestamps help the review give specific evidence. No audio upload is used, and the transcript is not saved with the QA record.</span></div>
-                        <label class="qa-transcript-input-label" for="qa-transcript-input">Call transcript<textarea id="qa-transcript-input" rows="8" maxlength="100000" placeholder="[00:12] Agent: Thank you for calling...&#10;[00:18] Customer: My business is..."></textarea></label>
-                        <div class="qa-ai-controls">
-                            <label for="qa-service-code">AI service access code<input type="password" id="qa-service-code" autocomplete="off" maxlength="512" placeholder="Provided by your system administrator"><span>Held in this page only; never saved with the review.</span></label>
-                            <button type="button" id="qa-ai-button" class="qa-button qa-button-ai" onclick="qaRunAIReview()">Generate AI draft review</button>
-                        </div>
-                        <div id="qa-ai-status" class="qa-inline-status" role="status">Checking AI review service…</div>
+
+                    <div class="qa-section-title"><h4>Call Quality Scorecard</h4><p>Choose a rating for each relevant standard. Not applicable items are excluded from the score.</p></div>
+                    <div class="qa-scorecard-columns">
+                        <section class="qa-scorecard-section">
+                            <h5>Agent Review</h5>
+                            <label>Opening and call control <select id="qa-score-agentOpening"><option value="">Not rated</option><option>Meets standard</option><option>Needs coaching</option><option>Not applicable</option></select><span>Opened professionally and explained the call purpose.</span></label>
+                            <label>Business details <select id="qa-score-businessDetails"><option value="">Not rated</option><option>Meets standard</option><option>Needs coaching</option><option>Not applicable</option></select><span>Confirmed time in business and the full legal business name.</span></label>
+                            <label>Owner identity <select id="qa-score-ownerIdentity"><option value="">Not rated</option><option>Meets standard</option><option>Needs coaching</option><option>Not applicable</option></select><span>Confirmed the owner or decision-maker and full legal name.</span></label>
+                            <label>Industry and revenue <select id="qa-score-industryRevenue"><option value="">Not rated</option><option>Meets standard</option><option>Needs coaching</option><option>Not applicable</option></select><span>Confirmed the industry and annual revenue.</span></label>
+                            <label>Qualification <select id="qa-score-qualification"><option value="">Not rated</option><option>Meets standard</option><option>Needs coaching</option><option>Not applicable</option></select><span>Completed required qualification before moving forward.</span></label>
+                            <label>Disqualifier handling <select id="qa-score-disqualifierHandling"><option value="">Not rated</option><option>Meets standard</option><option>Needs coaching</option><option>Not applicable</option></select><span>Handled DNC, removal, prank, partner, and disqualifier cases correctly.</span></label>
+                            <label>Questions and objections <select id="qa-score-objectionHandling"><option value="">Not rated</option><option>Meets standard</option><option>Needs coaching</option><option>Not applicable</option></select><span>Responded accurately and professionally.</span></label>
+                            <label>Warm transfer <select id="qa-score-warmTransfer"><option value="">Not rated</option><option>Meets standard</option><option>Needs coaching</option><option>Not applicable</option></select><span>Provided a clear transfer and useful call context.</span></label>
+                            <div class="qa-call-rule"><strong>Disqualifier reminder</strong><span>A removal request or annual revenue under $200,000 ends qualification. Do not continue questions or transfer.</span></div>
+                        </section>
+                        <section class="qa-scorecard-section">
+                            <h5>Loan Specialist Review</h5>
+                            <label>Handoff and context <select id="qa-score-specialistHandoff"><option value="">Not rated</option><option>Meets standard</option><option>Needs coaching</option><option>Not applicable</option></select><span>Acknowledged the warm handoff and details already collected.</span></label>
+                            <label>Customer support and next step <select id="qa-score-specialistSupport"><option value="">Not rated</option><option>Meets standard</option><option>Needs coaching</option><option>Not applicable</option></select><span>Addressed the need and explained an accurate next step.</span></label>
+                            <div class="qa-scorecard-note"><strong>Rating guide</strong><span>Meets standard: requirement followed.</span><span>Needs coaching: specific improvement is needed.</span><span>Not applicable: this standard did not apply to the call.</span></div>
+                        </section>
                     </div>
+
+                    <div class="qa-section-title"><h4>Findings and Coaching</h4><p>Write down what happened and the next action agreed with the agent.</p></div>
                     <div class="qa-form-grid qa-notes-grid">
-                        <label>QA notes <textarea id="qa-notes" rows="3" placeholder="What did you notice during the call?"></textarea></label>
-                        <label>Review finding <textarea id="qa-finding" rows="3" placeholder="Record the evidence and final finding."></textarea></label>
-                        <label>Coaching tip <textarea id="qa-coaching" rows="3" placeholder="Add a practical next step for the agent."></textarea></label>
+                        <label>Review finding and call evidence <textarea id="qa-finding" rows="3" placeholder="What happened? Include the customer statement or call moment that supports the finding."></textarea></label>
+                        <label>What went well <textarea id="qa-strengths" rows="3" placeholder="Recognize the specific behavior to continue."></textarea></label>
+                        <label>Coaching tip <textarea id="qa-coaching" rows="3" placeholder="Give one clear, practical way to improve the next call."></textarea></label>
+                        <label>Coaching action plan <textarea id="qa-action-plan" rows="3" placeholder="Record the practice, reminder, or action agreed with the agent."></textarea></label>
+                        <label>Reviewer notes <textarea id="qa-notes" rows="3" placeholder="Additional internal notes for this report."></textarea></label>
+                    </div>
+                    <div class="qa-follow-up-row">
+                        <label><input type="checkbox" id="qa-follow-up-needed"> Coaching follow-up required</label>
+                        <label>Follow-up date <input type="date" id="qa-follow-up-date"></label>
                     </div>
                     <div class="qa-form-actions">
                         <span id="qa-save-status" class="qa-inline-status" role="status"></span>
-                        <button type="button" class="qa-button qa-button-secondary" onclick="qaResetForm()">Clear</button>
-                        <button type="button" id="qa-save-button" class="qa-button qa-button-primary" onclick="qaSaveReview()">Save Review</button>
+                        <button type="button" class="qa-button qa-button-secondary" onclick="qaResetForm()">Clear Form</button>
+                        <button type="button" id="qa-save-button" class="qa-button qa-button-primary" onclick="qaSaveReview()">Save Call Report</button>
                     </div>
                 </div>
             </div>
 
             <div id="qa-view-report" class="qa-view" hidden>
                 <div class="qa-stats-grid">
-                    <div class="qa-stat"><span>Total reviewed</span><strong id="qa-stat-total">0</strong></div>
-                    <div class="qa-stat qa-stat-invalid"><span>Invalid calls</span><strong id="qa-stat-invalid">0</strong></div>
-                    <div class="qa-stat qa-stat-pending"><span>Needs review</span><strong id="qa-stat-pending">0</strong></div>
+                    <div class="qa-stat"><span>Calls reviewed</span><strong id="qa-stat-total">0</strong></div>
+                    <div class="qa-stat qa-stat-valid"><span>Valid</span><strong id="qa-stat-valid">0</strong></div>
+                    <div class="qa-stat qa-stat-invalid"><span>Invalid</span><strong id="qa-stat-invalid">0</strong></div>
+                    <div class="qa-stat qa-stat-pending"><span>Pending</span><strong id="qa-stat-pending">0</strong></div>
                     <div class="qa-stat"><span>Top invalid reason</span><strong id="qa-stat-top-reason">—</strong></div>
+                    <div class="qa-stat qa-stat-coaching"><span>Coaching follow-ups</span><strong id="qa-stat-coaching">0</strong></div>
+                    <div class="qa-stat"><span>Average QA score</span><strong id="qa-stat-score">—</strong></div>
                 </div>
                 <div class="qa-card">
                     <div class="qa-report-toolbar">
-                        <h4>Invalid Calls Report</h4>
-                        <button type="button" class="qa-button qa-button-secondary" onclick="qaExportCSV()"><i class="fas fa-file-export"></i> Export CSV</button>
+                        <div><h4>Professional Call QA Report</h4><p>Filter, review, print, or export call findings and coaching plans.</p></div>
+                        <div class="qa-report-actions">
+                            <button type="button" class="qa-button qa-button-secondary qa-no-print" onclick="qaPrintReport()"><i class="fas fa-print"></i> Print Report</button>
+                            <button type="button" class="qa-button qa-button-secondary qa-no-print" onclick="qaExportCSV()"><i class="fas fa-file-export"></i> Export CSV</button>
+                        </div>
                     </div>
-                    <div class="qa-filters">
+                    <div class="qa-filters qa-no-print">
                         <label>From <input type="date" id="qa-filter-from" onchange="qaRenderReport()"></label>
                         <label>To <input type="date" id="qa-filter-to" onchange="qaRenderReport()"></label>
                         <label>Team <select id="qa-filter-team" onchange="qaRenderReport()"><option value="">All teams</option><option value="BB">Berbice</option><option value="PR">Providence</option><option value="RM">Remote</option></select></label>
-                        <label>Reason <select id="qa-filter-reason" onchange="qaRenderReport()"><option value="">All reasons</option><option>Under $200k revenue</option><option>Trucking</option><option>Attorney</option><option>No qualified call</option><option>Unqualified business</option><option>Other</option><option>Unclear audio</option></select></label>
-                        <label>Agent <input type="search" id="qa-filter-agent" placeholder="Search agent" oninput="qaRenderReport()"></label>
+                        <label>Outcome <select id="qa-filter-outcome" onchange="qaRenderReport()"><option value="">All outcomes</option><option>Valid</option><option>Invalid</option><option>Pending</option></select></label>
+                        <label>Reason <select id="qa-filter-reason" onchange="qaRenderReport()"><option value="">All reasons</option><option>Under $200k revenue</option><option>Trucking</option><option>Attorney / Legal</option><option>No qualified call</option><option>Unqualified business</option><option>DNC / Removal Request</option><option>Prank / Not Serious</option><option>Partner Call</option><option>Other</option><option>Unclear audio</option><option>Unclear / Incomplete Record</option></select></label>
+                        <label>Issue source <select id="qa-filter-source" onchange="qaRenderReport()"><option value="">All sources</option><option>Agent</option><option>Loan Specialist</option><option>Both</option><option>Lead data</option><option>Process or system</option><option>Caller or partner</option><option>Unclear</option></select></label>
+                        <label>Agent <input type="search" id="qa-filter-agent" placeholder="Search name or ID" oninput="qaRenderReport()"></label>
                     </div>
-                    <div id="qa-report-status" class="qa-inline-status" role="status"></div>
-                    <div class="qa-table-wrap"><table class="qa-table"><thead><tr><th>Date</th><th>Agent</th><th>Team</th><th>Call Number</th><th>Customer Number</th><th>Outcome</th><th>Primary reason</th><th>Issue source</th><th>Finding / coaching</th><th>Review</th></tr></thead><tbody id="qa-report-body"></tbody></table></div>
-                    <p class="qa-report-footnote">AI findings are suggestions. An authorized reviewer must confirm or change each outcome.</p>
+                    <div class="qa-report-meta"><span id="qa-report-count">0 matching calls</span><span>Pending reviews are excluded from calls reviewed. Not applicable ratings do not affect the score.</span></div>
+                    <div id="qa-report-status" class="qa-inline-status qa-no-print" role="status"></div>
+                    <div class="qa-table-wrap"><table class="qa-table"><thead><tr><th>Date / type</th><th>Agent / specialist</th><th>Team</th><th>Call Number</th><th>Customer Number</th><th>Outcome</th><th>Reason</th><th>Score</th><th>Issue source</th><th>Finding and coaching</th><th class="qa-no-print">Actions</th></tr></thead><tbody id="qa-report-body"></tbody></table></div>
+                    <p class="qa-report-footnote">A call counts once in the reviewed total. Primary and additional reasons remain visible for follow-up. Keep findings factual and coaching specific.</p>
                 </div>
             </div>
         </div>
