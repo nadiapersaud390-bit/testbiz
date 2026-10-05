@@ -80,6 +80,7 @@ class FakeElement {
   let printedHtml = '';
   const excelWorkbooks = [];
   const pdfCapture = { imageCount: 0, tables: [], pageCount: 1 };
+  const exportScriptOrder = [];
   class FakeWorksheet {
     constructor(name) { this.name = name; this.columns = []; this.rows = []; this.images = []; this.cells = {}; }
     mergeCells() {}
@@ -133,7 +134,6 @@ class FakeElement {
     setFillColor() {} rect() {} setTextColor() {} setFontSize() {} text() {} roundedRect() {} addPage() { pdfCapture.pageCount++; }
     addImage() { pdfCapture.imageCount++; }
     splitTextToSize(text) { return [text]; }
-    autoTable(options) { pdfCapture.tables.push(options); }
     getNumberOfPages() { return pdfCapture.pageCount; }
     setPage() {}
     output() { return new Uint8Array([37, 80, 68, 70]); }
@@ -191,7 +191,15 @@ class FakeElement {
     getElementById: id => elements.get(id) || null,
     querySelectorAll: () => [],
     createElement: tag => tag === 'canvas' ? makeCanvas() : new FakeElement(tag),
-    head: { appendChild: script => { if (script.onload) script.onload(); } },
+    head: { appendChild: script => {
+      exportScriptOrder.push(script.src);
+      if (script.src.endsWith('jspdf.umd.min.js')) {
+        setTimeout(() => { window.jspdf = { jsPDF: FakePDF }; if (script.onload) script.onload(); }, 10);
+      } else if (script.src.endsWith('jspdf.plugin.autotable.min.js')) {
+        if (window.jspdf) FakePDF.prototype.autoTable = options => { pdfCapture.tables.push(options); };
+        if (script.onload) script.onload();
+      } else if (script.onload) script.onload();
+    } },
     body: new FakeElement('body')
   };
   const storage = { biz_master_roster: '[]' };
@@ -280,12 +288,30 @@ class FakeElement {
   assert.equal(elements.get('qa-stat-total').textContent, '1');
   assert.equal(elements.get('qa-stat-pending').textContent, '1');
   assert.equal(elements.get('qa-report-count').textContent, '2 matching calls');
+  assert.match(elements.get('qa-report-body').innerHTML, /Alice Example/, 'the newest call is shown by default');
+  assert.doesNotMatch(elements.get('qa-report-body').innerHTML, /Pending Agent/, 'older calls are collapsed by default');
+  assert.equal(elements.get('qa-report-toggle').textContent, 'Show All (2)');
+  window.qaToggleReportRows();
+  assert.match(elements.get('qa-report-body').innerHTML, /Pending Agent/, 'Show All reveals the older calls');
+  assert.equal(elements.get('qa-report-visibility').textContent, 'Showing all 2 matching calls.');
+  window.qaToggleReportRows();
+  assert.doesNotMatch(elements.get('qa-report-body').innerHTML, /Pending Agent/, 'Show Recent Only returns to the newest call');
   set('qa-filter-outcome', 'Valid');
   window.qaRenderReport();
   assert.match(elements.get('qa-report-body').innerHTML, /No call reviews match/);
   assert.equal(elements.get('qa-stat-total').textContent, '0');
   set('qa-filter-outcome', '');
   window.qaRenderReport();
+
+  set('qa-filter-agent', 'Alice Example');
+  assert.equal(elements.get('qa-report-count').textContent, '2 matching calls', 'agent search waits for the Search action');
+  window.qaApplyAgentFilter();
+  assert.equal(elements.get('qa-report-count').textContent, '1 matching call');
+  assert.match(elements.get('qa-report-body').innerHTML, /Alice Example/);
+  assert.doesNotMatch(elements.get('qa-report-body').innerHTML, /Pending Agent/);
+  set('qa-filter-agent', '');
+  window.qaApplyAgentFilter();
+  assert.equal(elements.get('qa-report-count').textContent, '2 matching calls');
 
   window.qaExportCSV();
   assert.match(exportedCsv, /Call Number/);
@@ -334,6 +360,7 @@ class FakeElement {
   assert.equal(imported.team, 'BB');
   assert.equal(imported.callNumber, '', 'missing call numbers remain blank instead of being invented');
   assert.ok(importedRows.some(record => !record.primaryReason), 'blank legacy reason fields remain blank');
+  window.qaToggleReportRows();
   assert.match(elements.get('qa-report-body').innerHTML, /GYB Historical Agent One/);
 
   await window.qaPreviewImportFile({ name: 'Previously exported QA.csv', size: exportedCsv.length, text: async () => exportedCsv });
@@ -358,8 +385,8 @@ class FakeElement {
   assert.ok(exportedWorkbook.worksheets.find(sheet => sheet.name === 'Call Reviews').rows.some(row => row.some(value => String(value).includes('Practice the revenue qualification question.'))));
   assert.ok(downloadedFiles.some(name => name.endsWith('.xlsx')));
 
-  window.jspdf = { jsPDF: FakePDF };
   await window.qaExportPDF();
+  assert.deepEqual(exportScriptOrder.slice(-2), ['js/vendor/jspdf.umd.min.js', 'js/vendor/jspdf.plugin.autotable.min.js'], 'jsPDF loads before its AutoTable plugin');
   assert.equal(pdfCapture.imageCount, 2, 'PDF Overview embeds both report charts');
   assert.ok(pdfCapture.tables.some(table => table.body.some(row => row.some(cell => String(cell).includes('Practice the revenue qualification question.')))));
   assert.ok(downloadedFiles.some(name => name.endsWith('.pdf')));
@@ -369,6 +396,9 @@ class FakeElement {
   assert.doesNotMatch(qaMarkup, /accept="[^"]*audio/i);
   assert.match(qaMarkup, /id="qa-chart-call-types"/);
   assert.match(qaMarkup, /id="qa-chart-agent-quality"/);
+  assert.match(qaMarkup, /id="qa-filter-agent-search"[^>]*onclick="qaApplyAgentFilter\(\)"/);
+  assert.match(qaMarkup, /onkeydown="if\(event\.key==='Enter'/);
+  assert.match(qaMarkup, /id="qa-report-toggle"[^>]*onclick="qaToggleReportRows\(\)"/);
   assert.doesNotMatch(qaMarkup, /qa-stat-coaching|qa-stat-score/);
   assert.match(qaMarkup, /Professional Call QA Report/);
   assert.match(qaMarkup, /id="qa-export-pdf"/);

@@ -31,11 +31,13 @@
     let qaRosterListener = null;
     let qaRosterResolved = false;
     let qaRosterTimeout = null;
+    let qaAppliedAgentFilter = '';
     let qaImportText = '';
     let qaImportFileName = '';
     let qaImportRecords = [];
     let qaImportInvalidRows = 0;
     let qaImportDuplicates = 0;
+    let qaShowAllCalls = false;
 
     function esc(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
@@ -638,7 +640,7 @@
         const reason = $('qa-filter-reason') ? $('qa-filter-reason').value : '';
         const outcome = $('qa-filter-outcome') ? $('qa-filter-outcome').value : '';
         const issueSource = $('qa-filter-source') ? $('qa-filter-source').value : '';
-        const agent = $('qa-filter-agent') ? $('qa-filter-agent').value.trim().toLowerCase() : '';
+        const agent = qaAppliedAgentFilter.toLowerCase();
         return sortRecords(qaRecords).filter(function (r) {
             const date = asDate(r);
             if (from && date < from) return false;
@@ -770,11 +772,22 @@
         const body = $('qa-report-body');
         if (!body) return;
         if ($('qa-report-count')) $('qa-report-count').textContent = rows.length + (rows.length === 1 ? ' matching call' : ' matching calls');
+        const toggle = $('qa-report-toggle');
+        if (toggle) {
+            toggle.hidden = rows.length <= 1;
+            toggle.textContent = qaShowAllCalls ? 'Show Recent Only' : 'Show All (' + rows.length + ')';
+        }
+        if ($('qa-report-visibility')) {
+            $('qa-report-visibility').textContent = rows.length > 1
+                ? (qaShowAllCalls ? 'Showing all ' + rows.length + ' matching calls.' : 'Showing the most recent call.')
+                : (rows.length === 1 ? 'Showing the most recent call.' : 'No matching calls to show.');
+        }
         if (!rows.length) {
             body.innerHTML = '<tr><td class="qa-empty" colspan="11">No call reviews match these filters yet.</td></tr>';
             return;
         }
-        body.innerHTML = rows.map(rowMarkup).join('');
+        const visibleRows = qaShowAllCalls ? rows : rows.slice(0, 1);
+        body.innerHTML = visibleRows.map(rowMarkup).join('');
         body.querySelectorAll('[data-qa-edit]').forEach(function (button) {
             button.addEventListener('click', function () { window.qaEditReview(button.getAttribute('data-qa-edit')); });
         });
@@ -784,6 +797,16 @@
         body.querySelectorAll('[data-qa-print]').forEach(function (button) {
             button.addEventListener('click', function () { window.qaPrintReview(button.getAttribute('data-qa-print')); });
         });
+    };
+
+    window.qaApplyAgentFilter = function () {
+        qaAppliedAgentFilter = $('qa-filter-agent') ? String($('qa-filter-agent').value || '').trim() : '';
+        window.qaRenderReport();
+    };
+
+    window.qaToggleReportRows = function () {
+        qaShowAllCalls = !qaShowAllCalls;
+        window.qaRenderReport();
     };
 
     function receiveRecords(snapshot) {
@@ -1059,7 +1082,7 @@
             'Date range: ' + (value('qa-filter-from') || 'Any') + ' to ' + (value('qa-filter-to') || 'Any'),
             'Team: ' + (value('qa-filter-team') || 'All teams') + ' | Outcome: ' + (value('qa-filter-outcome') || 'All outcomes'),
             'Reason: ' + (value('qa-filter-reason') || 'All reasons') + ' | Issue source: ' + (value('qa-filter-source') || 'All sources'),
-            'Agent search: ' + (value('qa-filter-agent') || 'All agents'),
+            'Agent search: ' + (qaAppliedAgentFilter || 'All agents'),
             'Generated: ' + new Date().toLocaleString('en-GB', { timeZone: 'America/Guyana' }) + ' (Guyana)'
         ];
     }
@@ -1135,9 +1158,14 @@
         if (button) button.disabled = true;
         setStatus('qa-report-status', 'Preparing the ' + (type === 'pdf' ? 'PDF report' : 'Excel workbook') + '…', '');
         try {
-            await (type === 'pdf'
-                ? Promise.all([loadExportScript('js/vendor/jspdf.umd.min.js'), loadExportScript('js/vendor/jspdf.plugin.autotable.min.js')])
-                : loadExportScript('js/vendor/exceljs.min.js'));
+            if (type === 'pdf') {
+                // AutoTable registers itself onto jsPDF when its script evaluates.
+                // Load it only after jsPDF has finished loading or doc.autoTable is absent.
+                await loadExportScript('js/vendor/jspdf.umd.min.js');
+                await loadExportScript('js/vendor/jspdf.plugin.autotable.min.js');
+            } else {
+                await loadExportScript('js/vendor/exceljs.min.js');
+            }
             const file = 'Call_QA_Report_' + localToday();
             if (type === 'pdf') await exportQAPDF(rows, file);
             else await exportQAExcel(rows, file);
@@ -1227,6 +1255,9 @@
         const charts = overviewChartData(rows);
         const stats = reportStats(rows);
         const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        if (typeof doc.autoTable !== 'function') {
+            throw new Error('PDF table support did not load. Refresh the page and try again.');
+        }
         const pageWidth = 297, pageHeight = 210;
         const pdfText = function (value) { return String(value == null ? '' : value).replace(/[^\x20-\x7E\xA0-\xFF\n]/g, ' '); };
         let activeTitle = 'CALL QUALITY ASSURANCE REPORT';
