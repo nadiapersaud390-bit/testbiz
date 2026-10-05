@@ -375,7 +375,7 @@
             finding: ['Review Finding', 'Review Finding and Evidence', 'Review Finding / Evidence', 'Review Findings', 'Finding', 'Call Notes'],
             strengths: ['Strengths', 'What Went Well'], coachingTip: ['Coaching Tip', 'Coaching'], actionPlan: ['Coaching Action Plan', 'Action Plan'],
             followUp: ['Follow-up Needed', 'Needs Follow-up', 'Coaching Follow-up'], followUpDate: ['Follow-up Date'],
-            qaNotes: ['QA Notes', 'Reviewer Notes'], reviewer: ['Reviewer', 'Reviewed By'],
+            qaNotes: ['QA Notes', 'Reviewer Notes'],
             agentScorecard: ['Agent Scorecard'], specialistScorecard: ['Loan Specialist Scorecard'],
             loanSpecialist: ['Loan Specialist', 'Specialist']
         };
@@ -471,8 +471,6 @@
                 actionPlan: cell(row, columns.actionPlan),
                 needsFollowUp: hasFollowUp,
                 followUpDate: cell(row, columns.followUpDate),
-                reviewerName: cell(row, columns.reviewer) || 'Imported legacy report',
-                reviewerEmail: '',
                 importedFromFile: String(fileName || 'previous call report')
             });
         });
@@ -752,6 +750,43 @@
         return '<span class="qa-outcome-pill qa-outcome-' + css + '">' + esc(label) + '</span>';
     }
 
+    function parseCoachingTip(value) {
+        const text = String(value || '').replace(/\r\n?/g, '\n').trim();
+        if (!text) return { intro: '', sections: [] };
+        const pattern = /(?:^|\s)(Tip(?:\s+\d+)?|The Fix|Fix|Bad Practice|Best Practice|Phrasing to Use|Coaching Rule|Technique|Avoid|Do(?:n't| not)?|What to say|Why it matters)\s*:/gi;
+        const matches = [];
+        let match;
+        while ((match = pattern.exec(text)) !== null) {
+            matches.push({ index: match.index, end: pattern.lastIndex, label: match[1].trim() });
+        }
+        if (!matches.length) return { intro: text, sections: [] };
+        const intro = text.slice(0, matches[0].index).trim();
+        const sections = matches.map(function (item, index) {
+            const end = index + 1 < matches.length ? matches[index + 1].index : text.length;
+            return { label: item.label, text: text.slice(item.end, end).trim() };
+        }).filter(function (item) { return item.text; });
+        return { intro: intro, sections: sections };
+    }
+
+    function coachingMarkup(value) {
+        const parsed = parseCoachingTip(value);
+        if (!parsed.intro && !parsed.sections.length) {
+            return '<div class="qa-coaching-empty"><i class="fas fa-lightbulb" aria-hidden="true"></i><span>No coaching tip recorded.</span></div>';
+        }
+        const intro = parsed.intro ? '<p class="qa-coaching-lead">' + esc(parsed.intro) + '</p>' : '';
+        const sections = parsed.sections.map(function (section) {
+            const className = section.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            return '<div class="qa-coaching-section qa-coaching-section-' + esc(className) + '">' +
+                '<span class="qa-coaching-section-label">' + esc(section.label) + '</span>' +
+                '<span class="qa-coaching-section-text">' + esc(section.text) + '</span>' +
+                '</div>';
+        }).join('');
+        return '<div class="qa-coaching-card">' +
+            '<div class="qa-coaching-card-head"><span class="qa-coaching-card-title"><i class="fas fa-lightbulb" aria-hidden="true"></i> Coaching guidance</span><span class="qa-coaching-card-badge">DEVELOPMENT NOTE</span></div>' +
+            intro + sections +
+            '</div>';
+    }
+
     function rowMarkup(r) {
         const finding = [
             r.reviewFinding ? 'Finding: ' + r.reviewFinding : '',
@@ -775,7 +810,7 @@
             '<td>' + (score === null ? '—' : score + '%') + '</td>' +
             '<td>' + esc(r.issueSource || '—') + '</td>' +
             '<td class="qa-finding-cell">' + esc(finding || '—') + '</td>' +
-            '<td class="qa-coaching-cell">' + esc(r.coachingTip || '—') + '</td>' +
+            '<td class="qa-coaching-cell">' + coachingMarkup(r.coachingTip) + '</td>' +
             '<td class="qa-action-cell">' + esc(actionPlan || '—') + '</td>' +
             '<td><div class="qa-row-actions"><button type="button" data-qa-edit="' + esc(r.id) + '">Edit</button><button type="button" data-qa-print="' + esc(r.id) + '">Print</button><button type="button" data-qa-delete="' + esc(r.id) + '">Delete</button></div></td>' +
             '</tr>';
@@ -940,8 +975,6 @@
             actionPlan: String($('qa-action-plan') ? $('qa-action-plan').value : '').trim(),
             needsFollowUp: Boolean(($('qa-follow-up-needed') && $('qa-follow-up-needed').checked) || SCORECARD_ITEMS.some(function (item) { return scorecard[item.key] === 'Needs coaching'; })),
             followUpDate: String($('qa-follow-up-date') ? $('qa-follow-up-date').value : ''),
-            reviewerName: String(admin.name || admin.email || 'Admin'),
-            reviewerEmail: String(admin.email || ''),
             updatedAt: now
         };
         const existing = qaRecords.find(function (r) { return r.id === recordId; });
@@ -1027,7 +1060,7 @@
             setStatus('qa-report-status', 'There are no calls in the current report filters to export.', 'error');
             return;
         }
-        const headers = ['Date', 'Call type', 'Agent name', 'Agent ID', 'Team', 'Call Number', 'Customer Number', 'Loan specialist', 'Outcome', 'Primary reason', 'Additional reason', 'Issue source', 'QA score', 'Agent scorecard', 'Loan specialist scorecard', 'Review finding / evidence', 'Strengths', 'Coaching tip', 'Coaching action plan', 'Follow-up needed', 'Follow-up date', 'QA notes', 'Reviewer'];
+        const headers = ['Date', 'Call type', 'Agent name', 'Agent ID', 'Team', 'Call Number', 'Customer Number', 'Loan specialist', 'Outcome', 'Primary reason', 'Additional reason', 'Issue source', 'QA score', 'Agent scorecard', 'Loan specialist scorecard', 'Review finding / evidence', 'Strengths', 'Coaching tip', 'Coaching action plan', 'Follow-up needed', 'Follow-up date', 'QA notes'];
         const csvCell = function (value) { return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"'; };
         const csv = [headers.map(csvCell).join(',')].concat(rows.map(function (r) {
             const score = scorecardScore(r);
@@ -1042,7 +1075,7 @@
                 r.outcome, r.primaryReason, r.additionalReason, r.issueSource,
                 score === null ? '' : score + '%', scorecardText('Agent'), scorecardText('Loan specialist'),
                 r.reviewFinding, r.strengths, r.coachingTip, r.actionPlan,
-                hasCoachingFlag(r) ? 'Yes' : 'No', r.followUpDate, r.qaNotes, r.reviewerName
+                hasCoachingFlag(r) ? 'Yes' : 'No', r.followUpDate, r.qaNotes
             ];
             return values.map(csvCell).join(',');
         })).join('\r\n');
@@ -1164,7 +1197,7 @@
                 r.primaryReason || '', r.additionalReason || '', r.issueSource || '', score === null ? '' : score,
                 ...SCORECARD_ITEMS.map(function (item) { return r.scorecard && r.scorecard[item.key] || ''; }),
                 r.reviewFinding || '', r.strengths || '', r.coachingTip || '', r.actionPlan || '', hasCoachingFlag(r) ? 'Yes' : 'No',
-                r.followUpDate || '', r.qaNotes || '', r.reviewerName || ''
+                r.followUpDate || '', r.qaNotes || ''
             ];
         });
     }
@@ -1260,8 +1293,8 @@
         tableSheet('Call Types', ['Call type', 'Calls'], charts.callTypes.map(function (item) { return [item.label, item.value]; }), [34, 16]);
         const qualitySheet = tableSheet('Agent Quality', ['Agent', 'Agent ID', 'Average quality', 'Rated reviews'], charts.agentQuality.map(function (item) { return [item.label, item.agentId, item.value / 100, item.count]; }), [34, 18, 21, 18]);
         qualitySheet.getColumn(3).numFmt = '0%';
-        const headers = ['Date', 'Call type', 'Agent name', 'Agent ID', 'Team', 'Call Number', 'Customer Number', 'Loan specialist', 'Outcome', 'Primary reason', 'Additional reason', 'Issue source', 'QA score', ...SCORECARD_ITEMS.map(function (item) { return item.label; }), 'Review finding / evidence', 'Strengths', 'Coaching tip', 'Coaching action plan', 'Follow-up needed', 'Follow-up date', 'QA notes', 'Reviewer'];
-        const widths = [14, 19, 25, 15, 12, 20, 21, 23, 14, 22, 22, 18, 12].concat(SCORECARD_ITEMS.map(function () { return 23; }), [45, 35, 38, 38, 16, 16, 40, 25]);
+        const headers = ['Date', 'Call type', 'Agent name', 'Agent ID', 'Team', 'Call Number', 'Customer Number', 'Loan specialist', 'Outcome', 'Primary reason', 'Additional reason', 'Issue source', 'QA score', ...SCORECARD_ITEMS.map(function (item) { return item.label; }), 'Review finding / evidence', 'Strengths', 'Coaching tip', 'Coaching action plan', 'Follow-up needed', 'Follow-up date', 'QA notes'];
+        const widths = [14, 19, 25, 15, 12, 20, 21, 23, 14, 22, 22, 18, 12].concat(SCORECARD_ITEMS.map(function () { return 23; }), [45, 35, 38, 38, 16, 16, 40]);
         const callsSheet = tableSheet('Call Reviews', headers, qaExportRows(rows), widths);
         callsSheet.getColumn(13).numFmt = '0"%"';
         const notes = tableSheet('Report Notes', ['Topic', 'Details'], [
@@ -1320,11 +1353,15 @@
                 record.reviewFinding && 'Finding: ' + record.reviewFinding,
                 record.strengths && 'Strengths: ' + record.strengths,
                 ratings.length && 'Scorecard: ' + ratings.join(' | '),
-                record.qaNotes && 'Reviewer notes: ' + record.qaNotes,
-                record.reviewerName && 'Reviewed by: ' + record.reviewerName
+                record.qaNotes && 'Reviewer notes: ' + record.qaNotes
             ].filter(Boolean).join('\n') || '—';
         };
-        const coachingTipText = function (record) { return record.coachingTip || '—'; };
+        const coachingTipText = function (record) {
+            const parsed = parseCoachingTip(record.coachingTip);
+            if (!parsed.intro && !parsed.sections.length) return '—';
+            return [parsed.intro].concat(parsed.sections.map(function (section) { return section.label + ': ' + section.text; }))
+                .filter(Boolean).join('\n');
+        };
         const actionPlanText = function (record) {
             return [
                 record.actionPlan && 'Action plan: ' + record.actionPlan,
@@ -1348,7 +1385,7 @@
             head: [['Date / type', 'Agent / team', 'Call Number', 'Customer Number', 'Outcome', 'Reason(s)', 'Score / source', 'Finding / evidence', 'Coaching tip', 'Action plan']],
             body: body, styles: { fontSize: 6.4, cellPadding: 1.7, overflow: 'linebreak', valign: 'top' },
             headStyles: { fillColor: [25, 56, 84], fontSize: 6.5 }, alternateRowStyles: { fillColor: [241, 245, 249] },
-            columnStyles: { 0: { cellWidth: 23 }, 1: { cellWidth: 34 }, 2: { cellWidth: 22 }, 3: { cellWidth: 24 }, 4: { cellWidth: 17 }, 5: { cellWidth: 31 }, 6: { cellWidth: 22 }, 7: { cellWidth: 45 }, 8: { cellWidth: 28 }, 9: { cellWidth: 27 } },
+            columnStyles: { 0: { cellWidth: 23 }, 1: { cellWidth: 34 }, 2: { cellWidth: 22 }, 3: { cellWidth: 24 }, 4: { cellWidth: 17 }, 5: { cellWidth: 31 }, 6: { cellWidth: 22 }, 7: { cellWidth: 45 }, 8: { cellWidth: 28, fillColor: [239, 250, 255], textColor: [15, 76, 100] }, 9: { cellWidth: 27 } },
             rowPageBreak: 'avoid', didDrawPage: function () { heading(activeTitle); }
         };
         doc.autoTable(tableOptions);
@@ -1412,7 +1449,6 @@
             '<p>Final outcome: ' + outcomeMarkup(record.outcome) + (score === null ? '' : ' &nbsp; <span class="score">' + score + '% QA score</span>') + '</p>' +
             scorecardBlock + textBlock('Review finding and evidence', record.reviewFinding) + textBlock('What went well', record.strengths) + textBlock('Coaching tip', record.coachingTip) +
             textBlock('Coaching action plan', record.actionPlan) + textBlock('Reviewer notes', record.qaNotes) + followUpBlock +
-            '<div class="grid">' + detail('Reviewed by', record.reviewerName) + '</div>' +
             '<div class="signature"><div>Reviewer signature</div><div>Agent acknowledgement</div></div></body></html>';
         printWindow.document.open();
         printWindow.document.write(html);
