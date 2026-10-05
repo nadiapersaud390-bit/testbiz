@@ -633,9 +633,10 @@
         });
     }
 
-    function selectedReportRecords() {
-        const from = $('qa-filter-from') ? $('qa-filter-from').value : '';
-        const to = $('qa-filter-to') ? $('qa-filter-to').value : '';
+    function selectedReportRecords(options) {
+        const allDates = options && options.allDates === true ? true : (!options && qaShowAllCalls);
+        const from = allDates ? '' : ($('qa-filter-from') ? $('qa-filter-from').value : '');
+        const to = allDates ? '' : ($('qa-filter-to') ? $('qa-filter-to').value : '');
         const team = $('qa-filter-team') ? $('qa-filter-team').value : '';
         const reason = $('qa-filter-reason') ? $('qa-filter-reason').value : '';
         const outcome = $('qa-filter-outcome') ? $('qa-filter-outcome').value : '';
@@ -659,8 +660,8 @@
     }
 
     function reportRowsForExport(scope) {
-        const rows = selectedReportRecords();
-        return normalizedExportScope(scope) === 'recent' ? rows.slice(0, 1) : rows;
+        const exportScope = normalizedExportScope(scope);
+        return selectedReportRecords({ allDates: exportScope === 'all' });
     }
 
     function scorecardScore(record) {
@@ -755,8 +756,12 @@
         const finding = [
             r.reviewFinding ? 'Finding: ' + r.reviewFinding : '',
             r.strengths ? 'Strength: ' + r.strengths : '',
-            r.coachingTip ? 'Coaching: ' + r.coachingTip : '',
-            r.actionPlan ? 'Action: ' + r.actionPlan : ''
+            r.qaNotes ? 'Notes: ' + r.qaNotes : ''
+        ].filter(Boolean).join(' · ');
+        const actionPlan = [
+            r.actionPlan,
+            hasCoachingFlag(r) && 'Coaching follow-up required',
+            r.followUpDate && 'Follow up: ' + r.followUpDate
         ].filter(Boolean).join(' · ');
         const score = scorecardScore(r);
         return '<tr>' +
@@ -769,13 +774,17 @@
             '<td>' + esc(r.primaryReason || '—') + (r.additionalReason ? '<br><span class="qa-muted">' + esc(r.additionalReason) + '</span>' : '') + '</td>' +
             '<td>' + (score === null ? '—' : score + '%') + '</td>' +
             '<td>' + esc(r.issueSource || '—') + '</td>' +
-            '<td>' + esc(finding || r.qaNotes || '—') + (hasCoachingFlag(r) ? '<br><span class="qa-follow-up-pill">Coaching follow-up</span>' : '') + (r.followUpDate ? '<br><span class="qa-muted">Follow up: ' + esc(r.followUpDate) + '</span>' : '') + '</td>' +
+            '<td class="qa-finding-cell">' + esc(finding || '—') + '</td>' +
+            '<td class="qa-coaching-cell">' + esc(r.coachingTip || '—') + '</td>' +
+            '<td class="qa-action-cell">' + esc(actionPlan || '—') + '</td>' +
             '<td><div class="qa-row-actions"><button type="button" data-qa-edit="' + esc(r.id) + '">Edit</button><button type="button" data-qa-print="' + esc(r.id) + '">Print</button><button type="button" data-qa-delete="' + esc(r.id) + '">Delete</button></div></td>' +
             '</tr>';
     }
 
     window.qaRenderReport = function () {
-        const rows = selectedReportRecords();
+        const recentRows = selectedReportRecords({ allDates: false });
+        const allRows = selectedReportRecords({ allDates: true });
+        const rows = qaShowAllCalls ? allRows : recentRows;
         updateStats(rows);
         updateOverviewCharts(rows);
         const body = $('qa-report-body');
@@ -783,20 +792,21 @@
         if ($('qa-report-count')) $('qa-report-count').textContent = rows.length + (rows.length === 1 ? ' matching call' : ' matching calls');
         const toggle = $('qa-report-toggle');
         if (toggle) {
-            toggle.hidden = rows.length <= 1;
-            toggle.textContent = qaShowAllCalls ? 'Show Recent Only' : 'Show All (' + rows.length + ')';
+            toggle.hidden = allRows.length <= recentRows.length;
+            toggle.textContent = qaShowAllCalls ? 'Show Today Only' : 'Show All History';
         }
         if ($('qa-report-visibility')) {
-            $('qa-report-visibility').textContent = rows.length > 1
-                ? (qaShowAllCalls ? 'Showing all ' + rows.length + ' matching calls.' : 'Showing the most recent call.')
-                : (rows.length === 1 ? 'Showing the most recent call.' : 'No matching calls to show.');
+            const from = $('qa-filter-from') ? $('qa-filter-from').value : '';
+            const to = $('qa-filter-to') ? $('qa-filter-to').value : '';
+            $('qa-report-visibility').textContent = rows.length
+                ? (qaShowAllCalls ? 'Showing all ' + rows.length + ' matching calls.' : (from && to && from === to && from === localToday() ? 'Showing all calls added today so far.' : 'Showing all calls in the selected date range.'))
+                : 'No matching calls to show.';
         }
         if (!rows.length) {
-            body.innerHTML = '<tr><td class="qa-empty" colspan="11">No call reviews match these filters yet.</td></tr>';
+            body.innerHTML = '<tr><td class="qa-empty" colspan="13">No call reviews match these filters yet.</td></tr>';
             return;
         }
-        const visibleRows = qaShowAllCalls ? rows : rows.slice(0, 1);
-        body.innerHTML = visibleRows.map(rowMarkup).join('');
+        body.innerHTML = rows.map(rowMarkup).join('');
         body.querySelectorAll('[data-qa-edit]').forEach(function (button) {
             button.addEventListener('click', function () { window.qaEditReview(button.getAttribute('data-qa-edit')); });
         });
@@ -1086,10 +1096,12 @@
         };
     }
 
-    function reportFilterLines() {
+    function reportFilterLines(scope) {
         const value = function (id) { return $(id) ? String($(id).value || '').trim() : ''; };
+        const allDates = scope === 'all' || (scope === undefined && qaShowAllCalls);
+        const dateLine = allDates ? 'Date range: All dates' : 'Date range: ' + (value('qa-filter-from') || 'Any') + ' to ' + (value('qa-filter-to') || 'Any');
         return [
-            'Date range: ' + (value('qa-filter-from') || 'Any') + ' to ' + (value('qa-filter-to') || 'Any'),
+            dateLine,
             'Team: ' + (value('qa-filter-team') || 'All teams') + ' | Outcome: ' + (value('qa-filter-outcome') || 'All outcomes'),
             'Reason: ' + (value('qa-filter-reason') || 'All reasons') + ' | Issue source: ' + (value('qa-filter-source') || 'All sources'),
             'Agent search: ' + (qaAppliedAgentFilter || 'All agents'),
@@ -1179,8 +1191,8 @@
                 await loadExportScript('js/vendor/exceljs.min.js');
             }
             const file = 'Call_QA_Report_' + (exportScope === 'recent' ? 'Recent_' : 'All_') + localToday();
-            if (type === 'pdf') await exportQAPDF(rows, file);
-            else await exportQAExcel(rows, file);
+            if (type === 'pdf') await exportQAPDF(rows, file, exportScope);
+            else await exportQAExcel(rows, file, exportScope);
             setStatus('qa-report-status', rows.length + ' ' + scopeLabel + ' call review(s) included in the ' + (type === 'pdf' ? 'PDF report.' : 'Excel workbook.'), 'success');
         } catch (error) {
             console.error('QA report export failed', error);
@@ -1190,7 +1202,7 @@
         }
     }
 
-    async function exportQAExcel(rows, file) {
+    async function exportQAExcel(rows, file, scope) {
         if (!window.ExcelJS || !window.ExcelJS.Workbook) throw new Error('Excel workbook support did not load.');
         const workbook = new window.ExcelJS.Workbook();
         workbook.creator = 'Biz Dashboard';
@@ -1202,7 +1214,7 @@
         overview.mergeCells('A1:H2');
         overview.getCell('A1').value = 'CALL QUALITY ASSURANCE REPORT';
         overview.getCell('A1').font = { size: 22, bold: true, color: { argb: 'FF193854' } };
-        reportFilterLines().forEach(function (line, index) {
+        reportFilterLines(scope).forEach(function (line, index) {
             overview.mergeCells(index + 4, 1, index + 4, 8);
             overview.getCell(index + 4, 1).value = line;
         });
@@ -1262,7 +1274,7 @@
         downloadExport(await workbook.xlsx.writeBuffer(), file + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }
 
-    async function exportQAPDF(rows, file) {
+    async function exportQAPDF(rows, file, scope) {
         if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('PDF report support did not load.');
         const charts = overviewChartData(rows);
         const stats = reportStats(rows);
@@ -1280,7 +1292,7 @@
         const newPage = function (title) { activeTitle = title; doc.addPage(); heading(title); };
         heading(activeTitle);
         doc.setFontSize(8);
-        reportFilterLines().forEach(function (line, index) { doc.text(pdfText(line), 12, 29 + index * 5); });
+        reportFilterLines(scope).forEach(function (line, index) { doc.text(pdfText(line), 12, 29 + index * 5); });
         const metrics = [
             ['Reviewed', stats.reviewed], ['Valid', stats.valid], ['Invalid', stats.invalid], ['Pending', stats.pending],
             ['Average QA', stats.averageScore === null ? 'N/A' : stats.averageScore + '%'], ['Top reason', stats.topReason]
@@ -1301,19 +1313,23 @@
         doc.text('QA scores use only standards marked Meets standard or Needs coaching. Calls without a rated score are excluded from average quality.', 12, 159);
         activeTitle = 'CALL REVIEW DETAILS';
         const reasons = function (record) { return [record.primaryReason, record.additionalReason].filter(Boolean).join(' · ') || '—'; };
-        const coaching = function (record) {
+        const findingText = function (record) {
             const ratings = SCORECARD_ITEMS.filter(function (item) { return record.scorecard && record.scorecard[item.key]; })
                 .map(function (item) { return item.label + ': ' + record.scorecard[item.key]; });
             return [
                 record.reviewFinding && 'Finding: ' + record.reviewFinding,
                 record.strengths && 'Strengths: ' + record.strengths,
-                record.coachingTip && 'Coaching: ' + record.coachingTip,
-                record.actionPlan && 'Action plan: ' + record.actionPlan,
                 ratings.length && 'Scorecard: ' + ratings.join(' | '),
-                hasCoachingFlag(record) && 'Coaching follow-up required',
-                record.followUpDate && 'Follow-up: ' + record.followUpDate,
                 record.qaNotes && 'Reviewer notes: ' + record.qaNotes,
                 record.reviewerName && 'Reviewed by: ' + record.reviewerName
+            ].filter(Boolean).join('\n') || '—';
+        };
+        const coachingTipText = function (record) { return record.coachingTip || '—'; };
+        const actionPlanText = function (record) {
+            return [
+                record.actionPlan && 'Action plan: ' + record.actionPlan,
+                hasCoachingFlag(record) && 'Coaching follow-up required',
+                record.followUpDate && 'Follow-up: ' + record.followUpDate
             ].filter(Boolean).join('\n') || '—';
         };
         newPage(activeTitle);
@@ -1324,15 +1340,15 @@
                 pdfText((r.agentName || 'Unknown') + (r.agentId ? '\n' + r.agentId : '') + (r.team ? '\n' + (cleanTeam(r.team) || r.team) : '') + (r.loanSpecialist ? '\nSpecialist: ' + r.loanSpecialist : '')),
                 pdfText(r.callNumber || r.callId || '—'), pdfText(r.customerNumber || r.phoneLast4 || '—'),
                 pdfText(r.outcome || 'Pending'), pdfText(reasons(r)), pdfText((score === null ? 'Not rated' : score + '%') + (r.issueSource ? '\n' + r.issueSource : '')),
-                pdfText(coaching(r))
+                pdfText(findingText(r)), pdfText(coachingTipText(r)), pdfText(actionPlanText(r))
             ];
         });
         const tableOptions = {
             startY: 29, margin: { top: 29, left: 12, right: 12, bottom: 15 },
-            head: [['Date / type', 'Agent / team', 'Call Number', 'Customer Number', 'Outcome', 'Reason(s)', 'Score / source', 'Finding and coaching']],
+            head: [['Date / type', 'Agent / team', 'Call Number', 'Customer Number', 'Outcome', 'Reason(s)', 'Score / source', 'Finding / evidence', 'Coaching tip', 'Action plan']],
             body: body, styles: { fontSize: 6.4, cellPadding: 1.7, overflow: 'linebreak', valign: 'top' },
             headStyles: { fillColor: [25, 56, 84], fontSize: 6.5 }, alternateRowStyles: { fillColor: [241, 245, 249] },
-            columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 38 }, 2: { cellWidth: 25 }, 3: { cellWidth: 27 }, 4: { cellWidth: 18 }, 5: { cellWidth: 34 }, 6: { cellWidth: 25 }, 7: { cellWidth: 81 } },
+            columnStyles: { 0: { cellWidth: 23 }, 1: { cellWidth: 34 }, 2: { cellWidth: 22 }, 3: { cellWidth: 24 }, 4: { cellWidth: 17 }, 5: { cellWidth: 31 }, 6: { cellWidth: 22 }, 7: { cellWidth: 45 }, 8: { cellWidth: 28 }, 9: { cellWidth: 27 } },
             rowPageBreak: 'avoid', didDrawPage: function () { heading(activeTitle); }
         };
         doc.autoTable(tableOptions);
@@ -1404,6 +1420,15 @@
         setTimeout(function () { printWindow.focus(); printWindow.print(); }, 250);
     };
 
+    function initializeReportDateFilters() {
+        const from = $('qa-filter-from');
+        const to = $('qa-filter-to');
+        if (from && to && !from.value && !to.value) {
+            from.value = localToday();
+            to.value = localToday();
+        }
+    }
+
     window.qaInit = async function () {
         if (!hasQAAccess()) {
             setStatus('qa-report-status', 'QA access is restricted to authorized admins.', 'error');
@@ -1422,6 +1447,7 @@
         }
         if ($('qa-date') && !$('qa-date').value) $('qa-date').value = localToday();
         if ($('qa-save-button')) $('qa-save-button').textContent = $('qa-edit-id') && $('qa-edit-id').value ? 'Update Call Report' : 'Save Call Report';
+        initializeReportDateFilters();
         window.qaRenderReport();
 
         let attempts = 0;

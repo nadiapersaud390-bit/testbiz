@@ -220,6 +220,8 @@ class FakeElement {
   await window.qaInit();
   window.ExcelJS = { Workbook: FakeWorkbook };
   assert.equal(typeof rosterCallback, 'function');
+  elements.get('qa-filter-from').value = '2026-10-05';
+  elements.get('qa-filter-to').value = '2026-10-05';
 
   assert.equal(document.getElementById('qa-score-agentOpening'), null, 'scorecards stay hidden until added');
   assert.equal(document.getElementById('qa-coaching'), null, 'coaching details stay hidden until added');
@@ -230,7 +232,7 @@ class FakeElement {
   window.qaAddSection('strengths');
   set('qa-agent', '1001');
   set('qa-team', 'BB');
-  set('qa-date', '2026-10-03');
+  set('qa-date', '2026-10-05');
   set('qa-call-type', 'Warm transfer');
   set('qa-call-number', 'CALL-452');
   set('qa-customer-number', '5926001234');
@@ -268,6 +270,8 @@ class FakeElement {
   assert.match(elements.get('qa-report-body').innerHTML, /CALL-452/);
   assert.match(elements.get('qa-report-body').innerHTML, /5926001234/);
   assert.match(elements.get('qa-report-body').innerHTML, /50%/);
+  assert.match(elements.get('qa-report-body').innerHTML, /Confirm annual revenue before moving forward/);
+  assert.match(elements.get('qa-report-body').innerHTML, /Practice the revenue qualification question/);
   assert.match(elements.get('qa-chart-call-types').innerHTML, /Warm transfer/);
   assert.match(elements.get('qa-chart-agent-quality').innerHTML, /Alice Example/);
   assert.match(elements.get('qa-chart-agent-quality').innerHTML, /50% avg/);
@@ -283,19 +287,22 @@ class FakeElement {
   assert.equal(document.getElementById('qa-coaching'), null, 'clearing the form removes added sections');
   assert.equal(elements.get('qa-invalid-fields').hidden, true);
 
-  database['qa-pending-example'] = { date: '2026-10-02', agentName: 'Pending Agent', callNumber: 'PENDING-1', reviewFinding: 'Pending sample review', outcome: 'Pending' };
+  database['qa-pending-example'] = { date: '2026-10-05', agentName: 'Pending Agent', callNumber: 'PENDING-1', reviewFinding: 'Pending sample review', outcome: 'Pending' };
+  database['qa-older-example'] = { date: '2026-10-02', agentName: 'Older Agent', callNumber: 'OLDER-1', reviewFinding: 'Older review sample', outcome: 'Invalid' };
   recordCallback({ val: () => database });
   assert.equal(elements.get('qa-stat-total').textContent, '1');
   assert.equal(elements.get('qa-stat-pending').textContent, '1');
   assert.equal(elements.get('qa-report-count').textContent, '2 matching calls');
-  assert.match(elements.get('qa-report-body').innerHTML, /Alice Example/, 'the newest call is shown by default');
-  assert.doesNotMatch(elements.get('qa-report-body').innerHTML, /Pending Agent/, 'older calls are collapsed by default');
-  assert.equal(elements.get('qa-report-toggle').textContent, 'Show All (2)');
+  assert.match(elements.get('qa-report-body').innerHTML, /Alice Example/, 'today shows the first call added');
+  assert.match(elements.get('qa-report-body').innerHTML, /Pending Agent/, 'today shows every call added so far');
+  assert.doesNotMatch(elements.get('qa-report-body').innerHTML, /Older Agent/, 'older dates stay out of the recent view');
+  assert.equal(elements.get('qa-report-toggle').textContent, 'Show All History');
   window.qaToggleReportRows();
-  assert.match(elements.get('qa-report-body').innerHTML, /Pending Agent/, 'Show All reveals the older calls');
-  assert.equal(elements.get('qa-report-visibility').textContent, 'Showing all 2 matching calls.');
+  assert.match(elements.get('qa-report-body').innerHTML, /Pending Agent/, 'Show All keeps today\'s calls');
+  assert.match(elements.get('qa-report-body').innerHTML, /Older Agent/, 'Show All reveals the older calls');
+  assert.equal(elements.get('qa-report-visibility').textContent, 'Showing all 3 matching calls.');
   window.qaToggleReportRows();
-  assert.doesNotMatch(elements.get('qa-report-body').innerHTML, /Pending Agent/, 'Show Recent Only returns to the newest call');
+  assert.doesNotMatch(elements.get('qa-report-body').innerHTML, /Older Agent/, 'Show Today Only returns to today\'s calls');
   set('qa-filter-outcome', 'Valid');
   window.qaRenderReport();
   assert.match(elements.get('qa-report-body').innerHTML, /No call reviews match/);
@@ -315,7 +322,8 @@ class FakeElement {
 
   window.qaExportCSV('recent');
   assert.match(exportedCsv, /Alice Example/);
-  assert.doesNotMatch(exportedCsv, /Pending Agent/);
+  assert.match(exportedCsv, /Pending Agent/);
+  assert.doesNotMatch(exportedCsv, /Older Agent/);
   assert.ok(downloadedFiles.some(name => /^Call-QA-Report-Recent-.*\.csv$/.test(name)));
   window.qaExportCSV('all');
   assert.match(exportedCsv, /Call Number/);
@@ -323,6 +331,7 @@ class FakeElement {
   assert.match(exportedCsv, /Coaching action plan/);
   assert.match(exportedCsv, /Practice the revenue qualification question/);
   assert.match(exportedCsv, /Pending Agent/);
+  assert.match(exportedCsv, /Older Agent/);
   assert.ok(downloadedFiles.some(name => /^Call-QA-Report-All-.*\.csv$/.test(name)));
 
   window.qaPrintReview(Object.keys(database)[0]);
@@ -371,7 +380,7 @@ class FakeElement {
 
   await window.qaPreviewImportFile({ name: 'Previously exported QA.csv', size: exportedCsv.length, text: async () => exportedCsv });
   assert.match(elements.get('qa-import-summary').textContent, /0 call\(s\) ready to import/);
-  assert.match(elements.get('qa-import-summary').textContent, /2 duplicate\(s\) skipped/);
+  assert.match(elements.get('qa-import-summary').textContent, /3 duplicate\(s\) skipped/);
   assert.equal(elements.get('qa-import-confirm').disabled, true);
   window.qaCancelImport();
 
@@ -394,7 +403,7 @@ class FakeElement {
   pdfCapture.tables.length = 0;
   pdfCapture.imageCount = 0;
   await window.qaExportPDF('recent');
-  assert.equal(pdfCapture.tables[pdfCapture.tables.length - 1].body.length, 1, 'Recent PDF includes only the newest matching call');
+  assert.equal(pdfCapture.tables[pdfCapture.tables.length - 1].body.length, 2, 'Recent PDF includes every call added today');
   assert.equal(pdfCapture.imageCount, 2, 'Recent PDF Overview embeds both report charts');
   assert.ok(downloadedFiles.some(name => /^Call_QA_Report_Recent_.*\.pdf$/.test(name)));
   await window.qaExportPDF('all');
@@ -412,6 +421,7 @@ class FakeElement {
   assert.match(qaMarkup, /id="qa-filter-agent-search"[^>]*onclick="qaApplyAgentFilter\(\)"/);
   assert.match(qaMarkup, /onkeydown="if\(event\.key==='Enter'/);
   assert.match(qaMarkup, /id="qa-report-toggle"[^>]*onclick="qaToggleReportRows\(\)"/);
+  assert.match(qaMarkup, /<th>Finding \/ evidence<\/th><th>Coaching tip<\/th><th>Action plan<\/th>/);
   assert.doesNotMatch(qaMarkup, /qa-stat-coaching|qa-stat-score/);
   assert.match(qaMarkup, /Professional Call QA Report/);
   assert.match(qaMarkup, /id="qa-export-pdf-recent"[^>]*onclick="qaExportPDF\('recent'\)"/);
