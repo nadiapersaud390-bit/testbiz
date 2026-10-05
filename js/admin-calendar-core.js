@@ -30,10 +30,10 @@ function normalizeRoster(source){
  const entries=Array.isArray(source)?source.map(p=>[null,p]):Object.entries(source||{}),seen=new Set(),rows=[];
  entries.forEach(([key,p])=>{
   if(!p||typeof p!=='object')return;
-  const id=String(p.userId||p.userID||p.ytelId||p.id||p.agentId||p.agentID||p.userid||key||'').trim();
+  const id=String(p.userId||p.userID||p.ytelId||p.ytel_id||p.id||p.agentId||p.agentID||p.agent_id||p.userid||p.uid||key||'').trim();
   if(!id||seen.has(id.toLowerCase())||p.hidden||['inactive','deleted','archived','quit','fired','replaced'].includes(String(p.status||'').toLowerCase()))return;
   seen.add(id.toLowerCase());
-  rows.push({...p,userId:id,fullName:String(p.fullName||p.name||p.agentName||p.ytelName||id).trim()});
+  rows.push({...p,userId:id,fullName:String(p.fullName||p.full_name||p.name||p.agentName||p.agent_name||p.ytelName||p.ytel_name||id).trim()});
  });
  return rows.sort((a,b)=>a.fullName.localeCompare(b.fullName));
 }

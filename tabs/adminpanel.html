@@ -807,6 +807,8 @@ async function switchAdminHubTab(tabId) {
         return;
     }
 
+    if (tabId === 'qa' && typeof window.qaInit === 'function') await window.qaInit();
+
     if (tabId === 'stats' && typeof renderAgentStatsHistory === 'function') setTimeout(renderAgentStatsHistory, 100);
     if (tabId === 'rebuttals') setTimeout(loadRebuttalIntel, 100);
     if (tabId === 'performance') setTimeout(loadWeeklyPerformance, 100);

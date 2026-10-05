@@ -110,13 +110,30 @@ window.filterDeletedAgents = function(arr) {
 let _activeAgentRosterCache = [];
 try {
     const cachedRoster = JSON.parse(localStorage.getItem('biz_master_roster') || '[]');
-    if (Array.isArray(cachedRoster)) _activeAgentRosterCache = cachedRoster;
+    if (Array.isArray(cachedRoster) || (cachedRoster && typeof cachedRoster === 'object')) _activeAgentRosterCache = _normalizeMasterRoster(cachedRoster);
 } catch (_) {}
 function _normalizeRosterName(value) {
     return _normalizeAgentToken(value)
         .replace(/^(gyp|gyb|gtm|rm)\s+/, '')
         .replace(/\s*\((bb|pr|rm|berbice|providence|remote)\)\s*$/i, '')
         .trim();
+}
+function _normalizeMasterRoster(source) {
+    const entries = Array.isArray(source)
+        ? source.map(profile => [null, profile])
+        : (source && typeof source === 'object' ? Object.entries(source) : []);
+    return entries.map(([key, profile]) => {
+        if (!profile || typeof profile !== 'object' || Array.isArray(profile)) return null;
+        const id = [profile.userId, profile.userID, profile.ytelId, profile.ytel_id, profile.id, profile.agentId, profile.agentID, profile.agent_id, profile.userid, profile.uid, key]
+            .find(value => value != null && String(value).trim() !== '');
+        const name = [profile.fullName, profile.full_name, profile.name, profile.agentName, profile.agent_name, profile.ytelName, profile.ytel_name]
+            .find(value => value != null && String(value).trim() !== '');
+        return {
+            ...profile,
+            ...(id != null ? { userId: String(id).trim() } : {}),
+            ...(name != null ? { fullName: String(name).trim() } : {})
+        };
+    }).filter(Boolean);
 }
 function _rebuildDeletedAgentIndexes() {
     _deletedAgentIdSet = new Set();
@@ -214,9 +231,9 @@ if (database) {
 }
 if (database) {
     onValue(ref(database, 'biz_master_roster'), snap => {
-        let roster = snap.val() || [];
-        if (!Array.isArray(roster)) roster = Object.values(roster);
-        _activeAgentRosterCache = roster.filter(Boolean);
+        let roster = _normalizeMasterRoster(snap.val() || []);
+        if (window.filterDeletedAgents) roster = window.filterDeletedAgents(roster);
+        _activeAgentRosterCache = roster;
         _rebuildActiveRosterIndexes();
         _invalidateAgentReportFilterCache();
         try { localStorage.setItem('biz_master_roster', JSON.stringify(_activeAgentRosterCache)); } catch (_) {}
@@ -1507,8 +1524,7 @@ window.saveLiveDashboardState = async function(stateObj) {
 window.listenForMasterRoster = function(callback, errorCallback) {
     if (!database) return null;
     return onValue(ref(database, 'biz_master_roster'), (snapshot) => {
-        let roster = snapshot.val() || [];
-        if (!Array.isArray(roster)) roster = Object.values(roster);
+        let roster = _normalizeMasterRoster(snapshot.val() || []);
         if (callback) callback(window.filterDeletedAgents ? window.filterDeletedAgents(roster) : roster);
     }, (error) => {
         if (errorCallback) errorCallback(error);

@@ -27,7 +27,7 @@ class FakeElement {
     rtdbRef: path => ({ path }),
     // Simulate a silent/broken live roster listener; the one-time read should populate the picker.
     listenForMasterRoster: (_callback, onError) => { queueMicrotask(() => onError(new Error('listener unavailable'))); return () => {}; },
-    rtdbGet: async () => ({ val: () => [{ userId: 'agent-42', fullName: 'Taylor Example', team: 'BB' }] }),
+    rtdbGet: async () => ({ val: () => ({ 'agent-42': { fullName: 'Taylor Example', team: 'BB' } }) }),
     rtdbOnValue: () => () => {},
     addEventListener() {}
   };
@@ -49,6 +49,7 @@ class FakeElement {
   await new Promise(resolve => setImmediate(resolve));
 
   assert.match(elements.get('qa-agent').innerHTML, /Taylor Example/);
+  assert.match(elements.get('qa-agent').innerHTML, /value="agent-42"/);
   assert.equal(elements.get('qa-agent-status').textContent, '1 active agent loaded.');
   console.log('QA agent selector fallback: failed listener recovers the active Firebase roster.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

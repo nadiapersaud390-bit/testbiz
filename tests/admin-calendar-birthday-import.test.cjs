@@ -13,6 +13,10 @@ const mixedIdRoster = C.normalizeRoster({
 assert.deepEqual(JSON.parse(JSON.stringify(mixedIdRoster.map(agent => [agent.userId, agent.fullName]))), [
   ['201', 'Ada Example'], ['202', 'Grace Hopper']
 ], 'the calendar roster accepts Firebase key, ytelId, and userID identifiers while filtering inactive agents');
+const legacyFieldRoster = C.normalizeRoster({ '205': { full_name: 'Legacy Agent', ytel_name: 'GYB Legacy Agent' } });
+assert.deepEqual(JSON.parse(JSON.stringify(legacyFieldRoster.map(agent => [agent.userId, agent.fullName]))), [
+  ['205', 'Legacy Agent']
+], 'the calendar accepts keyed rosters with legacy snake-case fields');
 const roster = [
   { userId: '101', fullName: 'Ada Example', team: 'BB' },
   { userId: '102', fullName: 'Grace Hopper', team: 'PR' },
@@ -73,6 +77,7 @@ const calendarUI = fs.readFileSync(require.resolve('../js/admin-calendar.js'), '
 assert.match(calendarUI, /data-action="birthday-upload"/);
 assert.match(calendarUI, /C\.normalizeRoster\(v\)/, 'the calendar normalizes roster ID variants before agent matching');
 assert.match(calendarUI, /No active agents are loaded/, 'the uploader explains when it cannot match without a roster');
-assert.match(calendarUI, /accept="\.xlsx,\.csv/);
+assert.match(calendarUI, /accept="\.xlsx,\.xls,\.xlsm,\.csv/);
+assert.match(calendarUI, /SpreadsheetImport\.readRows\(file\)/, 'the birthday uploader uses the shared workbook reader');
 assert.match(calendarUI, /rtdbUpdate\(ref\('admin_calendar\/birthdays'\),updates\)/);
 console.log('Calendar birthday import: Excel-style headers, date parsing, roster matching, duplicate and inactive handling, and annual recurrence passed.');

@@ -142,6 +142,20 @@ class FakeElement {
   const makeCanvas = () => ({ width: 0, height: 0, getContext: () => canvasContext, toDataURL: () => 'data:image/png;base64,cG5n' });
   const window = {
     allAgentProfiles: [{ userId: '1001', fullName: 'Alice Example', team: 'BB' }],
+    SpreadsheetImport: {
+      readRows: async file => {
+        assert.equal(file.name, 'Earlier Call Report.xlsx');
+        return [
+          ['Agent', 'Date', 'Outcome'],
+          ['Daily total', '2026-10-02', '2 calls'],
+          [],
+          ['Report date', '10-02-2026'],
+          ['Call Number', 'Agent', 'Date', 'Customer Number', 'Outcome', 'Primary Reason', 'Review Finding'],
+          ['CALL-XLSX-1', 'Historical Agent Seven', new Date(2026, 9, 2), '5926007771', 'Invalid', 'Trucking', 'Summary sheet must not replace call details.'],
+          ['CALL-XLSX-2', 'Historical Agent Eight', new Date(2026, 9, 2), '5926007772', 'Invalid', 'Under $200k revenue', 'The detail table imports from Excel.']
+        ];
+      }
+    },
     canAccessAdminHubTab: () => true,
     filterDeletedAgents: list => list,
     rtdbRef: path => ({ path }),

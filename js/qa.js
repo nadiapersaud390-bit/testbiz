@@ -68,12 +68,25 @@
     }
 
     function normalizeRoster(source) {
-        let list = Array.isArray(source) ? source.slice() : (source && typeof source === 'object' ? Object.values(source) : []);
+        let list = Array.isArray(source)
+            ? source.map(function (agent) { return [null, agent]; })
+            : (source && typeof source === 'object' ? Object.entries(source) : []);
+        list = list.map(function (entry) {
+            const key = entry[0];
+            const agent = entry[1];
+            if (!agent || typeof agent !== 'object' || Array.isArray(agent)) return null;
+            const id = [agent.userId, agent.userID, agent.ytelId, agent.ytel_id, agent.id, agent.agentId, agent.agentID, agent.agent_id, agent.userid, agent.uid, key]
+                .find(function (value) { return value != null && String(value).trim() !== ''; });
+            const name = [agent.fullName, agent.full_name, agent.name, agent.agentName, agent.agent_name, agent.ytelName, agent.ytel_name]
+                .find(function (value) { return value != null && String(value).trim() !== ''; });
+            return Object.assign({}, agent, id != null ? { userId: String(id).trim() } : {}, name != null ? { fullName: String(name).trim() } : {});
+        }).filter(Boolean);
         if (typeof window.filterDeletedAgents === 'function') list = window.filterDeletedAgents(list);
         const seen = new Set();
         return list.filter(function (agent) {
-            if (!agent || String(agent.status || '').toLowerCase() === 'inactive') return false;
-            const id = String(agent.userId || agent.userID || agent.ytelId || agent.id || agent.agentId || agent.agentID || agent.userid || '').trim();
+            if (!agent || agent.hidden) return false;
+            if (['inactive', 'deleted', 'disabled', 'archived', 'quit', 'fired', 'replaced'].includes(String(agent.status || '').toLowerCase())) return false;
+            const id = String(agent.userId || agent.userID || agent.ytelId || agent.id || agent.agentId || agent.agentID || agent.userid || agent.uid || '').trim();
             if (!id || seen.has(id.toLowerCase())) return false;
             seen.add(id.toLowerCase());
             return true;
@@ -513,20 +526,14 @@
         if (input) { input.value = ''; input.click(); }
     };
 
-    function importCellText(cell, workbook) {
-        let value = cell && typeof cell === 'object' && 'value' in cell ? cell.value : cell;
+    function importCellText(value) {
         if (value == null) return '';
-        if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        if (Object.prototype.toString.call(value) === '[object Date]' && !Number.isNaN(value.getTime())) {
             return value.getFullYear() + '-' + String(value.getMonth() + 1).padStart(2, '0') + '-' + String(value.getDate()).padStart(2, '0');
-        }
-        if (typeof value === 'number' && cell && /[dmy]/i.test(String(cell.numFmt || ''))) {
-            const base = workbook.properties && workbook.properties.date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
-            const date = new Date(base + Math.round(value * 86400000));
-            return date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0') + '-' + String(date.getUTCDate()).padStart(2, '0');
         }
         if (typeof value === 'object') {
             if (Array.isArray(value.richText)) return value.richText.map(function (part) { return part.text || ''; }).join('');
-            if (value.result != null) return importCellText({ value: value.result }, workbook);
+            if (value.result != null) return importCellText(value.result);
             if (value.text != null) return String(value.text);
             if (value.hyperlink) return String(value.text || value.hyperlink);
             return '';
@@ -540,31 +547,9 @@
     }
 
     async function readExcelImport(file) {
-        if (!window.ExcelJS || !window.ExcelJS.Workbook) await loadExportScript('js/vendor/exceljs.min.js');
-        if (!window.ExcelJS || !window.ExcelJS.Workbook) throw new Error('Excel workbook support did not load.');
-        if (typeof file.arrayBuffer !== 'function') throw new Error('This browser could not read the workbook. Save it as CSV and try again.');
-        const workbook = new window.ExcelJS.Workbook();
-        await workbook.xlsx.load(await file.arrayBuffer());
-        const outputRows = [];
-        (workbook.worksheets || []).forEach(function (worksheet) {
-            if (outputRows.length) outputRows.push([]);
-            const sheetRows = [];
-            const maxColumns = Number(worksheet.columnCount) || 0;
-            worksheet.eachRow({ includeEmpty: true }, function (row) {
-                const rowValues = row.values || [];
-                const columns = Math.max(maxColumns, rowValues.length - 1);
-                const values = [];
-                for (let index = 1; index <= columns; index += 1) {
-                    const cell = typeof row.getCell === 'function' ? row.getCell(index) : rowValues[index];
-                    values.push(importCellText(cell, workbook));
-                }
-                if (!values.some(function (value) { return String(value || '').trim(); })) return;
-                sheetRows.push(values);
-            });
-            while (sheetRows.length && !sheetRows[sheetRows.length - 1].some(function (value) { return String(value || '').trim(); })) sheetRows.pop();
-            Array.prototype.push.apply(outputRows, sheetRows);
-        });
-        return outputRows.map(function (row) { return row.map(quoteImportCSV).join(','); }).join('\r\n');
+        if (!window.SpreadsheetImport || typeof window.SpreadsheetImport.readRows !== 'function') throw new Error('Excel workbook support did not load. Refresh the page and try again.');
+        const outputRows = await window.SpreadsheetImport.readRows(file);
+        return outputRows.map(function (row) { return row.map(function (value) { return quoteImportCSV(importCellText(value)); }).join(','); }).join('\r\n');
     }
 
     window.qaPreviewImportFile = async function (file) {

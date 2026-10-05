@@ -79,12 +79,12 @@ class FakeElement {
   await window.qaInit();
 
   assert.equal(elements.get('qa-agent').innerHTML.includes('Alice Example'), false);
-  rosterCallback([
-    { userId: '1001', fullName: 'Alice Example', team: 'BB' },
-    { ytelId: '1002', name: 'Bob Example', location: 'RM' },
-    { userId: 'deleted', fullName: 'Old Agent', team: 'PR' },
-    { userId: '1003', fullName: 'Inactive Agent', status: 'Inactive' }
-  ]);
+  rosterCallback({
+    '1001': { fullName: 'Alice Example', team: 'BB' },
+    '1002': { name: 'Bob Example', location: 'RM' },
+    deleted: { fullName: 'Old Agent', team: 'PR' },
+    '1003': { fullName: 'Inactive Agent', status: 'Inactive' }
+  });
 
   const select = elements.get('qa-agent');
   assert.match(select.innerHTML, /Alice Example/);
