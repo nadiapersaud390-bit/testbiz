@@ -29,6 +29,11 @@
     let qaAgentBound = false;
     let qaRosterBound = false;
     let qaRosterListener = null;
+    let qaImportText = '';
+    let qaImportFileName = '';
+    let qaImportRecords = [];
+    let qaImportInvalidRows = 0;
+    let qaImportDuplicates = 0;
 
     function esc(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
@@ -225,9 +230,294 @@
         const lower = reason.toLowerCase();
         if (lower === 'attorney') return 'Attorney / Legal';
         if (lower === 'unqualified') return 'Unqualified business';
+        if (lower === 'no qualified') return 'No qualified call';
         if (lower === 'unclear audio') return 'Unclear / Incomplete Record';
         return reason;
     }
+
+    function parseCSV(text) {
+        const rows = [];
+        let row = [];
+        let cell = '';
+        let quoted = false;
+        const source = String(text || '').replace(/^\uFEFF/, '');
+        for (let i = 0; i < source.length; i += 1) {
+            const ch = source[i];
+            if (quoted) {
+                if (ch === '"' && source[i + 1] === '"') { cell += '"'; i += 1; }
+                else if (ch === '"') quoted = false;
+                else cell += ch;
+            } else if (ch === '"') {
+                quoted = true;
+            } else if (ch === ',') {
+                row.push(cell); cell = '';
+            } else if (ch === '\n') {
+                row.push(cell); rows.push(row); row = []; cell = '';
+            } else if (ch !== '\r') {
+                cell += ch;
+            }
+        }
+        if (cell.length || row.length) { row.push(cell); rows.push(row); }
+        return rows;
+    }
+
+    function importHeaderKey(value) {
+        return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    function findImportColumn(headers, aliases) {
+        const keys = headers.map(importHeaderKey);
+        for (let i = 0; i < aliases.length; i += 1) {
+            const index = keys.indexOf(importHeaderKey(aliases[i]));
+            if (index >= 0) return index;
+        }
+        return -1;
+    }
+
+    function parseImportDate(value, dateFormat) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (iso) {
+            const y = Number(iso[1]), m = Number(iso[2]), d = Number(iso[3]);
+            const check = new Date(y, m - 1, d);
+            return check.getFullYear() === y && check.getMonth() === m - 1 && check.getDate() === d ? y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0') : '';
+        }
+        const numeric = raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+        if (numeric) {
+            const first = Number(numeric[1]), second = Number(numeric[2]);
+            let year = Number(numeric[3]);
+            if (year < 100) year += year < 70 ? 2000 : 1900;
+            let month, day;
+            if (first > 12) { day = first; month = second; }
+            else if (second > 12) { month = first; day = second; }
+            else if (dateFormat === 'DMY') { day = first; month = second; }
+            else { month = first; day = second; }
+            const check = new Date(year, month - 1, day);
+            return check.getFullYear() === year && check.getMonth() === month - 1 && check.getDate() === day ? year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0') : '';
+        }
+        const parsed = new Date(raw);
+        return Number.isNaN(parsed.getTime()) ? '' : parsed.getFullYear() + '-' + String(parsed.getMonth() + 1).padStart(2, '0') + '-' + String(parsed.getDate()).padStart(2, '0');
+    }
+
+    function importScorecardText(text, section, scorecard) {
+        String(text || '').split(/\s*\|\s*/).forEach(function (part) {
+            const colon = part.lastIndexOf(':');
+            if (colon < 0) return;
+            const label = importHeaderKey(part.slice(0, colon));
+            const rating = part.slice(colon + 1).trim();
+            const item = SCORECARD_ITEMS.find(function (candidate) {
+                return candidate.section === section && (importHeaderKey(candidate.label) === label || importHeaderKey(candidate.key) === label);
+            });
+            if (item && ['Meets standard', 'Needs coaching', 'Not applicable'].includes(rating)) scorecard[item.key] = rating;
+        });
+    }
+
+    function parseImportRows(text, fileName, dateFormat) {
+        const rows = parseCSV(text);
+        if (rows.length > 1001) return { records: [], skipped: 0, hasCallNumber: false, error: 'This import is over the 1,000-row limit. Split it into smaller CSV files and try again.' };
+        const headerIndex = rows.findIndex(function (row) {
+            const hasAgent = findImportColumn(row, ['Agent', 'Agent name', 'Representative']) >= 0;
+            const hasDate = findImportColumn(row, ['Date', 'Call date', 'Review date']) >= 0;
+            const hasDetails = findImportColumn(row, ['Primary reason', 'Review finding', 'Finding', 'Call Number', 'Call ID', 'Outcome']) >= 0;
+            return hasAgent && hasDate && hasDetails;
+        });
+        if (headerIndex < 0) return { records: [], skipped: 0, hasCallNumber: false, error: 'Could not find a call table with Agent and Date columns.' };
+        const headers = rows[headerIndex];
+        const column = function (aliases) { return findImportColumn(headers, aliases); };
+        const columns = {
+            date: column(['Date', 'Call date', 'Review date']), agent: column(['Agent name', 'Agent', 'Representative']), agentId: column(['Agent ID', 'Agent number', 'User ID']),
+            team: column(['Team', 'Group', 'Location']), callNumber: column(['Call Number', 'Call Reference', 'Call Ref', 'Call ID']),
+            customerNumber: column(['Customer Number', 'Customer Phone', 'Phone Number', 'Phone', 'Lead Number']),
+            callType: column(['Call Type', 'Type']), outcome: column(['Outcome', 'Final Outcome', 'Status']),
+            primaryReason: column(['Primary Reason', 'Reason']), additionalReason: column(['Additional Reason']),
+            issueSource: column(['Issue Source', 'Source']), finding: column(['Review Finding', 'Review Finding and Evidence', 'Review Finding / Evidence', 'Finding', 'Call Notes']),
+            strengths: column(['Strengths', 'What Went Well']), coachingTip: column(['Coaching Tip', 'Coaching']), actionPlan: column(['Coaching Action Plan', 'Action Plan']),
+            followUp: column(['Follow-up Needed', 'Needs Follow-up', 'Coaching Follow-up']), followUpDate: column(['Follow-up Date']),
+            qaNotes: column(['QA Notes', 'Reviewer Notes']), reviewer: column(['Reviewer', 'Reviewed By']),
+            agentScorecard: column(['Agent Scorecard']), specialistScorecard: column(['Loan Specialist Scorecard'])
+        };
+        const preamble = rows.slice(0, headerIndex).flat().join(' ');
+        let reportDateRaw = '';
+        rows.slice(0, headerIndex).forEach(function (row) {
+            if (importHeaderKey(row[0]) === 'reportdate') reportDateRaw = row[1] || '';
+        });
+        const reportDate = parseImportDate(reportDateRaw, dateFormat);
+        const fileHint = (preamble + ' ' + String(fileName || '')).toLowerCase();
+        const defaultOutcome = /\binvalid\b/.test(fileHint) ? 'Invalid' : 'Pending';
+        const inferredTeam = cleanTeam(preamble);
+        const activeAgents = roster();
+        const agentNameKey = function (name) { return String(name || '').replace(/^GYB[\s:-]+/i, '').toLowerCase().replace(/[^a-z0-9]/g, ''); };
+        const cell = function (row, index) { return index >= 0 ? String(row[index] || '').trim() : ''; };
+        const records = [];
+        let skipped = 0;
+        rows.slice(headerIndex + 1).forEach(function (row) {
+            if (!row.some(function (value) { return String(value || '').trim(); })) return;
+            const agentRaw = cell(row, columns.agent);
+            const parsedDate = parseImportDate(cell(row, columns.date) || reportDateRaw, dateFormat);
+            if (!agentRaw || !parsedDate) { skipped += 1; return; }
+            const matchedAgent = activeAgents.find(function (agent) {
+                const name = agent.fullName || agent.name || agent.agentName || agent.ytelName;
+                return agentNameKey(name) === agentNameKey(agentRaw);
+            });
+            const scorecard = {};
+            importScorecardText(cell(row, columns.agentScorecard), 'Agent', scorecard);
+            importScorecardText(cell(row, columns.specialistScorecard), 'Loan specialist', scorecard);
+            const directRatings = {};
+            SCORECARD_ITEMS.forEach(function (item) {
+                const ratingColumn = column([item.key, item.label]);
+                const rating = cell(row, ratingColumn);
+                if (['Meets standard', 'Needs coaching', 'Not applicable'].includes(rating)) directRatings[item.key] = rating;
+            });
+            Object.assign(scorecard, directRatings);
+            const rawOutcome = cell(row, columns.outcome).toLowerCase();
+            const outcome = rawOutcome.indexOf('valid') === 0 ? 'Valid' : (rawOutcome.indexOf('invalid') === 0 ? 'Invalid' : (rawOutcome.indexOf('pending') === 0 ? 'Pending' : defaultOutcome));
+            const rawReason = cell(row, columns.primaryReason);
+            const rawAdditionalReason = cell(row, columns.additionalReason);
+            const followUpRaw = cell(row, columns.followUp).toLowerCase();
+            const hasFollowUp = ['yes', 'true', 'required', '1'].includes(followUpRaw) || SCORECARD_ITEMS.some(function (item) { return scorecard[item.key] === 'Needs coaching'; });
+            const matchedId = matchedAgent ? String(matchedAgent.userId || matchedAgent.userID || matchedAgent.ytelId || matchedAgent.id || matchedAgent.agentId || '') : '';
+            records.push({
+                date: parsedDate,
+                agentId: cell(row, columns.agentId) || matchedId,
+                agentName: matchedAgent ? String(matchedAgent.fullName || matchedAgent.name || matchedAgent.agentName || matchedAgent.ytelName || agentRaw) : agentRaw,
+                team: cleanTeam(cell(row, columns.team)) || (matchedAgent ? cleanTeam(matchedAgent.team || matchedAgent.group || matchedAgent.location) : '') || inferredTeam,
+                callType: cell(row, columns.callType),
+                callNumber: cell(row, columns.callNumber),
+                customerNumber: cell(row, columns.customerNumber),
+                loanSpecialist: cell(row, column(['Loan Specialist', 'Specialist'])),
+                outcome: outcome,
+                primaryReason: rawReason ? normalizeReason(rawReason) : '',
+                additionalReason: rawAdditionalReason ? normalizeReason(rawAdditionalReason) : '',
+                issueSource: cell(row, columns.issueSource),
+                scorecard: scorecard,
+                qaNotes: cell(row, columns.qaNotes) || ('Imported from ' + String(fileName || 'previous call report')),
+                reviewFinding: cell(row, columns.finding),
+                strengths: cell(row, columns.strengths),
+                coachingTip: cell(row, columns.coachingTip),
+                actionPlan: cell(row, columns.actionPlan),
+                needsFollowUp: hasFollowUp,
+                followUpDate: cell(row, columns.followUpDate),
+                reviewerName: cell(row, columns.reviewer) || 'Imported legacy report',
+                reviewerEmail: '',
+                importedFromFile: String(fileName || 'previous call report')
+            });
+        });
+        return { records: records, skipped: skipped, hasCallNumber: columns.callNumber >= 0 };
+    }
+
+    function importFingerprint(record) {
+        const callNumber = String(record.callNumber || '').trim().toLowerCase();
+        const customerNumber = String(record.customerNumber || '').replace(/\D/g, '');
+        const finding = String(record.reviewFinding || '').replace(/\s+/g, ' ').trim().toLowerCase();
+        if (!callNumber && !customerNumber && !finding) return '';
+        return [asDate(record), String(record.agentId || record.agentName || '').trim().toLowerCase(), callNumber, customerNumber,
+            normalizeReason(record.primaryReason).toLowerCase(), finding].join('|');
+    }
+
+    function renderImportPreview() {
+        const preview = $('qa-import-preview');
+        if (!preview) return;
+        preview.hidden = false;
+        const dateFormat = $('qa-import-date-format') ? $('qa-import-date-format').value || 'MDY' : 'MDY';
+        const parsed = parseImportRows(qaImportText, qaImportFileName, dateFormat);
+        const seen = new Set();
+        qaRecords.forEach(function (record) { const key = importFingerprint(record); if (key) seen.add(key); });
+        qaImportRecords = [];
+        qaImportDuplicates = 0;
+        qaImportInvalidRows = parsed.skipped || 0;
+        (parsed.records || []).forEach(function (record) {
+            const key = importFingerprint(record);
+            if (key && seen.has(key)) { qaImportDuplicates += 1; return; }
+            if (key) seen.add(key);
+            qaImportRecords.push(record);
+        });
+        const summary = $('qa-import-summary');
+        if (summary) summary.textContent = parsed.error || (qaImportRecords.length + ' call(s) ready to import · ' + qaImportInvalidRows + ' row(s) skipped · ' + qaImportDuplicates + ' duplicate(s) skipped.' + (qaImportRecords.length > 8 ? ' Preview shows the first 8 calls.' : ''));
+        const callNumberNote = $('qa-import-call-number-note');
+        if (callNumberNote) callNumberNote.textContent = parsed.hasCallNumber ? 'Call Number values will be imported when present.' : 'This file has no Call Number column, so imported calls will leave it blank.';
+        const body = $('qa-import-preview-body');
+        if (body) {
+            body.innerHTML = qaImportRecords.length ? qaImportRecords.slice(0, 8).map(function (record) {
+                return '<tr><td>' + esc(record.date) + '</td><td>' + esc(record.agentName) + '</td><td>' + esc(record.callNumber || '—') + '</td><td>' + esc(record.customerNumber || '—') + '</td><td>' + outcomeMarkup(record.outcome) + '</td><td>' + esc(record.primaryReason || 'Not provided') + '</td><td>' + esc(record.reviewFinding || '—') + '</td></tr>';
+            }).join('') : '<tr><td colspan="7" class="qa-empty">' + esc(parsed.error || 'No importable call rows were found.') + '</td></tr>';
+        }
+        const button = $('qa-import-confirm');
+        if (button) {
+            button.disabled = !qaImportRecords.length;
+            button.textContent = qaImportRecords.length ? 'Import ' + qaImportRecords.length + (qaImportRecords.length === 1 ? ' Call' : ' Calls') : 'Import Calls';
+        }
+        setStatus('qa-import-status', parsed.error || '', parsed.error ? 'error' : '');
+    }
+
+    window.qaChooseImportFile = function () {
+        const input = $('qa-import-file');
+        if (input) { input.value = ''; input.click(); }
+    };
+
+    window.qaPreviewImportFile = async function (file) {
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+            setStatus('qa-report-status', 'Choose a CSV file smaller than 5 MB.', 'error');
+            return;
+        }
+        if (typeof file.text !== 'function') {
+            setStatus('qa-report-status', 'This browser could not read the CSV file. Save it as CSV and try again.', 'error');
+            return;
+        }
+        try {
+            qaImportText = await file.text();
+            qaImportFileName = file.name || 'previous call report.csv';
+            if ($('qa-import-date-format')) $('qa-import-date-format').value = 'MDY';
+            renderImportPreview();
+        } catch (error) {
+            setStatus('qa-report-status', 'Could not read the CSV file.', 'error');
+        }
+    };
+
+    window.qaReparseImport = function () {
+        if (qaImportText) renderImportPreview();
+    };
+
+    window.qaCancelImport = function () {
+        qaImportText = '';
+        qaImportFileName = '';
+        qaImportRecords = [];
+        qaImportDuplicates = 0;
+        qaImportInvalidRows = 0;
+        if ($('qa-import-file')) $('qa-import-file').value = '';
+        if ($('qa-import-preview')) $('qa-import-preview').hidden = true;
+        if ($('qa-import-preview-body')) $('qa-import-preview-body').innerHTML = '';
+        if ($('qa-import-summary')) $('qa-import-summary').textContent = '';
+        setStatus('qa-import-status', '', '');
+    };
+
+    window.qaCommitImport = async function () {
+        if (!hasQAAccess()) { setStatus('qa-import-status', 'You do not have permission to import QA reports.', 'error'); return; }
+        if (!qaImportRecords.length) { setStatus('qa-import-status', 'There are no new call records to import.', 'error'); return; }
+        if (!window.rtdbRef || !window.rtdbUpdate) { setStatus('qa-import-status', 'Firebase is still connecting. Please try again in a moment.', 'error'); return; }
+        const button = $('qa-import-confirm');
+        if (button) { button.disabled = true; button.textContent = 'Importing…'; }
+        const now = new Date().toISOString();
+        const imported = qaImportRecords.map(function (record, index) {
+            const id = 'qa-import-' + Date.now() + '-' + index + '-' + Math.random().toString(36).slice(2, 7);
+            return { id: id, record: Object.assign({}, record, { createdAt: now, updatedAt: now, importedAt: now }) };
+        });
+        const updates = {};
+        imported.forEach(function (entry) { updates[entry.id] = entry.record; });
+        try {
+            await window.rtdbUpdate(window.rtdbRef(QA_PATH), updates);
+            const knownIds = new Set(qaRecords.map(function (record) { return String(record.id || ''); }));
+            qaRecords = qaRecords.concat(imported.filter(function (entry) { return !knownIds.has(entry.id); }).map(function (entry) { return Object.assign({ id: entry.id }, entry.record); }));
+            window.qaRenderReport();
+            const importedCount = imported.length;
+            window.qaCancelImport();
+            setStatus('qa-report-status', importedCount + (importedCount === 1 ? ' previous call was' : ' previous calls were') + ' added to the QA report.', 'success');
+        } catch (error) {
+            setStatus('qa-import-status', 'Import failed. No report rows were added. ' + (error && error.message ? error.message : ''), 'error');
+            if (button) { button.disabled = false; button.textContent = 'Import ' + qaImportRecords.length + ' Calls'; }
+        }
+    };
 
     function reasonMatches(record, selectedReason) {
         const selected = normalizeReason(selectedReason).toLowerCase();
@@ -265,14 +555,37 @@
         return Math.round(meets * 100 / ratings.length);
     }
 
+    function overviewChartData(records) {
+        const typeCounts = {};
+        const byAgent = {};
+        records.forEach(function (record) {
+            const callType = String(record.callType || '').trim();
+            if (callType) typeCounts[callType] = (typeCounts[callType] || 0) + 1;
+            const score = scorecardScore(record);
+            if (score === null) return;
+            const key = String(record.agentId || record.agentName || 'unknown').trim().toLowerCase();
+            if (!byAgent[key]) byAgent[key] = { label: record.agentName || record.agentId || 'Unknown agent', agentId: record.agentId || '', total: 0, count: 0 };
+            byAgent[key].total += score;
+            byAgent[key].count += 1;
+        });
+        return {
+            callTypes: Object.keys(typeCounts).map(function (label) { return { label: label, value: typeCounts[label] }; })
+                .sort(function (a, b) { return b.value - a.value || a.label.localeCompare(b.label); }).slice(0, 7),
+            agentQuality: Object.keys(byAgent).map(function (key) {
+                const item = byAgent[key];
+                return { label: item.label, agentId: item.agentId, value: Math.round(item.total / item.count), count: item.count };
+            }).sort(function (a, b) { return b.value - a.value || a.label.localeCompare(b.label); })
+        };
+    }
+
     function hasCoachingFlag(record) {
         return Boolean(record && (record.needsFollowUp || SCORECARD_ITEMS.some(function (item) {
             return record.scorecard && record.scorecard[item.key] === 'Needs coaching';
         })));
     }
 
-    function updateStats() {
-        const reportRecords = selectedReportRecords();
+    function updateStats(reportRecords) {
+        reportRecords = reportRecords || selectedReportRecords();
         const invalid = reportRecords.filter(function (r) { return String(r.outcome || '').toLowerCase() === 'invalid'; });
         const valid = reportRecords.filter(function (r) { return String(r.outcome || '').toLowerCase() === 'valid'; });
         const pending = reportRecords.filter(function (r) { return String(r.outcome || '').toLowerCase() === 'pending'; });
@@ -289,6 +602,31 @@
         if ($('qa-stat-invalid')) $('qa-stat-invalid').textContent = String(invalid.length);
         if ($('qa-stat-pending')) $('qa-stat-pending').textContent = String(pending.length);
         if ($('qa-stat-top-reason')) $('qa-stat-top-reason').textContent = top;
+    }
+
+    function chartBar(label, value, max, detail) {
+        const width = max > 0 ? Math.max(0, Math.min(100, value * 100 / max)) : 0;
+        return '<div class="qa-chart-row" role="listitem"><div class="qa-chart-label"><span title="' + esc(label) + '">' + esc(label) + '</span><strong>' + esc(detail) + '</strong></div><div class="qa-chart-track"><span style="width:' + width + '%"></span></div></div>';
+    }
+
+    function updateOverviewCharts(records) {
+        const chartData = overviewChartData(records);
+        const typeHost = $('qa-chart-call-types');
+        if (typeHost) {
+            const types = chartData.callTypes;
+            const maxType = types.reduce(function (max, item) { return Math.max(max, item.value); }, 0);
+            typeHost.innerHTML = types.length ? types.map(function (item) {
+                return chartBar(item.label, item.value, maxType, item.value + (item.value === 1 ? ' call' : ' calls'));
+            }).join('') : '<p class="qa-chart-empty">Call types have not been recorded in this report yet.</p>';
+        }
+
+        const qualityHost = $('qa-chart-agent-quality');
+        if (qualityHost) {
+            const agents = chartData.agentQuality;
+            qualityHost.innerHTML = agents.length ? agents.map(function (item) {
+                return chartBar(item.label, item.value, 100, item.value + '% avg · ' + item.count + (item.count === 1 ? ' review' : ' reviews'));
+            }).join('') : '<p class="qa-chart-empty">Agent quality appears after a scorecard has been completed.</p>';
+        }
     }
 
     function outcomeMarkup(outcome) {
@@ -321,10 +659,11 @@
     }
 
     window.qaRenderReport = function () {
-        updateStats();
+        const rows = selectedReportRecords();
+        updateStats(rows);
+        updateOverviewCharts(rows);
         const body = $('qa-report-body');
         if (!body) return;
-        const rows = selectedReportRecords();
         if ($('qa-report-count')) $('qa-report-count').textContent = rows.length + (rows.length === 1 ? ' matching call' : ' matching calls');
         if (!rows.length) {
             body.innerHTML = '<tr><td class="qa-empty" colspan="11">No call reviews match these filters yet.</td></tr>';
@@ -570,6 +909,295 @@
         URL.revokeObjectURL(url);
         setStatus('qa-report-status', rows.length + ' call review(s) exported.', 'success');
     };
+
+    const qaExportScripts = {};
+    function loadExportScript(src) {
+        if (qaExportScripts[src]) return qaExportScripts[src];
+        qaExportScripts[src] = new Promise(function (resolve, reject) {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = function () {
+                delete qaExportScripts[src];
+                script.remove();
+                reject(new Error('Export component could not load. Check that the js/vendor folder was uploaded.'));
+            };
+            document.head.appendChild(script);
+        });
+        return qaExportScripts[src];
+    }
+
+    function reportStats(rows) {
+        const valid = rows.filter(function (r) { return String(r.outcome || '').toLowerCase() === 'valid'; }).length;
+        const invalidRows = rows.filter(function (r) { return String(r.outcome || '').toLowerCase() === 'invalid'; });
+        const pending = rows.filter(function (r) { return String(r.outcome || '').toLowerCase() === 'pending'; }).length;
+        const reasons = {};
+        invalidRows.forEach(function (r) {
+            [r.primaryReason, r.additionalReason].filter(Boolean).map(normalizeReason).forEach(function (reason) {
+                reasons[reason] = (reasons[reason] || 0) + 1;
+            });
+        });
+        const scores = rows.map(scorecardScore).filter(function (score) { return score !== null; });
+        return {
+            reviewed: valid + invalidRows.length,
+            valid: valid,
+            invalid: invalidRows.length,
+            pending: pending,
+            topReason: Object.keys(reasons).sort(function (a, b) { return reasons[b] - reasons[a] || a.localeCompare(b); })[0] || 'None recorded',
+            averageScore: scores.length ? Math.round(scores.reduce(function (sum, score) { return sum + score; }, 0) / scores.length) : null
+        };
+    }
+
+    function reportFilterLines() {
+        const value = function (id) { return $(id) ? String($(id).value || '').trim() : ''; };
+        return [
+            'Date range: ' + (value('qa-filter-from') || 'Any') + ' to ' + (value('qa-filter-to') || 'Any'),
+            'Team: ' + (value('qa-filter-team') || 'All teams') + ' | Outcome: ' + (value('qa-filter-outcome') || 'All outcomes'),
+            'Reason: ' + (value('qa-filter-reason') || 'All reasons') + ' | Issue source: ' + (value('qa-filter-source') || 'All sources'),
+            'Agent search: ' + (value('qa-filter-agent') || 'All agents'),
+            'Generated: ' + new Date().toLocaleString('en-GB', { timeZone: 'America/Guyana' }) + ' (Guyana)'
+        ];
+    }
+
+    function drawQaChart(title, entries, kind) {
+        const shown = entries.slice(0, 10);
+        const canvas = document.createElement('canvas');
+        canvas.width = 1000;
+        canvas.height = Math.max(430, 105 + shown.length * 34);
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = '#193854';
+        context.font = 'bold 27px Arial';
+        context.fillText(title + (entries.length > shown.length ? ' (top 10)' : ''), 26, 42);
+        if (!shown.length) {
+            context.fillStyle = '#5b6878';
+            context.font = '20px Arial';
+            context.fillText(kind === 'quality' ? 'No rated scorecards in this report.' : 'No call types recorded in this report.', 28, 105);
+            return canvas;
+        }
+        const max = kind === 'quality' ? 100 : Math.max.apply(null, shown.map(function (item) { return item.value; }));
+        shown.forEach(function (item, index) {
+            const y = 72 + index * 34;
+            context.fillStyle = '#334155';
+            context.font = '17px Arial';
+            context.fillText(String(item.label).slice(0, 37), 25, y + 19, 310);
+            const x = 350, width = 540;
+            context.fillStyle = '#e8edf2';
+            context.fillRect(x, y, width, 23);
+            context.fillStyle = kind === 'quality' ? '#168c75' : '#1683a5';
+            context.fillRect(x, y, width * item.value / (max || 1), 23);
+            context.fillStyle = '#193854';
+            context.font = 'bold 16px Arial';
+            context.fillText(kind === 'quality' ? item.value + '% · ' + item.count + ' review(s)' : item.value + ' call(s)', 902, y + 18, 85);
+        });
+        return canvas;
+    }
+
+    function downloadExport(data, filename, mimeType) {
+        const url = URL.createObjectURL(new Blob([data], { type: mimeType }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+    }
+
+    function qaExportRows(rows) {
+        return rows.map(function (r) {
+            const score = scorecardScore(r);
+            return [
+                asDate(r), r.callType || '', r.agentName || '', r.agentId || '', cleanTeam(r.team) || r.team || '',
+                r.callNumber || r.callId || '', r.customerNumber || r.phoneLast4 || '', r.loanSpecialist || '', r.outcome || 'Pending',
+                r.primaryReason || '', r.additionalReason || '', r.issueSource || '', score === null ? '' : score,
+                ...SCORECARD_ITEMS.map(function (item) { return r.scorecard && r.scorecard[item.key] || ''; }),
+                r.reviewFinding || '', r.strengths || '', r.coachingTip || '', r.actionPlan || '', hasCoachingFlag(r) ? 'Yes' : 'No',
+                r.followUpDate || '', r.qaNotes || '', r.reviewerName || ''
+            ];
+        });
+    }
+
+    async function runQAExport(type) {
+        if (!hasQAAccess()) return;
+        const rows = selectedReportRecords();
+        if (!rows.length) {
+            setStatus('qa-report-status', 'There are no calls in the current report filters to export.', 'error');
+            return;
+        }
+        const button = $('qa-export-' + type);
+        if (button) button.disabled = true;
+        setStatus('qa-report-status', 'Preparing the ' + (type === 'pdf' ? 'PDF report' : 'Excel workbook') + '…', '');
+        try {
+            await (type === 'pdf'
+                ? Promise.all([loadExportScript('js/vendor/jspdf.umd.min.js'), loadExportScript('js/vendor/jspdf.plugin.autotable.min.js')])
+                : loadExportScript('js/vendor/exceljs.min.js'));
+            const file = 'Call_QA_Report_' + localToday();
+            if (type === 'pdf') await exportQAPDF(rows, file);
+            else await exportQAExcel(rows, file);
+            setStatus('qa-report-status', rows.length + ' call review(s) included in the ' + (type === 'pdf' ? 'PDF report.' : 'Excel workbook.'), 'success');
+        } catch (error) {
+            console.error('QA report export failed', error);
+            setStatus('qa-report-status', 'Download failed: ' + (error && error.message ? error.message : 'Could not prepare the report.'), 'error');
+        } finally {
+            if (button) button.disabled = false;
+        }
+    }
+
+    async function exportQAExcel(rows, file) {
+        if (!window.ExcelJS || !window.ExcelJS.Workbook) throw new Error('Excel workbook support did not load.');
+        const workbook = new window.ExcelJS.Workbook();
+        workbook.creator = 'Biz Dashboard';
+        workbook.created = new Date();
+        const charts = overviewChartData(rows);
+        const stats = reportStats(rows);
+        const overview = workbook.addWorksheet('Overview');
+        overview.columns = [{ width: 31 }, { width: 28 }, { width: 20 }, { width: 20 }, { width: 20 }, { width: 20 }, { width: 20 }, { width: 20 }];
+        overview.mergeCells('A1:H2');
+        overview.getCell('A1').value = 'CALL QUALITY ASSURANCE REPORT';
+        overview.getCell('A1').font = { size: 22, bold: true, color: { argb: 'FF193854' } };
+        reportFilterLines().forEach(function (line, index) {
+            overview.mergeCells(index + 4, 1, index + 4, 8);
+            overview.getCell(index + 4, 1).value = line;
+        });
+        [
+            ['Matching calls', rows.length], ['Calls reviewed', stats.reviewed], ['Valid', stats.valid], ['Invalid', stats.invalid],
+            ['Pending', stats.pending], ['Average QA score', stats.averageScore === null ? 'Not rated' : stats.averageScore + '%'], ['Top invalid reason', stats.topReason]
+        ].forEach(function (item, index) {
+            overview.getCell(index + 10, 1).value = item[0];
+            overview.getCell(index + 10, 2).value = item[1];
+            overview.getCell(index + 10, 1).font = { bold: true, color: { argb: 'FF193854' } };
+        });
+        const callChart = drawQaChart('Calls by type', charts.callTypes, 'type');
+        const qualityChart = drawQaChart('Agent quality', charts.agentQuality, 'quality');
+        const callImage = workbook.addImage({ base64: callChart.toDataURL('image/png'), extension: 'png' });
+        const qualityImage = workbook.addImage({ base64: qualityChart.toDataURL('image/png'), extension: 'png' });
+        overview.addImage(callImage, { tl: { col: 0, row: 18 }, br: { col: 4, row: 42 }, editAs: 'oneCell' });
+        overview.addImage(qualityImage, { tl: { col: 4, row: 18 }, br: { col: 8, row: 42 }, editAs: 'oneCell' });
+        overview.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 2, printArea: 'A1:H43' };
+
+        function tableSheet(name, headers, data, widths) {
+            const sheet = workbook.addWorksheet(name);
+            sheet.columns = headers.map(function (header, index) { return { header: header, key: 'c' + index, width: widths && widths[index] || 20 }; });
+            data.forEach(function (row) { sheet.addRow(row); });
+            sheet.views = [{ state: 'frozen', ySplit: 1 }];
+            sheet.autoFilter = { from: 'A1', to: { row: Math.max(1, data.length + 1), column: headers.length } };
+            sheet.getRow(1).height = 34;
+            sheet.getRow(1).eachCell(function (cell) {
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF193854' } };
+                cell.alignment = { vertical: 'middle', wrapText: true };
+            });
+            sheet.eachRow(function (row, rowNumber) {
+                if (rowNumber === 1) return;
+                row.eachCell(function (cell) {
+                    cell.alignment = { vertical: 'top', wrapText: true };
+                    if (rowNumber % 2 === 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F5FA' } };
+                });
+            });
+            sheet.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+            return sheet;
+        }
+
+        tableSheet('Call Types', ['Call type', 'Calls'], charts.callTypes.map(function (item) { return [item.label, item.value]; }), [34, 16]);
+        const qualitySheet = tableSheet('Agent Quality', ['Agent', 'Agent ID', 'Average quality', 'Rated reviews'], charts.agentQuality.map(function (item) { return [item.label, item.agentId, item.value / 100, item.count]; }), [34, 18, 21, 18]);
+        qualitySheet.getColumn(3).numFmt = '0%';
+        const headers = ['Date', 'Call type', 'Agent name', 'Agent ID', 'Team', 'Call Number', 'Customer Number', 'Loan specialist', 'Outcome', 'Primary reason', 'Additional reason', 'Issue source', 'QA score', ...SCORECARD_ITEMS.map(function (item) { return item.label; }), 'Review finding / evidence', 'Strengths', 'Coaching tip', 'Coaching action plan', 'Follow-up needed', 'Follow-up date', 'QA notes', 'Reviewer'];
+        const widths = [14, 19, 25, 15, 12, 20, 21, 23, 14, 22, 22, 18, 12].concat(SCORECARD_ITEMS.map(function () { return 23; }), [45, 35, 38, 38, 16, 16, 40, 25]);
+        const callsSheet = tableSheet('Call Reviews', headers, qaExportRows(rows), widths);
+        callsSheet.getColumn(13).numFmt = '0"%"';
+        const notes = tableSheet('Report Notes', ['Topic', 'Details'], [
+            ['Scope', reportFilterLines().join('\n')],
+            ['Score calculation', 'Each call score is the percentage of rated standards marked Meets standard. Needs coaching is counted as not meeting; Not rated and Not applicable are excluded. Agent quality is the average call score for each agent.'],
+            ['Call totals', 'Calls reviewed counts Valid and Invalid outcomes. Pending calls are reported separately.'],
+            ['Charts', 'The Overview charts reflect these report filters. Call Types and Agent Quality contain chart values; Call Reviews contains the full review details.']
+        ], [25, 110]);
+        notes.getColumn(2).alignment = { wrapText: true, vertical: 'top' };
+        downloadExport(await workbook.xlsx.writeBuffer(), file + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    async function exportQAPDF(rows, file) {
+        if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('PDF report support did not load.');
+        const charts = overviewChartData(rows);
+        const stats = reportStats(rows);
+        const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const pageWidth = 297, pageHeight = 210;
+        const pdfText = function (value) { return String(value == null ? '' : value).replace(/[^\x20-\x7E\xA0-\xFF\n]/g, ' '); };
+        let activeTitle = 'CALL QUALITY ASSURANCE REPORT';
+        const heading = function (title) {
+            doc.setFillColor(25, 56, 84); doc.rect(0, 0, pageWidth, 22, 'F'); doc.setTextColor(255);
+            doc.setFontSize(16); doc.text(title, 12, 14); doc.setTextColor(30, 46, 64);
+        };
+        const newPage = function (title) { activeTitle = title; doc.addPage(); heading(title); };
+        heading(activeTitle);
+        doc.setFontSize(8);
+        reportFilterLines().forEach(function (line, index) { doc.text(pdfText(line), 12, 29 + index * 5); });
+        const metrics = [
+            ['Reviewed', stats.reviewed], ['Valid', stats.valid], ['Invalid', stats.invalid], ['Pending', stats.pending],
+            ['Average QA', stats.averageScore === null ? 'N/A' : stats.averageScore + '%'], ['Top reason', stats.topReason]
+        ];
+        metrics.forEach(function (item, index) {
+            const x = 12 + index * 45.5;
+            doc.setFillColor(238, 244, 249); doc.roundedRect(x, 57, 42, 22, 2, 2, 'F');
+            doc.setFontSize(7); doc.text(item[0], x + 2, 64);
+            doc.setFontSize(index === 5 ? 7 : 14);
+            const value = doc.splitTextToSize(pdfText(String(item[1])), 38);
+            doc.text(value, x + 2, 72);
+        });
+        const typeCanvas = drawQaChart('Calls by type', charts.callTypes, 'type');
+        const qualityCanvas = drawQaChart('Agent quality', charts.agentQuality, 'quality');
+        doc.addImage(typeCanvas.toDataURL('image/png'), 'PNG', 12, 84, 133, 66);
+        doc.addImage(qualityCanvas.toDataURL('image/png'), 'PNG', 151, 84, 133, 66);
+        doc.setFontSize(7); doc.setTextColor(83, 99, 119);
+        doc.text('QA scores use only standards marked Meets standard or Needs coaching. Calls without a rated score are excluded from average quality.', 12, 159);
+        activeTitle = 'CALL REVIEW DETAILS';
+        const reasons = function (record) { return [record.primaryReason, record.additionalReason].filter(Boolean).join(' · ') || '—'; };
+        const coaching = function (record) {
+            const ratings = SCORECARD_ITEMS.filter(function (item) { return record.scorecard && record.scorecard[item.key]; })
+                .map(function (item) { return item.label + ': ' + record.scorecard[item.key]; });
+            return [
+                record.reviewFinding && 'Finding: ' + record.reviewFinding,
+                record.strengths && 'Strengths: ' + record.strengths,
+                record.coachingTip && 'Coaching: ' + record.coachingTip,
+                record.actionPlan && 'Action plan: ' + record.actionPlan,
+                ratings.length && 'Scorecard: ' + ratings.join(' | '),
+                hasCoachingFlag(record) && 'Coaching follow-up required',
+                record.followUpDate && 'Follow-up: ' + record.followUpDate,
+                record.qaNotes && 'Reviewer notes: ' + record.qaNotes,
+                record.reviewerName && 'Reviewed by: ' + record.reviewerName
+            ].filter(Boolean).join('\n') || '—';
+        };
+        newPage(activeTitle);
+        const body = rows.map(function (r) {
+            const score = scorecardScore(r);
+            return [
+                pdfText(asDate(r) + (r.callType ? '\n' + r.callType : '')),
+                pdfText((r.agentName || 'Unknown') + (r.agentId ? '\n' + r.agentId : '') + (r.team ? '\n' + (cleanTeam(r.team) || r.team) : '') + (r.loanSpecialist ? '\nSpecialist: ' + r.loanSpecialist : '')),
+                pdfText(r.callNumber || r.callId || '—'), pdfText(r.customerNumber || r.phoneLast4 || '—'),
+                pdfText(r.outcome || 'Pending'), pdfText(reasons(r)), pdfText((score === null ? 'Not rated' : score + '%') + (r.issueSource ? '\n' + r.issueSource : '')),
+                pdfText(coaching(r))
+            ];
+        });
+        const tableOptions = {
+            startY: 29, margin: { top: 29, left: 12, right: 12, bottom: 15 },
+            head: [['Date / type', 'Agent / team', 'Call Number', 'Customer Number', 'Outcome', 'Reason(s)', 'Score / source', 'Finding and coaching']],
+            body: body, styles: { fontSize: 6.4, cellPadding: 1.7, overflow: 'linebreak', valign: 'top' },
+            headStyles: { fillColor: [25, 56, 84], fontSize: 6.5 }, alternateRowStyles: { fillColor: [241, 245, 249] },
+            columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 38 }, 2: { cellWidth: 25 }, 3: { cellWidth: 27 }, 4: { cellWidth: 18 }, 5: { cellWidth: 34 }, 6: { cellWidth: 25 }, 7: { cellWidth: 81 } },
+            rowPageBreak: 'avoid', didDrawPage: function () { heading(activeTitle); }
+        };
+        doc.autoTable(tableOptions);
+        for (let index = 1; index <= doc.getNumberOfPages(); index++) {
+            doc.setPage(index); doc.setFontSize(7); doc.setTextColor(90);
+            doc.text('Biz Dashboard | Call QA | ' + localToday(), 12, pageHeight - 6);
+            doc.text('Page ' + index + ' of ' + doc.getNumberOfPages(), pageWidth - 12, pageHeight - 6, { align: 'right' });
+        }
+        downloadExport(doc.output('arraybuffer'), file + '.pdf', 'application/pdf');
+    }
+
+    window.qaExportPDF = function () { return runQAExport('pdf'); };
+    window.qaExportExcel = function () { return runQAExport('excel'); };
 
     window.qaPrintReport = function () {
         if (!hasQAAccess()) return;

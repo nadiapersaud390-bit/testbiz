@@ -22,7 +22,11 @@ Issue source identifies whether the issue came from the agent, loan specialist, 
 
 The report summarizes calls reviewed, Valid, Invalid, Pending, and the top invalid reason. Pending reviews are excluded from the Calls reviewed total. Individual call scores and coaching details appear where reviewers added them. Use the date, team, outcome, reason, source, and agent filters to focus the report.
 
+The overview charts show call types when call handling details were recorded and average agent scores when scorecards were completed. Charts follow the active report filters.
+
 Use Print on a report row to open a formatted call review with call details, scorecard ratings, findings, strengths, coaching, action plan, and reviewer. Use Print Report to print the filtered report, or Export CSV to download the filtered call rows and rating details.
+
+Use **Import Previous Calls** to add an older CSV report (up to 5 MB and 1,000 rows). The importer previews the call rows, lets you choose the date format, maps available Call Number and Customer Number columns, and skips duplicate rows. The original report is not changed. Summary-only lines are ignored; rows need an agent and a valid date to import. The attached Berbice report format is supported. If a source file has no Call Number column, imported call numbers stay blank.
 
 ## Agent selector and access
 
