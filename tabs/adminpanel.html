@@ -138,9 +138,11 @@
                             <button type="button" class="qa-button qa-button-secondary qa-no-print" onclick="qaChooseImportFile()"><i class="fas fa-file-import"></i> Import Previous Calls</button>
                             <input type="file" id="qa-import-file" accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12" hidden onchange="qaPreviewImportFile(this.files && this.files[0])">
                             <button type="button" class="qa-button qa-button-secondary qa-no-print" onclick="qaPrintReport()"><i class="fas fa-print"></i> Print Report</button>
-                            <button type="button" id="qa-export-pdf" class="qa-button qa-button-secondary qa-no-print" onclick="qaExportPDF()"><i class="fas fa-file-pdf"></i> Download PDF</button>
+                            <button type="button" id="qa-export-pdf-recent" class="qa-button qa-button-secondary qa-no-print" onclick="qaExportPDF('recent')"><i class="fas fa-file-pdf"></i> Recent PDF</button>
+                            <button type="button" id="qa-export-pdf-all" class="qa-button qa-button-secondary qa-no-print" onclick="qaExportPDF('all')"><i class="fas fa-file-pdf"></i> All PDF</button>
                             <button type="button" id="qa-export-excel" class="qa-button qa-button-secondary qa-no-print" onclick="qaExportExcel()"><i class="fas fa-file-excel"></i> Export Excel</button>
-                            <button type="button" class="qa-button qa-button-secondary qa-no-print" onclick="qaExportCSV()"><i class="fas fa-file-export"></i> Export CSV</button>
+                            <button type="button" id="qa-export-csv-recent" class="qa-button qa-button-secondary qa-no-print" onclick="qaExportCSV('recent')"><i class="fas fa-file-export"></i> Recent CSV</button>
+                            <button type="button" id="qa-export-csv-all" class="qa-button qa-button-secondary qa-no-print" onclick="qaExportCSV('all')"><i class="fas fa-file-export"></i> All CSV</button>
                         </div>
                     </div>
                     <div id="qa-import-preview" class="qa-import-preview qa-no-print" hidden>

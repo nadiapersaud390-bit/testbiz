@@ -313,11 +313,17 @@ class FakeElement {
   window.qaApplyAgentFilter();
   assert.equal(elements.get('qa-report-count').textContent, '2 matching calls');
 
-  window.qaExportCSV();
+  window.qaExportCSV('recent');
+  assert.match(exportedCsv, /Alice Example/);
+  assert.doesNotMatch(exportedCsv, /Pending Agent/);
+  assert.ok(downloadedFiles.some(name => /^Call-QA-Report-Recent-.*\.csv$/.test(name)));
+  window.qaExportCSV('all');
   assert.match(exportedCsv, /Call Number/);
   assert.match(exportedCsv, /Customer Number/);
   assert.match(exportedCsv, /Coaching action plan/);
   assert.match(exportedCsv, /Practice the revenue qualification question/);
+  assert.match(exportedCsv, /Pending Agent/);
+  assert.ok(downloadedFiles.some(name => /^Call-QA-Report-All-.*\.csv$/.test(name)));
 
   window.qaPrintReview(Object.keys(database)[0]);
   assert.match(printedHtml, /Call Quality Review/);
@@ -385,11 +391,18 @@ class FakeElement {
   assert.ok(exportedWorkbook.worksheets.find(sheet => sheet.name === 'Call Reviews').rows.some(row => row.some(value => String(value).includes('Practice the revenue qualification question.'))));
   assert.ok(downloadedFiles.some(name => name.endsWith('.xlsx')));
 
-  await window.qaExportPDF();
+  pdfCapture.tables.length = 0;
+  pdfCapture.imageCount = 0;
+  await window.qaExportPDF('recent');
+  assert.equal(pdfCapture.tables[pdfCapture.tables.length - 1].body.length, 1, 'Recent PDF includes only the newest matching call');
+  assert.equal(pdfCapture.imageCount, 2, 'Recent PDF Overview embeds both report charts');
+  assert.ok(downloadedFiles.some(name => /^Call_QA_Report_Recent_.*\.pdf$/.test(name)));
+  await window.qaExportPDF('all');
   assert.deepEqual(exportScriptOrder.slice(-2), ['js/vendor/jspdf.umd.min.js', 'js/vendor/jspdf.plugin.autotable.min.js'], 'jsPDF loads before its AutoTable plugin');
-  assert.equal(pdfCapture.imageCount, 2, 'PDF Overview embeds both report charts');
+  assert.equal(pdfCapture.imageCount, 4, 'All PDF Overview embeds both report charts');
   assert.ok(pdfCapture.tables.some(table => table.body.some(row => row.some(cell => String(cell).includes('Practice the revenue qualification question.')))));
   assert.ok(downloadedFiles.some(name => name.endsWith('.pdf')));
+  assert.ok(downloadedFiles.some(name => /^Call_QA_Report_All_.*\.pdf$/.test(name)));
 
   assert.doesNotMatch(qaMarkup, /transcript|service code/i);
   assert.match(qaMarkup, /type="file" id="qa-import-file" accept="[^"]*\.csv[^"]*\.xlsx/i);
@@ -401,7 +414,10 @@ class FakeElement {
   assert.match(qaMarkup, /id="qa-report-toggle"[^>]*onclick="qaToggleReportRows\(\)"/);
   assert.doesNotMatch(qaMarkup, /qa-stat-coaching|qa-stat-score/);
   assert.match(qaMarkup, /Professional Call QA Report/);
-  assert.match(qaMarkup, /id="qa-export-pdf"/);
+  assert.match(qaMarkup, /id="qa-export-pdf-recent"[^>]*onclick="qaExportPDF\('recent'\)"/);
+  assert.match(qaMarkup, /id="qa-export-pdf-all"[^>]*onclick="qaExportPDF\('all'\)"/);
+  assert.match(qaMarkup, /id="qa-export-csv-recent"[^>]*onclick="qaExportCSV\('recent'\)"/);
+  assert.match(qaMarkup, /id="qa-export-csv-all"[^>]*onclick="qaExportCSV\('all'\)"/);
   assert.match(qaMarkup, /id="qa-export-excel"/);
   console.log('QA manual report: optional sections, charts, previous CSV/Excel preview/import, duplicate handling, totals, print, PDF, Excel, and markup passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

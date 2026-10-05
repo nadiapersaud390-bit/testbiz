@@ -654,6 +654,15 @@
         });
     }
 
+    function normalizedExportScope(scope) {
+        return String(scope || 'all').toLowerCase() === 'recent' ? 'recent' : 'all';
+    }
+
+    function reportRowsForExport(scope) {
+        const rows = selectedReportRecords();
+        return normalizedExportScope(scope) === 'recent' ? rows.slice(0, 1) : rows;
+    }
+
     function scorecardScore(record) {
         const ratings = SCORECARD_ITEMS.map(function (item) { return record && record.scorecard ? record.scorecard[item.key] : ''; })
             .filter(function (rating) { return rating === 'Meets standard' || rating === 'Needs coaching'; });
@@ -1000,9 +1009,10 @@
         }
     };
 
-    window.qaExportCSV = function () {
+    window.qaExportCSV = function (scope) {
         if (!hasQAAccess()) return;
-        const rows = selectedReportRecords();
+        const exportScope = normalizedExportScope(scope);
+        const rows = reportRowsForExport(exportScope);
         if (!rows.length) {
             setStatus('qa-report-status', 'There are no calls in the current report filters to export.', 'error');
             return;
@@ -1030,12 +1040,12 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'Call-QA-Report-' + localToday() + '.csv';
+        a.download = 'Call-QA-Report-' + (exportScope === 'recent' ? 'Recent-' : 'All-') + localToday() + '.csv';
         document.body.appendChild(a);
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        setStatus('qa-report-status', rows.length + ' call review(s) exported.', 'success');
+        setStatus('qa-report-status', rows.length + ' ' + (exportScope === 'recent' ? 'recent' : 'matching') + ' call review(s) exported to CSV.', 'success');
     };
 
     const qaExportScripts = {};
@@ -1147,16 +1157,18 @@
         });
     }
 
-    async function runQAExport(type) {
+    async function runQAExport(type, scope) {
         if (!hasQAAccess()) return;
-        const rows = selectedReportRecords();
+        const exportScope = normalizedExportScope(scope);
+        const rows = reportRowsForExport(exportScope);
         if (!rows.length) {
             setStatus('qa-report-status', 'There are no calls in the current report filters to export.', 'error');
             return;
         }
-        const button = $('qa-export-' + type);
+        const button = $('qa-export-' + type + '-' + exportScope) || $('qa-export-' + type);
         if (button) button.disabled = true;
-        setStatus('qa-report-status', 'Preparing the ' + (type === 'pdf' ? 'PDF report' : 'Excel workbook') + '…', '');
+        const scopeLabel = exportScope === 'recent' ? 'recent' : 'all matching';
+        setStatus('qa-report-status', 'Preparing the ' + scopeLabel + ' ' + (type === 'pdf' ? 'PDF report' : 'Excel workbook') + '…', '');
         try {
             if (type === 'pdf') {
                 // AutoTable registers itself onto jsPDF when its script evaluates.
@@ -1166,10 +1178,10 @@
             } else {
                 await loadExportScript('js/vendor/exceljs.min.js');
             }
-            const file = 'Call_QA_Report_' + localToday();
+            const file = 'Call_QA_Report_' + (exportScope === 'recent' ? 'Recent_' : 'All_') + localToday();
             if (type === 'pdf') await exportQAPDF(rows, file);
             else await exportQAExcel(rows, file);
-            setStatus('qa-report-status', rows.length + ' call review(s) included in the ' + (type === 'pdf' ? 'PDF report.' : 'Excel workbook.'), 'success');
+            setStatus('qa-report-status', rows.length + ' ' + scopeLabel + ' call review(s) included in the ' + (type === 'pdf' ? 'PDF report.' : 'Excel workbook.'), 'success');
         } catch (error) {
             console.error('QA report export failed', error);
             setStatus('qa-report-status', 'Download failed: ' + (error && error.message ? error.message : 'Could not prepare the report.'), 'error');
@@ -1332,8 +1344,8 @@
         downloadExport(doc.output('arraybuffer'), file + '.pdf', 'application/pdf');
     }
 
-    window.qaExportPDF = function () { return runQAExport('pdf'); };
-    window.qaExportExcel = function () { return runQAExport('excel'); };
+    window.qaExportPDF = function (scope) { return runQAExport('pdf', scope || 'all'); };
+    window.qaExportExcel = function () { return runQAExport('excel', 'all'); };
 
     window.qaPrintReport = function () {
         if (!hasQAAccess()) return;
