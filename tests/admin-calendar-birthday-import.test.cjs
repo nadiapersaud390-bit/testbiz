@@ -5,6 +5,14 @@ const vm = require('node:vm');
 const window = {};
 vm.runInNewContext(fs.readFileSync(require.resolve('../js/admin-calendar-core.js'), 'utf8'), { window, Date });
 const C = window.AdminCalendarCore;
+const mixedIdRoster = C.normalizeRoster({
+  '201': { name: 'Ada Example' },
+  '202': { ytelId: '202', agentName: 'Grace Hopper' },
+  '203': { userID: '203', fullName: 'Inactive Person', status: 'inactive' }
+});
+assert.deepEqual(JSON.parse(JSON.stringify(mixedIdRoster.map(agent => [agent.userId, agent.fullName]))), [
+  ['201', 'Ada Example'], ['202', 'Grace Hopper']
+], 'the calendar roster accepts Firebase key, ytelId, and userID identifiers while filtering inactive agents');
 const roster = [
   { userId: '101', fullName: 'Ada Example', team: 'BB' },
   { userId: '102', fullName: 'Grace Hopper', team: 'PR' },
@@ -40,11 +48,31 @@ const splitColumns = C.prepareBirthdayImport([
   ['Ada Example', 'March', '11']
 ], roster);
 assert.deepEqual(JSON.parse(JSON.stringify(splitColumns.matched)), [{ agentId: '101', name: 'Ada Example', month: 3, day: 11 }]);
+const uploadedLayout = C.prepareBirthdayImport([
+  ['BIZ Agent Birthdays'],
+  [],
+  ['Agent Name', 'Birthday'],
+  ['Ada Example', new Date(Date.UTC(1998, 2, 11))],
+  ['Grace Hopper', 'Oct 21 2009']
+], mixedIdRoster);
+assert.deepEqual(JSON.parse(JSON.stringify(uploadedLayout.matched)), [
+  { agentId: '201', name: 'Ada Example', month: 3, day: 11 },
+  { agentId: '202', name: 'Grace Hopper', month: 10, day: 21 }
+], 'the uploaded title/blank-row layout and full Excel-style dates import correctly');
+const prefixedName = C.prepareBirthdayImport([
+  ['Agent Name', 'Birthday'],
+  ['Ada Example', 'Jan 01 2002']
+], C.normalizeRoster([{ userId: '204', fullName: 'GYB Ada Example (BB)' }]));
+assert.deepEqual(JSON.parse(JSON.stringify(prefixedName.matched)), [
+  { agentId: '204', name: 'GYB Ada Example (BB)', month: 1, day: 1 }
+], 'agent prefixes and team suffixes do not prevent a birthday roster match');
 const leapYears = C.birthdayEvents({ '101': { month: 2, day: 29, updatedAt: 1 } }, roster, 2025);
 assert.equal(leapYears[0].date, '2025-02-28', 'a February 29 birthday shifts to February 28 in non-leap years');
 assert.equal(C.birthdayEvents({ '101': { month: 2, day: 29, updatedAt: 1 } }, roster, 2028)[0].date, '2028-02-29');
 const calendarUI = fs.readFileSync(require.resolve('../js/admin-calendar.js'), 'utf8');
 assert.match(calendarUI, /data-action="birthday-upload"/);
+assert.match(calendarUI, /C\.normalizeRoster\(v\)/, 'the calendar normalizes roster ID variants before agent matching');
+assert.match(calendarUI, /No active agents are loaded/, 'the uploader explains when it cannot match without a roster');
 assert.match(calendarUI, /accept="\.xlsx,\.csv/);
 assert.match(calendarUI, /rtdbUpdate\(ref\('admin_calendar\/birthdays'\),updates\)/);
 console.log('Calendar birthday import: Excel-style headers, date parsing, roster matching, duplicate and inactive handling, and annual recurrence passed.');

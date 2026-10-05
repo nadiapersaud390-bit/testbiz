@@ -1504,12 +1504,14 @@ window.saveLiveDashboardState = async function(stateObj) {
     await set(ref(database, 'live_dashboard_state'), stateObj);
 };
 
-window.listenForMasterRoster = function(callback) {
+window.listenForMasterRoster = function(callback, errorCallback) {
     if (!database) return null;
     return onValue(ref(database, 'biz_master_roster'), (snapshot) => {
         let roster = snapshot.val() || [];
         if (!Array.isArray(roster)) roster = Object.values(roster);
         if (callback) callback(window.filterDeletedAgents ? window.filterDeletedAgents(roster) : roster);
+    }, (error) => {
+        if (errorCallback) errorCallback(error);
     });
 };
 

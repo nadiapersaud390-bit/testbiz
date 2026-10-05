@@ -93,10 +93,36 @@ class FakeElement {
     getColumn() { return {}; }
     addImage(image, placement) { this.images.push({ image, placement }); }
   }
+  class FakeImportWorksheet {
+    constructor(name, rows) { this.name = name; this.rows = rows; this.columnCount = Math.max(...rows.map(row => row.length)); }
+    eachRow(_options, callback) {
+      this.rows.forEach(values => callback({
+        values: [undefined].concat(values),
+        getCell(index) { return { value: values[index - 1] }; }
+      }));
+    }
+  }
   class FakeWorkbook {
     constructor() {
       this.worksheets = [];
-      this.xlsx = { writeBuffer: async () => new Uint8Array([80, 75, 3, 4]) };
+      this.xlsx = {
+        writeBuffer: async () => new Uint8Array([80, 75, 3, 4]),
+        load: async () => {
+          this.worksheets = [
+            new FakeImportWorksheet('Summary', [
+              ['Agent', 'Date', 'Outcome'],
+              ['Daily total', '2026-10-02', '2 calls']
+            ]),
+            new FakeImportWorksheet('Call Details', [
+              ['Report date', '10-02-2026'],
+              ['Call Number', 'Agent', 'Date', 'Customer Number', 'Outcome', 'Primary Reason', 'Review Finding'],
+              ['CALL-XLSX-1', 'Historical Agent Seven', new Date(2026, 9, 2), '5926007771', 'Invalid', 'Trucking', 'Summary sheet must not replace call details.'],
+              ['CALL-XLSX-2', 'Historical Agent Eight', new Date(2026, 9, 2), '5926007772', 'Invalid', 'Under $200k revenue', 'The detail table imports from Excel.']
+            ])
+          ];
+          return this;
+        }
+      };
       excelWorkbooks.push(this);
     }
     addWorksheet(name) { const sheet = new FakeWorksheet(name); this.worksheets.push(sheet); return sheet; }
@@ -170,6 +196,7 @@ class FakeElement {
   };
   vm.runInNewContext(fs.readFileSync(require.resolve('../js/qa.js'), 'utf8'), context);
   await window.qaInit();
+  window.ExcelJS = { Workbook: FakeWorkbook };
   assert.equal(typeof rosterCallback, 'function');
 
   assert.equal(document.getElementById('qa-score-agentOpening'), null, 'scorecards stay hidden until added');
@@ -301,9 +328,17 @@ class FakeElement {
   assert.equal(elements.get('qa-import-confirm').disabled, true);
   window.qaCancelImport();
 
-  window.ExcelJS = { Workbook: FakeWorkbook };
+  await window.qaPreviewImportFile({ name: 'Earlier Call Report.xlsx', size: 1000, arrayBuffer: async () => new Uint8Array([80, 75, 3, 4]).buffer });
+  assert.match(elements.get('qa-import-summary').textContent, /2 call\(s\) ready to import/);
+  assert.match(elements.get('qa-import-preview-body').innerHTML, /Historical Agent Seven/);
+  await window.qaCommitImport();
+  const workbookRows = Object.values(database).filter(record => record.importedFromFile === 'Earlier Call Report.xlsx');
+  assert.equal(workbookRows.length, 2, 'the detailed worksheet is selected when an earlier summary table is present');
+  assert.equal(workbookRows[0].date, '2026-10-02', 'Excel date cells are preserved as calendar dates');
+  assert.equal(workbookRows[0].callNumber, 'CALL-XLSX-1');
+
   await window.qaExportExcel();
-  const exportedWorkbook = excelWorkbooks[0];
+  const exportedWorkbook = excelWorkbooks[excelWorkbooks.length - 1];
   assert.deepEqual(exportedWorkbook.worksheets.map(sheet => sheet.name), ['Overview', 'Call Types', 'Agent Quality', 'Call Reviews', 'Report Notes']);
   assert.equal(exportedWorkbook.worksheets[0].images.length, 2, 'Excel Overview embeds both report charts');
   assert.ok(exportedWorkbook.worksheets.find(sheet => sheet.name === 'Call Reviews').rows.some(row => row.some(value => String(value).includes('Practice the revenue qualification question.'))));
@@ -316,7 +351,7 @@ class FakeElement {
   assert.ok(downloadedFiles.some(name => name.endsWith('.pdf')));
 
   assert.doesNotMatch(qaMarkup, /transcript|service code/i);
-  assert.match(qaMarkup, /type="file" id="qa-import-file" accept="\.csv,text\/csv"/i);
+  assert.match(qaMarkup, /type="file" id="qa-import-file" accept="[^"]*\.csv[^"]*\.xlsx/i);
   assert.doesNotMatch(qaMarkup, /accept="[^"]*audio/i);
   assert.match(qaMarkup, /id="qa-chart-call-types"/);
   assert.match(qaMarkup, /id="qa-chart-agent-quality"/);
@@ -324,5 +359,5 @@ class FakeElement {
   assert.match(qaMarkup, /Professional Call QA Report/);
   assert.match(qaMarkup, /id="qa-export-pdf"/);
   assert.match(qaMarkup, /id="qa-export-excel"/);
-  console.log('QA manual report: optional sections, charts, previous CSV preview/import, duplicate handling, totals, print, PDF, Excel, and markup passed.');
+  console.log('QA manual report: optional sections, charts, previous CSV/Excel preview/import, duplicate handling, totals, print, PDF, Excel, and markup passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

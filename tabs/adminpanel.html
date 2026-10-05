@@ -136,7 +136,7 @@
                         <div><h4>Professional Call QA Report</h4><p>Filter, review, print, or download call findings and coaching plans.</p></div>
                         <div class="qa-report-actions">
                             <button type="button" class="qa-button qa-button-secondary qa-no-print" onclick="qaChooseImportFile()"><i class="fas fa-file-import"></i> Import Previous Calls</button>
-                            <input type="file" id="qa-import-file" accept=".csv,text/csv" hidden onchange="qaPreviewImportFile(this.files && this.files[0])">
+                            <input type="file" id="qa-import-file" accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12" hidden onchange="qaPreviewImportFile(this.files && this.files[0])">
                             <button type="button" class="qa-button qa-button-secondary qa-no-print" onclick="qaPrintReport()"><i class="fas fa-print"></i> Print Report</button>
                             <button type="button" id="qa-export-pdf" class="qa-button qa-button-secondary qa-no-print" onclick="qaExportPDF()"><i class="fas fa-file-pdf"></i> Download PDF</button>
                             <button type="button" id="qa-export-excel" class="qa-button qa-button-secondary qa-no-print" onclick="qaExportExcel()"><i class="fas fa-file-excel"></i> Export Excel</button>
@@ -144,7 +144,7 @@
                         </div>
                     </div>
                     <div id="qa-import-preview" class="qa-import-preview qa-no-print" hidden>
-                        <div class="qa-import-heading"><div><h5>Import previous call reports</h5><p>Review the preview before adding these records to the shared report.</p></div><button type="button" class="qa-remove-section" onclick="qaCancelImport()">Close</button></div>
+                        <div class="qa-import-heading"><div><h5>Import previous call reports</h5><p>Select a CSV or Excel report, then review the calls before importing.</p></div><button type="button" class="qa-remove-section" onclick="qaCancelImport()">Close</button></div>
                         <div class="qa-import-options"><label>Date format <select id="qa-import-date-format" onchange="qaReparseImport()"><option value="MDY">Month-Day-Year (10-02-2026 = October 2)</option><option value="DMY">Day-Month-Year (10-02-2026 = 10 February)</option></select></label><span id="qa-import-call-number-note"></span></div>
                         <div id="qa-import-summary" class="qa-import-summary"></div>
                         <div class="qa-import-table-wrap"><table class="qa-import-table"><thead><tr><th>Date</th><th>Agent</th><th>Call Number</th><th>Customer Number</th><th>Outcome</th><th>Reason</th><th>Finding</th></tr></thead><tbody id="qa-import-preview-body"></tbody></table></div>

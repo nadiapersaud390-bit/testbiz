@@ -29,6 +29,8 @@
     let qaAgentBound = false;
     let qaRosterBound = false;
     let qaRosterListener = null;
+    let qaRosterResolved = false;
+    let qaRosterTimeout = null;
     let qaImportText = '';
     let qaImportFileName = '';
     let qaImportRecords = [];
@@ -110,6 +112,11 @@
 
     function applyRosterUpdate(source) {
         const agents = normalizeRoster(source);
+        qaRosterResolved = true;
+        if (qaRosterTimeout) {
+            if (typeof clearTimeout === 'function') clearTimeout(qaRosterTimeout);
+            qaRosterTimeout = null;
+        }
         window.allAgentProfiles = agents.slice();
         try { localStorage.setItem('biz_master_roster', JSON.stringify(agents)); } catch (_) {}
         const selectedId = $('qa-agent') ? $('qa-agent').value : '';
@@ -126,14 +133,39 @@
         window.addEventListener('biz-deleted-agents-updated', function () {
             applyRosterUpdate(window.allAgentProfiles || roster());
         });
+        let fallbackStarted = false;
+        const loadRosterFallback = function () {
+            if (fallbackStarted || !window.rtdbRef || !window.rtdbGet) return;
+            fallbackStarted = true;
+            try {
+                Promise.resolve(window.rtdbGet(window.rtdbRef('biz_master_roster'))).then(function (snapshot) {
+                    if (!qaRosterResolved) applyRosterUpdate(snapshot && typeof snapshot.val === 'function' ? snapshot.val() : []);
+                }).catch(function () {
+                    if (!qaRosterResolved) setStatus('qa-agent-status', 'Could not load the Firebase agent roster. Try reopening QA.', 'error');
+                });
+            } catch (_) {
+                if (!qaRosterResolved) setStatus('qa-agent-status', 'Could not load the Firebase agent roster. Try reopening QA.', 'error');
+            }
+        };
+        const onRosterError = function () {
+            loadRosterFallback();
+            if (qaRosterResolved) {
+                const count = populateAgents();
+                setStatus('qa-agent-status', count ? 'Live roster is unavailable. Showing the last loaded agent list.' : 'Could not load the Firebase agent roster. Try reopening QA.', 'error');
+            }
+        };
         if (typeof window.listenForMasterRoster === 'function') {
-            qaRosterListener = window.listenForMasterRoster(applyRosterUpdate);
-        } else if (window.rtdbRef && window.rtdbGet) {
-            window.rtdbGet(window.rtdbRef('biz_master_roster')).then(function (snapshot) {
-                applyRosterUpdate(snapshot && typeof snapshot.val === 'function' ? snapshot.val() : []);
-            }).catch(function () {
-                setStatus('qa-agent-status', 'Could not load the Firebase agent roster. Try reopening QA.', 'error');
-            });
+            try { qaRosterListener = window.listenForMasterRoster(applyRosterUpdate, onRosterError); }
+            catch (_) { onRosterError(); }
+        }
+        // The live listener may be blocked or may not send an error in some browser
+        // states. A one-time read provides a reliable initial list in either case.
+        if (!qaRosterResolved) loadRosterFallback();
+        if (!qaRosterResolved) {
+            qaRosterTimeout = setTimeout(function () {
+                qaRosterTimeout = null;
+                if (!qaRosterResolved) setStatus('qa-agent-status', 'The agent list is taking too long to load. Refresh QA and try again.', 'error');
+            }, 12000);
         }
     }
 
@@ -315,33 +347,59 @@
 
     function parseImportRows(text, fileName, dateFormat) {
         const rows = parseCSV(text);
-        if (rows.length > 1001) return { records: [], skipped: 0, hasCallNumber: false, error: 'This import is over the 1,000-row limit. Split it into smaller CSV files and try again.' };
-        const headerIndex = rows.findIndex(function (row) {
-            const hasAgent = findImportColumn(row, ['Agent', 'Agent name', 'Representative']) >= 0;
-            const hasDate = findImportColumn(row, ['Date', 'Call date', 'Review date']) >= 0;
-            const hasDetails = findImportColumn(row, ['Primary reason', 'Review finding', 'Finding', 'Call Number', 'Call ID', 'Outcome']) >= 0;
-            return hasAgent && hasDate && hasDetails;
-        });
-        if (headerIndex < 0) return { records: [], skipped: 0, hasCallNumber: false, error: 'Could not find a call table with Agent and Date columns.' };
-        const headers = rows[headerIndex];
-        const column = function (aliases) { return findImportColumn(headers, aliases); };
-        const columns = {
-            date: column(['Date', 'Call date', 'Review date']), agent: column(['Agent name', 'Agent', 'Representative']), agentId: column(['Agent ID', 'Agent number', 'User ID']),
-            team: column(['Team', 'Group', 'Location']), callNumber: column(['Call Number', 'Call Reference', 'Call Ref', 'Call ID']),
-            customerNumber: column(['Customer Number', 'Customer Phone', 'Phone Number', 'Phone', 'Lead Number']),
-            callType: column(['Call Type', 'Type']), outcome: column(['Outcome', 'Final Outcome', 'Status']),
-            primaryReason: column(['Primary Reason', 'Reason']), additionalReason: column(['Additional Reason']),
-            issueSource: column(['Issue Source', 'Source']), finding: column(['Review Finding', 'Review Finding and Evidence', 'Review Finding / Evidence', 'Finding', 'Call Notes']),
-            strengths: column(['Strengths', 'What Went Well']), coachingTip: column(['Coaching Tip', 'Coaching']), actionPlan: column(['Coaching Action Plan', 'Action Plan']),
-            followUp: column(['Follow-up Needed', 'Needs Follow-up', 'Coaching Follow-up']), followUpDate: column(['Follow-up Date']),
-            qaNotes: column(['QA Notes', 'Reviewer Notes']), reviewer: column(['Reviewer', 'Reviewed By']),
-            agentScorecard: column(['Agent Scorecard']), specialistScorecard: column(['Loan Specialist Scorecard'])
+        const aliases = {
+            date: ['Date', 'Call date', 'Date of call', 'Review date', 'Call date/time'],
+            agent: ['Agent name', 'Agent', 'Representative', 'Agent full name', 'Rep name'],
+            agentId: ['Agent ID', 'Agent number', 'User ID', 'Agent code'],
+            team: ['Team', 'Group', 'Location'],
+            callNumber: ['Call Number', 'Call Reference', 'Call Ref', 'Call ID', 'Call #', 'Call Number / ID'],
+            customerNumber: ['Customer Number', 'Customer Phone', 'Customer phone number', 'Phone Number', 'Phone', 'Lead Number'],
+            callType: ['Call Type', 'Type'], outcome: ['Outcome', 'Final Outcome', 'Status'],
+            primaryReason: ['Primary Reason', 'Invalid Reason', 'Reason'], additionalReason: ['Additional Reason'],
+            issueSource: ['Issue Source', 'Source'],
+            finding: ['Review Finding', 'Review Finding and Evidence', 'Review Finding / Evidence', 'Review Findings', 'Finding', 'Call Notes'],
+            strengths: ['Strengths', 'What Went Well'], coachingTip: ['Coaching Tip', 'Coaching'], actionPlan: ['Coaching Action Plan', 'Action Plan'],
+            followUp: ['Follow-up Needed', 'Needs Follow-up', 'Coaching Follow-up'], followUpDate: ['Follow-up Date'],
+            qaNotes: ['QA Notes', 'Reviewer Notes'], reviewer: ['Reviewer', 'Reviewed By'],
+            agentScorecard: ['Agent Scorecard'], specialistScorecard: ['Loan Specialist Scorecard'],
+            loanSpecialist: ['Loan Specialist', 'Specialist']
         };
-        const preamble = rows.slice(0, headerIndex).flat().join(' ');
+        const columnsFor = function (headers) {
+            const found = {};
+            Object.keys(aliases).forEach(function (key) { found[key] = findImportColumn(headers, aliases[key]); });
+            return found;
+        };
+        const hasCallDetails = function (columns) {
+            return ['primaryReason', 'finding', 'callNumber', 'customerNumber', 'outcome', 'callType', 'issueSource', 'qaNotes'].some(function (key) { return columns[key] >= 0; });
+        };
+        const candidates = [];
+        rows.forEach(function (row, index) {
+            const columns = columnsFor(row);
+            if (columns.agent >= 0 && columns.date >= 0 && hasCallDetails(columns)) candidates.push({ index: index, columns: columns });
+        });
+        if (!candidates.length) return { records: [], skipped: 0, hasCallNumber: false, error: 'Could not find a call table with Agent and Date columns.' };
         let reportDateRaw = '';
-        rows.slice(0, headerIndex).forEach(function (row) {
+        rows.forEach(function (row) {
             if (importHeaderKey(row[0]) === 'reportdate') reportDateRaw = row[1] || '';
         });
+        const hasDate = function (value) { return !!parseImportDate(value || reportDateRaw, dateFormat); };
+        // Legacy workbooks can include a summary table before the call detail table.
+        // Choose the candidate table with the most actual call rows.
+        candidates.forEach(function (candidate, index) {
+            const end = candidates[index + 1] ? candidates[index + 1].index : rows.length;
+            const segment = rows.slice(candidate.index + 1, end);
+            candidate.dataRows = segment.filter(function (row) {
+                return String(row[candidate.columns.agent] || '').trim() && hasDate(row[candidate.columns.date]);
+            }).length;
+            candidate.detailColumns = Object.keys(candidate.columns).filter(function (key) { return candidate.columns[key] >= 0; }).length;
+        });
+        candidates.sort(function (a, b) { return b.dataRows - a.dataRows || b.detailColumns - a.detailColumns || a.index - b.index; });
+        if (candidates[0].dataRows > 1000) return { records: [], skipped: 0, hasCallNumber: false, error: 'This import is over the 1,000-call limit. Split it into smaller files and try again.' };
+        const headerIndex = candidates[0].index;
+        const headers = rows[headerIndex];
+        const columns = candidates[0].columns;
+        const nextCandidate = candidates.filter(function (candidate) { return candidate.index > headerIndex; }).sort(function (a, b) { return a.index - b.index; })[0];
+        const preamble = rows.slice(0, headerIndex).flat().join(' ');
         const reportDate = parseImportDate(reportDateRaw, dateFormat);
         const fileHint = (preamble + ' ' + String(fileName || '')).toLowerCase();
         const defaultOutcome = /\binvalid\b/.test(fileHint) ? 'Invalid' : 'Pending';
@@ -351,7 +409,7 @@
         const cell = function (row, index) { return index >= 0 ? String(row[index] || '').trim() : ''; };
         const records = [];
         let skipped = 0;
-        rows.slice(headerIndex + 1).forEach(function (row) {
+        rows.slice(headerIndex + 1, nextCandidate ? nextCandidate.index : rows.length).forEach(function (row) {
             if (!row.some(function (value) { return String(value || '').trim(); })) return;
             const agentRaw = cell(row, columns.agent);
             const parsedDate = parseImportDate(cell(row, columns.date) || reportDateRaw, dateFormat);
@@ -365,7 +423,7 @@
             importScorecardText(cell(row, columns.specialistScorecard), 'Loan specialist', scorecard);
             const directRatings = {};
             SCORECARD_ITEMS.forEach(function (item) {
-                const ratingColumn = column([item.key, item.label]);
+                const ratingColumn = findImportColumn(headers, [item.key, item.label]);
                 const rating = cell(row, ratingColumn);
                 if (['Meets standard', 'Needs coaching', 'Not applicable'].includes(rating)) directRatings[item.key] = rating;
             });
@@ -385,7 +443,7 @@
                 callType: cell(row, columns.callType),
                 callNumber: cell(row, columns.callNumber),
                 customerNumber: cell(row, columns.customerNumber),
-                loanSpecialist: cell(row, column(['Loan Specialist', 'Specialist'])),
+                loanSpecialist: cell(row, columns.loanSpecialist),
                 outcome: outcome,
                 primaryReason: rawReason ? normalizeReason(rawReason) : '',
                 additionalReason: rawAdditionalReason ? normalizeReason(rawAdditionalReason) : '',
@@ -455,23 +513,85 @@
         if (input) { input.value = ''; input.click(); }
     };
 
+    function importCellText(cell, workbook) {
+        let value = cell && typeof cell === 'object' && 'value' in cell ? cell.value : cell;
+        if (value == null) return '';
+        if (value instanceof Date && !Number.isNaN(value.getTime())) {
+            return value.getFullYear() + '-' + String(value.getMonth() + 1).padStart(2, '0') + '-' + String(value.getDate()).padStart(2, '0');
+        }
+        if (typeof value === 'number' && cell && /[dmy]/i.test(String(cell.numFmt || ''))) {
+            const base = workbook.properties && workbook.properties.date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+            const date = new Date(base + Math.round(value * 86400000));
+            return date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0') + '-' + String(date.getUTCDate()).padStart(2, '0');
+        }
+        if (typeof value === 'object') {
+            if (Array.isArray(value.richText)) return value.richText.map(function (part) { return part.text || ''; }).join('');
+            if (value.result != null) return importCellText({ value: value.result }, workbook);
+            if (value.text != null) return String(value.text);
+            if (value.hyperlink) return String(value.text || value.hyperlink);
+            return '';
+        }
+        return String(value);
+    }
+
+    function quoteImportCSV(value) {
+        const text = String(value == null ? '' : value);
+        return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+    }
+
+    async function readExcelImport(file) {
+        if (!window.ExcelJS || !window.ExcelJS.Workbook) await loadExportScript('js/vendor/exceljs.min.js');
+        if (!window.ExcelJS || !window.ExcelJS.Workbook) throw new Error('Excel workbook support did not load.');
+        if (typeof file.arrayBuffer !== 'function') throw new Error('This browser could not read the workbook. Save it as CSV and try again.');
+        const workbook = new window.ExcelJS.Workbook();
+        await workbook.xlsx.load(await file.arrayBuffer());
+        const outputRows = [];
+        (workbook.worksheets || []).forEach(function (worksheet) {
+            if (outputRows.length) outputRows.push([]);
+            const sheetRows = [];
+            const maxColumns = Number(worksheet.columnCount) || 0;
+            worksheet.eachRow({ includeEmpty: true }, function (row) {
+                const rowValues = row.values || [];
+                const columns = Math.max(maxColumns, rowValues.length - 1);
+                const values = [];
+                for (let index = 1; index <= columns; index += 1) {
+                    const cell = typeof row.getCell === 'function' ? row.getCell(index) : rowValues[index];
+                    values.push(importCellText(cell, workbook));
+                }
+                if (!values.some(function (value) { return String(value || '').trim(); })) return;
+                sheetRows.push(values);
+            });
+            while (sheetRows.length && !sheetRows[sheetRows.length - 1].some(function (value) { return String(value || '').trim(); })) sheetRows.pop();
+            Array.prototype.push.apply(outputRows, sheetRows);
+        });
+        return outputRows.map(function (row) { return row.map(quoteImportCSV).join(','); }).join('\r\n');
+    }
+
     window.qaPreviewImportFile = async function (file) {
         if (!file) return;
+        window.qaCancelImport();
+        setStatus('qa-report-status', '', '');
         if (file.size > 5 * 1024 * 1024) {
-            setStatus('qa-report-status', 'Choose a CSV file smaller than 5 MB.', 'error');
+            setStatus('qa-report-status', 'Choose a CSV or Excel file smaller than 5 MB.', 'error');
             return;
         }
-        if (typeof file.text !== 'function') {
-            setStatus('qa-report-status', 'This browser could not read the CSV file. Save it as CSV and try again.', 'error');
+        const extension = String(file.name || '').split('.').pop().toLowerCase();
+        if (!['csv', 'xlsx', 'xlsm'].includes(extension)) {
+            setStatus('qa-report-status', 'Choose a CSV, XLSX, or XLSM report file.', 'error');
             return;
         }
         try {
-            qaImportText = await file.text();
-            qaImportFileName = file.name || 'previous call report.csv';
+            if (extension === 'csv') {
+                if (typeof file.text !== 'function') throw new Error('This browser could not read the CSV file.');
+                qaImportText = await file.text();
+            } else {
+                qaImportText = await readExcelImport(file);
+            }
+            qaImportFileName = file.name || 'previous call report.' + extension;
             if ($('qa-import-date-format')) $('qa-import-date-format').value = 'MDY';
             renderImportPreview();
         } catch (error) {
-            setStatus('qa-report-status', 'Could not read the CSV file.', 'error');
+            setStatus('qa-report-status', 'Could not read the report file. ' + (error && error.message ? error.message : ''), 'error');
         }
     };
 
@@ -1262,6 +1382,7 @@
             return;
         }
         const initialAgentCount = populateAgents();
+        if (initialAgentCount) qaRosterResolved = true;
         setStatus('qa-agent-status', initialAgentCount ? initialAgentCount + ' active agents loaded.' : 'Loading active agent list…', initialAgentCount ? '' : '');
         if (!qaAgentBound && $('qa-agent')) {
             qaAgentBound = true;
@@ -1282,6 +1403,7 @@
         }
         if (!window.rtdbRef || !window.rtdbOnValue) {
             setStatus('qa-report-status', 'Firebase is still connecting. Reopen QA in a moment.', 'error');
+            setStatus('qa-agent-status', 'Could not connect to the Firebase agent roster. Try reopening QA.', 'error');
             return;
         }
         bindAgentRoster();

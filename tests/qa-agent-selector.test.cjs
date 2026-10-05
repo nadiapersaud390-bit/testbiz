@@ -72,6 +72,7 @@ class FakeElement {
     Date,
     Promise,
     setTimeout,
+    clearTimeout,
     console
   };
   vm.runInNewContext(fs.readFileSync(require.resolve('../js/qa.js'), 'utf8'), context);

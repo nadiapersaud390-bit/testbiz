@@ -17,12 +17,27 @@ function birthdayDate(value){
  if(value instanceof Date&&!isNaN(+value))return {month:value.getUTCMonth()+1,day:value.getUTCDate()};
  if(typeof value==='number'&&isFinite(value)){const d=new Date(Date.UTC(1899,11,30)+Math.floor(value)*86400000);return {month:d.getUTCMonth()+1,day:d.getUTCDate()};}
  const s=String(value==null?'':value).trim();if(!s)return null;
- let m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);if(m)return {month:Number(m[2]),day:Number(m[3])};
+ let m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[T\s].*)?$/);if(m)return {month:Number(m[2]),day:Number(m[3])};
  m=s.match(/^(\d{1,2})[-/.](\d{1,2})(?:[-/.](\d{2,4}))?$/);if(m){let first=Number(m[1]),second=Number(m[2]);if(first>12&&second<=12){const swap=first;first=second;second=swap;}return {month:first,day:second};}
- const parsed=Date.parse(/[0-9]{4}/.test(s)?s:s+' 2000');if(!isNaN(parsed)){const d=new Date(parsed);return {month:d.getUTCMonth()+1,day:d.getUTCDate()};}
+ const months={jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,sept:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12};
+ const nameFirst=s.match(/^([A-Za-z]+)[\s,.-]+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+\d{2,4})?$/i);
+ if(nameFirst&&months[nameFirst[1].toLowerCase()])return {month:months[nameFirst[1].toLowerCase()],day:Number(nameFirst[2])};
+ const dayFirst=s.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s,.-]+([A-Za-z]+)(?:,?\s+\d{2,4})?$/i);
+ if(dayFirst&&months[dayFirst[2].toLowerCase()])return {month:months[dayFirst[2].toLowerCase()],day:Number(dayFirst[1])};
  return null;
 }
-function monthNumber(value){const n=Number(value);if(Number.isInteger(n))return n;const parsed=Date.parse(String(value||'')+' 1, 2000');return isNaN(parsed)?NaN:new Date(parsed).getUTCMonth()+1;}
+function normalizeRoster(source){
+ const entries=Array.isArray(source)?source.map(p=>[null,p]):Object.entries(source||{}),seen=new Set(),rows=[];
+ entries.forEach(([key,p])=>{
+  if(!p||typeof p!=='object')return;
+  const id=String(p.userId||p.userID||p.ytelId||p.id||p.agentId||p.agentID||p.userid||key||'').trim();
+  if(!id||seen.has(id.toLowerCase())||p.hidden||['inactive','deleted','archived','quit','fired','replaced'].includes(String(p.status||'').toLowerCase()))return;
+  seen.add(id.toLowerCase());
+  rows.push({...p,userId:id,fullName:String(p.fullName||p.name||p.agentName||p.ytelName||id).trim()});
+ });
+ return rows.sort((a,b)=>a.fullName.localeCompare(b.fullName));
+}
+function monthNumber(value){const n=Number(value);if(Number.isInteger(n))return n;const name=String(value||'').trim().toLowerCase(),months={jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,sept:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12};return months[name]||NaN;}
 function prepareBirthdayImport(rows,roster){
  const source=Array.isArray(rows)?rows:[],profiles=Array.isArray(roster)?roster:[];let headerIndex=-1,nameColumn=-1,dateColumn=-1,monthColumn=-1,dayColumn=-1;
  for(let i=0;i<source.length;i++){
@@ -33,15 +48,15 @@ function prepareBirthdayImport(rows,roster){
   if(name>=0&&(date>=0||(month>=0&&dayCol>=0))){headerIndex=i;nameColumn=name;dateColumn=date;monthColumn=month;dayColumn=dayCol;break;}
  }
  if(headerIndex<0)throw Error('Could not find an Agent Name and Birthday column. Use the attached spreadsheet layout or include Agent Name and Birthday headers.');
- const byName=new Map(),byId=new Map();
- profiles.forEach(p=>{if(!p||p.hidden||['inactive','deleted','archived','quit','fired','replaced'].includes(String(p.status||'').toLowerCase()))return;const id=String(p.userId||p.userID||p.ytelId||p.id||p.agentId||p.agentID||p.userid||'').trim();if(!id)return;const name=String(p.fullName||p.name||p.agentName||p.ytelName||id).trim();byId.set(headerKey(id),{id,name});const k=headerKey(name);if(byName.has(k)&&byName.get(k)!==null)byName.set(k,null);else if(!byName.has(k))byName.set(k,{id,name});});
+ const byName=new Map(),byId=new Map(),agentNameKey=value=>headerKey(String(value||'').trim().replace(/^(gyp|gyb|gtm|rm)[\s:-]+/i,'').replace(/\s*\((bb|pr|rm|berbice|providence|remote)\)\s*$/i,''));
+ profiles.forEach(p=>{if(!p||p.hidden||['inactive','deleted','archived','quit','fired','replaced'].includes(String(p.status||'').toLowerCase()))return;const id=String(p.userId||p.userID||p.ytelId||p.id||p.agentId||p.agentID||p.userid||'').trim();if(!id)return;const name=String(p.fullName||p.name||p.agentName||p.ytelName||id).trim();byId.set(headerKey(id),{id,name});const k=agentNameKey(name);if(byName.has(k)&&byName.get(k)!==null)byName.set(k,null);else if(!byName.has(k))byName.set(k,{id,name});});
  const matched=[],unmatched=[],used=new Set();
  source.slice(headerIndex+1).forEach(row=>{
   row=Array.isArray(row)?row:[];if(!row.some(v=>String(v==null?'':v).trim()!==''))return;
   const rawName=String(row[nameColumn]==null?'':row[nameColumn]).trim();if(!rawName)return;
   let parts=dateColumn>=0?birthdayDate(row[dateColumn]):{month:monthNumber(row[monthColumn]),day:Number(row[dayColumn])};
   if(!parts||!valid(day(2000,Number(parts.month),Number(parts.day)))){unmatched.push({name:rawName,reason:'Invalid or missing birthday'});return;}
-  const key=headerKey(rawName),agent=byId.get(key)||byName.get(key);
+  const key=headerKey(rawName),agent=byId.get(key)||byName.get(agentNameKey(rawName));
   if(agent===null){unmatched.push({name:rawName,reason:'Agent name is ambiguous'});return;}
   if(!agent){unmatched.push({name:rawName,reason:'Agent was not found in the active roster'});return;}
   if(used.has(agent.id)){unmatched.push({name:rawName,reason:'Duplicate agent row'});return;}
@@ -54,5 +69,5 @@ function sort(a,b){return (a.date+(a.time||'00:00')).localeCompare(b.date+(b.tim
 function occurrence(e){return e.id+'_'+e.date+'_'+(e.revision||1);}
 function due(e,now){if(['Declined','Cancelled'].includes(e.status)||Number(e.reminder)<0||!valid(e.date))return false;const at=Date.parse(e.date+'T'+(e.time||'09:00')+':00-04:00'),until=Date.parse((e.endDate||e.date)+'T23:59:59-04:00');return now>=at-Number(e.reminder)*60000&&now<=until;}
 function validate(e){if(!['dayoff','late','early','appointment','other'].includes(e.type))throw Error('Choose an event type.');if(!valid(e.date)||!valid(e.endDate)||e.endDate<e.date)throw Error('Enter a valid date range.');if(date(e.endDate)-date(e.date)>366*86400000)throw Error('Use a date range of one year or less.');if(!e.title.trim()||e.title.length>120)throw Error('Enter a title of up to 120 characters.');if(e.type!=='other'&&!e.agentId)throw Error('Choose an agent.');if(e.type==='late'&&!e.time)throw Error('Enter the expected arrival time.');if(e.time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time))throw Error('Enter a valid time.');if(!['Requested','Approved','Planned','Declined','Cancelled'].includes(e.status))throw Error('Choose a status.');if(![-1,0,15,60,1440,4320,10080].includes(Number(e.reminder)))throw Error('Choose a reminder.');if(e.notes.length>2000)throw Error('Notes must be 2,000 characters or fewer.');return e;}
-g.AdminCalendarCore={valid,add,day,holidays,birthdayEvents,prepareBirthdayImport,sort,team,occurrence,due,validate,iso,date};
+g.AdminCalendarCore={valid,add,day,holidays,birthdayEvents,normalizeRoster,prepareBirthdayImport,sort,team,occurrence,due,validate,iso,date};
 })(window);
