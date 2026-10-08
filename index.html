@@ -1586,6 +1586,8 @@ document.addEventListener('DOMContentLoaded', function() {
         <section id="dashboard-navigation" class="dashboard-navigation dashboard-compact-nav" aria-label="Authorized workspaces">
             <div id="dashboard-nav-hint" class="dashboard-nav-hint">Loading your authorized tools…</div>
             <button type="button" class="ac-launch" data-calendar-launch hidden onclick="AdminCalendar.open()">Admin Calendar <span data-calendar-badge></span></button>
+            <button type="button" class="to-launch" data-timeoff-launch hidden><span data-timeoff-label>Request time off / My requests</span> <span data-timeoff-count></span></button>
+            <div id="to-banner" hidden role="status" aria-live="polite"><span data-timeoff-summary></span><button type="button">View requests</button></div>
             <div class="dashboard-nav-grid">
                 <button onclick="switchTab('daily')" id="tab-daily" class="workspace-tab tab-active" data-accent="cyan">
                     <span class="workspace-tab-title">Daily</span>
@@ -1714,7 +1716,10 @@ document.addEventListener('DOMContentLoaded', function() {
 <link rel="stylesheet" href="css/qa.css?v=12">
 <script src="js/spreadsheet-import.js?v=1"></script>
 <script src="js/admin-calendar-core.js?v=3"></script>
-<script src="js/admin-calendar.js?v=4"></script>
+<link rel="stylesheet" href="css/time-off.css?v=1">
+<script src="js/time-off-core.js?v=1"></script>
+<script src="js/time-off.js?v=1"></script>
+<script src="js/admin-calendar.js?v=5"></script>
 <script src="js/qa.js?v=15"></script>
 <script src="js/tracker.js?v=4"></script>
 <script src="js/chatroom.js?v=7"></script>
