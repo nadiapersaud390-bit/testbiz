@@ -55,15 +55,15 @@
   }
   function dateLabel(date) { return new Date(date + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); }
   function timeLabel(time) { const [h, m] = time.split(':').map(Number); return (h % 12 || 12) + ':' + String(m).padStart(2, '0') + (h < 12 ? ' AM' : ' PM'); }
-  function range(r) { return r.allDay ? dateLabel(r.date) + (r.endDate !== r.date ? ' to ' + dateLabel(r.endDate) : '') + ' · All day' : dateLabel(r.date) + ', ' + timeLabel(r.time) + ' to ' + (r.endDate !== r.date ? dateLabel(r.endDate) + ', ' : '') + timeLabel(r.endTime); }
+  function range(r) { if (r.allDay || r.date === r.endDate || r.timeMode) return dateLabel(r.date) + (r.endDate !== r.date ? ' to ' + dateLabel(r.endDate) : '') + ' · ' + C.timeSummary(r, timeLabel); return dateLabel(r.date) + ', ' + timeLabel(r.time) + ' to ' + dateLabel(r.endDate) + ', ' + timeLabel(r.endTime); }
   function badge(r) { return '<span class="to-badge ' + esc(r.status) + '">' + esc(C.STATUSES[r.status]) + '</span>'; }
   function details(r) {
     return `<div class="to-row to-between"><h3>${esc(role === 'admin' ? r.name + ' · ' + r.team : C.TYPES[r.type])}</h3>${badge(r)}</div><div class="to-muted">${role === 'admin' ? esc(C.TYPES[r.type]) + ' · Agent ' + esc(r.agentId) + '<br>' : ''}${esc(range(r))}</div><p class="to-reason"><strong>Reason:</strong> ${esc(r.notes)}</p>${r.reviewNote ? `<div class="to-reply"><strong>Admin reply:</strong> ${esc(r.reviewNote)}</div>` : ''}${r.reviewedBy ? `<div class="to-muted">${esc(C.STATUSES[r.status])} by ${esc(r.reviewerName || r.reviewedBy)} · ${esc(new Date(r.reviewedAt).toLocaleString('en-GB', { timeZone: 'America/Guyana' }))}</div>` : ''}`;
   }
   function makeModal() {
     modal = document.createElement('div'); modal.id = 'to-modal'; modal.hidden = true; modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-labelledby', 'to-title');
-    modal.innerHTML = `<div class="to-shell"><header class="to-head"><div><div class="to-eyebrow">Team calendar</div><h2 id="to-title">${role === 'agent' ? 'Request time off' : 'Time-off requests'}</h2><div class="to-subtitle">${role === 'agent' ? 'Choose your dates, explain your request, and track the decision.' : 'Review requests from Berbice, Providence and Remote.'}</div></div><button class="to-btn" type="button" data-to-action="close" aria-label="Close requests">✕</button></header><div class="to-body"><p class="to-muted">All dates and times use Guyana time (UTC−4). A pending request is not approved time off.</p><div id="to-status" class="to-status" role="status" aria-live="polite"></div><button class="to-btn" id="to-retry" data-to-action="retry" hidden>Retry sync</button>
-      ${role === 'agent' ? `<section class="to-card"><form id="to-form" class="to-form"><label>Request type<select id="to-type">${Object.entries(C.TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label><label class="to-check"><input type="checkbox" id="to-all-day" checked> All day</label><label>Start date<input type="date" id="to-date" required></label><label>End date<input type="date" id="to-end-date" required></label><label id="to-time-label" hidden>Time away starts<input type="time" id="to-time"></label><label id="to-end-time-label" hidden>Time away ends / expected return<input type="time" id="to-end-time"></label><label class="wide">Reason<textarea id="to-reason" rows="3" maxlength="2000" required placeholder="Tell your admin what you need and why."></textarea></label><div class="wide to-row to-between"><span class="to-muted">Your name and team are included automatically.</span><button class="to-btn primary" id="to-submit" type="submit">Send request</button></div></form></section><h3 class="to-section-title">My requests</h3>` : `<p id="to-summary" class="to-summary"></p><div class="to-filters"><select id="to-team" aria-label="Filter requests by team"><option value="ALL">All teams</option><option value="BB">Berbice (BB)</option><option value="PR">Providence (PR)</option><option value="RM">Remote (RM)</option></select><select id="to-filter-status" aria-label="Filter request status"><option value="Requested">Pending approval</option><option value="ALL">All statuses</option><option value="Approved">Approved</option><option value="Declined">Declined</option><option value="Cancelled">Cancelled</option></select><input id="to-search" aria-label="Search requests" placeholder="Search name, ID or reason"></div><section id="to-review" class="to-card" hidden></section>`}<div id="to-list"></div></div></div>`;
+    modal.innerHTML = `<div class="to-shell"><header class="to-head"><div><div class="to-eyebrow">Team calendar</div><h2 id="to-title">${role === 'agent' ? 'Request time off' : 'Time-off requests'}</h2><div class="to-subtitle">${role === 'agent' ? 'Choose a date, add a time if needed, and track the decision.' : 'Review requests from Berbice, Providence and Remote.'}</div></div><button class="to-btn" type="button" data-to-action="close" aria-label="Close requests">✕</button></header><div class="to-body"><p class="to-muted">All dates and times use Guyana time (UTC−4). A pending request is not approved time off.</p><div id="to-status" class="to-status" role="status" aria-live="polite"></div><button class="to-btn" id="to-retry" data-to-action="retry" hidden>Retry sync</button>
+      ${role === 'agent' ? `<section class="to-card"><form id="to-form" class="to-form"><label class="wide">Request type<select id="to-type">${Object.entries(C.TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label><label>Date<input type="date" id="to-date" required></label><label class="to-check" id="to-all-day-label" hidden><input type="checkbox" id="to-all-day" checked> All day</label><label id="to-time-label" hidden><span id="to-time-text">Time away starts</span><input type="time" id="to-time"></label><label id="to-end-time-label" hidden>Time away ends / expected return<input type="time" id="to-end-time"></label><label class="wide">Reason<textarea id="to-reason" rows="3" maxlength="2000" required placeholder="Tell your admin what you need and why."></textarea></label><div class="wide to-row to-between"><span class="to-muted">Your name and team are included automatically.</span><button class="to-btn primary" id="to-submit" type="submit">Send request</button></div></form></section><h3 class="to-section-title">My requests</h3>` : `<p id="to-summary" class="to-summary"></p><div class="to-filters"><select id="to-team" aria-label="Filter requests by team"><option value="ALL">All teams</option><option value="BB">Berbice (BB)</option><option value="PR">Providence (PR)</option><option value="RM">Remote (RM)</option></select><select id="to-filter-status" aria-label="Filter request status"><option value="Requested">Pending approval</option><option value="ALL">All statuses</option><option value="Approved">Approved</option><option value="Declined">Declined</option><option value="Cancelled">Cancelled</option></select><input id="to-search" aria-label="Search requests" placeholder="Search name, ID or reason"></div><section id="to-review" class="to-card" hidden></section>`}<div id="to-list"></div></div></div>`;
     document.body.appendChild(modal);
     modal.addEventListener('click', async e => {
       const b = e.target.closest('button'); if (!b || b.disabled) return;
@@ -84,16 +84,25 @@
     });
     if (role === 'agent') {
       $('to-form').onsubmit = submit;
-      $('to-date').onchange = () => { $('to-end-date').min = $('to-date').value; if ($('to-end-date').value < $('to-date').value) $('to-end-date').value = $('to-date').value; };
-      $('to-type').onchange = () => { if (['late', 'early'].includes($('to-type').value)) $('to-all-day').checked = false; syncTimes(); };
+      $('to-type').onchange = () => { $('to-all-day').checked = $('to-type').value === 'dayoff'; $('to-time').value = ''; $('to-end-time').value = ''; syncTimes(); };
       $('to-all-day').onchange = syncTimes; resetForm();
     } else {
       ['to-team', 'to-filter-status'].forEach(id => $(id).onchange = () => { selected = null; render(); });
       $('to-search').oninput = render;
     }
   }
-  function syncTimes() { const allDay = $('to-all-day').checked; ['to-time', 'to-end-time'].forEach(id => { $(id).required = !allDay; $(id).disabled = allDay; $(id + '-label').hidden = allDay; }); }
-  function resetForm() { $('to-form').reset(); const date = C.today(now()); $('to-date').value = date; $('to-date').min = date; $('to-end-date').value = date; $('to-end-date').min = date; syncTimes(); }
+  function syncTimes() {
+    const type = $('to-type').value, singleTime = ['late', 'early'].includes(type), optionalTime = ['appointment', 'other'].includes(type);
+    if (!optionalTime) $('to-all-day').checked = type === 'dayoff';
+    const allDay = $('to-all-day').checked;
+    $('to-all-day-label').hidden = !optionalTime;
+    $('to-time-text').textContent = type === 'late' ? 'Expected arrival time' : type === 'early' ? 'Leaving time' : 'Time away starts';
+    ['to-time', 'to-end-time'].forEach(id => {
+      const hidden = allDay || (singleTime && id === 'to-end-time');
+      $(id).required = !hidden; $(id).disabled = hidden; $(id + '-label').hidden = hidden;
+    });
+  }
+  function resetForm() { $('to-form').reset(); const date = C.today(now()); $('to-date').value = date; $('to-date').min = date; syncTimes(); }
   function open() {
     if (!allowed || !validSession()) return;
     if (!modal) makeModal();
@@ -141,7 +150,7 @@
     e.preventDefault(); if (busy) return;
     busy = true; render();
     try {
-      const input = { type: $('to-type').value, date: $('to-date').value, endDate: $('to-end-date').value, allDay: $('to-all-day').checked, time: $('to-time').value, endTime: $('to-end-time').value, notes: $('to-reason').value };
+      const input = { type: $('to-type').value, date: $('to-date').value, endDate: $('to-date').value, allDay: $('to-all-day').checked, time: $('to-time').value, endTime: $('to-end-time').value, notes: $('to-reason').value };
       const own = await requireAccess(), record = C.create(input, own, now()), id = g.rtdbPush(g.rtdbRef(path(agentId))).key;
       const result = await g.rtdbRunTransaction(g.rtdbRef(path(agentId)), current => {
         if (!validSession() || !connected) return;

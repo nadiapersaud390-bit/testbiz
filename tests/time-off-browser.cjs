@@ -56,9 +56,9 @@ async function mount(role,id,viewport) {
  if(id!=='denied')await page.locator('[data-timeoff-launch]').waitFor({state:'visible'});
  return page;
 }
-async function open(page){await page.locator('[data-timeoff-launch]').click();await page.waitForFunction(()=>document.getElementById('to-status').textContent==='Live updates are on.');}
+async function open(page){await page.locator('[data-timeoff-launch]').click();await page.waitForFunction(()=>!document.getElementById('to-modal').hidden&&!document.getElementById('to-list').textContent.includes('Waiting for requests to sync.'));}
 async function request(page,reason,type='dayoff',date='2026-10-09',end='2026-10-10'){
- await page.selectOption('#to-type',type);await page.fill('#to-date',date);await page.fill('#to-end-date',end);
+ await page.selectOption('#to-type',type);await page.fill('#to-date',date);
  if(type!=='dayoff'){await page.uncheck('#to-all-day');await page.fill('#to-time','10:00');await page.fill('#to-end-time','12:30');}
  await page.fill('#to-reason',reason);await page.click('#to-submit');
  await page.waitForFunction(()=>document.getElementById('to-status').textContent.startsWith('Request sent.'));
@@ -71,10 +71,10 @@ async function request(page,reason,type='dayoff',date='2026-10-09',end='2026-10-
  await open(admin);assert.match(await admin.locator('#to-list').innerText(),/Alice Example · BB/);assert.match(await admin.locator('#to-list').innerText(),/Beth Example · PR/);
  assert.equal(await admin.locator('#to-list img').count(),0);
  await admin.selectOption('#to-team','PR');assert.equal(await admin.locator('#to-list article').count(),1);assert.match(await admin.locator('#to-list').innerText(),/Beth/);await admin.selectOption('#to-team','ALL');
- // Calendar projections, multi-day placement, all-team pending inbox and review routing.
+ // Calendar projections, single-date placement, all-team pending inbox and review routing.
  await admin.click('[data-to-action="close"]');await admin.locator('[data-calendar-launch]').click();
  await admin.waitForFunction(()=>document.getElementById('ac-pending-requests').textContent.includes('Beth'));
- assert.equal(await admin.locator('#ac-grid [data-event="request:101:-test-101-1"]').count(),2);
+ assert.equal(await admin.locator('#ac-grid [data-event="request:101:-test-101-1"]').count(),1);
  await admin.selectOption('#ac-team','PR');assert.equal(await admin.locator('#ac-grid [data-event="request:101:-test-101-1"]').count(),0);
  assert.match(await admin.locator('#ac-pending-requests').innerText(),/Alice/);
  await admin.locator('#ac-pending-requests [data-event="request:101:-test-101-1"]').click();
@@ -84,7 +84,7 @@ async function request(page,reason,type='dayoff',date='2026-10-09',end='2026-10-
  assert.match(await alice.locator('#to-list').innerText(),/Approved by Manager/);
  assert.doesNotMatch(await beth.locator('#to-list').innerText(),/Family commitment/);
  // Duplicate active request is refused atomically, retaining form inputs.
- await alice.fill('#to-date','2026-10-09');await alice.fill('#to-end-date','2026-10-10');await alice.fill('#to-reason','Duplicate');await alice.click('#to-submit');
+ await alice.fill('#to-date','2026-10-09');await alice.fill('#to-reason','Duplicate');await alice.click('#to-submit');
  await alice.waitForFunction(()=>document.getElementById('to-status').textContent.includes('may already'));
  assert.equal(Object.keys(db.admin_calendar.requests['101']).length,1);assert.equal(await alice.inputValue('#to-reason'),'Duplicate');
  // Concurrent reviewer sees live decision; decline needs a reply.
@@ -102,7 +102,7 @@ async function request(page,reason,type='dayoff',date='2026-10-09',end='2026-10-
  assert.equal(Object.values(db.admin_calendar.requests['102']).filter(r=>r.status==='Cancelled').length,1);
  assert.equal(await alice.locator('[data-cancel]').count(),0);
  // Failed writes retain the form and do not claim success.
- await beth.fill('#to-date','2026-10-15');await beth.fill('#to-end-date','2026-10-15');await beth.fill('#to-reason','Keep this draft');
+ await beth.fill('#to-date','2026-10-15');await beth.fill('#to-reason','Keep this draft');
  await beth.evaluate(()=>window.__failWrites=true);await beth.click('#to-submit');
  await beth.waitForFunction(()=>document.getElementById('to-status').textContent.includes('Simulated save failure'));
  assert.equal(await beth.inputValue('#to-reason'),'Keep this draft');assert.equal(Object.keys(db.admin_calendar.requests['102']).length,2);
@@ -110,16 +110,41 @@ async function request(page,reason,type='dayoff',date='2026-10-09',end='2026-10-
  // Offline blocks submissions without silently claiming success.
  put('.info/connected',false);await notify();assert.equal(await beth.locator('#to-submit').isDisabled(),true);
  put('.info/connected',true);await notify();assert.equal(await beth.locator('#to-submit').isDisabled(),false);
+ // Late arrival and early departure each need one date and one time, with no hidden required inputs.
+ for (const [page,type,time,date,reason] of [[alice,'late','10:00','2026-10-16','Arriving after an appointment'],[beth,'early','15:30','2026-10-16','Leaving for a family commitment']]) {
+  await page.selectOption('#to-type',type);await page.fill('#to-date',date);await page.fill('#to-time',time);await page.fill('#to-reason',reason);
+  assert.equal(await page.locator('#to-form input[type=date]').count(),1);
+  assert.equal(await page.locator('#to-form input[type=time]:visible').count(),1);
+  assert.equal(await page.locator('#to-all-day-label').isVisible(),false);
+  assert.equal(await page.locator('#to-end-time').isDisabled(),true);
+  assert.match(await page.locator('#to-time-label').innerText(),type==='late'?/Expected arrival time/:/Leaving time/);
+  await page.click('#to-submit');await page.waitForFunction(()=>document.getElementById('to-status').textContent.startsWith('Request sent.'));
+ }
+ const late=Object.values(db.admin_calendar.requests['101']).find(r=>r.type==='late'),early=Object.values(db.admin_calendar.requests['102']).find(r=>r.type==='early');
+ assert.equal(late.timeMode,'arrival');assert.equal(late.endTime,'');assert.equal(late.date,late.endDate);
+ assert.equal(early.timeMode,'departure');assert.equal(early.time,'15:30');assert.equal(early.date,early.endDate);
+ assert.match(await admin.locator('#to-list').innerText(),/Arriving at 10:00 AM/);
+ assert.match(await admin.locator('#to-list').innerText(),/Leaving at 3:30 PM/);
+ await admin.locator('#to-list article').filter({hasText:'Arriving after an appointment'}).locator('[data-review]').click();await admin.click('[data-decision=Approved]');
+ await alice.waitForFunction(()=>[...document.querySelectorAll('#to-list article')].some(el=>el.textContent.includes('Arriving at 10:00 AM')&&el.textContent.includes('Approved')));
  // Approved projection and no duplicate stored calendar events.
  await admin.click('[data-to-action="close"]');await admin.locator('[data-calendar-launch]').click();await admin.selectOption('#ac-team','ALL');
  assert.match(await admin.locator('#ac-grid [data-event="request:101:-test-101-1"]').first().innerText(),/Approved/);
  assert.deepEqual(db.admin_calendar.events,{});
+ assert.match(await admin.locator('#ac-pending-requests').innerText(),/Leaving at 15:30/);
+ await admin.locator('[data-date="2026-10-16"]').first().click();
+ assert.match(await admin.locator('#ac-day-list').innerText(),/Arriving at 10:00/);
  // Capture desktop and narrow layouts.
  const screenshots=process.env.TIMEOFF_SCREENSHOT_DIR;
  if(screenshots){fs.mkdirSync(screenshots,{recursive:true});await admin.screenshot({path:path.join(screenshots,'admin-calendar.png')});}
  await alice.locator('[data-to-action="close"]').click();await open(alice);await alice.setViewportSize({width:390,height:844});
  assert.equal(await alice.evaluate(()=>document.querySelector('.to-shell').scrollWidth>document.querySelector('.to-shell').clientWidth),false);
  if(screenshots)await alice.screenshot({path:path.join(screenshots,'agent-mobile.png')});
+ await alice.selectOption('#to-type','early');await alice.fill('#to-date','2026-10-19');await alice.fill('#to-time','15:00');
+ assert.equal(await alice.locator('#to-form input[type=time]:visible').count(),1);
+ if(screenshots)await alice.screenshot({path:path.join(screenshots,'agent-early-mobile.png')});
+ // Switching back to day off removes time requirements and stale times.
+ await alice.selectOption('#to-type','dayoff');assert.equal(await alice.locator('#to-form input[type=time]:visible').count(),0);assert.equal(await alice.inputValue('#to-time'),'');
  // Default-denied admins never read requests. Agent only listens to own requests.
  assert.equal(await denied.locator('[data-timeoff-launch]').isVisible(),false);
  assert.equal(logs.some(l=>l.id==='denied'&&l.path.startsWith('admin_calendar/requests')),false);

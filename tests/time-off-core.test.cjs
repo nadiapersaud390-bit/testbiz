@@ -21,6 +21,22 @@ assert.equal(C.validate({ ...timed, time: '23:00', endTime: '01:00', endDate: '2
 assert.equal(C.overlaps(timed, bb), true);
 assert.equal(C.overlaps(timed, { ...timed, time: '11:00', endTime: '12:00' }), false);
 assert.equal(C.overlaps(timed, { ...timed, time: '10:59' }), true);
+// One-date, one-time arrivals/departures do not need a dummy end date or end time.
+const late = C.validate({ type: 'late', date: '2026-10-09', time: '10:00', notes: 'Appointment', allDay: false }, now);
+const early = C.validate({ type: 'early', date: '2026-10-09', time: '15:30', notes: 'Family', allDay: false }, now);
+assert.equal(late.endDate, late.date); assert.equal(late.timeMode, 'arrival'); assert.equal(late.endTime, '');
+assert.equal(early.endDate, early.date); assert.equal(early.timeMode, 'departure'); assert.equal(early.endTime, '');
+assert.equal(C.overlaps(late, early), false);
+assert.equal(C.overlaps(late, { ...early, time: '09:30' }), true);
+assert.equal(C.overlaps(late, bb), true); assert.equal(C.overlaps(early, bb), true);
+assert.equal(C.timeSummary(late), 'Arriving at 10:00');
+assert.equal(C.timeSummary(early), 'Leaving at 15:30');
+assert.equal(C.timeSummary({ ...timed, type: 'late' }), '09:00 to 11:00', 'legacy time ranges retain their meaning');
+assert.throws(() => C.validate({ ...late, time: '' }, now), /arrival time/);
+assert.throws(() => C.validate({ ...early, time: '25:00' }, now), /leaving time/);
+assert.throws(() => C.validate({ ...early, date: '2026-10-08', time: '14:00' }, now), /past/);
+assert.equal(C.validate({ ...late, endDate: '2026-10-20', endTime: '08:00' }, now).endDate, late.date, 'a single-time request discards stale hidden range fields');
+assert.equal(C.validate({ ...input, endDate: undefined }, now).endDate, input.date, 'one date is sufficient for a day off');
 const actor = { role: 'admin', id: 'manager', name: 'Manager' };
 const approved = C.transition(bb, 1, 'Approved', actor, 'Enjoy your day.', now + 1000);
 assert.equal(approved.status, 'Approved'); assert.equal(approved.reviewNote, 'Enjoy your day.');

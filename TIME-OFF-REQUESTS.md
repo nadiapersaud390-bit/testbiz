@@ -5,7 +5,7 @@
 On the dashboard, use **Request time off / My requests** above the main navigation tabs.
 
 1. Choose Day off, Late arrival, Early departure, Appointment, or Other request.
-2. Select the start and end dates. Leave **All day** checked for a full day or a range of full days. Uncheck it to select the hours away. Late arrivals and early departures require hours.
+2. Select **Date** once. **Day off** needs only the date. **Late arrival** adds one **Expected arrival time** field, and **Early departure** adds one **Leaving time** field. Appointment and Other request support start/end hours on that date, or **All day**.
 3. Write a reason and select **Send request**.
 4. The request appears immediately on the admin calendar as **Pending approval**. The agent name and BB, PR, or RM team come from the current Firebase roster.
 5. Check **My requests** for Approved, Declined, or Cancelled, the reviewing admin, and their reply. Decisions update live while the dashboard is open and remain available after refresh or the next login.
@@ -16,15 +16,15 @@ The dashboard shows pending requests, new decisions, and upcoming approved time 
 
 Use **Time-off requests** on the dashboard or **Review time-off requests** inside **Admin Calendar**. The queue starts with pending requests from **all teams**, including Berbice (BB) and Providence (PR). Filter by team, status, name, ID, or reason when needed.
 
-Select **Review request**, read the date range, hours and reason, optionally add a reply, then approve or decline. A reply is required when declining. The agent receives the status and reply in their dashboard automatically. Requests also appear directly in the calendar grid, selected-day list, upcoming list, reminders, and the new all-team **Pending agent requests** inbox. Click an agent request on the calendar to review it. Pending and approved requests have distinct calendar labels.
+Select **Review request**, read the date, requested time and reason, optionally add a reply, then approve or decline. A reply is required when declining. The agent receives the status and reply in their dashboard automatically. Requests also appear directly in the calendar grid, selected-day list, upcoming list, reminders, and the new all-team **Pending agent requests** inbox. Click an agent request on the calendar to review it. Pending and approved requests have distinct calendar labels.
 
 This follows the existing **Calendar** permission. Superadmin can grant it through **Edit Admin > Admin Tools Access > Calendar**, or **Admin Calendar > Manage access**. An admin without that permission does not receive the request queue or request subscriptions. Revoking access closes the request window and removes its listeners. Permissions are not granted or broadened by this update.
 
 ## Dates, updates and conflicts
 
 - All date/time fields use Guyana time (UTC−4), including agents whose computer is set to another timezone.
-- Date ranges include both dates for all-day requests. Timed requests use a start and end timestamp and can span midnight.
-- Past start dates/times, reversed ranges, missing reasons, and overlapping pending/approved requests by the same agent are rejected. Separate non-overlapping hours on the same date are allowed.
+- New requests use one date. Late arrival stores the expected arrival time, and early departure stores the leaving time, each clearly labelled in the agent history, admin review and calendar. Existing requests with date/time ranges remain readable and keep their original values.
+- Past dates/times, reversed time ranges, missing reasons, and overlapping pending/approved requests by the same agent are rejected. For overlap checks, late arrival covers the beginning of the day up to arrival and early departure covers leaving time onward. A late arrival and an early departure on the same day are allowed if they do not overlap.
 - Firebase transactions prevent duplicate overlapping submissions and stale approvals. If two admins review the same request, the first committed decision wins. The other admin sees the latest result.
 - Offline submissions and decisions are disabled. Failed saves retain the agent's input and show an error instead of reporting success.
 - Requests are planning records. They do not automatically change attendance or payroll.
