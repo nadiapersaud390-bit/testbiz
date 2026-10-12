@@ -9,7 +9,8 @@ const fixtureNow = Date.parse('2026-10-08T15:00:00-04:00');
 let revision = 0, pushId = 0;
 const db = {
   '.info': { connected: true, serverTimeOffset: 0 },
-  biz_master_roster: [{ userId:'101', fullName:'Alice Example', team:'BB' },{ userId:'102', fullName:'Beth Example', team:'PR' }],
+  biz_master_roster: [{ userId:'101', fullName:'Alice Example', team:'BB' },{ userId:'102', fullName:'Beth Example', team:'PR' },{ userId:'103', fullName:'Robin Example', team:'RM' }],
+  super_admin: { email:'rose', name:'Rose', role:'super_admin' },
   admins_list: { manager:{email:'manager',name:'Manager',role:'admin',calendarAccess:true}, manager2:{email:'manager2',name:'Second Admin',role:'admin',calendarAccess:true}, denied:{email:'denied',role:'admin',calendarAccess:false}, blocked:{email:'blocked',role:'admin',calendarAccess:true} },
   admin_calendar:{ events:{}, birthdays:{}, reminder_ack:{}, requests:{} }
 };
@@ -19,7 +20,7 @@ const get = p => clone(p.split('/').reduce((o,k)=>o?.[k],db));
 function put(p,v) { const keys=p.split('/'), last=keys.pop(); let obj=db; for(const k of keys)obj=obj[k] ||= {}; if(v===null)delete obj[last];else obj[last]=clone(v); revision++; }
 async function notify() { await Promise.all([...subscriptions].flatMap(([page, subs])=>[...subs].map(([id,p])=>page.evaluate(({id,v})=>window.__deliver(id,v),{id,v:get(p)})))); }
 let browser;
-async function mount(role,id,viewport) {
+async function mount(role,id,viewport,expectVisible=true) {
  const context=await browser.newContext({viewport:viewport||{width:1366,height:1000}}), page=await context.newPage();
  page.setDefaultTimeout(6000); subscriptions.set(page,new Map());
  page.on('pageerror',e=>errors.push(e.message));
@@ -35,8 +36,8 @@ async function mount(role,id,viewport) {
  await page.addInitScript(({role,id,fixtureNow})=>{
   Date.now=()=>fixtureNow;
   sessionStorage.setItem('bizUserRole',role);
-  if(role==='agent'){sessionStorage.setItem('agentLoggedIn','1');sessionStorage.setItem('currentAgentProfile',JSON.stringify({ytelId:id,name:id==='101'?'Alice Example':'Beth Example',team:id==='101'?'BB':'PR'}));}
-  else {sessionStorage.setItem('adminLoggedIn','true');sessionStorage.setItem('currentAdmin',JSON.stringify({email:id,name:id==='manager'?'Manager':'Second Admin',role:'admin'}));}
+  if(role==='agent'){sessionStorage.setItem('agentLoggedIn','1');sessionStorage.setItem('currentAgentProfile',JSON.stringify({ytelId:id,name:id==='101'?'Alice Example':id==='102'?'Beth Example':'Robin Example',team:id==='101'?'BB':id==='102'?'PR':'RM'}));}
+  else {sessionStorage.setItem('adminLoggedIn','true');sessionStorage.setItem('currentAdmin',JSON.stringify({email:id,name:id==='manager'?'Manager':id==='rose'?'Rose':'Second Admin',role:id==='rose'?'super_admin':'admin'}));}
   let seq=0,push=Number(sessionStorage.getItem('testPush')||0);const listeners={};
   window.__deliver=(id,v)=>listeners[id]?.({val:()=>v});
   window.rtdbRef=p=>p;
@@ -50,10 +51,13 @@ async function mount(role,id,viewport) {
  },{role,id,fixtureNow});
  const production = fs.readFileSync(path.join(root,'index.html'),'utf8');
  const launches=production.match(/<button type="button" class="ac-launch"[\s\S]*?(?=\s*<div class="dashboard-nav-grid">)/)[0];
- const html=`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/css/admin-calendar.css"><link rel="stylesheet" href="/css/time-off.css"></head><body style="margin:0;background:#081325;padding:25px"><h1 style="color:white;font:30px Arial">BIZ Level Up Dashboard</h1><section>${launches}</section>${['admin-calendar-core','time-off-core','time-off','admin-calendar'].map(f=>`<script src="/js/${f}.js"></script>`).join('')}</body></html>`;
+ const panel=fs.readFileSync(path.join(root,'tabs/superadminpanel.html'),'utf8');
+ assert.match(panel,/if \(tabId === 'users'\) window.TimeOffTeamAccess\?\.mount\(\);\s*if \(_supTabInited/);
+ const host=panel.match(/<section id="to-team-access-host"><\/section>/)[0];
+ const html=`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/css/admin-calendar.css"><link rel="stylesheet" href="/css/time-off.css"></head><body style="margin:0;background:#081325;padding:25px"><h1 style="color:white;font:30px Arial">BIZ Level Up Dashboard</h1><section>${launches}</section>${host}${['admin-calendar-core','time-off-core','time-off-access','time-off','admin-calendar'].map(f=>`<script src="/js/${f}.js"></script>`).join('')}</body></html>`;
  await page.route('https://test.local/**',route=>{const pathname=new URL(route.request().url()).pathname;const body=pathname==='/'?html:fs.readFileSync(path.join(root,pathname.slice(1)));route.fulfill({status:200,contentType:pathname==='/'?'text/html':pathname.endsWith('.js')?'text/javascript':'text/css',body})});
  await page.goto('https://test.local/');
- if(id!=='denied')await page.locator('[data-timeoff-launch]').waitFor({state:'visible'});
+ if(id!=='denied'&&expectVisible)await page.locator('[data-timeoff-launch]').waitFor({state:'visible'});
  return page;
 }
 async function open(page){await page.locator('[data-timeoff-launch]').click();await page.waitForFunction(()=>!document.getElementById('to-modal').hidden&&!document.getElementById('to-list').textContent.includes('Waiting for requests to sync.'));}
@@ -145,10 +149,104 @@ async function request(page,reason,type='dayoff',date='2026-10-09',end='2026-10-
  if(screenshots)await alice.screenshot({path:path.join(screenshots,'agent-early-mobile.png')});
  // Switching back to day off removes time requirements and stale times.
  await alice.selectOption('#to-type','dayoff');assert.equal(await alice.locator('#to-form input[type=time]:visible').count(),0);assert.equal(await alice.inputValue('#to-time'),'');
+ // Approved requests persist independently of pending queues and reminder dismissals.
+ assert.match(await admin.locator('#ac-approved-plans').innerText(),/Alice Example/);
+ await admin.selectOption('#ac-team','PR');assert.match(await admin.locator('#ac-approved-plans').innerText(),/Alice Example/);
+ await admin.selectOption('#ac-team','ALL');
+ let reminder=admin.locator('#ac-reminders .ac-item').filter({hasText:'Family commitment'});
+ await reminder.waitFor({state:'visible'});assert.match(await reminder.innerText(),/Tomorrow: approved time off/);
+ await reminder.locator('[data-ack]').click();
+ await admin.waitForFunction(()=>!document.getElementById('ac-reminders').textContent.includes('Family commitment'));
+ assert.match(await admin.locator('#ac-approved-plans').innerText(),/Family commitment/);
+ assert.equal(await admin.locator('#ac-grid [data-event="request:101:-test-101-1"]').count(),1);
+ await admin.reload();await admin.locator('[data-calendar-launch]').click();
+ await admin.waitForFunction(()=>document.getElementById('ac-approved-plans').textContent.includes('Family commitment'));
+ assert.doesNotMatch(await admin.locator('#ac-reminders').innerText(),/Family commitment/);
+ // Move to the actual day: its separate reminder reappears without creating a new event.
+ put('.info/serverTimeOffset',17*3600000);await notify();await admin.evaluate(()=>AdminCalendar.openDate('2026-10-09'));
+ reminder=admin.locator('#ac-reminders .ac-item').filter({hasText:'Family commitment'});
+ assert.match(await reminder.innerText(),/Today: approved time off/);
+ await reminder.locator('[data-ack]').click();await admin.waitForFunction(()=>!document.getElementById('ac-reminders').textContent.includes('Family commitment'));
+ assert.match(await admin.locator('#ac-day-list').innerText(),/Approved/);
+ // After the date, history remains on the month grid while the reminder expires.
+ put('.info/serverTimeOffset',41*3600000);await notify();await admin.evaluate(()=>AdminCalendar.openDate('2026-10-09'));
+ assert.equal(await admin.locator('#ac-grid [data-event="request:101:-test-101-1"]').count(),1);
+ assert.doesNotMatch(await admin.locator('#ac-approved-plans').innerText(),/Family commitment/);
+ assert.doesNotMatch(await admin.locator('#ac-reminders').innerText(),/Family commitment/);
+ assert.equal(db.admin_calendar.requests['101']['-test-101-1'].status,'Approved');
+ // Remove the last pending request by approval; the admin dashboard banner stays visible.
+ const earlyId=Object.entries(db.admin_calendar.requests['102']).find(([,r])=>r.type==='early')[0];
+ put('admin_calendar/requests/102/'+earlyId,{...db.admin_calendar.requests['102'][earlyId],status:'Approved',revision:2});await notify();
+ await admin.locator('[data-action=close]').click();
+ assert.equal(await admin.locator('#to-banner').isVisible(),true);assert.match(await admin.locator('#to-banner').innerText(),/approved on the calendar/);
+ assert.equal(await admin.locator('#to-banner button').innerText(),'View calendar');
+ await admin.locator('#to-banner button').click();assert.equal(await admin.locator('#ac-modal').isVisible(),true);
  // Default-denied admins never read requests. Agent only listens to own requests.
  assert.equal(await denied.locator('[data-timeoff-launch]').isVisible(),false);
  assert.equal(logs.some(l=>l.id==='denied'&&l.path.startsWith('admin_calendar/requests')),false);
  assert.equal(logs.some(l=>l.id==='101'&&l.path.startsWith('admin_calendar/requests')&&!l.path.startsWith('admin_calendar/requests/101')),false);
+ // Super Admin team controls affect agent access, preserving all admin calendar records.
+ const master=await mount('admin','rose'),remote=await mount('agent','103');
+ await master.evaluate(()=>TimeOffTeamAccess.mount());
+ await master.waitForFunction(()=>!document.querySelector('[data-to-team-access=BB]').disabled);
+ for(const t of ['BB','PR','RM'])assert.equal(await master.locator('[data-to-team-access='+t+']').isChecked(),true);
+ await master.locator('[data-to-team-access=BB]').uncheck();
+ await master.waitForFunction(()=>document.querySelector('[data-to-access-status]').textContent.includes('Berbice time-off requests are hidden'));
+ assert.deepEqual(db.settings.timeOffTeamAccess.teams,{BB:false,PR:true,RM:true});
+ assert.equal(db.settings.timeOffTeamAccess.updatedBy,'rose');
+ await alice.locator('[data-timeoff-launch]').waitFor({state:'hidden'});
+ assert.equal(await alice.locator('#to-modal').count(),0);assert.equal(await alice.locator('#to-banner').isVisible(),false);
+ assert.equal([...subscriptions.get(alice).values()].some(p=>p.startsWith('admin_calendar/requests')),false);
+ await alice.evaluate(()=>TimeOffRequests.open());assert.equal(await alice.locator('#to-modal').count(),0);
+ assert.equal(await beth.locator('[data-timeoff-launch]').isVisible(),true);assert.equal(await remote.locator('[data-timeoff-launch]').isVisible(),true);
+ assert.equal(await admin.locator('#ac-grid [data-event="request:101:-test-101-1"]').count(),1);
+ assert.match(await admin.locator('#ac-approved-plans').innerText(),/Alice Example/);
+ const disabledAlice=await mount('agent','101',undefined,false);
+ // Current roster team, not the cached session team, controls access.
+ put('biz_master_roster/0/team','PR');await notify();await alice.locator('[data-timeoff-launch]').waitFor({state:'visible'});
+ put('biz_master_roster/0/team','BB');await notify();await alice.locator('[data-timeoff-launch]').waitFor({state:'hidden'});
+ assert.equal(await disabledAlice.locator('[data-timeoff-launch]').isVisible(),false);
+ assert.equal([...subscriptions.get(disabledAlice).values()].some(p=>p.startsWith('admin_calendar/requests')),false);
+ // A failed toggle keeps the last saved policy and offers retry; offline controls are disabled.
+ await master.evaluate(()=>window.__failWrites=true);await master.locator('[data-to-team-access=PR]').click();
+ await master.waitForFunction(()=>document.querySelector('[data-to-access-status]').textContent.includes('Simulated save failure'));
+ assert.equal(await master.locator('[data-to-team-access=PR]').isChecked(),true);assert.equal(db.settings.timeOffTeamAccess.teams.PR,true);
+ await master.evaluate(()=>window.__failWrites=false);
+ put('.info/connected',false);await notify();assert.equal(await master.locator('[data-to-team-access=BB]').isDisabled(),true);
+ put('.info/connected',true);await notify();
+ await master.locator('[data-to-team-access=BB]').check();await alice.locator('[data-timeoff-launch]').waitFor({state:'visible'});
+ await open(alice);assert.match(await alice.locator('#to-list').innerText(),/Approved/);
+ // Fresh policy checks prevent a submission even before its live listener receives revocation.
+ const before=Object.keys(db.admin_calendar.requests['101']).length;
+ put('settings/timeOffTeamAccess/teams/BB',false);
+ await alice.fill('#to-date','2026-10-20');await alice.fill('#to-reason','Must not be sent');await alice.click('#to-submit');
+ await alice.locator('[data-timeoff-launch]').waitFor({state:'hidden'});
+ assert.equal(Object.keys(db.admin_calendar.requests['101']).length,before);
+ put('settings/timeOffTeamAccess/teams/BB',true);await notify();
+ // Remote can submit; disabling that team keeps its pending request available for admin review.
+ await open(remote);await request(remote,'Remote appointment','dayoff','2026-10-21');
+ await master.locator('[data-to-team-access=RM]').uncheck();await remote.locator('[data-timeoff-launch]').waitFor({state:'hidden'});
+ assert.match(await admin.locator('#ac-pending-requests').innerText(),/Robin Example/);
+ assert.equal(db.admin_calendar.requests['103']['-test-103-1'].status,'Requested');
+ // A regular admin cannot mount active controls or change this setting.
+ await denied.evaluate(()=>TimeOffTeamAccess.mount());
+ assert.equal(await denied.locator('[data-to-team-access=BB]').isDisabled(),true);
+ assert.equal(logs.some(l=>l.id==='denied'&&l.path==='settings/timeOffTeamAccess'),false);
+ // Concurrent Super Admin sessions preserve changes to different teams.
+ const master2=await mount('admin','rose');await master2.evaluate(()=>TimeOffTeamAccess.mount());
+ await master2.waitForFunction(()=>!document.querySelector('[data-to-team-access=PR]').disabled);
+ await Promise.all([master.locator('[data-to-team-access=BB]').uncheck(),master2.locator('[data-to-team-access=PR]').uncheck()]);
+ await master.waitForFunction(()=>document.querySelector('[data-to-access-status]').textContent.includes('Berbice time-off requests are hidden'));
+ await master2.waitForFunction(()=>document.querySelector('[data-to-access-status]').textContent.includes('Providence time-off requests are hidden'));
+ assert.deepEqual(db.settings.timeOffTeamAccess.teams,{BB:false,PR:false,RM:false});
+ if(screenshots){await master.screenshot({path:path.join(screenshots,'superadmin-team-access.png')});await master.setViewportSize({width:390,height:844});assert.equal(await master.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await master.screenshot({path:path.join(screenshots,'superadmin-team-access-mobile.png')});}
+ // Malformed policy fails closed; restoring valid flags restores visibility.
+ put('settings/timeOffTeamAccess','invalid');await notify();assert.equal(await beth.locator('[data-timeoff-launch]').isVisible(),false);
+ put('settings/timeOffTeamAccess',{teams:{BB:true,PR:true,RM:true}});await notify();await beth.locator('[data-timeoff-launch]').waitFor({state:'visible'});
+ // Revoking master authorization disables controls and removes the policy listener.
+ put('super_admin/role','admin');await notify();
+ assert.equal(await master.locator('[data-to-team-access=BB]').isDisabled(),true);
+ assert.equal([...subscriptions.get(master).values()].includes('settings/timeOffTeamAccess'),false);
  // Live permission revocation closes the review surface and removes request subscriptions.
  await admin2.locator('[data-to-action="close"]').click();await open(admin2);
  put('admins_list/manager2/calendarAccess',false);await notify();
@@ -163,5 +261,5 @@ async function request(page,reason,type='dayoff',date='2026-10-09',end='2026-10-
  await blocked.waitForFunction(()=>document.getElementById('to-status').textContent.includes('Permission denied'));
  assert.equal(await blocked.locator('#to-retry').isVisible(),true);
  assert.deepEqual(errors,[]);
- console.log('Browser checks passed: BB/PR requests, calendar projection, approval/decline and replies, refresh, duplicate prevention, cancellation, offline state, permission revocation, data scoping and mobile layout.');
+ console.log('Browser checks passed: BB/PR/RM requests, team switches, live and fresh access checks, concurrent saves, failed saves, master revocation, calendar persistence, approval/decline and replies, reminders, refresh, duplicate prevention, cancellation, offline state, data scoping and mobile layout.');
 })().catch(e=>{console.error(e);process.exitCode=1}).finally(async()=>{await browser?.close()});

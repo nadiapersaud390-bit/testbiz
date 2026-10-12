@@ -26,6 +26,8 @@ Revoking access removes the button, closes and clears the calendar, unsubscribes
 
 Event reminders can be set for the event time, 15 minutes, 1 hour, 1 day, 3 days or 1 week beforehand, or disabled. Events without a time use 9 AM Guyana time. Birthdays remind from 7 days before at 9 AM; holidays from 1 day before at 9 AM.
 
+Approved agent requests stay on the calendar and in **Upcoming approved time off** while current or upcoming. Their reminders appear at 9 AM Guyana time the day before and again on each approved date, with separate dismissal keys. Dismissing a reminder never deletes the calendar entry.
+
 The inbox and dashboard badge show due reminders for all teams, independently of the calendar filters. Dismissal syncs in Firebase for that admin account, so another admin retains their own reminder. Editing an event creates a new reminder revision. Reminders remain available until the event's final day ends. On reopening the dashboard, still-relevant reminders are shown again unless dismissed.
 
 **Desktop and voice reminders require the dashboard to stay open.** The browser must grant notification permission. Voice must be enabled per page session through its button. Background browser sleep can delay reminders; the app checks again when the page becomes visible. There is no service worker, server scheduler, email, WhatsApp, or closed-browser push delivery. Desktop notification repeats are suppressed per browser/account/occurrence. The in-app inbox is the authoritative reminder list.

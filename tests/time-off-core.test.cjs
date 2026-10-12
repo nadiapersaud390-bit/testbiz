@@ -1,6 +1,13 @@
 const assert = require('node:assert/strict');
 const C = require('../js/time-off-core.js');
 const now = Date.parse('2026-10-08T15:00:00-04:00');
+assert.deepEqual(C.teamAccess(null), { BB: true, PR: true, RM: true });
+assert.deepEqual(C.teamAccess({ teams: { BB: false } }), { BB: false, PR: true, RM: true });
+for (const invalid of [false, 'true', [], {}, { teams: 'all' }]) assert.deepEqual(C.teamAccess(invalid), { BB: false, PR: false, RM: false });
+assert.equal(C.canRequestForTeam({ teams: { RM: false } }, 'Remote'), false);
+assert.equal(C.canRequestForTeam({ teams: { BB: true } }, 'Berbice'), true);
+assert.equal(C.canRequestForTeam(null, 'unknown'), false);
+assert.equal(C.canRequestForTeam({ teams: { PR: 'true' } }, 'Providence'), false);
 const input = { type: 'dayoff', date: '2026-10-09', endDate: '2026-10-10', allDay: true, notes: 'Family commitment' };
 const bb = C.create(input, { userId: '101', fullName: 'Alice', team: 'Berbice' }, now);
 assert.equal(bb.team, 'BB'); assert.equal(bb.status, 'Requested'); assert.equal(bb.revision, 1);

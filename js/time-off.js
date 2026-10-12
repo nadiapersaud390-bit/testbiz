@@ -8,6 +8,7 @@
   const isSuper = admin.role === 'super_admin' || admin.isSuper === true;
   const validSession = () => role === sessionStorage.getItem('bizUserRole') && (role === 'agent' ? sessionStorage.getItem('agentLoggedIn') === '1' && C.safeKey(agentId) && String(stored('currentAgentProfile').ytelId || stored('currentAgentProfile').userId || stored('currentAgentProfile').id || '').trim() === agentId : role === 'admin' && sessionStorage.getItem('adminLoggedIn') === 'true' && adminId && String(stored('currentAdmin').email || '').trim().toLowerCase() === adminId);
   let allowed = false, ready = false, connected = false, offset = 0, rows = [], unsubscribe, generation = 0, modal, priorFocus, overflow, busy = false, notice = '', noticeError = false, selected = null, reviewSignature = '';
+  let policyReady = false, rosterReady = false, teamSettings, ownProfile;
   const now = () => Date.now() + offset;
   const path = (id, request) => 'admin_calendar/requests/' + id + (request ? '/' + request : '');
   const seenKey = 'biz_timeoff_seen_v1_' + agentId;
@@ -38,6 +39,17 @@
     else { stop(); close(); if (modal) { modal.remove(); modal = null; } selected = null; }
     render();
   }
+  function findAgent(roster) {
+    const own = g.AdminCalendarCore.normalizeRoster(roster).find(p => p.userId === agentId);
+    return own && own.loginDisabled !== true && String(own.status || '').toLowerCase() !== 'disabled' && (!g.filterDeletedAgents || g.filterDeletedAgents([own]).length) ? own : null;
+  }
+  function applyAgentAccess() {
+    if (role !== 'agent') return;
+    allowed = !!(validSession() && policyReady && rosterReady && ownProfile && C.canRequestForTeam(teamSettings, ownProfile.team));
+    if (allowed) subscribe();
+    else { close(); stop(); if (modal) { modal.remove(); modal = null; } }
+    render();
+  }
   async function requireAccess() {
     if (!validSession() || !allowed || !connected || !ready) throw Error('Wait for a live connection before saving.');
     if (role === 'admin') {
@@ -45,9 +57,12 @@
       const ok = isSuper ? r && r.role === 'super_admin' && String(r.email || '').trim().toLowerCase() === adminId : r && r.calendarAccess === true && !['inactive', 'deleted', 'disabled'].includes(String(r.status || '').toLowerCase());
       if (!ok) { setAdminAccess(false); throw Error('Your Calendar access is no longer available.'); }
     } else {
-      const roster = g.AdminCalendarCore.normalizeRoster((await g.rtdbGet(g.rtdbRef('biz_master_roster'))).val());
-      const own = roster.find(p => p.userId === agentId);
-      if (!own || own.loginDisabled === true || (g.filterDeletedAgents && !g.filterDeletedAgents([own]).length)) throw Error('Your active agent profile could not be verified. Please contact an admin.');
+      const [roster, policy] = await Promise.all([g.rtdbGet(g.rtdbRef('biz_master_roster')), g.rtdbGet(g.rtdbRef(C.TEAM_ACCESS_PATH))]);
+      const own = findAgent(roster.val());
+      if (!own || !C.canRequestForTeam(policy.val(), own.team)) {
+        ownProfile = own; teamSettings = policy.val(); applyAgentAccess();
+        throw Error('Time-off requests are not available for your team. Please contact an admin.');
+      }
       if (!validSession() || !connected || !allowed) throw Error('Your session or connection changed. Please sign in again.');
       return own;
     }
@@ -118,9 +133,10 @@
     document.querySelectorAll('[data-timeoff-launch]').forEach(b => { b.hidden = !visible; const label = b.querySelector('[data-timeoff-label]'), count = b.querySelector('[data-timeoff-count]'); if (label) label.textContent = role === 'agent' ? 'Request time off / My requests' : 'Time-off requests'; if (count) count.textContent = ready && (role === 'admin' ? pending : fresh) ? String(role === 'admin' ? pending : fresh) : ''; });
     const banner = $('to-banner'); if (!banner) return;
     const upcoming = rows.filter(r => r.status === 'Approved' && r.endDate >= C.today(now())).sort((a, b) => a.date.localeCompare(b.date));
-    banner.hidden = !visible || !ready || !(role === 'admin' ? pending : fresh || pending || upcoming.length);
-    const text = role === 'admin' ? pending + ' time-off request' + (pending === 1 ? '' : 's') + ' awaiting approval across all teams.' : fresh ? fresh + ' request decision' + (fresh === 1 ? '' : 's') + ' ready. Open My requests to see your approval status and admin reply.' : upcoming.length ? 'Approved: ' + C.TYPES[upcoming[0].type] + ' · ' + range(upcoming[0]) + (upcoming.length > 1 ? ' (+' + (upcoming.length - 1) + ' more)' : '') : pending + ' request' + (pending === 1 ? ' is' : 's are') + ' pending admin approval.';
+    banner.hidden = !visible || !ready || !(role === 'admin' ? pending || upcoming.length : fresh || pending || upcoming.length);
+    const text = role === 'admin' ? [pending ? pending + ' request' + (pending === 1 ? '' : 's') + ' awaiting approval.' : '', upcoming.length ? upcoming.length + ' approved on the calendar. Next: ' + upcoming[0].name + ' (' + upcoming[0].team + ') · ' + range(upcoming[0]) : ''].filter(Boolean).join(' ') : fresh ? fresh + ' request decision' + (fresh === 1 ? '' : 's') + ' ready. Open My requests to see your approval status and admin reply.' : upcoming.length ? 'Approved: ' + C.TYPES[upcoming[0].type] + ' · ' + range(upcoming[0]) + (upcoming.length > 1 ? ' (+' + (upcoming.length - 1) + ' more)' : '') : pending + ' request' + (pending === 1 ? ' is' : 's are') + ' pending admin approval.';
     banner.querySelector('[data-timeoff-summary]').textContent = text;
+    banner.querySelector('button').textContent = role === 'admin' ? 'View calendar' : 'View requests';
   }
   function render() {
     renderLaunch(); if (!modal || modal.hidden) return;
@@ -153,13 +169,13 @@
       const input = { type: $('to-type').value, date: $('to-date').value, endDate: $('to-date').value, allDay: $('to-all-day').checked, time: $('to-time').value, endTime: $('to-end-time').value, notes: $('to-reason').value };
       const own = await requireAccess(), record = C.create(input, own, now()), id = g.rtdbPush(g.rtdbRef(path(agentId))).key;
       const result = await g.rtdbRunTransaction(g.rtdbRef(path(agentId)), current => {
-        if (!validSession() || !connected) return;
+        if (!validSession() || !allowed || !connected) return;
         const existing = current || {};
         if (Object.values(existing).some(r => r && ['Requested', 'Approved'].includes(r.status) && C.overlaps(record, r))) return;
         return { ...existing, [id]: record };
       }, { applyLocally: false });
       if (!result.committed) throw Error('The request was not sent. You may already have a pending or approved request for these dates and hours. Check My requests before trying again.');
-      resetForm(); message('Request sent. It is on the admin calendar and pending approval.');
+      if ($('to-form')) resetForm(); message('Request sent. It is on the admin calendar and pending approval.');
     } catch (error) { message(error.message || 'The request could not be sent.', true); }
     finally { busy = false; render(); }
   }
@@ -174,7 +190,7 @@
       C.transition(r, expected, status, actor, note, now());
       const result = await g.rtdbRunTransaction(g.rtdbRef(path(r.agentId, r.requestId)), current => validSession() && allowed && connected ? C.transition(current, expected, status, actor, note, now()) : undefined, { applyLocally: false });
       if (!result.committed) throw Error('This request changed or was already reviewed. Read its latest status before continuing.');
-      message('Request ' + status.toLowerCase() + '. The agent and calendar will see the decision automatically.');
+      message(status === 'Approved' ? 'Approved and saved on the calendar. Admin reminders appear the day before and again on the approved date.' : 'Request declined. The agent and calendar will see the decision automatically.');
     } catch (error) { message(error.message || 'The decision could not be saved.', true); }
     finally { busy = false; render(); }
   }
@@ -183,7 +199,7 @@
     busy = true; render();
     try {
       await requireAccess();
-      const result = await g.rtdbRunTransaction(g.rtdbRef(path(agentId, r.requestId)), current => validSession() && connected ? C.transition(current, r.revision, 'Cancelled', { role: 'agent', id: agentId }, '', now()) : undefined, { applyLocally: false });
+      const result = await g.rtdbRunTransaction(g.rtdbRef(path(agentId, r.requestId)), current => validSession() && allowed && connected ? C.transition(current, r.revision, 'Cancelled', { role: 'agent', id: agentId }, '', now()) : undefined, { applyLocally: false });
       if (!result.committed) throw Error('The request has already changed. Check its latest status.');
       message('Request cancelled. The calendar has been updated.');
     } catch (error) { message(error.message || 'The request could not be cancelled.', true); }
@@ -191,13 +207,16 @@
   }
   function boot() {
     if (!validSession()) return;
-    if (role === 'agent') allowed = true;
     document.querySelectorAll('[data-timeoff-launch]').forEach(b => b.onclick = open);
-    const banner = $('to-banner'); if (banner) banner.querySelector('button').onclick = open;
+    const banner = $('to-banner'); if (banner) banner.querySelector('button').onclick = () => role === 'admin' ? g.AdminCalendar?.open() : open();
     renderLaunch();
     if (!g.rtdbOnValue || !g.rtdbRunTransaction) { setTimeout(boot, 600); return; }
     g.rtdbOnValue(g.rtdbRef('.info/connected'), s => { connected = !!s.val(); render(); }, () => { connected = false; render(); });
     g.rtdbOnValue(g.rtdbRef('.info/serverTimeOffset'), s => { offset = Number(s.val()) || 0; }, () => {});
+    if (role === 'agent') {
+      g.rtdbOnValue(g.rtdbRef(C.TEAM_ACCESS_PATH), s => { teamSettings = s.val(); policyReady = true; applyAgentAccess(); }, () => { policyReady = false; applyAgentAccess(); });
+      g.rtdbOnValue(g.rtdbRef('biz_master_roster'), s => { ownProfile = findAgent(s.val()); rosterReady = true; applyAgentAccess(); }, () => { rosterReady = false; applyAgentAccess(); });
+    }
     subscribe();
     g.addEventListener('storage', e => { if (e.key === seenKey) renderLaunch(); });
     document.addEventListener('visibilitychange', () => { if (!validSession()) { allowed = false; stop(); close(); } render(); });

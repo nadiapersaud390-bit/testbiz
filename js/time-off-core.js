@@ -2,9 +2,17 @@
   'use strict';
   const TYPES = { dayoff: 'Day off', late: 'Late arrival', early: 'Early departure', appointment: 'Appointment', other: 'Other request' };
   const STATUSES = { Requested: 'Pending approval', Approved: 'Approved', Declined: 'Declined', Cancelled: 'Cancelled' };
+  const TEAM_NAMES = { BB: 'Berbice', PR: 'Providence', RM: 'Remote' };
+  const TEAM_ACCESS_PATH = 'settings/timeOffTeamAccess';
   const validDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s;
   const safeKey = s => !!s && !/[.#$\[\]\/\u0000-\u001f\u007f]/.test(String(s));
   const team = t => ({ BERBICE: 'BB', BERB: 'BB', GYB: 'BB', PROVIDENCE: 'PR', PROV: 'PR', GYP: 'PR', REMOTE: 'RM' })[String(t || '').trim().toUpperCase()] || String(t || '').trim().toUpperCase();
+  function teamAccess(record) {
+    const map = record?.teams;
+    const valid = record == null || (typeof record === 'object' && !Array.isArray(record) && map && typeof map === 'object' && !Array.isArray(map));
+    return Object.fromEntries(Object.keys(TEAM_NAMES).map(t => [t, !!valid && (record == null || !Object.hasOwn(map, t) || map[t] === true)]));
+  }
+  function canRequestForTeam(record, value) { const t = team(value); return Object.hasOwn(TEAM_NAMES, t) && teamAccess(record)[t]; }
   const today = now => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guyana', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
   function validate(input, now) {
     const r = { type: String(input.type || ''), date: String(input.date || ''), endDate: String(input.endDate || input.date || ''), allDay: input.allDay === true, time: String(input.time || ''), endTime: String(input.endTime || ''), notes: String(input.notes || '').trim() };
@@ -58,7 +66,7 @@
   function flatten(tree) {
     return Object.entries(tree || {}).flatMap(([agentId, requests]) => Object.entries(requests || {}).filter(([, r]) => r && r.agentId === agentId && Object.hasOwn(STATUSES, r.status) && validDate(r.date) && validDate(r.endDate)).map(([requestId, r]) => ({ ...r, agentId, requestId, id: 'request:' + agentId + ':' + requestId, source: 'agent_request' })));
   }
-  const api = { TYPES, STATUSES, validDate, safeKey, team, today, validate, create, transition, overlaps, flatten, timeSummary };
+  const api = { TYPES, STATUSES, TEAM_NAMES, TEAM_ACCESS_PATH, teamAccess, canRequestForTeam, validDate, safeKey, team, today, validate, create, transition, overlaps, flatten, timeSummary };
   g.TimeOffCore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window === 'undefined' ? globalThis : window);

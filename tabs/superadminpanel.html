@@ -826,6 +826,8 @@
             </div>
         </div>
 
+        <section id="to-team-access-host"></section>
+
         <!-- Add Admin Card -->
         <div class="bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl p-5 mb-5">
             <h3 class="text-sm font-black text-yellow-400 mb-4 flex items-center gap-2 uppercase tracking-wider">
@@ -2238,6 +2240,7 @@ Their name will be removed from all active dashboard areas.`)) return;
         const btn = document.getElementById('suptab-' + tabId);
         if (btn) btn.classList.add('active');
 
+        if (tabId === 'users') window.TimeOffTeamAccess?.mount();
         if (_supTabInited[tabId]) return;
         _supTabInited[tabId] = true;
 

@@ -66,8 +66,20 @@ function prepareBirthdayImport(rows,roster){
 }
 function team(t){t=String(t||'').toUpperCase();return ({BERBICE:'BB',BERB:'BB',PROVIDENCE:'PR',PROV:'PR',REMOTE:'RM'})[t]||t;}
 function sort(a,b){return (a.date+(a.time||'00:00')).localeCompare(b.date+(b.time||'00:00'))||String(a.title||'').localeCompare(String(b.title||''));}
-function occurrence(e){return e.id+'_'+e.date+'_'+(e.revision||1);}
+function occurrence(e){return e.id+'_'+e.date+'_'+(e.revision||1)+(e.reminderPhase?'_'+e.reminderPhase:'');}
 function due(e,now){if(['Declined','Cancelled'].includes(e.status)||Number(e.reminder)<0||!valid(e.date))return false;const at=Date.parse(e.date+'T'+(e.time||'09:00')+':00-04:00'),until=Date.parse((e.endDate||e.date)+'T23:59:59-04:00');return now>=at-Number(e.reminder)*60000&&now<=until;}
+function reminderAt(e,now){
+ if(e.source!=='agent_request'||e.status!=='Approved')return due(e,now)?e:null;
+ if(!valid(e.date)||!valid(e.endDate||e.date))return null;
+ const localDay=new Date(now-4*3600000).toISOString().slice(0,10),end=e.endDate||e.date;
+ if(localDay>end)return null;
+ // Separate acknowledgement keys: dismissing tomorrow's notice cannot dismiss
+ // the reminder on the actual date. Legacy multi-day approvals remind each day.
+ if(localDay>=e.date)return {...e,reminderPhase:'day-'+localDay,reminderLabel:'Today: approved time off'};
+ const previousDay=add(e.date,-1),starts=Date.parse(previousDay+'T09:00:00-04:00');
+ if(localDay===previousDay&&now>=starts)return {...e,reminderPhase:'before',reminderLabel:'Tomorrow: approved time off'};
+ return null;
+}
 function validate(e){if(!['dayoff','late','early','appointment','other'].includes(e.type))throw Error('Choose an event type.');if(!valid(e.date)||!valid(e.endDate)||e.endDate<e.date)throw Error('Enter a valid date range.');if(date(e.endDate)-date(e.date)>366*86400000)throw Error('Use a date range of one year or less.');if(!e.title.trim()||e.title.length>120)throw Error('Enter a title of up to 120 characters.');if(e.type!=='other'&&!e.agentId)throw Error('Choose an agent.');if(e.type==='late'&&!e.time)throw Error('Enter the expected arrival time.');if(e.time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time))throw Error('Enter a valid time.');if(!['Requested','Approved','Planned','Declined','Cancelled'].includes(e.status))throw Error('Choose a status.');if(![-1,0,15,60,1440,4320,10080].includes(Number(e.reminder)))throw Error('Choose a reminder.');if(e.notes.length>2000)throw Error('Notes must be 2,000 characters or fewer.');return e;}
-g.AdminCalendarCore={valid,add,day,holidays,birthdayEvents,normalizeRoster,prepareBirthdayImport,sort,team,occurrence,due,validate,iso,date};
+g.AdminCalendarCore={valid,add,day,holidays,birthdayEvents,normalizeRoster,prepareBirthdayImport,sort,team,occurrence,due,reminderAt,validate,iso,date};
 })(window);
