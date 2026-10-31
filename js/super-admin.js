@@ -265,6 +265,7 @@ async function addNewAdmin(email, password, name, role = 'admin') {
             targetboard: true,
             profiles: false,
             attendance: false,
+            agentreport: true,
             qa: false
         },
         adminHubPermissionsVersion: 2,

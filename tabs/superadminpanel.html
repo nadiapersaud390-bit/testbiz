@@ -1128,6 +1128,7 @@
                                     <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="targetboard" checked> <span>🎯 Target Board</span></label>
                                     <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="profiles"> <span>👤 Profiles</span></label>
                                     <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="attendance"> <span>📅 Attendance</span></label>
+                                    <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="agentreport" checked> <span>📈 Agent Report</span></label>
                                     <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="qa"> <span>🛡️ QA &amp; Invalid Calls</span></label>
                                     <label class="um-tab-perm-label um-adminhub-perm-label"><input type="checkbox" class="um-adminhub-cb" data-hubtab="calendar"> <span>🗓️ Calendar</span></label>
                                 </div>
@@ -2768,7 +2769,7 @@ Their name will be removed from all active dashboard areas.`)) return;
             document.querySelectorAll('.um-adminhub-cb').forEach(cb => {
                 const tabId = String(cb.getAttribute('data-hubtab') || '').trim().toLowerCase();
                 cb.checked = tabId === 'calendar' ? admin.calendarAccess === true : hubPermissionMap
-                    ? hubPermissionMap[tabId] === true
+                    ? (tabId === 'agentreport' && typeof hubPermissionMap[tabId] === 'undefined' ? true : hubPermissionMap[tabId] === true)
                     : !hubHiddenTabs.includes(tabId);
             });
             // Admin Tools sub-panel: show/hide + set scope

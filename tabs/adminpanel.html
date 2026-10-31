@@ -39,6 +39,9 @@
         <button onclick="switchAdminHubTab('breaks')" id="ah-tab-breaks" class="ah-tab-btn hidden">
             <i class="fas fa-clock"></i> Break Monitoring
         </button>
+        <button onclick="switchAdminHubTab('agentreport')" id="ah-tab-agentreport" class="ah-tab-btn hidden">
+            <i class="fas fa-chart-bar"></i> Agent Report
+        </button>
         <button onclick="switchAdminHubTab('attendance')" id="ah-tab-attendance" class="ah-tab-btn hidden">
             <i class="fas fa-calendar-check"></i> Attendance
         </button>
@@ -54,6 +57,96 @@
         <div id="ah-sect-breaks" class="ah-section hidden">
             <div id="admin-break-monitor-host"></div>
         </div>
+
+        <section id="ah-sect-agentreport" class="ah-section hidden" aria-labelledby="apr-title">
+            <div class="apr-wrap">
+                <header class="apr-heading">
+                    <div>
+                        <div class="apr-eyebrow"><i class="fas fa-chart-pie"></i> Admin reporting</div>
+                        <h3 id="apr-title">Agent Performance Report</h3>
+                        <p>Upload the Guyana and Philippines Status Details exports for a combined production report. Add the Time Details export when you want customer talk, break, lunch, and bathroom analysis.</p>
+                    </div>
+                    <div class="apr-shift-badge"><i class="fas fa-clock"></i><span>Shift: 11:00 AM–8:00 PM Eastern</span></div>
+                </header>
+
+                <div class="apr-timezone-note" role="note">
+                    <i class="fas fa-globe-americas"></i>
+                    <div><strong>Shift schedule: 11:00 AM–8:00 PM Eastern.</strong><span>Source exports show California/Pacific time. The report converts the reporting window and shift clock times using the report date. Durations such as customer talk and breaks remain durations.</span></div>
+                </div>
+
+                <div class="apr-upload-grid">
+                    <label class="apr-upload-card" for="apr-status-guyana-file">
+                        <span class="apr-upload-icon"><i class="fas fa-list-check"></i></span>
+                        <span class="apr-upload-title">1. Guyana Status Details</span>
+                        <span class="apr-upload-copy">Calls, customer interactions, leads, and outcomes</span>
+                        <span class="apr-upload-file" id="apr-status-guyana-name">Choose Guyana Status Details CSV</span>
+                        <input id="apr-status-guyana-file" type="file" accept=".csv,text/csv" aria-label="Upload Guyana Agent Status Details CSV">
+                    </label>
+                    <label class="apr-upload-card" for="apr-status-philippines-file">
+                        <span class="apr-upload-icon"><i class="fas fa-list-check"></i></span>
+                        <span class="apr-upload-title">2. Philippines Status Details</span>
+                        <span class="apr-upload-copy">Calls, customer interactions, leads, and outcomes</span>
+                        <span class="apr-upload-file" id="apr-status-philippines-name">Choose Philippines Status Details CSV</span>
+                        <input id="apr-status-philippines-file" type="file" accept=".csv,text/csv" aria-label="Upload Philippines Agent Status Details CSV">
+                    </label>
+                    <label class="apr-upload-card" for="apr-time-file">
+                        <span class="apr-upload-icon"><i class="fas fa-stopwatch"></i></span>
+                        <span class="apr-upload-title">3. Agent Time Details <span class="apr-optional">Optional</span></span>
+                        <span class="apr-upload-copy">Customer talk, combined breaks, bathroom time, and lunch</span>
+                        <span class="apr-upload-file" id="apr-time-name">Choose Time Details CSV for time analysis</span>
+                        <input id="apr-time-file" type="file" accept=".csv,text/csv" aria-label="Upload optional Agent Time Details CSV">
+                    </label>
+                </div>
+
+                <div class="apr-settings">
+                    <div class="apr-settings-heading"><div><h4>Daily break allowances</h4><p>The report compares combined recorded time against these allowances.</p></div></div>
+                    <label>Morning break <span><input id="apr-morning-allowance" type="number" min="0" max="180" value="10"> min</span></label>
+                    <label>Afternoon break <span><input id="apr-afternoon-allowance" type="number" min="0" max="180" value="10"> min</span></label>
+                    <label>Lunch <span><input id="apr-lunch-allowance" type="number" min="0" max="240" value="45"> min</span></label>
+                    <label>Bathroom review limit <span><input id="apr-bathroom-limit" type="number" min="0" max="480" placeholder="Optional"> min</span></label>
+                </div>
+
+                <div class="apr-settings apr-target-settings">
+                    <div class="apr-settings-heading"><div><h4>Production targets</h4><p>Optional targets let the report calculate lead target attainment. Leave blank when no target is set.</p></div></div>
+                    <label>Guyana lead target <span><input id="apr-guyana-target" type="number" min="0" step="1" placeholder="Optional"> leads</span></label>
+                    <label>Philippines lead target <span><input id="apr-philippines-target" type="number" min="0" step="1" placeholder="Optional"> leads</span></label>
+                </div>
+
+                <div class="apr-controls">
+                    <button id="apr-generate" class="apr-button apr-primary" type="button" disabled><i class="fas fa-wand-magic-sparkles"></i> Generate report</button>
+                    <button id="apr-clear" class="apr-button apr-secondary" type="button"><i class="fas fa-rotate-left"></i> Clear files</button>
+                    <span id="apr-upload-status" role="status" aria-live="polite">Select both location Status Details CSV files to continue.</span>
+                </div>
+                <div id="apr-content" class="apr-content" hidden>
+                    <div class="apr-report-header">
+                        <div><div class="apr-eyebrow">Daily report</div><h4 id="apr-report-period">Agent report</h4><p id="apr-period-conversion"></p></div>
+                        <div class="apr-downloads">
+                            <button id="apr-download-excel" class="apr-button apr-secondary" type="button"><i class="fas fa-file-excel"></i> Download Excel</button>
+                            <button id="apr-download-pdf" class="apr-button apr-secondary" type="button"><i class="fas fa-file-pdf"></i> Download PDF</button>
+                        </div>
+                    </div>
+                    <div id="apr-summary-cards" class="apr-summary-grid"></div>
+                    <article class="apr-panel apr-table-panel apr-production-panel">
+                        <div class="apr-panel-heading"><div><h5>Production pulse by location</h5><p>Each matched pair of exports creates one snapshot. Lead target attainment appears when a target is entered above.</p></div><span id="apr-production-period"></span></div>
+                        <div class="apr-table-scroll"><table class="apr-table apr-production-table"><thead><tr><th>Location</th><th>Agents in export</th><th>Calls made</th><th>Customer interactions</th><th>XFER</th><th>Direct XFER</th><th>Total leads</th><th>Lead target</th><th>Target attainment</th></tr></thead><tbody id="apr-location-rows"></tbody></table></div>
+                    </article>
+                    <div class="apr-chart-grid">
+                        <article class="apr-panel"><div class="apr-panel-heading"><h5>Top agents by total leads</h5><span>XFER + DRXFER</span></div><canvas id="apr-leads-chart" width="1200" height="520" aria-label="Top agents by total leads"></canvas></article>
+                        <article class="apr-panel"><div class="apr-panel-heading"><h5>Top agents by customer interactions</h5><span>CIcalls from Status Details</span></div><canvas id="apr-customer-chart" width="1200" height="520" aria-label="Top agents by customer interactions"></canvas></article>
+                        <article class="apr-panel"><div class="apr-panel-heading"><h5>Recorded bathroom time</h5><span>Above-average totals need review</span></div><canvas id="apr-bathroom-chart" width="1200" height="520" aria-label="Top agents by recorded bathroom time"></canvas></article>
+                    </div>
+                    <article class="apr-panel apr-table-panel">
+                        <div class="apr-panel-heading"><div><h5>Agent performance and coaching detail</h5><p>Use the figures together with reviewed call examples and the agent’s role.</p></div><span id="apr-agent-count"></span></div>
+                        <div class="apr-table-scroll"><table class="apr-table"><thead><tr><th>Agent</th><th>ID</th><th>Location</th><th>Source group</th><th>Status calls</th><th>Time calls</th><th>Customer interactions</th><th>XFER</th><th>Direct XFER</th><th>Total leads</th><th>Lead rate</th><th>Customer talk</th><th>Avg. customer talk</th><th>Break used / allowed</th><th>Bathroom time</th><th>Bathroom vs group average</th><th>Lunch used / allowed</th><th>Review note</th></tr></thead><tbody id="apr-agent-rows"></tbody></table></div>
+                    </article>
+                    <details class="apr-panel apr-details">
+                        <summary>View call outcome breakdown for every agent</summary>
+                        <div class="apr-table-scroll"><table class="apr-table apr-wide-table"><thead id="apr-outcome-head"></thead><tbody id="apr-outcome-rows"></tbody></table></div>
+                    </details>
+                    <div id="apr-report-notes" class="apr-report-notes"></div>
+                </div>
+            </div>
+        </section>
 
         <!-- ========== QUALITY ASSURANCE SECTION ========== -->
         <div id="ah-sect-qa" class="ah-section hidden">
