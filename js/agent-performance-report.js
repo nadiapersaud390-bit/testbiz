@@ -6,6 +6,7 @@
   const TIME_FIELDS = ['LOGIN TIME', 'WAIT', 'TALK', 'DISPO', 'PAUSE', 'DEAD', 'CUSTOMER', 'CONNECTED', 'BREAK', 'BTHRM', 'LUNCH'];
   const STATUS_BASE_FIELDS = new Set(['USER NAME', 'CALLS', 'CICALLS', 'DNC/CI']);
   const UPDATE_HISTORY_KEY = 'agent-performance-report-history-v1';
+  const UPDATE_MERGE_WINDOW_MS = 15 * 60 * 1000;
   const UPDATE_METRICS = [
     { key: 'calls', label: 'Calls' },
     { key: 'customers', label: 'Customer interactions' },
@@ -17,7 +18,7 @@
     { key: 'bathroomTime', label: 'Bathroom time', duration: true },
     { key: 'lunchTime', label: 'Lunch time', duration: true }
   ];
-  const state = { guyanaFile: null, philippinesFile: null, timeFile: null, timeFileFresh: false, report: null, generationId: 0, generating: false, captureNextGeneration: false, captureTimestamp: null, pendingUploadAt: null, pendingStatusUploads: null, memorySnapshots: {} };
+  const state = { guyanaFile: null, philippinesFile: null, timeFile: null, timeFileFresh: false, report: null, generationId: 0, generating: false, captureNextGeneration: false, captureTimestamp: null, captureBaselineOverride: null, useCaptureBaselineOverride: false, pendingUploadAt: null, pendingStatusUploads: null, memorySnapshots: {} };
   const boundEvents = new WeakMap();
   const scriptPromises = {};
   const $ = id => document.getElementById(id);
@@ -387,7 +388,7 @@
     };
   }
   function makeUpdateComparison(previous, current, storageSaved) {
-    if (!previous) return { hasPrevious: false, current, rows: [], storageSaved };
+    if (!previous) return { hasPrevious: false, current, previousSnapshot: null, rows: [], storageSaved };
     const previousAgents = new Map((previous.agents || []).map(agent => [agent.id, agent]));
     const currentAgents = new Map((current.agents || []).map(agent => [agent.id, agent]));
     const rows = current.agents.map(agent => {
@@ -412,6 +413,7 @@
     return {
       hasPrevious: true,
       previousAt: previous.capturedAt,
+      previousSnapshot: previous,
       current,
       elapsedMs: new Date(current.capturedAt).getTime() - new Date(previous.capturedAt).getTime(),
       previousTotals: previous.totals || {},
@@ -421,10 +423,10 @@
       storageSaved
     };
   }
-  function captureReportUpdate(report, capturedAt) {
+  function captureReportUpdate(report, capturedAt, previousOverride, usePreviousOverride) {
     const dateKey = report.period.startDate || 'unknown';
     const history = readUpdateHistory();
-    const previous = history.snapshots[dateKey] || state.memorySnapshots[dateKey] || null;
+    const previous = usePreviousOverride ? previousOverride : (history.snapshots[dateKey] || state.memorySnapshots[dateKey] || null);
     const current = makeSnapshot(report, capturedAt || new Date().toISOString());
     history.snapshots[dateKey] = current;
     state.memorySnapshots[dateKey] = current;
@@ -695,9 +697,11 @@
       if (generationId !== state.generationId) return;
       const nextReport = createReport(guyanaText, philippinesText, timeText, guyanaFile.name, philippinesFile.name, useTimeFile ? useTimeFile.name : '', productionTargets());
       if (state.captureNextGeneration || !state.report) {
-        nextReport.updateComparison = captureReportUpdate(nextReport, state.captureTimestamp);
+        nextReport.updateComparison = captureReportUpdate(nextReport, state.captureTimestamp, state.captureBaselineOverride, state.useCaptureBaselineOverride);
         state.captureNextGeneration = false;
         state.captureTimestamp = null;
+        state.captureBaselineOverride = null;
+        state.useCaptureBaselineOverride = false;
       } else nextReport.updateComparison = state.report.updateComparison || null;
       state.report = nextReport;
       state.timeFileFresh = false;
@@ -719,6 +723,8 @@
     state.generating = false;
     state.captureNextGeneration = false;
     state.captureTimestamp = null;
+    state.captureBaselineOverride = null;
+    state.useCaptureBaselineOverride = false;
     state.pendingUploadAt = null;
     state.pendingStatusUploads = null;
     state.guyanaFile = null; state.philippinesFile = null; state.timeFile = null; state.timeFileFresh = false; state.report = null;
@@ -734,7 +740,23 @@
     state.generationId++;
     state.generating = false;
     state[key] = file;
-    if (key === 'timeFile') state.timeFileFresh = true;
+    if (key === 'timeFile') {
+      state.timeFileFresh = true;
+      if (!state.pendingStatusUploads) {
+        const current = state.report && state.report.updateComparison && state.report.updateComparison.current;
+        const currentTime = current ? new Date(current.capturedAt).getTime() : NaN;
+        const elapsed = Date.now() - currentTime;
+        if (current && elapsed >= 0 && elapsed <= UPDATE_MERGE_WINDOW_MS) {
+          state.captureTimestamp = current.capturedAt;
+          state.captureBaselineOverride = state.report.updateComparison.previousSnapshot || null;
+          state.useCaptureBaselineOverride = true;
+        } else {
+          state.captureTimestamp = new Date().toISOString();
+          state.captureBaselineOverride = null;
+          state.useCaptureBaselineOverride = false;
+        }
+      }
+    }
     if (statusUpload && state.pendingStatusUploads) state.pendingStatusUploads.add(key);
     if (input) input.value = '';
     const waitingForPair = state.pendingStatusUploads && state.pendingStatusUploads.size < 2;
@@ -748,10 +770,14 @@
       state.pendingStatusUploads = null;
       state.captureTimestamp = state.pendingUploadAt;
       state.pendingUploadAt = null;
+      state.captureBaselineOverride = null;
+      state.useCaptureBaselineOverride = false;
       if (!state.timeFileFresh) state.timeFile = null;
     } else if (initialPair) {
       state.captureTimestamp = state.pendingUploadAt;
       state.pendingUploadAt = null;
+      state.captureBaselineOverride = null;
+      state.useCaptureBaselineOverride = false;
     }
     if (completedPair || initialPair || key === 'timeFile') {
       state.captureNextGeneration = true;
