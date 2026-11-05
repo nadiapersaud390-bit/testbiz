@@ -1,6 +1,6 @@
 # Agent Performance Report
 
-Open **Admin Hub > Agent Report**. Upload the Guyana and Philippines Agent Status Details CSV exports. The report combines both locations and assigns agents to the location file they came from. An Agent Time Details CSV is optional. Add it to include customer talk time, combined breaks, bathroom duration, lunch, and call count cross-checks.
+Open **Admin Hub > Agent Report**. Choose one Guyana and one Philippines Agent Status Details CSV. The report starts automatically after both files are selected; the Generate button can also rerun it. An Agent Time Details CSV is optional. Add it to include customer talk time, combined breaks, bathroom duration, lunch, and call count cross-checks.
 
 ## Production pulse
 

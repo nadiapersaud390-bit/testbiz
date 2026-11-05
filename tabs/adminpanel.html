@@ -64,7 +64,7 @@
                     <div>
                         <div class="apr-eyebrow"><i class="fas fa-chart-pie"></i> Admin reporting</div>
                         <h3 id="apr-title">Agent Performance Report</h3>
-                        <p>Upload the Guyana and Philippines Status Details exports for a combined production report. Add the Time Details export when you want customer talk, break, lunch, and bathroom analysis.</p>
+                    <p>Choose one Status Details CSV for Guyana and one for the Philippines. The report starts automatically when both are selected. Add Time Details for customer talk, break, lunch, and bathroom analysis.</p>
                     </div>
                     <div class="apr-shift-badge"><i class="fas fa-clock"></i><span>Shift: 11:00 AM–8:00 PM Eastern</span></div>
                 </header>
@@ -75,21 +75,21 @@
                 </div>
 
                 <div class="apr-upload-grid">
-                    <label class="apr-upload-card" for="apr-status-guyana-file">
+                    <label id="apr-upload-guyana-card" class="apr-upload-card" for="apr-status-guyana-file">
                         <span class="apr-upload-icon"><i class="fas fa-list-check"></i></span>
                         <span class="apr-upload-title">1. Guyana Status Details</span>
                         <span class="apr-upload-copy">Calls, customer interactions, leads, and outcomes</span>
                         <span class="apr-upload-file" id="apr-status-guyana-name">Choose Guyana Status Details CSV</span>
                         <input id="apr-status-guyana-file" type="file" accept=".csv,text/csv" aria-label="Upload Guyana Agent Status Details CSV">
                     </label>
-                    <label class="apr-upload-card" for="apr-status-philippines-file">
+                    <label id="apr-upload-philippines-card" class="apr-upload-card" for="apr-status-philippines-file">
                         <span class="apr-upload-icon"><i class="fas fa-list-check"></i></span>
                         <span class="apr-upload-title">2. Philippines Status Details</span>
                         <span class="apr-upload-copy">Calls, customer interactions, leads, and outcomes</span>
                         <span class="apr-upload-file" id="apr-status-philippines-name">Choose Philippines Status Details CSV</span>
                         <input id="apr-status-philippines-file" type="file" accept=".csv,text/csv" aria-label="Upload Philippines Agent Status Details CSV">
                     </label>
-                    <label class="apr-upload-card" for="apr-time-file">
+                    <label id="apr-upload-time-card" class="apr-upload-card" for="apr-time-file">
                         <span class="apr-upload-icon"><i class="fas fa-stopwatch"></i></span>
                         <span class="apr-upload-title">3. Agent Time Details <span class="apr-optional">Optional</span></span>
                         <span class="apr-upload-copy">Customer talk, combined breaks, bathroom time, and lunch</span>

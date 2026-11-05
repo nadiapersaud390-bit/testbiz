@@ -5,9 +5,19 @@
   const EASTERN = 'America/New_York';
   const TIME_FIELDS = ['LOGIN TIME', 'WAIT', 'TALK', 'DISPO', 'PAUSE', 'DEAD', 'CUSTOMER', 'CONNECTED', 'BREAK', 'BTHRM', 'LUNCH'];
   const STATUS_BASE_FIELDS = new Set(['USER NAME', 'CALLS', 'CICALLS', 'DNC/CI']);
-  const state = { guyanaFile: null, philippinesFile: null, timeFile: null, report: null, bound: false };
+  const state = { guyanaFile: null, philippinesFile: null, timeFile: null, report: null, generationId: 0, generating: false };
+  const boundEvents = new WeakMap();
   const scriptPromises = {};
   const $ = id => document.getElementById(id);
+
+  function bindEvent(node, type, handler) {
+    if (!node) return;
+    let types = boundEvents.get(node);
+    if (!types) { types = new Set(); boundEvents.set(node, types); }
+    if (types.has(type)) return;
+    node.addEventListener(type, handler);
+    types.add(type);
+  }
 
   function escapeHtml(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -441,12 +451,20 @@
   function updateReady() {
     if (!$('apr-generate')) return;
     const ready = state.guyanaFile && state.philippinesFile;
-    $('apr-generate').disabled = !ready;
+    $('apr-generate').disabled = !ready || state.generating;
     $('apr-status-guyana-name').textContent = state.guyanaFile ? state.guyanaFile.name : 'Choose Guyana Status Details CSV';
     $('apr-status-philippines-name').textContent = state.philippinesFile ? state.philippinesFile.name : 'Choose Philippines Status Details CSV';
     $('apr-time-name').textContent = state.timeFile ? state.timeFile.name : 'Choose Time Details CSV for time analysis';
-    if (!ready) setStatus('Select both location Status Details CSV files to continue. Time Details is optional.', false);
-    else if (!state.report) setStatus('Both location exports are ready. Generate the report when you are ready.', false);
+    const guyanaCard = $('apr-upload-guyana-card');
+    const philippinesCard = $('apr-upload-philippines-card');
+    const timeCard = $('apr-upload-time-card');
+    if (guyanaCard) guyanaCard.classList.toggle('has-file', !!state.guyanaFile);
+    if (philippinesCard) philippinesCard.classList.toggle('has-file', !!state.philippinesFile);
+    if (timeCard) timeCard.classList.toggle('has-file', !!state.timeFile);
+    const selected = Number(!!state.guyanaFile) + Number(!!state.philippinesFile);
+    if (!ready) setStatus('Location Status Details: ' + selected + ' of 2 required files selected. Choose one CSV for each location. Time Details is optional.', false);
+    else if (state.generating) setStatus('Generating the report from the selected files...', false);
+    else if (!state.report) setStatus('Both location files are selected. The report will generate automatically; you can also click Generate report.', false);
   }
   function readFile(file) {
     return new Promise((resolve, reject) => {
@@ -457,36 +475,63 @@
     });
   }
   async function generate() {
-    if (!state.guyanaFile || !state.philippinesFile) return;
+    if (!state.guyanaFile || !state.philippinesFile || state.generating) return;
+    const generationId = ++state.generationId;
+    const guyanaFile = state.guyanaFile;
+    const philippinesFile = state.philippinesFile;
+    const timeFile = state.timeFile;
+    state.generating = true;
     $('apr-generate').disabled = true; $('apr-content').hidden = true;
-    setStatus('Reading location exports and matching the optional time file by agent ID...', false);
+    setStatus('Reading the two Status Details files' + (timeFile ? ' and matching Time Details by agent ID...' : '...'), false);
     try {
       const [guyanaText, philippinesText, timeText] = await Promise.all([
-        readFile(state.guyanaFile), readFile(state.philippinesFile), state.timeFile ? readFile(state.timeFile) : Promise.resolve('')
+        readFile(guyanaFile), readFile(philippinesFile), timeFile ? readFile(timeFile) : Promise.resolve('')
       ]);
-      state.report = createReport(guyanaText, philippinesText, timeText, state.guyanaFile.name, state.philippinesFile.name, state.timeFile ? state.timeFile.name : '', productionTargets());
+      if (generationId !== state.generationId) return;
+      state.report = createReport(guyanaText, philippinesText, timeText, guyanaFile.name, philippinesFile.name, timeFile ? timeFile.name : '', productionTargets());
       render();
     } catch (error) {
-      state.report = null; setStatus(error && error.message ? error.message : 'Could not generate the report.', true);
-    } finally { $('apr-generate').disabled = !(state.guyanaFile && state.philippinesFile); }
+      if (generationId === state.generationId) {
+        state.report = null;
+        setStatus(error && error.message ? error.message : 'Could not generate the report.', true);
+      }
+    } finally {
+      if (generationId === state.generationId) {
+        state.generating = false;
+        $('apr-generate').disabled = !(state.guyanaFile && state.philippinesFile);
+      }
+    }
   }
   function clearFiles() {
+    state.generationId++;
+    state.generating = false;
     state.guyanaFile = null; state.philippinesFile = null; state.timeFile = null; state.report = null;
     $('apr-status-guyana-file').value = ''; $('apr-status-philippines-file').value = ''; $('apr-time-file').value = ''; $('apr-content').hidden = true;
-    updateReady(); setStatus('Select both location Status Details CSV files to continue. Time Details is optional.', false);
+    updateReady();
+  }
+  function acceptFile(key, file, input) {
+    if (!file) return;
+    state.generationId++;
+    state.generating = false;
+    state[key] = file;
+    state.report = null;
+    $('apr-content').hidden = true;
+    if (input) input.value = '';
+    updateReady();
+    if (state.guyanaFile && state.philippinesFile) generate();
+  }
+  function uploadChanged(key, event) {
+    acceptFile(key, event.target.files && event.target.files[0] || null, event.target);
   }
   function bind() {
-    if (state.bound) return;
-    state.bound = true;
-    $('apr-status-guyana-file').addEventListener('change', event => { state.guyanaFile = event.target.files && event.target.files[0] || null; state.report = null; $('apr-content').hidden = true; updateReady(); });
-    $('apr-status-philippines-file').addEventListener('change', event => { state.philippinesFile = event.target.files && event.target.files[0] || null; state.report = null; $('apr-content').hidden = true; updateReady(); });
-    $('apr-time-file').addEventListener('change', event => { state.timeFile = event.target.files && event.target.files[0] || null; state.report = null; $('apr-content').hidden = true; updateReady(); });
-    $('apr-generate').addEventListener('click', generate);
-    $('apr-clear').addEventListener('click', clearFiles);
-    ['apr-morning-allowance', 'apr-afternoon-allowance', 'apr-lunch-allowance', 'apr-bathroom-limit', 'apr-guyana-target', 'apr-philippines-target'].forEach(id => $(id).addEventListener('input', render));
-    $('apr-download-excel').addEventListener('click', downloadExcel);
-    $('apr-download-pdf').addEventListener('click', downloadPdf);
-    state.bound = true;
+    bindEvent($('apr-status-guyana-file'), 'change', event => uploadChanged('guyanaFile', event));
+    bindEvent($('apr-status-philippines-file'), 'change', event => uploadChanged('philippinesFile', event));
+    bindEvent($('apr-time-file'), 'change', event => uploadChanged('timeFile', event));
+    bindEvent($('apr-generate'), 'click', generate);
+    bindEvent($('apr-clear'), 'click', clearFiles);
+    ['apr-morning-allowance', 'apr-afternoon-allowance', 'apr-lunch-allowance', 'apr-bathroom-limit', 'apr-guyana-target', 'apr-philippines-target'].forEach(id => bindEvent($(id), 'input', render));
+    bindEvent($('apr-download-excel'), 'click', downloadExcel);
+    bindEvent($('apr-download-pdf'), 'click', downloadPdf);
   }
   function mount() {
     if (!$('apr-status-guyana-file')) return false;
