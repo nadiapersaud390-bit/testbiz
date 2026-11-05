@@ -5,7 +5,19 @@
   const EASTERN = 'America/New_York';
   const TIME_FIELDS = ['LOGIN TIME', 'WAIT', 'TALK', 'DISPO', 'PAUSE', 'DEAD', 'CUSTOMER', 'CONNECTED', 'BREAK', 'BTHRM', 'LUNCH'];
   const STATUS_BASE_FIELDS = new Set(['USER NAME', 'CALLS', 'CICALLS', 'DNC/CI']);
-  const state = { guyanaFile: null, philippinesFile: null, timeFile: null, report: null, generationId: 0, generating: false };
+  const UPDATE_HISTORY_KEY = 'agent-performance-report-history-v1';
+  const UPDATE_METRICS = [
+    { key: 'calls', label: 'Calls' },
+    { key: 'customers', label: 'Customer interactions' },
+    { key: 'xfer', label: 'XFER leads' },
+    { key: 'directXfer', label: 'Direct XFER leads' },
+    { key: 'leads', label: 'Total leads' },
+    { key: 'customerTalk', label: 'Customer talk', duration: true },
+    { key: 'breakTime', label: 'Combined breaks', duration: true },
+    { key: 'bathroomTime', label: 'Bathroom time', duration: true },
+    { key: 'lunchTime', label: 'Lunch time', duration: true }
+  ];
+  const state = { guyanaFile: null, philippinesFile: null, timeFile: null, timeFileFresh: false, report: null, generationId: 0, generating: false, captureNextGeneration: false, captureTimestamp: null, pendingUploadAt: null, pendingStatusUploads: null, memorySnapshots: {} };
   const boundEvents = new WeakMap();
   const scriptPromises = {};
   const $ = id => document.getElementById(id);
@@ -44,6 +56,27 @@
     const h = Math.floor(n / 3600); n %= 3600;
     const m = Math.floor(n / 60); const s = n % 60;
     return sign + h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+  function formatMetricValue(value, metric) {
+    if (value == null || !Number.isFinite(Number(value))) return 'N/A';
+    return metric.duration ? formatDuration(Number(value)) : Number(value).toLocaleString();
+  }
+  function formatMetricDelta(value, metric) {
+    if (value == null || !Number.isFinite(Number(value))) return 'N/A';
+    const n = Number(value);
+    return (n > 0 ? '+' : '') + (metric.duration ? formatDuration(n) : n.toLocaleString());
+  }
+  function formatUploadDateTime(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Unknown';
+    return new Intl.DateTimeFormat('en-US', { timeZone: EASTERN, year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(date);
+  }
+  function formatElapsed(milliseconds) {
+    if (!Number.isFinite(milliseconds) || milliseconds < 0) return 'clock time changed';
+    const minutes = Math.floor(milliseconds / 60000);
+    if (minutes < 1) return 'less than 1 minute';
+    const hours = Math.floor(minutes / 60), remainder = minutes % 60;
+    return (hours ? hours + ' hr' + (hours === 1 ? '' : 's') + (remainder ? ' ' + remainder + ' min' : '') : remainder + ' min');
   }
   function excelDuration(seconds) { return seconds == null ? null : seconds / 86400; }
   function normalizeId(value) {
@@ -303,6 +336,171 @@
       };
     });
   }
+  function valuesForAgent(agent) {
+    return {
+      calls: agent.callsStatus,
+      customers: agent.customers,
+      xfer: agent.xfer,
+      directXfer: agent.directXfer,
+      leads: agent.leads,
+      customerTalk: agent.customerTalk,
+      breakTime: agent.breakTime,
+      bathroomTime: agent.bathroomTime,
+      lunchTime: agent.lunchTime
+    };
+  }
+  function valuesForTotals(report) {
+    return {
+      calls: report.totals.calls,
+      customers: report.totals.customers,
+      xfer: report.totals.xfer,
+      directXfer: report.totals.directXfer,
+      leads: report.totals.leads,
+      customerTalk: report.timeProvided ? report.totals.customerTalk : null,
+      breakTime: report.timeProvided ? report.totals.breakTime : null,
+      bathroomTime: report.timeProvided ? report.totals.bathroomTime : null,
+      lunchTime: report.timeProvided ? report.totals.lunchTime : null
+    };
+  }
+  function readUpdateHistory() {
+    try {
+      const stored = global.localStorage.getItem(UPDATE_HISTORY_KEY);
+      const history = stored ? JSON.parse(stored) : null;
+      return history && history.snapshots && typeof history.snapshots === 'object' ? history : { version: 1, snapshots: {} };
+    } catch (_) { return { version: 1, snapshots: {} }; }
+  }
+  function writeUpdateHistory(history) {
+    try {
+      const snapshots = history.snapshots || {};
+      const dates = Object.keys(snapshots).sort();
+      dates.slice(0, Math.max(0, dates.length - 30)).forEach(date => { delete snapshots[date]; });
+      global.localStorage.setItem(UPDATE_HISTORY_KEY, JSON.stringify({ version: 1, snapshots }));
+      return true;
+    } catch (_) { return false; }
+  }
+  function makeSnapshot(report, capturedAt) {
+    return {
+      capturedAt,
+      reportDate: report.period.startDate || 'unknown',
+      totals: valuesForTotals(report),
+      agents: report.agents.map(agent => ({ id: agent.id, name: agent.name, region: agent.region, values: valuesForAgent(agent) }))
+    };
+  }
+  function makeUpdateComparison(previous, current, storageSaved) {
+    if (!previous) return { hasPrevious: false, current, rows: [], storageSaved };
+    const previousAgents = new Map((previous.agents || []).map(agent => [agent.id, agent]));
+    const currentAgents = new Map((current.agents || []).map(agent => [agent.id, agent]));
+    const rows = current.agents.map(agent => {
+      const prior = previousAgents.get(agent.id);
+      const deltas = {};
+      UPDATE_METRICS.forEach(metric => {
+        const before = prior && prior.values ? prior.values[metric.key] : null;
+        const after = agent.values ? agent.values[metric.key] : null;
+        deltas[metric.key] = prior && before != null && after != null ? after - before : null;
+      });
+      return { id: agent.id, name: agent.name, region: agent.region, status: prior ? 'Compared' : 'New in current upload', previous: prior ? prior.values : null, current: agent.values, deltas };
+    });
+    (previous.agents || []).forEach(agent => {
+      if (!currentAgents.has(agent.id)) rows.push({ id: agent.id, name: agent.name, region: agent.region, status: 'Not in current upload', previous: agent.values, current: null, deltas: null });
+    });
+    const deltas = {};
+    UPDATE_METRICS.forEach(metric => {
+      const before = previous.totals && previous.totals[metric.key];
+      const after = current.totals && current.totals[metric.key];
+      deltas[metric.key] = before != null && after != null ? after - before : null;
+    });
+    return {
+      hasPrevious: true,
+      previousAt: previous.capturedAt,
+      current,
+      elapsedMs: new Date(current.capturedAt).getTime() - new Date(previous.capturedAt).getTime(),
+      previousTotals: previous.totals || {},
+      currentTotals: current.totals || {},
+      totalDeltas: deltas,
+      rows,
+      storageSaved
+    };
+  }
+  function captureReportUpdate(report, capturedAt) {
+    const dateKey = report.period.startDate || 'unknown';
+    const history = readUpdateHistory();
+    const previous = history.snapshots[dateKey] || state.memorySnapshots[dateKey] || null;
+    const current = makeSnapshot(report, capturedAt || new Date().toISOString());
+    history.snapshots[dateKey] = current;
+    state.memorySnapshots[dateKey] = current;
+    const storageSaved = writeUpdateHistory(history);
+    return makeUpdateComparison(previous, current, storageSaved);
+  }
+  function resetUpdateHistory() {
+    try { global.localStorage.removeItem(UPDATE_HISTORY_KEY); } catch (_) { /* Browser storage may be disabled. */ }
+    state.memorySnapshots = {};
+    if (state.report) {
+      state.report.updateComparison = captureReportUpdate(state.report);
+      renderUpdateComparison(state.report);
+      setStatus('Comparison history cleared. This report is now the new baseline.', false);
+    } else setStatus('Comparison history cleared. The next report will become the baseline.', false);
+  }
+  function renderUpdateComparison(report) {
+    const panel = $('apr-update-comparison');
+    if (!panel) return;
+    const comparison = report.updateComparison;
+    const caption = $('apr-update-caption');
+    const cards = $('apr-update-cards');
+    const rowsNode = $('apr-update-rows');
+    const updateChart = $('apr-update-chart');
+    if (!comparison || !comparison.hasPrevious) {
+      const capturedAt = comparison && comparison.current ? formatUploadDateTime(comparison.current.capturedAt) : 'just now';
+      if (caption) caption.textContent = 'Baseline saved at ' + capturedAt + '. Upload both location CSVs again after 1 or 2 hours to see the changes. The report will use the actual time between uploads.' + (comparison && comparison.storageSaved === false ? ' This browser could not save the baseline for future visits.' : '');
+      if (cards) cards.innerHTML = UPDATE_METRICS.map(metric => '<div class="apr-update-stat"><span>' + escapeHtml(metric.label) + '</span><strong>Baseline</strong><small>Current total: ' + escapeHtml(formatMetricValue(comparison && comparison.current && comparison.current.totals[metric.key], metric)) + '</small></div>').join('');
+      if (rowsNode) rowsNode.innerHTML = '<tr><td class="apr-muted-cell" colspan="13">This is the first saved upload for this report date. The next completed upload pair will show per-agent changes.</td></tr>';
+      drawUpdateChart(updateChart, null);
+      return;
+    }
+    if (caption) caption.textContent = 'Compared with the previous upload at ' + formatUploadDateTime(comparison.previousAt) + ' (' + formatElapsed(comparison.elapsedMs) + ' between updates). Changes are current export minus previous export. For cumulative daily exports, positive changes represent activity added since the last update.' + (comparison.storageSaved === false ? ' The current browser session can compare this update, but could not save it for your next visit.' : '');
+    if (cards) cards.innerHTML = UPDATE_METRICS.map(metric => {
+      const delta = comparison.totalDeltas[metric.key];
+      const deltaClass = delta > 0 ? 'positive' : (delta < 0 ? 'negative' : 'neutral');
+      const before = comparison.previousTotals[metric.key], after = comparison.currentTotals[metric.key];
+      return '<div class="apr-update-stat"><span>' + escapeHtml(metric.label) + '</span><strong class="apr-delta-' + deltaClass + '">' + escapeHtml(formatMetricDelta(delta, metric)) + '</strong><small>Previous ' + escapeHtml(formatMetricValue(before, metric)) + ' → current ' + escapeHtml(formatMetricValue(after, metric)) + '</small></div>';
+    }).join('');
+    if (rowsNode) rowsNode.innerHTML = comparison.rows.map(row => {
+      const compared = row.status === 'Compared';
+      return '<tr><td class="apr-agent">' + escapeHtml(row.name) + '</td><td>' + escapeHtml(row.id) + '</td><td>' + escapeHtml(row.region) + '</td>' + UPDATE_METRICS.map(metric => {
+        const delta = compared ? row.deltas[metric.key] : null;
+        const deltaClass = delta > 0 ? 'apr-delta-positive' : (delta < 0 ? 'apr-delta-negative' : 'apr-delta-neutral');
+        return '<td class="' + deltaClass + '">' + escapeHtml(compared ? formatMetricDelta(delta, metric) : '—') + '</td>';
+      }).join('') + '<td>' + escapeHtml(row.status) + '</td></tr>';
+    }).join('');
+    drawUpdateChart(updateChart, comparison);
+  }
+  function drawUpdateChart(canvas, comparison) {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+    if (!comparison || !comparison.hasPrevious) {
+      ctx.fillStyle = '#64748b'; ctx.font = '24px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Lead changes will appear after the next upload pair', w / 2, h / 2); return;
+    }
+    const agents = comparison.rows.filter(row => row.status === 'Compared' && row.deltas && row.deltas.leads != null)
+      .sort((a, b) => Math.abs(b.deltas.leads) - Math.abs(a.deltas.leads)).slice(0, 10);
+    if (!agents.length) {
+      ctx.fillStyle = '#64748b'; ctx.font = '24px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('No comparable agent lead counts', w / 2, h / 2); return;
+    }
+    const left = 255, right = 80, top = 38, rowHeight = 38, center = left + (w - left - right) / 2;
+    const maxDelta = Math.max(1, ...agents.map(agent => Math.abs(agent.deltas.leads))), span = (w - left - right) / 2 - 48;
+    ctx.strokeStyle = '#94a3b8'; ctx.beginPath(); ctx.moveTo(center, top - 8); ctx.lineTo(center, top + agents.length * rowHeight); ctx.stroke();
+    ctx.textBaseline = 'middle'; ctx.font = '16px Arial';
+    agents.forEach((agent, index) => {
+      const y = top + index * rowHeight, delta = agent.deltas.leads, bar = span * Math.abs(delta) / maxDelta;
+      ctx.fillStyle = '#334155'; ctx.textAlign = 'right'; ctx.fillText((agent.name + ' (' + agent.id + ')').slice(0, 31), left - 12, y + 12);
+      ctx.fillStyle = delta > 0 ? '#10b981' : (delta < 0 ? '#ef6b5a' : '#94a3b8');
+      if (delta >= 0) ctx.fillRect(center, y, Math.max(2, bar), 24); else ctx.fillRect(center - Math.max(2, bar), y, Math.max(2, bar), 24);
+      ctx.fillStyle = '#0f172a'; ctx.textAlign = delta >= 0 ? 'left' : 'right';
+      ctx.fillText((delta > 0 ? '+' : '') + delta.toLocaleString(), delta >= 0 ? center + bar + 8 : center - bar - 8, y + 12);
+    });
+    ctx.fillStyle = '#64748b'; ctx.font = '14px Arial'; ctx.textAlign = 'center'; ctx.fillText('Decrease', center - span / 2, 18); ctx.fillText('Increase', center + span / 2, 18);
+  }
   function allowances() {
     const positive = id => Math.max(0, Math.min(240, Number($(id).value) || 0));
     const morning = positive('apr-morning-allowance');
@@ -356,6 +554,7 @@
       ['Bathroom time', report.timeProvided ? formatDuration(report.totals.bathroomTime) : 'Not uploaded', report.timeProvided ? 'Group average: ' + formatDuration(bathroomAverage) : 'Upload Time Details to calculate']
     ];
     $('apr-summary-cards').innerHTML = stats.map(item => '<div class="apr-stat"><span>' + escapeHtml(item[0]) + '</span><strong>' + escapeHtml(item[1]) + '</strong><small>' + escapeHtml(item[2]) + '</small></div>').join('');
+    renderUpdateComparison(report);
     const summaries = regionSummaries(report, limits.targets);
     $('apr-production-period').textContent = report.periodView.dateLabel;
     const regionRows = summaries.map(summary => '<tr><td class="apr-agent">' + escapeHtml(summary.region) + '</td><td>' + summary.agents.toLocaleString() + '</td><td>' + summary.calls.toLocaleString() + '</td><td>' + summary.customers.toLocaleString() + '</td><td>' + summary.xfer.toLocaleString() + '</td><td>' + summary.directXfer.toLocaleString() + '</td><td><strong>' + summary.leads.toLocaleString() + '</strong></td><td>' + (summary.target == null ? 'Not set' : summary.target.toLocaleString()) + '</td><td>' + (summary.attainment == null ? 'Not set' : (summary.attainment * 100).toFixed(1) + '%') + '</td></tr>');
@@ -400,7 +599,7 @@
     ].map(note => '<div class="apr-note-card"><strong>' + escapeHtml(note[0]) + '</strong>' + escapeHtml(note[1]) + '</div>').join('');
     if (unmatched || report.timeDateMismatch) setStatus('Report generated with a data check to review. See the data quality note.', true);
     else if (!report.timeProvided) setStatus('Production report ready for ' + report.totals.agents + ' agents. Upload Time Details to add break and bathroom analysis.', false);
-    else setStatus('Report ready for ' + report.totals.agents + ' agents. Files stay in this browser session.', false);
+    else setStatus('Report ready for ' + report.totals.agents + ' agents. Source CSV files stay in this browser session; comparison summaries are saved locally in this browser.', false);
   }
   function drawHorizontalChart(canvas, agents, metric) {
     if (!canvas) return;
@@ -450,7 +649,7 @@
   }
   function updateReady() {
     if (!$('apr-generate')) return;
-    const ready = state.guyanaFile && state.philippinesFile;
+    const ready = state.guyanaFile && state.philippinesFile && !(state.pendingStatusUploads && state.pendingStatusUploads.size < 2);
     $('apr-generate').disabled = !ready || state.generating;
     $('apr-status-guyana-name').textContent = state.guyanaFile ? state.guyanaFile.name : 'Choose Guyana Status Details CSV';
     $('apr-status-philippines-name').textContent = state.philippinesFile ? state.philippinesFile.name : 'Choose Philippines Status Details CSV';
@@ -462,7 +661,12 @@
     if (philippinesCard) philippinesCard.classList.toggle('has-file', !!state.philippinesFile);
     if (timeCard) timeCard.classList.toggle('has-file', !!state.timeFile);
     const selected = Number(!!state.guyanaFile) + Number(!!state.philippinesFile);
-    if (!ready) setStatus('Location Status Details: ' + selected + ' of 2 required files selected. Choose one CSV for each location. Time Details is optional.', false);
+    if (state.pendingStatusUploads && state.pendingStatusUploads.size < 2) {
+      const completed = Array.from(state.pendingStatusUploads).map(key => key === 'guyanaFile' ? 'Guyana' : 'Philippines').join(' and ');
+      const needed = state.pendingStatusUploads.has('guyanaFile') ? 'Philippines' : 'Guyana';
+      setStatus(completed + ' update file received. Upload the ' + needed + ' Status Details file for the same update to compare both locations. The previous report stays visible until then.', false);
+    }
+    else if (!ready) setStatus('Location Status Details: ' + selected + ' of 2 required files selected. Choose one CSV for each location. Time Details is optional.', false);
     else if (state.generating) setStatus('Generating the report from the selected files...', false);
     else if (!state.report) setStatus('Both location files are selected. The report will generate automatically; you can also click Generate report.', false);
   }
@@ -475,20 +679,28 @@
     });
   }
   async function generate() {
-    if (!state.guyanaFile || !state.philippinesFile || state.generating) return;
+    if (!state.guyanaFile || !state.philippinesFile || state.generating || (state.pendingStatusUploads && state.pendingStatusUploads.size < 2)) return;
     const generationId = ++state.generationId;
     const guyanaFile = state.guyanaFile;
     const philippinesFile = state.philippinesFile;
     const timeFile = state.timeFile;
+    const useTimeFile = timeFile;
     state.generating = true;
     $('apr-generate').disabled = true; $('apr-content').hidden = true;
-    setStatus('Reading the two Status Details files' + (timeFile ? ' and matching Time Details by agent ID...' : '...'), false);
+      setStatus('Reading the two Status Details files' + (useTimeFile ? ' and matching Time Details by agent ID...' : '...'), false);
     try {
       const [guyanaText, philippinesText, timeText] = await Promise.all([
-        readFile(guyanaFile), readFile(philippinesFile), timeFile ? readFile(timeFile) : Promise.resolve('')
+        readFile(guyanaFile), readFile(philippinesFile), useTimeFile ? readFile(useTimeFile) : Promise.resolve('')
       ]);
       if (generationId !== state.generationId) return;
-      state.report = createReport(guyanaText, philippinesText, timeText, guyanaFile.name, philippinesFile.name, timeFile ? timeFile.name : '', productionTargets());
+      const nextReport = createReport(guyanaText, philippinesText, timeText, guyanaFile.name, philippinesFile.name, useTimeFile ? useTimeFile.name : '', productionTargets());
+      if (state.captureNextGeneration || !state.report) {
+        nextReport.updateComparison = captureReportUpdate(nextReport, state.captureTimestamp);
+        state.captureNextGeneration = false;
+        state.captureTimestamp = null;
+      } else nextReport.updateComparison = state.report.updateComparison || null;
+      state.report = nextReport;
+      state.timeFileFresh = false;
       render();
     } catch (error) {
       if (generationId === state.generationId) {
@@ -505,20 +717,53 @@
   function clearFiles() {
     state.generationId++;
     state.generating = false;
-    state.guyanaFile = null; state.philippinesFile = null; state.timeFile = null; state.report = null;
+    state.captureNextGeneration = false;
+    state.captureTimestamp = null;
+    state.pendingUploadAt = null;
+    state.pendingStatusUploads = null;
+    state.guyanaFile = null; state.philippinesFile = null; state.timeFile = null; state.timeFileFresh = false; state.report = null;
     $('apr-status-guyana-file').value = ''; $('apr-status-philippines-file').value = ''; $('apr-time-file').value = ''; $('apr-content').hidden = true;
     updateReady();
   }
   function acceptFile(key, file, input) {
     if (!file) return;
+    const statusUpload = key === 'guyanaFile' || key === 'philippinesFile';
+    const hadReport = !!state.report;
+    if (statusUpload && !state.pendingUploadAt) state.pendingUploadAt = new Date().toISOString();
+    if (statusUpload && hadReport && !state.pendingStatusUploads) state.pendingStatusUploads = new Set();
     state.generationId++;
     state.generating = false;
     state[key] = file;
-    state.report = null;
-    $('apr-content').hidden = true;
+    if (key === 'timeFile') state.timeFileFresh = true;
+    if (statusUpload && state.pendingStatusUploads) state.pendingStatusUploads.add(key);
     if (input) input.value = '';
+    const waitingForPair = state.pendingStatusUploads && state.pendingStatusUploads.size < 2;
+    if (waitingForPair) {
+      updateReady();
+      return;
+    }
+    const completedPair = !!(state.pendingStatusUploads && state.pendingStatusUploads.size >= 2);
+    const initialPair = !!(!hadReport && state.guyanaFile && state.philippinesFile);
+    if (completedPair) {
+      state.pendingStatusUploads = null;
+      state.captureTimestamp = state.pendingUploadAt;
+      state.pendingUploadAt = null;
+      if (!state.timeFileFresh) state.timeFile = null;
+    } else if (initialPair) {
+      state.captureTimestamp = state.pendingUploadAt;
+      state.pendingUploadAt = null;
+    }
+    if (completedPair || initialPair || key === 'timeFile') {
+      state.captureNextGeneration = true;
+      if (key === 'timeFile' && !completedPair && !initialPair) state.captureTimestamp = new Date().toISOString();
+    }
+    const shouldGenerate = !!(state.guyanaFile && state.philippinesFile && (!hadReport || completedPair || key === 'timeFile'));
+    if (shouldGenerate) {
+      state.report = null;
+      $('apr-content').hidden = true;
+    }
     updateReady();
-    if (state.guyanaFile && state.philippinesFile) generate();
+    if (shouldGenerate) generate();
   }
   function uploadChanged(key, event) {
     acceptFile(key, event.target.files && event.target.files[0] || null, event.target);
@@ -529,6 +774,7 @@
     bindEvent($('apr-time-file'), 'change', event => uploadChanged('timeFile', event));
     bindEvent($('apr-generate'), 'click', generate);
     bindEvent($('apr-clear'), 'click', clearFiles);
+    bindEvent($('apr-clear-history'), 'click', resetUpdateHistory);
     ['apr-morning-allowance', 'apr-afternoon-allowance', 'apr-lunch-allowance', 'apr-bathroom-limit', 'apr-guyana-target', 'apr-philippines-target'].forEach(id => bindEvent($(id), 'input', render));
     bindEvent($('apr-download-excel'), 'click', downloadExcel);
     bindEvent($('apr-download-pdf'), 'click', downloadPdf);
@@ -633,6 +879,40 @@
       overview.addRow([report.periodView.windowLine]); overview.addRow([report.periodView.shiftLine]);
       overview.addRow(['The LOGIN TIME field is an elapsed duration; it is not an actual clock-in time. No clock-in or clock-out timestamps are present in these CSV files.']);
       overview.addRow(['Source files', report.fileNames.guyana + ' | ' + report.fileNames.philippines + ' | ' + report.fileNames.time]);
+
+      const comparison = report.updateComparison;
+      const updates = wb.addWorksheet('Update Comparison');
+      updates.addRows([
+        ['Update comparison', comparison && comparison.hasPrevious ? 'Changes since previous upload' : 'Baseline'],
+        ['Report date', report.periodView.dateLabel],
+        ['Previous upload (Eastern)', comparison && comparison.hasPrevious ? formatUploadDateTime(comparison.previousAt) : 'No previous upload for this report date'],
+        ['Current upload (Eastern)', comparison && comparison.current ? formatUploadDateTime(comparison.current.capturedAt) : 'Not recorded'],
+        ['Time between uploads', comparison && comparison.hasPrevious ? formatElapsed(comparison.elapsedMs) : 'Baseline upload'],
+        ['How to read changes', 'Change is the current export value minus the previous export value. It represents activity since the prior update only when both exports are cumulative totals for the same report date.']
+      ]);
+      updates.addRow([]);
+      updates.addRow(['Combined metric', 'Previous export', 'Current export', 'Change (current minus previous)']); excelStyleHeader(updates.getRow(updates.rowCount));
+      UPDATE_METRICS.forEach(metric => {
+        const previous = comparison && comparison.hasPrevious ? comparison.previousTotals[metric.key] : null;
+        const current = comparison && comparison.current ? comparison.current.totals[metric.key] : valuesForTotals(report)[metric.key];
+        const delta = comparison && comparison.hasPrevious ? comparison.totalDeltas[metric.key] : null;
+        updates.addRow([metric.label, comparison && comparison.hasPrevious ? formatMetricValue(previous, metric) : 'No prior export', formatMetricValue(current, metric), comparison && comparison.hasPrevious ? formatMetricDelta(delta, metric) : 'Baseline']);
+      });
+      updates.addRow([]);
+      const updateAgentHeaders = ['Agent', 'Agent ID', 'Location', ...UPDATE_METRICS.map(metric => metric.label + ' change'), 'Comparison status'];
+      const updateAgentHeaderRow = updates.rowCount + 1;
+      updates.addRow(updateAgentHeaders); excelStyleHeader(updates.getRow(updates.rowCount));
+      const updateAgents = comparison && comparison.hasPrevious ? comparison.rows : report.agents.map(agent => ({ id: agent.id, name: agent.name, region: agent.region, status: 'Baseline, no prior export', deltas: null }));
+      updateAgents.forEach(agent => updates.addRow([agent.name, agent.id, agent.region, ...UPDATE_METRICS.map(metric => agent.status === 'Compared' ? formatMetricDelta(agent.deltas[metric.key], metric) : '—'), agent.status]));
+      updates.views = [{ state: 'frozen', ySplit: 1 }];
+      updates.autoFilter = { from: { row: updateAgentHeaderRow, column: 1 }, to: { row: updateAgentHeaderRow, column: updateAgentHeaders.length } };
+      updates.getColumn(1).width = 27; updates.getColumn(2).width = 14; updates.getColumn(3).width = 22;
+      for (let col = 4; col <= updateAgentHeaders.length; col++) updates.getColumn(col).width = 20;
+      updates.getColumn(updateAgentHeaders.length).width = 28;
+      if (comparison && comparison.hasPrevious && $('apr-update-chart')) {
+        const changeImage = wb.addImage({ base64: $('apr-update-chart').toDataURL('image/png'), extension: 'png' });
+        updates.addImage(changeImage, { tl: { col: 0, row: updates.rowCount + 1 }, ext: { width: 740, height: 270 } });
+      }
 
       const detailData = buildExcelRows(report, limits), detail = wb.addWorksheet('Agent Performance');
       detail.addRow(detailData.headers); excelStyleHeader(detail.getRow(1));
@@ -761,6 +1041,32 @@
       const combinedTarget = pulse.every(summary => summary.target != null) ? pulse.reduce((sum, summary) => sum + summary.target, 0) : null;
       pulseBody.push(['Combined', combinedPulse.agents, combinedPulse.calls, combinedPulse.customers, combinedPulse.xfer, combinedPulse.directXfer, combinedPulse.leads, combinedTarget == null ? 'Not set' : combinedTarget, combinedTarget ? (combinedPulse.leads / combinedTarget * 100).toFixed(1) + '%' : 'Not set']);
       doc.autoTable({ startY: 36, head: [['Location', 'Agents', 'Calls', 'Customer interactions', 'XFER', 'Direct XFER', 'Total leads', 'Target', 'Attainment']], body: pulseBody, theme: 'grid', margin: { left: 14, right: 14 }, styles: { fontSize: 8, cellPadding: 2.5 }, headStyles: { fillColor: [23, 50, 77] }, columnStyles: { 0: { cellWidth: 34 }, 1: { cellWidth: 20 }, 2: { cellWidth: 28 }, 3: { cellWidth: 40 }, 4: { cellWidth: 22 }, 5: { cellWidth: 27 }, 6: { cellWidth: 28 }, 7: { cellWidth: 30 }, 8: { cellWidth: 32 } } });
+
+      const comparison = report.updateComparison;
+      doc.addPage();
+      doc.setTextColor(15, 43, 68); doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text('Changes Since Previous Upload', 14, 14);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(80, 101, 121);
+      const comparisonSubtitle = comparison && comparison.hasPrevious
+        ? 'Compared with ' + formatUploadDateTime(comparison.previousAt) + ' | ' + formatElapsed(comparison.elapsedMs) + ' between uploads | Current export minus previous export.'
+        : 'This upload is the baseline for ' + report.periodView.dateLabel + '. Upload both location files again after 1 or 2 hours for the next comparison.';
+      doc.text(pdfSafe(comparisonSubtitle), 14, 21, { maxWidth: pageW - 28 });
+      doc.text('Differences represent activity since the prior update only when both exports are cumulative totals for the same report date.', 14, 27, { maxWidth: pageW - 28 });
+      const changeImage = $('apr-update-chart').toDataURL('image/png');
+      doc.addImage(changeImage, 'PNG', 14, 31, pageW - 28, 98);
+      const comparisonMetricBody = UPDATE_METRICS.map(metric => {
+        const before = comparison && comparison.hasPrevious ? comparison.previousTotals[metric.key] : null;
+        const after = comparison && comparison.current ? comparison.current.totals[metric.key] : valuesForTotals(report)[metric.key];
+        const delta = comparison && comparison.hasPrevious ? comparison.totalDeltas[metric.key] : null;
+        return [metric.label, comparison && comparison.hasPrevious ? formatMetricValue(before, metric) : 'No prior export', formatMetricValue(after, metric), comparison && comparison.hasPrevious ? formatMetricDelta(delta, metric) : 'Baseline'];
+      });
+      doc.autoTable({ startY: 134, head: [['Combined metric', 'Previous export', 'Current export', 'Change']], body: comparisonMetricBody, theme: 'grid', margin: { left: 14, right: 14 }, styles: { fontSize: 7.1, cellPadding: 1.6 }, headStyles: { fillColor: [23, 50, 77] }, columnStyles: { 0: { cellWidth: 66 }, 1: { cellWidth: 55 }, 2: { cellWidth: 55 }, 3: { cellWidth: 55 } } });
+      const comparisonAgentBody = comparison && comparison.hasPrevious
+        ? comparison.rows.map(agent => [agent.name, agent.id, agent.region, ...UPDATE_METRICS.map(metric => agent.status === 'Compared' ? formatMetricDelta(agent.deltas[metric.key], metric) : '—'), agent.status])
+        : report.agents.map(agent => [agent.name, agent.id, agent.region, ...UPDATE_METRICS.map(() => 'Baseline'), 'No prior export']);
+      doc.addPage();
+      doc.setTextColor(15, 43, 68); doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text('Per-Agent Changes Since Previous Upload', 14, 14);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(80, 101, 121); doc.text(pdfSafe(comparisonSubtitle), 14, 21, { maxWidth: pageW - 28 });
+      doc.autoTable({ startY: 27, head: [['Agent', 'ID', 'Location', 'Calls', 'Customers', 'XFER', 'Direct', 'Leads', 'Customer talk', 'Breaks', 'Bathroom', 'Lunch', 'Status']], body: comparisonAgentBody, theme: 'grid', margin: { left: 8, right: 8, bottom: 13 }, styles: { fontSize: 5.7, cellPadding: 1.1, overflow: 'linebreak', valign: 'middle' }, headStyles: { fillColor: [23, 50, 77], fontSize: 5.5 }, columnStyles: { 0: { cellWidth: 29 }, 1: { cellWidth: 10 }, 2: { cellWidth: 20 }, 3: { cellWidth: 13 }, 4: { cellWidth: 16 }, 5: { cellWidth: 11 }, 6: { cellWidth: 11 }, 7: { cellWidth: 11 }, 8: { cellWidth: 22 }, 9: { cellWidth: 19 }, 10: { cellWidth: 20 }, 11: { cellWidth: 19 }, 12: { cellWidth: 'auto' } } });
 
       doc.addPage();
       doc.setTextColor(15, 43, 68); doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text('Bathroom Time Review', 14, 14);

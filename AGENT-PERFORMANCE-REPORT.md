@@ -2,6 +2,14 @@
 
 Open **Admin Hub > Agent Report**. Choose one Guyana and one Philippines Agent Status Details CSV. The report starts automatically after both files are selected; the Generate button can also rerun it. An Agent Time Details CSV is optional. Add it to include customer talk time, combined breaks, bathroom duration, lunch, and call count cross-checks.
 
+## Compare hourly or two-hour updates
+
+Upload both location Status Details CSVs for every update. The first upload for a report date becomes its baseline. Each later completed pair is compared with the prior pair for that date, and the report shows the actual elapsed time between uploads in Eastern time, whether the interval is one hour, two hours, or another amount. If only one location file is replaced, the previous report stays visible until the other location file for that update is uploaded.
+
+The comparison shows changes in calls, customer interactions, XFER, direct XFER, total leads, customer talk, combined breaks, bathroom time, and lunch, both by agent and for the combined totals. Re-upload the optional Time Details CSV with each update to compare the time-based measures; otherwise the report omits the older time file instead of treating stale time data as current. Excel includes an **Update Comparison** worksheet; the PDF includes a matching comparison page and lead-change chart. A new date starts a fresh baseline. The **Reset comparison baseline** button makes the current report the new baseline.
+
+Changes are calculated as current export minus previous export. They represent added activity only when both files are cumulative totals for the same report date; otherwise they are simply differences between the exported values. The browser saves only summary totals and agent names/IDs in local storage for comparisons. It does not save the raw CSV files. Comparison history remains on that browser and can be reset from the report.
+
 ## Production pulse
 
 The report summarizes agents in each export, calls, customer interactions (`CIcalls`), `XFER`, `DRXFER`, total leads (`XFER + DRXFER`), and lead rate. Optional location lead targets can be entered before or after report generation. Target attainment is left blank when no positive target is entered. The source CSVs do not provide sales targets, online status, or definitions for invalid/rejected outcomes, so the report does not infer those values.
@@ -15,8 +23,8 @@ The report summarizes agents in each export, calls, customer interactions (`CIca
 - Break and lunch durations compared with the configured allowances. Defaults are 10 minutes for the morning break, 10 minutes for the afternoon break, 20 minutes total, and 45 minutes for lunch.
 - Bathroom duration from `BthRm`, totaled per agent and compared with the group average. The report can display an optional review limit when a company policy sets one. The export provides duration, not visit count. Above-average time is a prompt to review the record, not a conclusion about misuse.
 - Charts for the top agents by leads and customer interactions, plus bathroom duration when Time Details is present.
-- Excel sheets: Overview, Agent Performance, Call Outcomes, Outcome Totals, and Report Notes.
-- PDF summary, location production pulse, charts, bathroom review, agent details, and non-zero call outcome codes.
+- Excel sheets: Overview, Update Comparison, Agent Performance, Call Outcomes, Outcome Totals, and Report Notes.
+- PDF summary, location production pulse, upload comparison and lead-change chart, charts, bathroom review, agent details, and non-zero call outcome codes.
 
 ## Pacific and Eastern time
 
@@ -30,7 +38,7 @@ The CSV has one combined `Break` duration. It cannot show separate morning and a
 
 ## Data handling
 
-The report reads selected files in the browser tab and does not write them to Firebase. The location is assigned from the Status Details file selected in the Guyana or Philippines upload field. Source group codes and disposition labels are preserved as provided. Duplicate IDs across the two Status Details files stop report generation so an agent is not counted twice. Optional Time Details rows are matched by numeric agent ID. Missing matches are shown as data checks.
+The report reads selected files in the browser tab and does not write them to Firebase. For update comparisons, it stores summary counts, durations, and agent names/IDs in browser local storage; raw CSV file contents are not stored. The **Reset comparison baseline** button clears that history and saves the current report as a new baseline. The location is assigned from the Status Details file selected in the Guyana or Philippines upload field. Source group codes and disposition labels are preserved as provided. Duplicate IDs across the two Status Details files stop report generation so an agent is not counted twice. Optional Time Details rows are matched by numeric agent ID. Missing matches are shown as data checks.
 
 ## Installation
 

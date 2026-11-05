@@ -64,7 +64,7 @@
                     <div>
                         <div class="apr-eyebrow"><i class="fas fa-chart-pie"></i> Admin reporting</div>
                         <h3 id="apr-title">Agent Performance Report</h3>
-                    <p>Choose one Status Details CSV for Guyana and one for the Philippines. The report starts automatically when both are selected. Add Time Details for customer talk, break, lunch, and bathroom analysis.</p>
+                    <p>Choose one Status Details CSV for Guyana and one for the Philippines. The report starts automatically when both are selected. Upload both location files for each 1-hour or 2-hour update. Re-upload Time Details with each update to compare customer talk, breaks, lunch, and bathroom time.</p>
                     </div>
                     <div class="apr-shift-badge"><i class="fas fa-clock"></i><span>Shift: 11:00 AM–8:00 PM Eastern</span></div>
                 </header>
@@ -126,6 +126,16 @@
                         </div>
                     </div>
                     <div id="apr-summary-cards" class="apr-summary-grid"></div>
+                    <article id="apr-update-comparison" class="apr-panel apr-update-panel">
+                        <div class="apr-panel-heading apr-update-heading">
+                            <div><h5>Changes since previous upload</h5><p id="apr-update-caption">Upload both location exports for each update. The report will calculate the actual time between uploads.</p></div>
+                            <button id="apr-clear-history" class="apr-button apr-secondary" type="button"><i class="fas fa-rotate-left"></i> Reset comparison baseline</button>
+                        </div>
+                        <div id="apr-update-cards" class="apr-update-grid"></div>
+                        <div class="apr-update-chart-wrap"><div class="apr-panel-heading"><h5>Change in total leads by agent</h5><span>Current export minus previous export</span></div><canvas id="apr-update-chart" width="1200" height="440" aria-label="Change in total leads by agent since the previous upload"></canvas></div>
+                        <div class="apr-table-scroll apr-update-table-scroll"><table class="apr-table apr-update-table"><thead><tr><th>Agent</th><th>ID</th><th>Location</th><th>Calls</th><th>Customer interactions</th><th>XFER</th><th>Direct XFER</th><th>Total leads</th><th>Customer talk</th><th>Combined breaks</th><th>Bathroom time</th><th>Lunch time</th><th>Comparison status</th></tr></thead><tbody id="apr-update-rows"></tbody></table></div>
+                        <p class="apr-update-footnote">Differences are calculated as current export minus previous export. They represent activity since the prior update only when both exports are cumulative totals for the same report date. New, missing, and unmatched agents are labeled instead of assigning them a misleading zero. Only summary totals and agent names/IDs are saved in this browser for comparison; raw CSV files are not saved here.</p>
+                    </article>
                     <article class="apr-panel apr-table-panel apr-production-panel">
                         <div class="apr-panel-heading"><div><h5>Production pulse by location</h5><p>Each matched pair of exports creates one snapshot. Lead target attainment appears when a target is entered above.</p></div><span id="apr-production-period"></span></div>
                         <div class="apr-table-scroll"><table class="apr-table apr-production-table"><thead><tr><th>Location</th><th>Agents in export</th><th>Calls made</th><th>Customer interactions</th><th>XFER</th><th>Direct XFER</th><th>Total leads</th><th>Lead target</th><th>Target attainment</th></tr></thead><tbody id="apr-location-rows"></tbody></table></div>
